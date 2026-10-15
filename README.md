@@ -26,30 +26,23 @@ The development workflow and module boundaries are adapted from Compukters.
 
 ## Getting started
 
-Prerequisites: JDK 25 for Gradle, JDK 21 for target compilation, Python 3.11+, Git, GNU cp with
-reflink support, and flock.
+Prerequisites: JDK 25 for Gradle, JDK 21 for target compilation, Python 3.11+, and Git.
+On Windows, use `gradlew.bat` in place of `./gradlew`.
 
 ```sh
 export JAVA_HOME=/path/to/jdk-25
-./worktree-task doctor
-./gradlew-sandbox-dev-parallel-summary verifyLocalFast
-./gradlew-sandbox-dev-parallel-summary verifyLocalFull
-./gradlew-sandbox-dev-parallel :v1_21_1-neoforge:runClient
+./gradlew verifyLocalFast
+./gradlew verifyLocalFull
+./gradlew :v1_21_1-neoforge:runClient
 ```
 
 Before the first dedicated development server launch, read and accept the Minecraft EULA in its
 separate run/server/eula.txt. The scripts do not accept it on your behalf.
 
-After the first commit, create isolated task checkouts:
-
-```sh
-./worktree-task feat/first-space-feature
-```
-
 To run the independent finite-planet experiment:
 
 ```sh
-./gradlew-sandbox-dev-parallel-summary :core:test :core:runPlanetExperiment
+./gradlew :core:test :core:runPlanetExperiment
 ```
 
 The task writes a trajectory CSV and measured report under modules/common/core/build/experiments/planet.

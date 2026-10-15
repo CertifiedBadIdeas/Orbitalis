@@ -20,7 +20,7 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
-- Translate the remaining Russian README into English and document the planet experiment entry point.
+- Translate the remaining Russian README into English and document standard Gradle commands and the planet experiment entry point; keep agent-specific checkout/build helpers in contributor guides.
 - Add an independent finite-planet coordinate and two-body trajectory experiment, behavioral tests and a repeatable CSV/report task; no Minecraft/Sable flight implementation yet.
 - Record the exploration-first orbital flight direction, Sable source findings and surface/orbit feasibility experiments.
 - Initialize the Minecraft 1.21.1 / NeoForge development scaffold with independent Kotlin core and shared Minecraft layers.
