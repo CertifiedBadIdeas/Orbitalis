@@ -51,6 +51,7 @@ object PlanetLabGameTests {
         if (ModList.get().isLoaded("sable")) {
             event.register(SableLabGameTests::class.java)
             event.register(SableFlightGameTests::class.java)
+            event.register(SableTransferGameTests::class.java)
         }
     }
 

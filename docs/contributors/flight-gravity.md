@@ -79,8 +79,9 @@ ownership or it can reintroduce double gravity/drag.
 
 ## Limits
 
-This is ordinary Minecraft terrain used as a local patch, not a finite spherical planet. Flying far
-sideways does not wrap terrain. There is no surface/orbit dimension handoff, floating origin, planet
+This is ordinary Minecraft terrain used as a local patch, not a finite spherical planet.
+The separate [ship transfer diagnostic](ship-transfer.md) now tests an explicit cross-Level handoff. Flying far
+sideways does not wrap terrain. There is no automatic surface/orbit handoff, floating origin, planet
 renderer, custom player gravity or survival progression. Players and loose entities retain vanilla
 gravity; a tilted ship does not rotate the player's gravity direction. This step validates ship forces.
 Existing laboratory frame-shift and small-planet orbit tests remain separate experiments.
@@ -93,3 +94,9 @@ bodies, negligible gravitational torque, weaker high-altitude gravity, compositi
 impulse, and unchanged Overworld gravity. Core tests cover the exterior field, interior continuity,
 centre and invalid parameters. These tests do not prove Propulsion visuals, interactive handling,
 ship transfer between dimensions or production planetary geography.
+
+During the 2026-10-15 consumer trial the user assembled/flew an ordinary Propulsion-powered ship.
+Two samples of the same ship 2.58 seconds apart showed Y decreasing from 313.81 to 236.21, speed
+increasing from 18.813 to 42.075 m/s, and gravity increasing from 9.0389 to 9.2679 m/s². The user
+reported releasing lift; the observed motion is consistent with falling under the central field.
+These observations precede the cross-Level transfer prototype and do not validate its client behavior.

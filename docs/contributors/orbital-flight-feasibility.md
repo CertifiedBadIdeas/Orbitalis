@@ -193,3 +193,12 @@ extension and resolve that architectural choice before making it a production de
 
 The first implementation plan should cover experiments 1–3 with go/no-go checkpoints. Final rendering,
 global planet mapping and time acceleration require their own decisions and evidence.
+
+## Bounded transfer implementation
+
+The [ship transfer diagnostic](ship-transfer.md) now implements a fixed translated surface/orbit frame
+and a journaled reconstruction adapter against pinned Sable 2.0.6. Its native GameTest covers a round
+trip, cargo, pilot pose, small velocities and phase-based recovery. It deliberately rejects connected
+ships, general passengers/entities and scheduled ticks. This is partial evidence for experiment 3,
+not completion of its broader acceptance list or the visual continuity experiment. Native checkpoints
+can stall; separate-process/power-loss tests and an observed consumer handoff remain pending.

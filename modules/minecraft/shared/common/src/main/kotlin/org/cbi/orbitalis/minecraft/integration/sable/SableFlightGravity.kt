@@ -25,6 +25,7 @@ import net.minecraft.resources.ResourceKey
 import net.minecraft.resources.ResourceLocation
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.world.level.Level
+import org.cbi.orbitalis.core.planet.OrbitalTestFrame
 import org.cbi.orbitalis.core.planet.SphericalGravity
 import org.cbi.orbitalis.core.planet.Vector3
 import org.joml.Vector3d
@@ -36,6 +37,19 @@ object SableFlightGravity {
             Registries.DIMENSION,
             ResourceLocation.fromNamespaceAndPath("orbitalis", "flight_test"),
         )
+    val ORBIT: ResourceKey<Level> =
+        ResourceKey.create(
+            Registries.DIMENSION,
+            ResourceLocation.fromNamespaceAndPath("orbitalis", "orbit_test"),
+        )
+
+    fun isFlightSpace(level: Level): Boolean = level.dimension() == DIMENSION || level.dimension() == ORBIT
+
+    fun globalPosition(
+        level: Level,
+        position: Vector3,
+    ): Vector3 = if (level.dimension() == ORBIT) OrbitalTestFrame.toSurface(position) else position
+
     val CENTRE = Vector3(0.0, -5936.0, 0.0)
     val field = SphericalGravity(6000.0, 9.81)
 
@@ -59,7 +73,7 @@ object SableFlightGravity {
         return Reading(
             position,
             physics.getPhysicsHandle(body).getLinearVelocity(Vector3d()),
-            field.acceleration(position - CENTRE),
+            field.acceleration(globalPosition(body.level, position) - CENTRE),
             body.massTracker.mass,
         )
     }
@@ -69,7 +83,7 @@ object SableFlightGravity {
         level: ServerLevel,
         seconds: Double,
     ) {
-        if (level.dimension() != DIMENSION) return
+        if (!isFlightSpace(level)) return
         require(seconds.isFinite() && seconds > 0.0)
         val container = SubLevelContainer.getContainer(level) ?: return
         val physics = container.physicsSystem() ?: return
@@ -80,7 +94,7 @@ object SableFlightGravity {
             val pose = body.logicalPose()
             val com = pose.transformPosition(localCom, Vector3d())
             if (!com.isFinite) continue
-            val acceleration = field.acceleration(Vector3(com.x, com.y, com.z) - CENTRE)
+            val acceleration = field.acceleration(globalPosition(level, Vector3(com.x, com.y, com.z)) - CENTRE)
             val impulse = Vector3d(acceleration.x, acceleration.y, acceleration.z).mul(mass * seconds)
             pose.orientation().transformInverse(impulse)
             physics.getPhysicsHandle(body).applyLinearImpulse(impulse)

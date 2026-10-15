@@ -59,7 +59,7 @@ class FlightTestTravel(
 
     fun leave(player: ServerPlayer): Boolean {
         require(!player.isPassenger) { "Dismount before leaving the flight test space" }
-        require(player.level().dimension() == SableFlightGravity.DIMENSION) { "Enter the flight test space first" }
+        require(SableFlightGravity.isFlightSpace(player.level())) { "Enter the flight test space first" }
         val saved = returns[player.uuid]
         val level = saved?.let { server.getLevel(it.dimension) } ?: server.overworld()
         val position =

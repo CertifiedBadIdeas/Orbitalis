@@ -68,9 +68,17 @@ This adapter has no ship ownership tags, persistent registry, loading tickets, c
 Propulsion API dependency. Native Sable owns integration, collisions and ship persistence. Its base gravity,
 drag and pressure are zero only in this test dimension; the Overworld and existing laboratory retain their
 own behavior. The dimension uses ordinary terrain as a local surface stand-in, not finite spherical worldgen.
-Operator travel transfers players only, with transient return points and an Overworld spawn fallback after
+Operator enter/leave travel transfers players only, with transient return points and an Overworld spawn fallback after
 restart. The dimension ID is stable for saved worlds; geometry and field parameters remain experimental.
 See [flight gravity](flight-gravity.md) for constants, commands and the limits of this test space.
+
+The diagnostic `SableShipTransfer` coordinator reconstructs one independent ship and pilot between
+`orbitalis:flight_test` and stable `orbitalis:orbit_test`. Core `OrbitalTestFrame` owns the fixed
+translation. Common owns native snapshots, exact-motion restoration and the versioned asynchronous
+journal; NeoForge owns startup/tick/interaction wiring. PREPARED selects source authority, COMMITTED
+selects destination authority, and DONE follows a verified native checkpoint. Completed records contain
+receipts rather than stale ship payloads. Recovery does not make the journal a permanent ship store.
+See [ship transfer](ship-transfer.md) for limits, failure handling and the server-thread checkpoint cost.
 
 The [flight consumer](flight-consumer.md) is an independent Gradle composite build, included only when
 explicitly selected with `-p consumers/flight`. The dependency points from consumer to Orbitalis through

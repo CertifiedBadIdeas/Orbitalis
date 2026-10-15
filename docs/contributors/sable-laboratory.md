@@ -363,7 +363,9 @@ Proceed with bounded same-level force/frame experiments. Do not treat that resul
 cross-dimension ship handoff. In the inspected upstream API, a SubLevel retains a final parent Level;
 its serializer drops small velocities and scales restored velocities. Save/load is insufficient to
 preserve exact kinematics, identity, passengers, inventory, connected sections and ownership atomically.
-No export-delete-import transfer is implemented.
+The laboratory itself implements no cross-Level transfer. The later bounded
+[ship transfer diagnostic](ship-transfer.md) provides an explicit journaled reconstruction protocol
+for independent ships and one creative pilot; it has its own restrictions and evidence.
 
 Before a destructive transfer experiment, choose a supported upstream transfer extension or specify
 an explicit transactional reconstruction protocol, including destination preparation, exact state,

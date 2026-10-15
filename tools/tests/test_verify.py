@@ -52,6 +52,10 @@ versionRange="[1.21.1,1.21.2)"
             'data/orbitalis/dimension/flight_test.json.license': b'Apache-2.0 fixture',
             'data/orbitalis/dimension_physics/flight_test.json': b'{}',
             'data/orbitalis/dimension_physics/flight_test.json.license': b'Apache-2.0 fixture',
+            'data/orbitalis/dimension/orbit_test.json': b'{}',
+            'data/orbitalis/dimension/orbit_test.json.license': b'Apache-2.0 fixture',
+            'data/orbitalis/dimension_physics/orbit_test.json': b'{}',
+            'data/orbitalis/dimension_physics/orbit_test.json.license': b'Apache-2.0 fixture',
         }
         for legal in verify.KOTLIN_LEGAL_FILES:
             self.files['META-INF/licenses/kotlin-stdlib/' + legal] = b'legal fixture'

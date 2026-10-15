@@ -27,30 +27,86 @@ import net.minecraft.commands.CommandSourceStack
 import net.minecraft.commands.Commands
 import net.minecraft.network.chat.Component
 import net.minecraft.server.MinecraftServer
+import net.minecraft.server.level.ServerLevel
+import net.minecraft.world.level.storage.LevelResource
 import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.neoforge.event.RegisterCommandsEvent
+import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent
+import net.neoforged.neoforge.event.level.BlockEvent
+import net.neoforged.neoforge.event.server.ServerStartedEvent
 import net.neoforged.neoforge.event.server.ServerStoppedEvent
+import net.neoforged.neoforge.event.tick.ServerTickEvent
 import org.cbi.orbitalis.minecraft.integration.sable.FlightTestTravel
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
+import org.cbi.orbitalis.minecraft.integration.sable.SableShipTransfer
 import java.util.Locale
 
 /** Registered only with Sable present. No Create or Propulsion classes cross this boundary. */
 object SableFlightIntegration {
     private val travel = mutableMapOf<MinecraftServer, FlightTestTravel>()
 
+    private val transfers = mutableMapOf<MinecraftServer, SableShipTransfer>()
+
     fun install() {
+        NeoForge.EVENT_BUS.addListener { event: ServerStartedEvent ->
+            transfers[event.server] =
+                SableShipTransfer(
+                    event.server,
+                    event.server.getWorldPath(LevelResource.ROOT).resolve("data/orbitalis-transfers"),
+                ).also { it.tick() }
+        }
+        NeoForge.EVENT_BUS.addListener { event: ServerTickEvent.Post ->
+            transfers[event.server]?.let { manager ->
+                manager.tick()
+                if (!manager.busy) {
+                    event.server.playerList.players
+                        .forEach(manager::loggedIn)
+                }
+            }
+        }
+        NeoForge.EVENT_BUS.addListener { event: PlayerInteractEvent.RightClickBlock ->
+            val world = event.level as? ServerLevel
+            if (world != null && transfers[world.server]?.locks(world) == true) event.isCanceled = true
+        }
+        NeoForge.EVENT_BUS.addListener { event: PlayerInteractEvent.RightClickItem ->
+            val world = event.level as? ServerLevel
+            if (world != null && transfers[world.server]?.locks(world) == true) event.isCanceled = true
+        }
+        NeoForge.EVENT_BUS.addListener { event: PlayerInteractEvent.LeftClickBlock ->
+            val world = event.level as? ServerLevel
+            if (world != null && transfers[world.server]?.locks(world) == true) event.isCanceled = true
+        }
+        NeoForge.EVENT_BUS.addListener { event: PlayerInteractEvent.EntityInteract ->
+            val world = event.level as? ServerLevel
+            if (world != null && transfers[world.server]?.locks(world) == true) event.isCanceled = true
+        }
+        NeoForge.EVENT_BUS.addListener { event: PlayerInteractEvent.EntityInteractSpecific ->
+            val world = event.level as? ServerLevel
+            if (world != null && transfers[world.server]?.locks(world) == true) event.isCanceled = true
+        }
+        NeoForge.EVENT_BUS.addListener { event: BlockEvent.BreakEvent ->
+            val world = event.level as? ServerLevel
+            if (world != null && transfers[world.server]?.locks(world) == true) event.isCanceled = true
+        }
+        NeoForge.EVENT_BUS.addListener { event: BlockEvent.EntityPlaceEvent ->
+            val world = event.level as? ServerLevel
+            if (world != null && transfers[world.server]?.locks(world) == true) event.isCanceled = true
+        }
         NeoForge.EVENT_BUS.addListener { event: RegisterCommandsEvent -> register(event.dispatcher) }
         NeoForge.EVENT_BUS.addListener { event: ForgeSablePrePhysicsTickEvent ->
             SableFlightGravity.beforePhysics(event.physicsSystem.level, event.timeStep)
         }
-        NeoForge.EVENT_BUS.addListener { event: ServerStoppedEvent -> travel.remove(event.server) }
+        NeoForge.EVENT_BUS.addListener { event: ServerStoppedEvent ->
+            travel.remove(event.server)
+            transfers.remove(event.server)?.close()
+        }
     }
 
     private fun failure(message: String): Nothing = throw SimpleCommandExceptionType(Component.literal(message)).create()
 
     private fun register(dispatcher: CommandDispatcher<CommandSourceStack>) {
         val flight = Commands.literal("flight")
-        for (action in listOf("enter", "leave", "sample")) {
+        for (action in listOf("enter", "leave", "sample", "transfer")) {
             flight.then(
                 Commands.literal(action).executes { context ->
                     val source = context.source
@@ -69,10 +125,18 @@ object SableFlightIntegration {
                                     "Left flight test space; ships remain there."
                                 }
 
+                                "transfer" -> {
+                                    val body =
+                                        Sable.HELPER.getTrackingSubLevel(player) as? ServerSubLevel
+                                            ?: failure("Stand on the ship with creative flight disabled")
+                                    player.closeContainer()
+                                    val manager = transfers[source.server] ?: failure("Transfer service is not ready")
+                                    manager.begin(player, body)
+                                    "Preparing diagnostic ship transfer; remain on deck."
+                                }
+
                                 else -> {
-                                    if (source.level.dimension() !=
-                                        SableFlightGravity.DIMENSION
-                                    ) {
+                                    if (!SableFlightGravity.isFlightSpace(source.level)) {
                                         failure("Enter the flight test space first")
                                     }
                                     val body =
@@ -87,7 +151,13 @@ object SableFlightIntegration {
                                         sample.position.x,
                                         sample.position.y,
                                         sample.position.z,
-                                        (sample.position - SableFlightGravity.CENTRE).length() - SableFlightGravity.field.radius,
+                                        (
+                                            SableFlightGravity.globalPosition(
+                                                source.level,
+                                                sample.position,
+                                            ) - SableFlightGravity.CENTRE
+                                        ).length() -
+                                            SableFlightGravity.field.radius,
                                         sample.velocity.length(),
                                         sample.acceleration.x,
                                         sample.acceleration.y,
