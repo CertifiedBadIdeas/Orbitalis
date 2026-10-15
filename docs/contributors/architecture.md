@@ -38,6 +38,9 @@ Gradle runs on JDK 25, while shared/domain and 1.21.1 code compiles to Java 21.
 The common layer is currently empty; the sole mod entry point uses the independent mod identity.
 There is no dependency on Compukters, its VM, Rust runtime or addon SDK. There is no committed choice
 of orbital physics, rendering engine, rocket mechanics or external space integration.
+The exploration-first direction, Sable source investigation and proposed seamless surface/orbit
+experiments are recorded in [orbital-flight-feasibility.md](orbital-flight-feasibility.md).
+That note distinguishes desired behavior and proposals from implemented or runtime-verified support.
 
 The target leaf compiles shared sources directly. When a second target is implemented, the selected
 orbitalisActiveMinecraftVersion owns canonical IDE roots; inactive targets compile generated mirrors.

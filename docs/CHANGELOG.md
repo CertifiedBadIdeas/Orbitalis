@@ -20,6 +20,7 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Record the exploration-first orbital flight direction, Sable source findings and surface/orbit feasibility experiments.
 - Initialize the Minecraft 1.21.1 / NeoForge development scaffold with independent Kotlin core and shared Minecraft layers.
 - Add isolated task worktrees, reflink Gradle caches, managed build scheduling, complete build logs and tooling verification.
 - Establish project-specific local agent workflows, optional shared ai-skills setup, version migration guidance and full Apache-2.0 source headers, attribution and packaging rules.
