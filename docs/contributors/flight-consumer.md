@@ -25,12 +25,14 @@ resolve its external mod stack, or depend on it. Existing Sable laboratory runs 
 
 ## Launch
 
-Use JDK 25 for Gradle and a Java 21 toolchain. From the repository root:
+Use JDK 25 for Gradle and a Java 21 toolchain. Verify from the repository root, then launch through
+the consumer's own wrapper:
 
 ```sh
 ./gradlew -p consumers/flight check
-./gradlew -p consumers/flight runClient
-./gradlew -p consumers/flight runServer
+cd consumers/flight
+./gradlew runClient
+./gradlew runServer
 ```
 
 Before running the dedicated server, read and accept the Minecraft EULA yourself in
@@ -107,3 +109,46 @@ scenario was performed. Upstream missing-model, optional-integration and absent 
 remain visible in the log; this run does not establish visual completeness of those external mods.
 Local evidence is retained under `build/agent-logs/flight-consumer-20261015/` and
 `build/agent-logs/flight-consumer-client-20261015.log` (ignored development artifacts).
+
+## Repeatable terrain ship fixture
+
+Copy `consumers/flight/fixtures/terrain_ship` into the selected world's `datapacks` directory, using a
+folder name such as `orbitalis_terrain_ship`. Run `/reload` in that world. Nothing executes on load or
+every tick. In a disposable Overworld or after `/orbitalis flight enter`, stand on the intended launch
+ground, away from existing ships, and run:
+
+```mcfunction
+/function orbitalis_flight_test:setup
+```
+
+**This clears a 21×21×11 volume at and above the caller and replaces a 21×21 ground layer beneath it.**
+Use it once per clear launch site; do not invoke it on an existing ship. It creates a seven-block-square
+oak deck, corner legs, five creative thrusters, native redstone receivers, four chests containing sixteen
+cobblestone each and a centre Physics Assembler, with Super Glue covering the construction. It gives
+the player a configured Create Linked Controller and wrench and places the player on deck. Only setup
+moves the player; there is no flight automation. The internal `build` function is not the entry point.
+
+Select an empty hand, aim at the Physics Assembler, hold right-click and drag upward until its indicator
+reaches the end, then release. Check that Sable reports one sub-level and the whole craft moves together.
+The assembler stands on solid deck; the lift engine receivers are on its sides beneath the deck.
+
+Select the Linked Controller and right-click while aiming into air to activate it. Clicking a receiver
+instead enters frequency binding mode. W/S fire the north/south translation engines, A/D the west/east
+engines, and Space the lift engine; these are fixed ship axes, not camera-relative movement. Shift is
+unused. Opposite translation thrust provides braking. Releasing Space cuts lift; use short pulses to
+test descent/braking. There is no hover or attitude controller. Keep creative flight disabled when
+checking native deck carrying. Toggle the controller off before walking normally on the deck.
+
+The lift engine starts at 1000 kN (`ScrollValue:9` with the pinned default maximum); translation engines
+start at 100 kN each (`ScrollValue:0`). Set thrust with the engine's native Create value control. These
+are diagnostic settings, not a balanced survival vehicle. The Overworld trial initially used 500 kN;
+the user reported needing twice that lift setting. Do not change global upstream configs to tune one ship.
+
+During the 2026-10-15 interactive Overworld trial, the user reported ascent to approximately y = 5000,
+with engines, legs and all cargo chests remaining together. After a full client restart the user reported
+that the construction and sixteen cobblestone per chest remained. These are user-observed results;
+controlled landing and chunk unload/reload were not established. A suspected split was not confirmed as
+a reproducible defect. The later flight test dimension exercises a different gravitational environment;
+the Overworld observations alone do not validate that integration.
+
+See [central gravity](flight-gravity.md) for the Orbitalis force adapter and its independent checks.

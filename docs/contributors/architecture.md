@@ -61,6 +61,17 @@ Minecraft terrain in common. One Sable body performs takeoff, insertion, an unpo
 a physical landing without state corrections. It remains in one Level and introduces no ship save schema.
 See [Sable laboratory](sable-laboratory.md) for the bounded frame-shift experiment and transfer gate.
 
+Ordinary Sable constructions in the experimental `orbitalis:flight_test` dimension receive a separate
+server pre-physics central-gravity impulse. Core `SphericalGravity` supplies the field; common
+`SableFlightGravity` transforms each loaded body's centre of mass and converts world force into body axes.
+This adapter has no ship ownership tags, persistent registry, loading tickets, cleanup of player ships or
+Propulsion API dependency. Native Sable owns integration, collisions and ship persistence. Its base gravity,
+drag and pressure are zero only in this test dimension; the Overworld and existing laboratory retain their
+own behavior. The dimension uses ordinary terrain as a local surface stand-in, not finite spherical worldgen.
+Operator travel transfers players only, with transient return points and an Overworld spawn fallback after
+restart. The dimension ID is stable for saved worlds; geometry and field parameters remain experimental.
+See [flight gravity](flight-gravity.md) for constants, commands and the limits of this test space.
+
 The [flight consumer](flight-consumer.md) is an independent Gradle composite build, included only when
 explicitly selected with `-p consumers/flight`. The dependency points from consumer to Orbitalis through
 `developmentModJar`; production projects never include or depend on the consumer. Create, Aeronautics

@@ -1,0 +1,173 @@
+/*
+ * The Orbitalis Developers
+ *
+ * Copyright 2026 Vsevolod Petrov (lazyhat)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.cbi.orbitalis.neoforge
+
+import dev.ryanhcode.sable.api.sublevel.SubLevelContainer
+import dev.ryanhcode.sable.api.sublevel.ticket.SubLevelLoadingTicketType
+import dev.ryanhcode.sable.companion.math.Pose3d
+import dev.ryanhcode.sable.physics.config.dimension_physics.DimensionPhysicsData
+import dev.ryanhcode.sable.sublevel.ServerSubLevel
+import dev.ryanhcode.sable.sublevel.storage.SubLevelRemovalReason
+import dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem
+import net.minecraft.core.BlockPos
+import net.minecraft.gametest.framework.GameTest
+import net.minecraft.gametest.framework.GameTestHelper
+import net.minecraft.gametest.framework.GameTestInfo
+import net.minecraft.gametest.framework.GameTestListener
+import net.minecraft.gametest.framework.GameTestRunner
+import net.minecraft.server.level.ServerLevel
+import net.minecraft.util.Unit
+import net.minecraft.world.level.block.Blocks
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
+import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
+import org.joml.Vector3d
+import kotlin.math.abs
+
+@PrefixGameTestTemplate(false)
+object SableFlightGameTests {
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "flight_gravity", timeoutTicks = 150)
+    fun ordinaryShipsReceiveCentralGravity(helper: GameTestHelper) {
+        val level = checkNotNull(helper.level.server.getLevel(SableFlightGravity.DIMENSION))
+        val physics = SubLevelPhysicsSystem.require(level)
+        val config = physics.config
+        val originalSubsteps = config.substepsPerTick
+        val bodies = mutableListOf<ServerSubLevel>()
+
+        fun removeBodies() {
+            bodies.forEach { body ->
+                val container = SubLevelContainer.getContainer(body.level)!!
+                container.removeForceLoadTicket(body, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
+                container.removeSubLevel(body, SubLevelRemovalReason.REMOVED)
+            }
+            bodies.clear()
+        }
+        helper.testInfo.addListener(
+            object : GameTestListener {
+                override fun testStructureLoaded(test: GameTestInfo) {}
+
+                override fun testPassed(
+                    test: GameTestInfo,
+                    runner: GameTestRunner,
+                ) {
+                    removeBodies()
+                    config.substepsPerTick = originalSubsteps
+                }
+
+                override fun testFailed(
+                    test: GameTestInfo,
+                    runner: GameTestRunner,
+                ) {
+                    removeBodies()
+                    config.substepsPerTick = originalSubsteps
+                }
+
+                override fun testAddedForRerun(
+                    test: GameTestInfo,
+                    retry: GameTestInfo,
+                    runner: GameTestRunner,
+                ) {}
+            },
+        )
+
+        fun ship(
+            world: ServerLevel,
+            x: Double,
+            y: Double,
+            heavy: Boolean = false,
+        ): ServerSubLevel {
+            val container = SubLevelContainer.getContainer(world)!!
+            val pose = Pose3d()
+            pose.position().set(x, y, 0.0)
+            if (heavy) pose.orientation().rotateZ(0.8).rotateX(0.3)
+            val body = container.allocateNewSubLevel(pose) as ServerSubLevel
+            bodies.add(body)
+            body.plot.newEmptyChunk(body.plot.centerChunk)
+            val material = if (heavy) Blocks.IRON_BLOCK else Blocks.GOLD_BLOCK
+            check(body.plot.embeddedLevelAccessor.setBlock(BlockPos.ZERO, material.defaultBlockState(), 3))
+            if (heavy) check(body.plot.embeddedLevelAccessor.setBlock(BlockPos(0, 1, 0), material.defaultBlockState(), 3))
+            body.updateLastPose()
+            container.addForceLoadTicket(body, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
+            // No Orbitalis owner tag, registration or opt-in: these are ordinary native constructions.
+            return body
+        }
+
+        helper.assertTrue(DimensionPhysicsData.getGravity(level).length() == 0.0, "Native gravity would be counted twice")
+        helper.assertTrue(DimensionPhysicsData.getUniversalDrag(level) == 0.0, "Unexpected flight-space drag")
+        helper.assertTrue(
+            DimensionPhysicsData.getAirPressure(level, Vector3d(0.0, 200.0, 0.0)) == 0.0,
+            "Unexpected flight-space atmosphere",
+        )
+        helper.assertTrue(abs(DimensionPhysicsData.getGravity(helper.level).y + 11.0) < 1e-6, "Overworld gravity was changed")
+        val results = mutableListOf<Double>()
+
+        fun run(substeps: Int) {
+            config.substepsPerTick = substeps
+            val light = ship(level, 0.0, 200.0)
+            val heavy = ship(level, 20.0, 200.0, true)
+            val high = ship(level, 0.0, 6064.0)
+            val outside = ship(helper.level, 0.0, 1000.0)
+            helper.runAfterDelay(5) {
+                val before = listOf(light, heavy, high).map(SableFlightGravity::reading)
+                val outsideHandle = SubLevelPhysicsSystem.require(helper.level).getPhysicsHandle(outside)
+                val outsideBefore = outsideHandle.getLinearVelocity(Vector3d())
+                // Represents another force producer, such as Propulsion: gravity must not erase it.
+                physics.getPhysicsHandle(light).applyLinearImpulse(Vector3d(before[0].mass * 3.0, 0.0, 0.0))
+                helper.runAfterDelay(20) {
+                    val after = listOf(light, heavy, high).map(SableFlightGravity::reading)
+                    val lowDelta = after[0].velocity.y - before[0].velocity.y
+                    val heavyDelta = after[1].velocity.y - before[1].velocity.y
+                    val highDelta = after[2].velocity.y - before[2].velocity.y
+                    helper.assertTrue(
+                        abs(lowDelta - before[0].acceleration.y) < 0.04,
+                        "Central acceleration or timestep is wrong: $lowDelta",
+                    )
+                    helper.assertTrue(abs(lowDelta - heavyDelta) < 0.015, "Mass or body rotation changed gravitational acceleration")
+                    helper.assertTrue(
+                        abs(highDelta - before[2].acceleration.y) < 0.015 && abs(highDelta) < abs(lowDelta) * 0.3,
+                        "Gravity did not weaken with altitude",
+                    )
+                    helper.assertTrue(abs(after[0].velocity.x - before[0].velocity.x - 3.0) < 0.01, "Another producer's impulse was erased")
+                    helper.assertTrue(
+                        physics.getPhysicsHandle(heavy).getAngularVelocity(Vector3d()).length() < 1e-5,
+                        "Gravity introduced torque",
+                    )
+                    val outsideDelta = outsideHandle.getLinearVelocity(Vector3d()).y - outsideBefore.y
+                    helper.assertTrue(
+                        outsideDelta < -8.0 && outsideDelta > -12.0,
+                        "Orbitalis affected ordinary Overworld ships: $outsideDelta",
+                    )
+                    helper.assertTrue(bodies.all { it.userDataTag?.isEmpty != false }, "Gravity required ship ownership metadata")
+                    println(
+                        "ORBITALIS_FLIGHT_GRAVITY substeps=$substeps lowDelta=$lowDelta heavyDelta=$heavyDelta highDelta=$highDelta outsideDelta=$outsideDelta",
+                    )
+                    results.add(lowDelta)
+                    removeBodies()
+                    if (substeps == 1) {
+                        helper.runAfterDelay(1) { run(4) }
+                    } else {
+                        helper.assertTrue(abs(results[0] - results[1]) < 0.015, "Gravity changed with native substeps")
+                        helper.succeed()
+                    }
+                }
+            }
+        }
+        run(1)
+    }
+}

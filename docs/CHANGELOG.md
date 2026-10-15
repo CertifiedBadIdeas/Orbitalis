@@ -20,6 +20,9 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Apply central gravity to ordinary loaded Sable constructions in a separate terrain test dimension, with player travel, ship telemetry and real native-physics coverage; keep Propulsion isolated in the consumer.
+- Add an explicitly invoked consumer ship fixture with native assembly, linked-controller controls and cargo markers; record user-observed Overworld ascent and persistence.
+
 - Provide the flight consumer's own Gradle 9.8.1 wrapper for IDE import and direct launch; reject mismatched Gradle versions early and verify wrapper parity with the root build.
 
 - Add an independent flight consumer build for the current Orbitalis checkout with pinned Create, Sable, Aeronautics and Propulsion; isolate its dependencies/worlds and reject consumer implementations or dependencies in the production JAR.
