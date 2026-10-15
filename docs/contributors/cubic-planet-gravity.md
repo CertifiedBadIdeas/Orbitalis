@@ -24,6 +24,13 @@ Far from the planet the field becomes central and inverse-square. The existing `
 and spherical laboratory remain separate mathematical experiments; they are not the selected production
 surface geometry. A physical cube is not a spherical surface split into six charts.
 
+## Design update, 2026-10-16
+
+The [finite cubic planet design](cubic-planet-design.md) records the accepted connected volume,
+through-tunnels, sharp near-surface face-region gravity changes, eased player orientation and candidate
+one-block terrain cuts at edges. Sharp changes are the intended gameplay direction; the implemented
+field below still smooths edges. No physics, terrain or player behavior changed with that decision.
+
 ## Implemented field
 
 Core `CubicGravity` is a conservative gameplay model, not the Newtonian field of a uniform cuboid.

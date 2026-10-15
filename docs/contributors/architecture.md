@@ -106,6 +106,10 @@ of production orbital physics, rendering engine, rocket mechanics or external sp
 The exploration-first direction, Sable source investigation and proposed seamless surface/orbit
 experiments are recorded in [orbital-flight-feasibility.md](orbital-flight-feasibility.md).
 That note distinguishes desired behavior and proposals from implemented or runtime-verified support.
+The [finite cubic planet design](cubic-planet-design.md) records the accepted connected cube volume,
+sharp face-region gravity direction changes near the surface, eased player orientation, candidate edge
+terrain cuts and adaptive surface/orbit preparation. Planet storage, player collision handling and
+seamless client presentation remain undecided; the current gravity diagnostic still smooths edges.
 
 The target leaf compiles shared sources directly. When a second target is implemented, the selected
 orbitalisActiveMinecraftVersion owns canonical IDE roots; inactive targets compile generated mirrors.

@@ -34,6 +34,9 @@ The proposed initial orbital model uses successive two-body trajectories with ex
 of reference body. This is a design recommendation, not an implemented physics contract.
 The selected physical shape is now a **cube**, with flat finite faces, face-normal gravity near the
 surface and a gradual central far field; see [cubic planet gravity](cubic-planet-gravity.md).
+The [finite cubic planet design](cubic-planet-design.md) records the 2026-10-16 decisions about a
+connected interior, edge traversal, sharp near-surface gravity changes, terrain cuts and adaptive handoff
+preparation. It supersedes edge smoothing as a gameplay goal without changing the current experiment.
 The cube-sphere experiment below is retained as mathematical reference, not production geography.
 New Orbitalis worlds should start on a separate finite planet; preserve the ordinary Overworld
 for compatibility. Existing worlds are not migrated by the experiment. Access to the Overworld
