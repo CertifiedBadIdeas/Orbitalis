@@ -52,7 +52,7 @@ cd consumers/flight
 ```
 
 Use the consumer [terrain ship fixture](flight-consumer.md#repeatable-terrain-ship-fixture) if desired.
-It is installed only in a chosen disposable world; it is not bundled in the Orbitalis production mod.
+It is available by default in consumer runs; it is not bundled in the Orbitalis production mod.
 No Create, Aeronautics or Propulsion implementation is a mandatory Orbitalis dependency.
 
 ## Field and force ownership

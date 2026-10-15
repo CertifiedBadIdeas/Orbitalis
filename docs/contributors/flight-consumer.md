@@ -131,32 +131,38 @@ stand on the intended launch ground, away from existing ships, and run:
 ```
 
 **This clears a 21×21×11 volume at and above the caller and replaces a 21×21 ground layer beneath it.**
-Use it once per clear launch site; do not invoke it on an existing ship. It creates a seven-block-square
-oak deck, corner legs, five creative thrusters, native redstone receivers, four chests containing sixteen
-cobblestone each and a centre Physics Assembler, with Super Glue covering the construction. It gives
-the player a configured Create Linked Controller and wrench and places the player on deck. Only setup
-moves the player; there is no flight automation. The internal `build` function is not the entry point.
-The aligned launch position must be between Y=-63 and Y=309, so the entire fixture fits inside the
-supported dimensions' build height. Outside that range the function reports an error before placing
-blocks, spawning glue, giving items or moving the player. Flying Sable ships can exceed the build
-height; invoking `setup` there cannot create a new static ship beneath the player.
+Use it once per clear launch site; do not invoke it on an existing ship. It creates an eleven-block-wide,
+eleven-block-long white/light-blue shuttle, pointing north: glazed cockpit, walkable cabin, open aft
+hatch, swept wings, four landing legs and four separate cargo chests containing sixteen cobblestone each.
+The cabin's centre Physics Assembler sits on the floor. One Create Super Glue volume covers the craft
+and excludes the launch ground. No new textures or external assets are imported.
 
-Select an empty hand, aim at the Physics Assembler, hold right-click and drag upward until its indicator
-reaches the end, then release. Check that Sable reports one sub-level and the whole craft moves together.
-The assembler stands on solid deck; the lift engine receivers are on its sides beneath the deck.
+Twenty-four separated creative Propulsion engines provide four actuators per thrust direction. Lift
+engines sit below the wing pods, downward engines above them, and side/fore/aft engines are separated
+vertically and laterally to produce differential torque. All start at 1000 kN (`ScrollValue:9` with the
+pinned default maximum). The autopilot can throttle them independently; normal linked receivers group
+them by direction for manual operation. These are diagnostic settings, not survival balancing.
+Do not change global upstream configs to tune one ship.
+
+Setup gives the player a configured Create Linked Controller and wrench and places the player inside
+the cabin. Only setup moves the player; the blueprint does not start a flight. The internal `build`
+and `shuttle` functions are not player entry points. The aligned launch position must be between Y=-63
+and Y=309, so the entire cleared volume fits inside the supported dimensions' build height. Outside
+that range the function reports an error before placing blocks, spawning glue, giving items or moving
+the player. Flying Sable ships can exceed build height; invoking `setup` there cannot create a new
+static ship beneath the player.
+
+Select an empty hand, aim at the cabin Physics Assembler, hold right-click and drag upward until its
+indicator reaches the end, then release. Check that Sable reports one sub-level and the entire craft
+moves together. Keep creative flight disabled when checking native deck carrying.
 
 Select the Linked Controller and right-click while aiming into air to activate it. Clicking a receiver
 instead enters frequency binding mode. W/S fire the north/south translation engines, A/D the west/east
-engines, and Space the lift engine; these are fixed ship axes, not camera-relative movement. Shift is
-unused. Opposite translation thrust provides braking. Releasing Space cuts lift; use short pulses to
-test descent/braking. There is no hover or attitude controller. Keep creative flight disabled when
-checking native deck carrying. Toggle the controller off before walking normally on the deck.
+engines, Space fires lift, and Shift fires downward thrust. These are fixed ship axes, not camera-relative
+movement. Opposite translation thrust provides braking. Manual inputs do not stabilize attitude; use
+short pulses and toggle the controller off before engaging the test autopilot or walking normally.
 
-The lift engine starts at 1000 kN (`ScrollValue:9` with the pinned default maximum); translation engines
-start at 100 kN each (`ScrollValue:0`). Set thrust with the engine's native Create value control. These
-are diagnostic settings, not a balanced survival vehicle. The Overworld trial initially used 500 kN;
-the user reported needing twice that lift setting. Do not change global upstream configs to tune one ship.
-
+The following historical trial used the earlier five-engine wooden platform, not this shuttle.
 During the 2026-10-15 interactive Overworld trial, the user reported ascent to approximately y = 5000,
 with engines, legs and all cargo chests remaining together. After a full client restart the user reported
 that the construction and sixteen cobblestone per chest remained. These are user-observed results;
@@ -213,7 +219,62 @@ controllers off: normal redstone can command engines again afterwards. The pinne
 load resets peripheral mode to NORMAL, so a saved session cannot resume itself after reconstruction
 or restart. The autopilot does not persist a new world-data or transfer-journal schema.
 
-The native consumer tests use an isolated symmetric 24-engine rig on a connected solid core, not the five-engine terrain fixture.
-They check powered ascent and settled hold after a translation/rotation disturbance, native output
-cutoff, manual-input/missing-lift rejection and native reload behavior. These tests do not establish interactive command
-usability, pilot carrying or stable control of arbitrary user ships; those remain manual checks.
+The native consumer tests retain a symmetric engine rig for controller isolation and also execute the
+actual built-in shuttle blueprint, including glue, through Simulated's native Physics Assembler. The
+shuttle test requires one connected body, 24 independent engine controllers and all four cargo sentinels,
+then verifies powered ascent and settled translation/attitude after an initial disturbance. Additional
+checks cover native output cutoff, manual-input/missing-lift rejection and native reload behavior.
+The user reported that both hold and target-height commands worked in the earlier interactive trial;
+that predates the shuttle replacement and does not establish its appearance, boarding or landing.
+
+## Repeatable gravity trials
+
+The consumer gravity GameTest uses native-assembled shuttles with engines off. It arranges independent
+initial positions, waits for the native pose to settle, and measures the velocity delta over twenty
+server ticks. No position/velocity correction occurs during each measurement. Cases cover the top-face
+centre and x=1600 near the surface, x=1600 at shell heights 2000 and 6000, and the equivalent high point
+in the orbital frame. The test compares actual acceleration against the field, checks negligible
+near-surface sideways acceleration and gravitational torque, a centreward component in the transition,
+weaker high gravity, and agreement across the translated frames. Initial test teleports do not establish
+powered travel, cross-dimension transfer or orbital insertion.
+
+On 2026-10-16 all six consumer GameTests passed. The shuttle retained 24 independent engines and four
+cargo sentinels after powered ascent and three-axis disturbance recovery; final position error was
+about 0.01 m. Representative free-fall results (m/s², twenty-tick velocity delta) were:
+
+| Frame | Global X | Approximate shell height | Measured X acceleration | Measured Y acceleration |
+| --- | ---: | ---: | ---: | ---: |
+| Surface | 0 | 175 | 0.000 | -9.271 |
+| Surface | 1600 | 175 | 0.000 | -9.271 |
+| Surface | 1600 | 2000 | -0.136 | -5.666 |
+| Surface | 1600 | 6000 | -0.319 | -2.389 |
+| Orbit | 1600 | 6000 | -0.319 | -2.389 |
+
+The largest field-versus-measured vector difference in this run was about 0.011 m/s², below the
+0.05 m/s² acceptance threshold. Native positions drift slightly during the initial settling interval
+and during each fall. Local evidence: `build/agent-logs/flight-shuttle-07.log` and
+`consumers/flight/build/test-results/gameTestServer/results.xml` (ignored development artifacts).
+
+For an interactive trial, start a disposable creative world from the consumer's own `./gradlew runClient`:
+
+1. Enter with `/orbitalis flight enter`, stand on clear terrain and run
+   `/function orbitalis_flight_test:setup`. Assemble once and disable creative flight.
+2. With the Linked Controller off, use `/orbitalis flight autopilot altitude 400`. Check that the ship
+   lifts, stabilizes and retains all four cargo chests. `status` should settle to small position and
+   force/torque residuals. A ceiling/floor collision invalidates a free-flight observation.
+3. Repeat with target heights 2000 and 6000. Use `/orbitalis flight sample` at each settled height to
+   inspect the field. Sampling a hovering ship reports gravity, not measured total acceleration;
+   the engine compensation is intentional. The 12 m/s guidance cap makes high ascents take minutes.
+4. For a short unpowered fall, run `autopilot stop`, wait for native engine fade and sample again.
+   Re-engage `hold` before speed reaches the controller's 120 m/s limit and well clear of terrain.
+   Engine fade and braking make this a qualitative check; the automated velocity-delta trial provides
+   the controlled acceleration measurement.
+5. Stop and leave the old ship in place. For the offset trial, use creative flight to reach clear
+   terrain near x=1600, z=0 in `orbitalis:flight_test`, then build a fresh shuttle at ground height.
+   Repeat the same heights. Near the surface gravity should be vertical; higher up its vector should
+   gain a component toward x=0. Hold deliberately counters that sideways acceleration.
+
+`setup` replaces only the launch area; it does not delete old native ships. Keep each trial away from
+previous constructions. Test surface/orbit transfer separately and engage the autopilot again after
+arrival. Shuttle appearance, manual handling, landing and long powered high/offset ascents remain
+interactive acceptance checks.

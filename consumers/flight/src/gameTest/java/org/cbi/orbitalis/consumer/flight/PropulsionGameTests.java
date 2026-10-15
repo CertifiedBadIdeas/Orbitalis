@@ -53,12 +53,13 @@ public final class PropulsionGameTests {
     @SubscribeEvent public static void register(RegisterGameTestsEvent event) throws Exception {
         GlobalTestReporter.replaceWith(new JUnitLikeTestReporter(new File(System.getProperty("orbitalis.consumerGameTestReport"))));
         event.register(PropulsionGameTests.class);
+        event.register(ShuttleGameTests.class);
     }
 
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis")
     public static void flightToolsAvailableByDefault(GameTestHelper helper) {
         var server = helper.getLevel().getServer();
-        for (var name : List.of("setup", "build")) {
+        for (var name : List.of("setup", "build", "shuttle")) {
             helper.assertTrue(server.getFunctions().get(ResourceLocation.parse("orbitalis_flight_test:" + name)).isPresent(),
                 "Built-in flight function missing or failed to parse: " + name);
         }

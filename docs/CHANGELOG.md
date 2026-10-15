@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Replace the flight platform with a walkable 24-engine shuttle, correct Create glue placement around the complete craft, and add native blueprint assembly, attitude/position recovery and multi-height/frame gravity measurements on the consumer stand.
+
 - Make flight fixture functions available automatically through the consumer mod, alongside the default flight stack and test autopilot; no manual datapack installation is needed.
 
 - Add consumer-only test autopilot commands for hold, target height, status and stop, controlling actual creative Propulsion engine throttle with consumer-local guidance/force allocation and isolated native-engine GameTests.
