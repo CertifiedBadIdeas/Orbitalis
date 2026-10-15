@@ -121,6 +121,15 @@ class PlanetGeometryTest {
     }
 
     @Test
+    fun `central acceleration points inward and follows inverse square distance`() {
+        val gravity = TwoBodyGravity(1024.0)
+        assertVector(Vector3(-4.0, 0.0, 0.0), gravity.acceleration(Vector3(16.0, 0.0, 0.0)), 1e-12)
+        assertVector(Vector3(0.0, 1.0, 0.0), gravity.acceleration(Vector3(0.0, -32.0, 0.0)), 1e-12)
+        assertVector(Vector3(-1.536, -2.048, 0.0), gravity.acceleration(Vector3(12.0, 16.0, 0.0)), 1e-12)
+        assertFailsWith<IllegalArgumentException> { gravity.acceleration(Vector3.ZERO) }
+    }
+
+    @Test
     fun `a circular orbit conserves energy and angular momentum`() {
         val gravity = TwoBodyGravity(9.81 * planet.radiusMetres * planet.radiusMetres)
         val radius = 12_000.0

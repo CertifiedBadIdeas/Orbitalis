@@ -26,7 +26,8 @@ class TwoBodyGravity(
         require(mu.isFinite() && mu > 0.0) { "Gravitational parameter must be finite and positive" }
     }
 
-    private fun acceleration(position: Vector3): Vector3 {
+    /** Central acceleration [m/s²] at an inertial position relative to the body [m]. */
+    fun acceleration(position: Vector3): Vector3 {
         val radius = position.length()
         require(radius.isFinite() && radius > 0.0) { "Gravity is singular at the origin" }
         return position.normalized() * (-mu / radius / radius)
