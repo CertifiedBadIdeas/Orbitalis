@@ -1,0 +1,8 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "org.cbi.orbitalis.neoforge.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": ["LevelBlockEntityTickMixin"],
+  "injectors": {"defaultRequire": 1}
+}

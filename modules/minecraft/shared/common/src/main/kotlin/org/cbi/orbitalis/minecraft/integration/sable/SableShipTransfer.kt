@@ -78,6 +78,7 @@ class SableShipTransfer(
     }
 
     private fun resume() {
+        ShipTransferTickGate.release(this)
         tickets.forEach { body ->
             if (!body.isRemoved) {
                 SubLevelContainer
@@ -100,6 +101,7 @@ class SableShipTransfer(
             )!!
             .addForceLoadTicket(body, SubLevelLoadingTicketType.COMMAND_FORCED, MinecraftUnit.INSTANCE)
         tickets.add(body)
+        ShipTransferTickGate.hold(this, body.level, body.plot.loadedChunks.map { it.chunk.pos })
     }
 
     private fun persist(
@@ -243,14 +245,20 @@ class SableShipTransfer(
         player: ServerPlayer,
     ) {
         // A block/entity update during the asynchronous prepare must not be silently discarded.
-        if (source.isRemoved || !player.isAlive || player.level() !== source.level ||
-            SableShipSnapshot.capture(source).getCompound("plot") != record.source.getCompound("plot") ||
-            savedPointer(source) != record.sourcePointer || player.position().distanceTo(position(record.sourcePilot)) > 0.25
-        ) {
+        val changed =
+            when {
+                source.isRemoved -> "source ship was removed"
+                !player.isAlive || player.level() !== source.level -> "pilot became unavailable"
+                SableShipSnapshot.capture(source).getCompound("plot") != record.source.getCompound("plot") -> "ship block data changed"
+                savedPointer(source) != record.sourcePointer -> "native save pointer changed"
+                player.position().distanceTo(position(record.sourcePilot)) > 0.25 -> "pilot moved more than 0.25 m"
+                else -> null
+            }
+        if (changed != null) {
             // No authority change happened: preserve the source's current state and checkpoint it.
             checkpoint()
             persist(record.copy(phase = ShipTransferPhase.DONE)) { resume() }
-            player.sendSystemMessage(Component.literal("Transfer cancelled: ship or pilot changed during preparation."))
+            player.sendSystemMessage(Component.literal("Transfer cancelled; source retained: $changed."))
             return
         }
         SableShipSnapshot.preflight(source, player)
@@ -486,6 +494,7 @@ class SableShipTransfer(
     }
 
     override fun close() {
+        ShipTransferTickGate.release(this)
         journal.close()
     }
 

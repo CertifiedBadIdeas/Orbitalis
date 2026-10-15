@@ -89,8 +89,12 @@ Journal compression, reads and atomic file replacement/fsync run on one dedicate
 NBT crosses threads. Minecraft world, player, plot and native storage calls remain on the server thread.
 Both diagnostic levels' native physics are paused while a transaction is active. Existing pause states
 are restored afterward. Player interactions are blocked during the operation and source content/pilot
-position are revalidated after asynchronous preparation. Ordinary block ticks are not globally stopped;
-a changed payload cancels preparation. Transfer-specific native loading tickets are removed on completion.
+position are revalidated after asynchronous preparation. Block-entity ticks in the held source/staged
+plot chunks are suspended by the loader's Minecraft ticker hook. This includes persisted engine counters;
+the complete payload comparison remains strict. Other chunks and clients are unaffected by that hook.
+Ordinary scheduled/random block ticks are not globally stopped; a changed payload still cancels preparation.
+Cancellation reports distinguish block-data changes, native save-pointer changes and pilot movement.
+Transfer-specific native loading tickets and block-entity tick leases are released on completion.
 
 1. `PREPARED`: the source remains authoritative. A full durable snapshot precedes staging. Reconstruct
    the destination with the same ship UUID and verify block/cargo data. Restore exact motion separately

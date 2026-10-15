@@ -36,6 +36,7 @@ import net.minecraft.world.item.ItemStack
 import net.minecraft.world.item.Items
 import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.level.block.entity.ChestBlockEntity
+import net.minecraft.world.level.block.entity.TickingBlockEntity
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipSnapshot
@@ -43,6 +44,7 @@ import org.cbi.orbitalis.minecraft.integration.sable.SableShipTransfer
 import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferJournal
 import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferPhase
 import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferRecord
+import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferTickGate
 import org.joml.Vector3d
 import java.nio.file.Files
 import java.util.UUID
@@ -57,6 +59,9 @@ object SableTransferGameTests {
         val server = helper.level.server
         val surface = checkNotNull(server.getLevel(SableFlightGravity.DIMENSION))
         val orbit = checkNotNull(server.getLevel(SableFlightGravity.ORBIT))
+        // The inert fake pilot is not in the player list; keep vanilla BE ticking active.
+        surface.resetEmptyTime()
+        orbit.resetEmptyTime()
         val surfaceContainer = SubLevelContainer.getContainer(surface)!!
         val orbitContainer = SubLevelContainer.getContainer(orbit)!!
         val folder = Files.createTempDirectory("orbitalis-transfer-gametest-")
@@ -80,6 +85,23 @@ object SableTransferGameTests {
                 }.filterIsInstance<ChestBlockEntity>()
                 .single()
         chest(source).setItem(0, ItemStack(Items.COBBLESTONE, 16))
+        var blockTicks = 0
+        // A ticking payload reproduces an external engine's persisted per-tick counters without
+        // importing Create/Propulsion into this runtime. Exercise the real Level ticker dispatch.
+        surface.addBlockEntityTicker(
+            object : TickingBlockEntity {
+                override fun tick() {
+                    blockTicks++
+                    chest(source).persistentData.putInt("transfer_test_ticks", blockTicks)
+                }
+
+                override fun isRemoved(): Boolean = source.isRemoved
+
+                override fun getPos(): BlockPos = chest(source).blockPos
+
+                override fun getType(): String = "orbitalis:transfer_test_ticker"
+            },
+        )
         surfaceContainer.addForceLoadTicket(source, SubLevelLoadingTicketType.COMMAND_FORCED, MinecraftUnit.INSTANCE)
         var expectedAngle = pose.orientation()
         var journalWrite: CompletableFuture<Unit>? = null
@@ -90,6 +112,8 @@ object SableTransferGameTests {
             next: () -> Unit,
         ) {
             helper.runAfterDelay(1) {
+                surface.resetEmptyTime()
+                orbit.resetEmptyTime()
                 manager.tick()
                 helper.assertTrue(manager.error == null, "Transfer stopped: ${manager.error}")
                 if (condition()) next() else waitUntil(condition, next)
@@ -144,7 +168,7 @@ object SableTransferGameTests {
             },
         )
         helper.runAfterDelay(5) {
-            waitUntil({ !manager.busy }) {
+            waitUntil({ !manager.busy && blockTicks > 0 }) {
                 val handle = SubLevelPhysicsSystem.require(surface).getPhysicsHandle(source)
                 SubLevelPhysicsSystem.require(surface).pipeline.resetVelocity(source)
                 handle.addLinearAndAngularVelocity(Vector3d(0.03, 0.04, -0.02), Vector3d(0.002, -0.003, 0.001))
@@ -163,8 +187,14 @@ object SableTransferGameTests {
                 }
                 helper.assertTrue(surfaceContainer.getSubLevel(ship) === source && !manager.busy, "Rejected transfer changed the source")
                 orbitContainer.removeSubLevel(blocker, SubLevelRemovalReason.REMOVED)
+                val ticksBeforeTransfer = blockTicks
+                val tickerPosition = chest(source).blockPos
                 manager.begin(player, source)
+                helper.assertTrue(ShipTransferTickGate.blocks(surface, tickerPosition), "Source tick lease was not acquired")
+                helper.assertTrue(!ShipTransferTickGate.blocks(surface, BlockPos.ZERO), "World terrain tickers were paused")
                 waitUntil({ !manager.busy }) {
+                    helper.assertTrue(blockTicks == ticksBeforeTransfer, "Source block entities kept ticking during handoff")
+                    helper.assertTrue(!ShipTransferTickGate.blocks(surface, tickerPosition), "Source tick lease leaked after completion")
                     val moved = orbitContainer.getSubLevel(ship) as? ServerSubLevel ?: error("Destination ship missing")
                     helper.assertTrue(surfaceContainer.getSubLevel(ship) == null, "Source ship remained after commit")
                     helper.assertTrue(

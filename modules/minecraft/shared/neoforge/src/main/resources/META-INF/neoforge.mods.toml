@@ -24,6 +24,9 @@ version="${mod_version}"
 displayName="Orbitalis"
 description='''Space exploration mod. Initial development scaffold.'''
 
+[[mixins]]
+config="orbitalis.mixins.json"
+
 [[dependencies.orbitalis]]
 modId="neoforge"
 type="required"

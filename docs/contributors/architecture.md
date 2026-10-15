@@ -75,7 +75,9 @@ See [flight gravity](flight-gravity.md) for constants, commands and the limits o
 The diagnostic `SableShipTransfer` coordinator reconstructs one independent ship and pilot between
 `orbitalis:flight_test` and stable `orbitalis:orbit_test`. Core `OrbitalTestFrame` owns the fixed
 translation. Common owns native snapshots, exact-motion restoration and the versioned asynchronous
-journal; NeoForge owns startup/tick/interaction wiring. PREPARED selects source authority, COMMITTED
+journal and plot-chunk block-entity tick leases; NeoForge owns startup/tick/interaction wiring and
+a narrow Minecraft ticker hook that honors those leases without loading optional Sable classes.
+PREPARED selects source authority, COMMITTED
 selects destination authority, and DONE follows a verified native checkpoint. Completed records contain
 receipts rather than stale ship payloads. Recovery does not make the journal a permanent ship store.
 See [ship transfer](ship-transfer.md) for limits, failure handling and the server-thread checkpoint cost.
