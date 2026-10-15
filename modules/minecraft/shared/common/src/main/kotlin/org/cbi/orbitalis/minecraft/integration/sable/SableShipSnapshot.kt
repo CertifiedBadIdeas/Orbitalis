@@ -65,7 +65,7 @@ object SableShipSnapshot {
             body.level.getAllEntities().filter { it !== pilot && body.plot.contains(it.position()) }.all {
                 isSupportedAttachment(body, it)
             },
-        ) { "Only Create Super Glue metadata entities are supported inside the plot" }
+        ) { "Only Create Super Glue and Simulated Honey Glue metadata entities are supported inside the plot" }
         require(entitiesReady(body)) { "Wait for native plot entities to finish loading" }
         for (holder in body.plot.loadedChunks) {
             for (blockEntity in holder.chunk.blockEntities.values) {
@@ -172,7 +172,8 @@ object SableShipSnapshot {
         body: ServerSubLevel,
         entity: Entity,
     ): Boolean =
-        body.plot.contains(entity.position()) && BuiltInRegistries.ENTITY_TYPE.getKey(entity.type).toString() == "create:super_glue" &&
+        body.plot.contains(entity.position()) &&
+            ShipTransferAttachments.supports(BuiltInRegistries.ENTITY_TYPE.getKey(entity.type).toString()) &&
             !entity.isVehicle && !entity.isPassenger
 
     fun discardAttachments(
@@ -181,10 +182,10 @@ object SableShipSnapshot {
     ) {
         for (tag in snapshot.getList("orbitalis_attached", 10)) {
             val data = tag as CompoundTag
-            require(data.getString("id") == "create:super_glue") { "Unsupported attached entity" }
+            require(ShipTransferAttachments.supports(data.getString("id"))) { "Unsupported attached entity" }
             level.getEntity(data.getUUID("UUID"))?.let { entity ->
                 require(
-                    BuiltInRegistries.ENTITY_TYPE.getKey(entity.type).toString() == "create:super_glue",
+                    BuiltInRegistries.ENTITY_TYPE.getKey(entity.type).toString() == data.getString("id"),
                 ) { "Attached entity UUID conflict" }
                 entity.remove(Entity.RemovalReason.DISCARDED)
             }
@@ -198,10 +199,11 @@ object SableShipSnapshot {
         discardAttachments(body.level, snapshot)
         for (tag in snapshot.getList("orbitalis_attached", 10)) {
             val data = (tag as CompoundTag).copy()
+            require(ShipTransferAttachments.supports(data.getString("id"))) { "Unsupported attached entity" }
             require(!data.contains("Passengers")) { "Attached passengers are unsupported" }
             val entity =
-                checkNotNull(EntityType.loadEntityRecursive(data, body.level) { it }) { "Could not reconstruct Create glue metadata" }
-            check(body.plot.contains(entity.position()) && body.level.addFreshEntity(entity)) { "Could not attach Create glue metadata" }
+                checkNotNull(EntityType.loadEntityRecursive(data, body.level) { it }) { "Could not reconstruct glue metadata" }
+            check(body.plot.contains(entity.position()) && body.level.addFreshEntity(entity)) { "Could not attach glue metadata" }
         }
     }
 

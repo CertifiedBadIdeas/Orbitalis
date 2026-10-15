@@ -31,6 +31,11 @@ import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executors
 
+/** Shared by live snapshot handling and every persisted-manifest reader. */
+internal object ShipTransferAttachments {
+    fun supports(id: String): Boolean = id == "create:super_glue" || id == "simulated:honey_glue"
+}
+
 /** Authority is durable before either copy is discarded. DONE snapshots are never replayed. */
 enum class ShipTransferPhase { PREPARED, COMMITTED, DONE }
 
@@ -111,7 +116,9 @@ data class ShipTransferRecord(
                 require(attached.size <= 64) { "Too many attached metadata entities" }
                 for (entity in attached) {
                     val data = entity as CompoundTag
-                    require(data.getString("id") == "create:super_glue" && data.hasUUID("UUID") && !data.contains("Passengers")) {
+                    require(
+                        ShipTransferAttachments.supports(data.getString("id")) && data.hasUUID("UUID") && !data.contains("Passengers"),
+                    ) {
                         "Invalid attached entity manifest"
                     }
                 }

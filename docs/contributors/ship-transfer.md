@@ -58,7 +58,8 @@ Destination terrain/nearby entities must be clear. Other players must leave both
 
 Connected/overlapping native chains, kinematic contraptions, mounted pilots, other onboard players,
 mobs, loose entities, general plot-space entities and pending block/fluid ticks are rejected.
-Create Super Glue is the supported metadata-entity exception: its NBT/UUID is captured and reconstructed
+Create Super Glue (`create:super_glue`) and Simulated Honey Glue (`simulated:honey_glue`) are the
+supported metadata-entity exceptions: their NBT/UUID is captured and reconstructed
 in the unchanged native plot coordinates. Preflight also recognizes this exception in Sable's world-space
 entity queries, which include projected plot entities. Glue outside the selected plot remains an obstruction.
 Native entity chunks must finish loading before cleanup. Supported block
@@ -77,6 +78,8 @@ source's previous native save pointer, phase and offline-pilot recovery flags. U
 missing state, identity mismatches and invalid numeric state fail closed. Compressed and decompressed
 records are bounded to 16 MiB. Native payloads remain tied to the pinned Sable serialization format;
 future Sable/Orbitalis migrations must handle unfinished records before changing that format.
+The version 1 manifest accepts both glue types. Existing Super Glue records remain readable; older
+Orbitalis builds that only accept Super Glue reject unfinished Honey Glue records rather than discarding them.
 
 Journal compression, reads and atomic file replacement/fsync run on one dedicated worker. Only copied
 NBT crosses threads. Minecraft world, player, plot and native storage calls remain on the server thread.

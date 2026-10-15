@@ -31,6 +31,7 @@ import net.minecraft.gametest.framework.GameTestInfo
 import net.minecraft.gametest.framework.GameTestListener
 import net.minecraft.gametest.framework.GameTestRunner
 import net.minecraft.nbt.CompoundTag
+import net.minecraft.nbt.ListTag
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.item.Items
 import net.minecraft.world.level.block.Blocks
@@ -211,6 +212,27 @@ object SableTransferGameTests {
                                     CompoundTag(),
                                     ShipTransferPhase.PREPARED,
                                 )
+                            // Codec coverage only: the native runtime here does not install Create/Simulated.
+                            for (id in listOf("create:super_glue", "simulated:honey_glue")) {
+                                val glue =
+                                    CompoundTag().also {
+                                        it.putString("id", id)
+                                        it.putUUID("UUID", UUID.randomUUID())
+                                        it.putString("opaque_payload", "preserve external glue data")
+                                    }
+                                val manifest = ListTag().also { it.add(glue) }
+                                val withGlue =
+                                    record.copy(
+                                        source = snapshot.copy().also { it.put("orbitalis_attached", manifest.copy()) },
+                                        destination = shifted.copy().also { it.put("orbitalis_attached", manifest.copy()) },
+                                    )
+                                val decoded = ShipTransferRecord.decode(withGlue.encode())
+                                helper.assertTrue(
+                                    decoded.source.getList("orbitalis_attached", 10) == manifest &&
+                                        decoded.destination.getList("orbitalis_attached", 10) == manifest,
+                                    "Journal changed $id metadata",
+                                )
+                            }
                             // Corrupt/unknown contracts must fail before any native mutation.
                             try {
                                 ShipTransferRecord.decode(record.encode().also { it.putInt("version", 99) })
@@ -221,6 +243,14 @@ object SableTransferGameTests {
                                 record.encode().also { it.getCompound("destination").putUUID("uuid", UUID.randomUUID()) },
                                 record.encode().also { it.getCompound("source").getCompound("exact_linear").putDouble("x", Double.NaN) },
                                 record.encode().also { it.remove("source_is_orbit") },
+                                record.encode().also {
+                                    val unsupported =
+                                        CompoundTag().also { entity ->
+                                            entity.putString("id", "minecraft:item")
+                                            entity.putUUID("UUID", UUID.randomUUID())
+                                        }
+                                    it.getCompound("source").put("orbitalis_attached", ListTag().also { list -> list.add(unsupported) })
+                                },
                             )) {
                                 try {
                                     ShipTransferRecord.decode(corrupt)
