@@ -32,6 +32,7 @@ import net.minecraft.util.Unit
 import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.phys.Vec3
 import org.cbi.orbitalis.core.planet.CartesianState
+import org.cbi.orbitalis.core.planet.TwoBodyGravity
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.lab.PlanetLabCoordinates
 import org.joml.Quaterniond
@@ -50,6 +51,29 @@ class SableLab(
         val mass: Double,
     )
 
+    data class BurnReceipt(
+        val probeIndex: Int,
+        val seconds: Double,
+        val deltaV: Vector3,
+        val before: CartesianState,
+        val after: CartesianState,
+    )
+
+    private data class Burn(
+        val probeIndex: Int,
+        val prograde: Boolean,
+        val deltaV: Double,
+    )
+
+    private var burn: Burn? = null
+    val burnPending get() = burn != null
+    var completedBurns = 0
+        private set
+    var lastBurn: BurnReceipt? = null
+        private set
+    var burnRejection: String? = null
+        private set
+
     private data class Probe(
         val body: ServerSubLevel,
         val handle: RigidBodyHandle,
@@ -59,6 +83,7 @@ class SableLab(
     private val physics = checkNotNull(container.physicsSystem()) { "Sable physics is unavailable" }
     private val probes = mutableListOf<Probe>()
     private var pulseSeconds = 0.0
+    private var sceneCreatedAt: Long? = null
     private var orbit: SableOrbitExperiment? = null
     val orbitMetrics get() = orbit?.metrics
     var failureReason: String? = null
@@ -87,6 +112,9 @@ class SableLab(
     fun startOrbit() = startScene(true)
 
     private fun startScene(orbital: Boolean) {
+        // The pinned integration fails block placement when a new scene is replaced in the same game tick.
+        require(sceneCreatedAt != level.gameTime) { "Wait until the next game tick before replacing a newly created scene" }
+        sceneCreatedAt = level.gameTime
         clear()
         orbit = if (orbital) SableOrbitExperiment() else null
         physicsSeconds = 0.0
@@ -156,6 +184,22 @@ class SableLab(
         orbit?.let { experiment ->
             if (!experiment.initialized) initializeOrbit(experiment)
             val states = checkedOrbitStates() ?: return
+            burn?.let { request ->
+                burn = null
+                val before = states[request.probeIndex]
+                val after = burnedState(before, request)
+                // Revalidate at execution: the orbit can move after the command was queued.
+                if (safeOrbit(experiment, after)) {
+                    val deltaV = after.velocity - before.velocity
+                    val impulse = deltaV * probes[request.probeIndex].body.massTracker.mass
+                    applyGlobalImpulse(probes[request.probeIndex], Vector3d(impulse.x, impulse.y, impulse.z))
+                    experiment.kick(request.probeIndex, deltaV)
+                    lastBurn = BurnReceipt(request.probeIndex, experiment.metrics.seconds, deltaV, before, after)
+                    completedBurns++
+                } else {
+                    burnRejection = "Burn canceled: predicted orbit left the 4–64 m diagnostic band."
+                }
+            }
             probes.forEachIndexed { index, probe ->
                 val acceleration = experiment.gravity.acceleration(states[index].position)
                 val impulse = acceleration * (probe.body.massTracker.mass * stepSeconds)
@@ -267,6 +311,38 @@ class SableLab(
         return states
     }
 
+    fun orbitApsides(index: Int): TwoBodyGravity.Apsides? = checkNotNull(orbit).gravity.apsides(orbitalState(index))
+
+    /** Queue one bounded diagnostic kick. Direction is evaluated in inertial axes at execution. */
+    fun requestBurn(
+        index: Int,
+        prograde: Boolean,
+        deltaV: Double,
+    ) {
+        require(index in 0..1 && deltaV.isFinite() && deltaV in 0.01..1.0) { "Choose probe 0/1 and delta-v 0.01–1 m/s" }
+        val experiment = orbit
+        require(experiment != null && experiment.initialized && probes.size == 2) { "Start an orbit and wait for physics initialization" }
+        require(burn == null) { "Wait for the pending burn" }
+        val request = Burn(index, prograde, deltaV)
+        require(safeOrbit(experiment, burnedState(orbitalState(index), request))) { "Predicted orbit must stay inside 4–64 m" }
+        burnRejection = null
+        burn = request
+    }
+
+    private fun burnedState(
+        state: CartesianState,
+        request: Burn,
+    ): CartesianState =
+        state.copy(velocity = state.velocity + state.velocity.normalized() * (if (request.prograde) request.deltaV else -request.deltaV))
+
+    private fun safeOrbit(
+        experiment: SableOrbitExperiment,
+        state: CartesianState,
+    ): Boolean {
+        val apsides = experiment.gravity.apsides(state) ?: return false
+        return apsides.periapsis >= 4.0 && apsides.apoapsis <= 64.0
+    }
+
     fun requestShift(
         offset: Vec3,
         observer: ServerPlayer? = null,
@@ -280,6 +356,10 @@ class SableLab(
     }
 
     fun clear() {
+        burn = null
+        completedBurns = 0
+        lastBurn = null
+        burnRejection = null
         shift = null
         orbit = null
         failureReason = null

@@ -51,7 +51,9 @@ callbacks and commands after detecting the mod. Sable types do not enter core. T
 release is compile-only and is installed intact only in opt-in development runs. Its physics backend
 integrates the probes. In the explicit orbital diagnostic, Orbitalis supplies central-gravity impulses
 at the transformed centre of mass, reconstructing inertial position across frame shifts. A separate finer
-core trajectory measures numerical error and never corrects the actual Sable state. Coasting remains a
+core trajectory measures numerical error and never corrects the actual Sable state. Diagnostic
+prograde/retrograde kicks apply at physics boundaries and update that reference without resetting it
+to native state; the independent core derives instantaneous orbital apsides. Coasting remains a
 separate mode; no general ship registry or celestial gravity for ordinary worlds is installed.
 See [Sable laboratory](sable-laboratory.md) for the bounded frame-shift experiment and transfer gate.
 

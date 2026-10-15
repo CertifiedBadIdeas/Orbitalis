@@ -52,7 +52,9 @@ Create a creative world with cheats enabled, then run:
 
 `orbit` supplies a nearby observation platform; `stop` removes the independent particle demonstration.
 Sable probes begin at (0, 80, 120) and (8, 80, 120). Gold and iron distinguish them. `start` replaces
-only marked Orbitalis diagnostic constructions. After one initialization physics step, a 0.5 second
+only marked Orbitalis diagnostic constructions. Replacing a newly created scene again in the same
+game tick is rejected before altering it; wait until the next tick. The pinned integration otherwise
+fails block placement during immediate plot reuse. After one initialization physics step, a 0.5 second
 pulse applies impulse `mass * 2 m/s² * actual timestep`, producing delta-v 1 m/s along positive X.
 The second probe also receives angular velocity. Afterwards the bodies coast. Mass is reported in
 Sable's units; it is not claimed to be kilograms.
@@ -92,12 +94,13 @@ only from Sable integrating central-gravity impulses, never teleporting onto a r
 The adapter evaluates `a = -mu * r / |r|³` at each construction's transformed centre of mass and
 submits `mass * a * dt` on every pre-physics callback, converting the inertial impulse into
 Sable's body-local axes. Rotation must not rotate the direction of celestial attraction. Sable alone advances the real bodies.
-No gravity torque, atmosphere, thrust, terrain collisions, mutual attraction or player gravity is
+No gravity torque, atmosphere, engine/fuel system, terrain collisions, mutual attraction or player gravity is
 added. This is a point-field laboratory, without a solid planet. Other Sable constructions are not
 automatically enrolled. The existing `sable start` command still selects the zero-gravity force pulse.
 
-`sample` reports orbital time, radius, speed, maximum reference-position error and relative energy
-error. A separate, eight-times-finer Verlet reference is initialized from the measured initial state;
+`sample` reports orbital time, gold-probe radius/speed, both probes’ periapsis/apoapsis, burn count,
+pending state, maximum reference-position error and relative energy error. A separate, eight-times-finer
+Verlet reference is initialized from the measured initial state;
 post-physics samples compare the native result to it without feeding corrections back into Sable.
 Both reference and measured positions use the same inertial centre. A `shift` changes the local origin,
 so force evaluation reconstructs global position first; the gravitating centre does not follow a probe.
@@ -108,6 +111,39 @@ To observe the orbit, enter the lab in creative mode, enable creative flight, mo
 look towards positive Z, then run `sable orbit`. Watch a complete revolution and use `sample`.
 Enable flight before a frame shift; the player retains vanilla gravity.
 
+## Controlled orbital manoeuvres
+
+Start `sable orbit`, wait for physics initialization, then apply a bounded instantaneous kick:
+
+```text
+/orbitalis lab sable burn prograde 1 1
+/orbitalis lab sable sample
+```
+
+The arguments are direction (`prograde` along measured inertial velocity, or `retrograde` against it),
+probe (`0` gold, `1` spinning iron) and delta-v in m/s (`0.01` through `1.0`). To compare braking from
+the original circular orbit, restart `sable orbit` before issuing `sable burn retrograde 1 1`.
+This is an operator diagnostic, without a rocket block, fuel consumption or continuous throttle.
+
+The command queues one kick for the next pre-physics callback, where direction and mass are read again.
+It applies `mass * delta-v` at the centre of mass through Sable's body-local impulse API; it does not
+teleport the construction or set its post-burn velocity. The other probe receives only central gravity.
+A simultaneous frame shift preserves the inertial direction. Pending duplicates, invalid arguments,
+non-orbital scenes and uninitialized scenes are rejected. The predicted ellipse must stay within
+4–64 m at both submission and execution. An execution-time rejection is reported by `sample`;
+`clear`, scene restart and shutdown discard pending burns.
+
+Periapsis and apoapsis are instantaneous two-body distances from the fixed centre, not altitudes above
+terrain. From an exact 16 m circular orbit, a +1 m/s kick predicts periapsis 16 m and apoapsis
+27.574 m; a -1 m/s kick predicts periapsis 9.924 m and apoapsis 16 m. Native poses and velocities have
+finite integration error, so an in-game burn uses the measured state and yields slightly different values.
+
+The independent reference receives the identical inertial kick at the same boundary. Its position and
+velocity are never reset to the measured trajectory. Expected energy and angular momentum include the
+kick; deliberately changing them is not counted as numerical drift. Maximum errors retain earlier
+samples across burns. Radius error now compares measured and reference radii, so a deliberately elliptical
+orbit is not incorrectly measured against the initial 16 m circle.
+
 ## Automated evidence
 
 ```sh
@@ -115,13 +151,18 @@ Enable flight before a frame shift; the player retains vanilla gravity.
 ./gradlew :v1_21_1-neoforge:runGameTestServer -PorbitalisSableLab=true
 ```
 
-The base profile runs seven planet lab scenarios without Sable. The optional profile adds three real
+The base profile runs seven planet lab scenarios without Sable. The optional profile adds four real
 native-physics scenarios, checking impulse across one/four substeps, coasting in vacuum, a frame shift
 of two bodies with nonzero linear/angular velocity, relative/global positions and observer orientation. The central-gravity scenario additionally runs a
 complete revolution at one and four substeps, shifts the frame halfway through each run, compares both
 masses to the independent reference, and bounds radius, energy and angular-momentum error. Four substeps
 must improve trajectory accuracy. Acceptance bounds are position error < 1 m, velocity error < 0.5 m/s,
-radius error < 0.6 m, relative energy error < 0.01 and relative angular-momentum error < 0.005.
+reference-radius error < 0.6 m, relative energy error < 0.01 and relative angular-momentum error < 0.005.
+The manoeuvre scenario exercises both directions on the rotating iron probe at one and four substeps,
+with an untouched gold control and a simultaneous frame shift. It checks energy change, angular velocity,
+reaching the new apsis, predicted/observed apsides, rejection and cancellation, and improved reference
+accuracy with smaller steps. Over 14 seconds after each burn, bounds are position error < 1.6 m,
+relative energy error < 0.02, relative angular-momentum error < 0.01 and apsis discrepancy < 0.6 m.
 Separate `results.xml` and `sable-results.xml` reports live under the target's
 `build/test-results/gameTestServer`. Both are required in CI; a missing fresh report or missing required
 Sable scenario fails the run. Test-only players use an inert channel and packet sink without a login;
@@ -144,10 +185,27 @@ Measured central-gravity results on 2026-10-15, including a frame shift during e
 | 1 (0.05 s) | 0.77842 m | 0.18921 m/s | 0.20664 m | 0.000652 |
 | 4 (0.0125 s) | 0.20544 m | 0.05257 m/s | 0.05159 m | 0.000410 |
 
-The constructions had masses 4 and 8 Sable units. Maximum relative angular-momentum errors were
-0.000055 and 0.000209 respectively. These are finite-duration native-solver measurements with a
+The constructions had masses 4 and 8 Sable units. In this earlier circular-orbit measurement, radius error
+was deviation from the initial 16 m radius. Maximum relative angular-momentum errors were 0.000055 and
+0.000209 respectively. These are finite-duration native-solver measurements with a
 first-order gravity kick and floating-point pose readback. They do not establish long-term orbital
 accuracy, precision at large world coordinates, docking behavior or general ship support.
+
+Measured manoeuvre results on 2026-10-15, applying a 1 m/s kick to iron after approximately 3 s,
+with a simultaneous 32 m frame shift and 14 s of subsequent native flight:
+
+| Substeps | Direction | Predicted periapsis / apoapsis at burn | Observed periapsis / apoapsis after flight | Maximum reference position error | Maximum relative energy error |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Prograde | 15.800 / 27.976 m | 15.849 / 27.813 m | 0.77841 m | 0.010590 |
+| 1 | Retrograde | 10.056 / 15.809 m | 9.974 / 16.014 m | 1.11615 m | 0.011489 |
+| 4 | Prograde | 15.949 / 27.669 m | 15.961 / 27.626 m | 0.20559 m | 0.002426 |
+| 4 | Retrograde | 9.957 / 15.950 m | 9.940 / 16.010 m | 0.26885 m | 0.003183 |
+
+These apsides use the measured state, which already differs slightly from an exact circle at burn time.
+The actual maximum radius reached after the prograde kick was 27.968 / 27.667 m at one/four substeps;
+the retrograde minimum was 10.063 / 9.958 m. Gold stayed near its original circle and the COM impulse
+preserved iron's spin. These are server/native measurements; the new burn commands have not yet been
+observed interactively in a client.
 
 ## Observed client scenario
 

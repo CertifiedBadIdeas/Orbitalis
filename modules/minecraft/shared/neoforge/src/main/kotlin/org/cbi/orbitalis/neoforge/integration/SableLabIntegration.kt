@@ -19,6 +19,8 @@
 package org.cbi.orbitalis.neoforge.integration
 
 import com.mojang.brigadier.CommandDispatcher
+import com.mojang.brigadier.arguments.DoubleArgumentType
+import com.mojang.brigadier.arguments.IntegerArgumentType
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType
 import dev.ryanhcode.sable.neoforge.event.ForgeSablePostPhysicsTickEvent
 import dev.ryanhcode.sable.neoforge.event.ForgeSablePrePhysicsTickEvent
@@ -54,6 +56,17 @@ object SableLabIntegration {
             SableLab(checkNotNull(server.getLevel(PlanetLabCoordinates.DIMENSION)))
         }
 
+    private fun startScene(
+        lab: SableLab,
+        orbital: Boolean,
+    ) {
+        try {
+            if (orbital) lab.startOrbit() else lab.start()
+        } catch (error: IllegalArgumentException) {
+            throw SimpleCommandExceptionType(Component.literal(error.message ?: "Scene start rejected.")).create()
+        }
+    }
+
     private fun register(dispatcher: CommandDispatcher<CommandSourceStack>) {
         val root = Commands.literal("orbitalis").requires { it.hasPermission(2) }
         val sable = Commands.literal("sable")
@@ -68,12 +81,12 @@ object SableLabIntegration {
                     val message =
                         when (action) {
                             "start" -> {
-                                lab.start()
+                                startScene(lab, false)
                                 "Started two Sable probes: a 0.5 s force pulse followed by coasting. Use sample or clear."
                             }
 
                             "orbit" -> {
-                                lab.startOrbit()
+                                startScene(lab, true)
                                 "Started two Sable constructions on a 16 m circular orbit: central gravity, initial speed 8 m/s. Use sample or clear."
                             }
 
@@ -109,14 +122,30 @@ object SableLabIntegration {
                                     val radius = lab.orbitalState(0).position.length()
                                     String.format(
                                         Locale.ROOT,
-                                        "Sable orbit t=%.3f s; radius=%.4f m; speed=%.4f m/s; max position error=%.6f m; max energy drift=%.6g; shifts=%d",
+                                        "Sable orbit t=%.3f s; gold radius=%.4f m; speed=%.4f m/s; max position error=%.6f m; max energy error=%.6g; shifts=%d; burns=%d; pending=%s",
                                         orbit.seconds,
                                         radius,
                                         a.velocity.length(),
                                         orbit.maximumPositionError,
                                         orbit.maximumRelativeEnergyError,
                                         lab.completedShifts,
-                                    )
+                                        lab.completedBurns,
+                                        lab.burnPending,
+                                    ) +
+                                        (0..1).joinToString("") { index ->
+                                            val apsides = lab.orbitApsides(index)
+                                            if (apsides == null) {
+                                                "; probe $index escaping"
+                                            } else {
+                                                String.format(
+                                                    Locale.ROOT,
+                                                    "; probe %d peri=%.3f m apo=%.3f m",
+                                                    index,
+                                                    apsides.periapsis,
+                                                    apsides.apoapsis,
+                                                )
+                                            }
+                                        } + (lab.burnRejection?.let { "; $it" } ?: "")
                                 } else {
                                     String.format(
                                         Locale.ROOT,
@@ -137,6 +166,36 @@ object SableLabIntegration {
                 },
             )
         }
+        val burn = Commands.literal("burn")
+        for (direction in listOf("prograde", "retrograde")) {
+            burn.then(
+                Commands.literal(direction).then(
+                    Commands.argument("probe", IntegerArgumentType.integer(0, 1)).then(
+                        Commands.argument("deltaV", DoubleArgumentType.doubleArg(0.01, 1.0)).executes { context ->
+                            val source = context.source
+                            if (source.level.dimension() != PlanetLabCoordinates.DIMENSION) {
+                                throw SimpleCommandExceptionType(Component.literal("Enter the planet laboratory first.")).create()
+                            }
+                            try {
+                                scene(source.server).requestBurn(
+                                    IntegerArgumentType.getInteger(context, "probe"),
+                                    direction == "prograde",
+                                    DoubleArgumentType.getDouble(context, "deltaV"),
+                                )
+                            } catch (error: IllegalArgumentException) {
+                                throw SimpleCommandExceptionType(Component.literal(error.message ?: "Burn rejected.")).create()
+                            }
+                            source.sendSuccess(
+                                { Component.literal("Queued $direction impulse; use sample to inspect both orbits and any cancellation.") },
+                                false,
+                            )
+                            1
+                        },
+                    ),
+                ),
+            )
+        }
+        sable.then(burn)
         dispatcher.register(root.then(Commands.literal("lab").then(sable)))
     }
 }

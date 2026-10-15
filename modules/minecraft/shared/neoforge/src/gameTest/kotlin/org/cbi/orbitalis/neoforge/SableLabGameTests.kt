@@ -27,6 +27,7 @@ import net.minecraft.gametest.framework.GameTestListener
 import net.minecraft.gametest.framework.GameTestRunner
 import net.minecraft.world.phys.Vec3
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
+import org.cbi.orbitalis.core.planet.TwoBodyGravity
 import org.cbi.orbitalis.minecraft.integration.sable.SableOrbitExperiment
 import org.cbi.orbitalis.minecraft.lab.PlanetLabCoordinates
 import org.cbi.orbitalis.neoforge.integration.SableLabIntegration
@@ -206,6 +207,171 @@ object SableLabGameTests {
                     "Smaller steps did not improve orbital accuracy",
                 )
                 helper.succeed()
+            }
+        }
+    }
+
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "sable_burn", timeoutTicks = 1500)
+    fun sableOrbitalManoeuvres(helper: GameTestHelper) {
+        val server = helper.level.server
+        val scene = SableLabIntegration.scene(server)
+        val config = SubLevelPhysicsSystem.require(scene.level).config
+        val originalSubsteps = config.substepsPerTick
+        val gravity = TwoBodyGravity(SableOrbitExperiment.MU)
+        onFinished(helper) {
+            config.substepsPerTick = originalSubsteps
+            scene.clear()
+        }
+
+        fun rejected(action: () -> Unit) {
+            var rejected = false
+            try {
+                action()
+            } catch (_: IllegalArgumentException) {
+                rejected = true
+            }
+            helper.assertTrue(rejected, "Invalid or conflicting burn was accepted")
+        }
+        scene.start()
+        rejected { scene.requestBurn(0, true, 1.0) }
+        rejected { scene.startOrbit() }
+        helper.assertTrue(scene.size == 2 && scene.orbitMetrics == null, "Rejected restart damaged the active scene")
+
+        fun runBurn(
+            substeps: Int,
+            prograde: Boolean,
+            completed: (Double) -> Unit,
+        ) {
+            config.substepsPerTick = substeps
+            scene.startOrbit()
+            rejected { scene.requestBurn(1, prograde, 1.0) }
+            helper.runAfterDelay(60) {
+                val controlEnergy = gravity.specificEnergy(scene.orbitalState(0))
+                helper.assertTrue(scene.reading(1).angularVelocity.length() > 0.1, "Burn requires a spinning construction")
+                rejected { scene.requestBurn(2, prograde, 1.0) }
+                for (bad in listOf(0.0, -1.0, Double.NaN, Double.POSITIVE_INFINITY, 1.01)) {
+                    rejected { scene.requestBurn(1, prograde, bad) }
+                }
+                val direction = if (prograde) "prograde" else "retrograde"
+                helper.assertTrue(
+                    server.commands.dispatcher.execute(
+                        "orbitalis lab sable burn $direction 1 1",
+                        server.createCommandSourceStack().withLevel(scene.level),
+                    ) == 1,
+                    "Burn command failed",
+                )
+                rejected { scene.requestBurn(0, prograde, 0.5) }
+                scene.requestShift(Vec3(32.0, 0.0, 0.0))
+                helper.runAfterDelay(1) {
+                    helper.assertTrue(scene.completedBurns == 1 && !scene.burnPending, "Burn was not applied exactly once")
+                    helper.assertTrue(scene.completedShifts == 1, "Burn did not exercise a frame shift")
+                    val receipt = scene.lastBurn!!
+                    helper.assertTrue(receipt.probeIndex == 1 && abs(receipt.deltaV.length() - 1.0) < 1e-10, "Wrong burn target or delta-v")
+                    val beforeEnergy = gravity.specificEnergy(receipt.before)
+                    val afterEnergy = gravity.specificEnergy(receipt.after)
+                    helper.assertTrue(if (prograde) afterEnergy > beforeEnergy else afterEnergy < beforeEnergy, "Wrong energy change")
+                    helper.assertTrue(
+                        abs(gravity.specificEnergy(scene.orbitalState(1)) - afterEnergy) < 0.1,
+                        "Native impulse disagrees with burn receipt",
+                    )
+                    helper.assertTrue(
+                        abs(gravity.specificEnergy(scene.orbitalState(0)) - controlEnergy) < 0.05,
+                        "Burn changed the control construction",
+                    )
+                    val expected = gravity.apsides(receipt.after)!!
+                    helper.assertTrue(
+                        if (prograde) expected.apoapsis > 26.0 else expected.periapsis < 10.5,
+                        "Burn did not change the ellipse",
+                    )
+                    val spin = scene.reading(1).angularVelocity
+                    var minRadius = Double.POSITIVE_INFINITY
+                    var maxRadius = 0.0
+
+                    fun observe() {
+                        helper.assertTrue(
+                            scene.failureReason == null && scene.burnRejection == null,
+                            "Manoeuvre scene stopped: ${scene.failureReason}",
+                        )
+                        val radius = scene.orbitalState(1).position.length()
+                        minRadius = minOf(minRadius, radius)
+                        maxRadius = maxOf(maxRadius, radius)
+                        val metrics = scene.orbitMetrics!!
+                        if (metrics.seconds < receipt.seconds + 14.0) {
+                            helper.runAfterDelay(1) { observe() }
+                            return
+                        }
+                        helper.assertTrue(scene.completedBurns == 1, "Queued burn repeated on another substep")
+                        helper.assertTrue(scene.reading(1).angularVelocity.distance(spin) < 0.002, "COM burn introduced spin torque")
+                        helper.assertTrue(metrics.maximumPositionError < 1.6, "Post-burn trajectory diverged: $metrics")
+                        helper.assertTrue(metrics.maximumRelativeEnergyError < 0.02, "Burn misreported as energy drift: $metrics")
+                        helper.assertTrue(metrics.maximumRelativeMomentumError < 0.01, "Burn momentum mismatch: $metrics")
+                        val actual = scene.orbitApsides(1)!!
+                        helper.assertTrue(abs(actual.periapsis - expected.periapsis) < 0.6, "Periapsis mismatch: $actual vs $expected")
+                        helper.assertTrue(abs(actual.apoapsis - expected.apoapsis) < 0.6, "Apoapsis mismatch: $actual vs $expected")
+                        val control = scene.orbitApsides(0)!!
+                        helper.assertTrue(
+                            abs(control.periapsis - 16.0) < 0.6 && abs(control.apoapsis - 16.0) < 0.6,
+                            "Control orbit changed",
+                        )
+                        helper.assertTrue(
+                            if (prograde) abs(maxRadius - expected.apoapsis) < 0.8 else abs(minRadius - expected.periapsis) < 0.8,
+                            "Construction never reached its new apsis: min=$minRadius max=$maxRadius expected=$expected",
+                        )
+                        helper.assertTrue(
+                            server.commands.dispatcher.execute(
+                                "orbitalis lab sable sample",
+                                server.createCommandSourceStack().withLevel(scene.level),
+                            ) ==
+                                1,
+                            "Post-burn sample failed",
+                        )
+                        println(
+                            "ORBITALIS_SABLE_BURN substeps=$substeps direction=$direction expected=$expected actual=$actual min=$minRadius max=$maxRadius $metrics",
+                        )
+                        completed(metrics.maximumPositionError)
+                    }
+                    observe()
+                }
+            }
+        }
+        helper.runAfterDelay(1) {
+            runBurn(1, true) { coarsePrograde ->
+                runBurn(1, false) { coarseRetrograde ->
+                    runBurn(4, true) { finePrograde ->
+                        runBurn(4, false) { fineRetrograde ->
+                            helper.assertTrue(
+                                finePrograde < coarsePrograde * 0.6 && fineRetrograde < coarseRetrograde * 0.6,
+                                "Substeps did not improve burn accuracy",
+                            )
+                            scene.requestBurn(1, true, 0.1)
+                            scene.startOrbit()
+                            helper.runAfterDelay(3) {
+                                helper.assertTrue(
+                                    !scene.burnPending && scene.completedBurns == 0 && scene.lastBurn == null,
+                                    "Restart retained a queued burn",
+                                )
+                                // Two boosts stay bounded, the third predicts escape from this diagnostic band.
+                                scene.requestBurn(0, true, 1.0)
+                                helper.runAfterDelay(1) {
+                                    scene.requestBurn(0, true, 1.0)
+                                    helper.runAfterDelay(1) {
+                                        rejected { scene.requestBurn(0, true, 1.0) }
+                                        scene.requestBurn(1, false, 0.1)
+                                        scene.clear()
+                                        helper.runAfterDelay(2) {
+                                            helper.assertTrue(
+                                                !scene.burnPending && scene.size == 0 && scene.completedBurns == 0,
+                                                "Clear retained a burn",
+                                            )
+                                            helper.succeed()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }

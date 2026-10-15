@@ -20,6 +20,7 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Add bounded prograde/retrograde Sable diagnostic manoeuvres, per-probe orbital apsides, burn-aware reference errors and native post-burn flight checks.
 - Derive instantaneous bound-orbit periapsis and apoapsis in the independent two-body core, including escape and radial-fall handling.
 
 - Add a physical Sable orbit diagnostic: central gravitational impulses evaluated at each construction’s centre of mass, independent trajectory/error measurements and complete-revolution tests across physics timesteps and frame shifts.

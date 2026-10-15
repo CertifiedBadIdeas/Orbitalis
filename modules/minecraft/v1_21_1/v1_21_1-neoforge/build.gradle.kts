@@ -219,11 +219,11 @@ tasks.configureEach {
             factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
             val document = factory.newDocumentBuilder().parse(report)
             val cases = document.getElementsByTagName("testcase")
-            val minimumCases = if (sableLabEnabled) 10 else 7
+            val minimumCases = if (sableLabEnabled) 11 else 7
             check(cases.length >= minimumCases) { "Expected at least $minimumCases laboratory GameTests, received ${cases.length}." }
             if (sableLabEnabled) {
                 val names = (0 until cases.length).map { (cases.item(it) as org.w3c.dom.Element).getAttribute("name") }.toSet()
-                check(names.containsAll(setOf("sableimpulseandcoasting", "sableframeshiftpreservesstate", "sablecentralgravityorbit"))) {
+                check(names.containsAll(setOf("sableimpulseandcoasting", "sableframeshiftpreservesstate", "sablecentralgravityorbit", "sableorbitalmanoeuvres"))) {
                     "Sable runtime profile did not execute its required physics scenarios: $names"
                 }
             }

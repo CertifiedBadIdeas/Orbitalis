@@ -38,8 +38,8 @@ class SableOrbitExperiment {
 
     val gravity = TwoBodyGravity(MU)
     private var reference = emptyList<CartesianState>()
-    private var initialEnergy = emptyList<Double>()
-    private var initialMomentum = emptyList<Vector3>()
+    private var expectedEnergy = emptyList<Double>()
+    private var expectedMomentum = emptyList<Vector3>()
     var metrics = Metrics(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         private set
     val initialized get() = reference.isNotEmpty()
@@ -47,8 +47,22 @@ class SableOrbitExperiment {
     fun initialize(states: List<CartesianState>) {
         check(!initialized && states.size == 2)
         reference = states
-        initialEnergy = states.map(gravity::specificEnergy)
-        initialMomentum = states.map { it.position.cross(it.velocity) }
+        expectedEnergy = states.map(gravity::specificEnergy)
+        expectedMomentum = states.map { it.position.cross(it.velocity) }
+    }
+
+    /** Apply the same inertial kick as the native body; never resynchronise from measured state. */
+    fun kick(
+        index: Int,
+        deltaV: Vector3,
+    ) {
+        check(initialized)
+        reference = reference.mapIndexed { i, state -> if (i == index) state.copy(velocity = state.velocity + deltaV) else state }
+        expectedEnergy = expectedEnergy.mapIndexed { i, energy -> if (i == index) gravity.specificEnergy(reference[i]) else energy }
+        expectedMomentum =
+            expectedMomentum.mapIndexed { i, momentum ->
+                if (i == index) reference[i].position.cross(reference[i].velocity) else momentum
+            }
     }
 
     fun sample(
@@ -70,14 +84,14 @@ class SableOrbitExperiment {
                     next.seconds,
                     max(next.maximumPositionError, (state.position - reference[index].position).length()),
                     max(next.maximumVelocityError, (state.velocity - reference[index].velocity).length()),
-                    max(next.maximumRadiusError, abs(state.position.length() - RADIUS)),
+                    max(next.maximumRadiusError, abs(state.position.length() - reference[index].position.length())),
                     max(
                         next.maximumRelativeEnergyError,
-                        abs((gravity.specificEnergy(state) - initialEnergy[index]) / initialEnergy[index]),
+                        abs((gravity.specificEnergy(state) - expectedEnergy[index]) / expectedEnergy[index]),
                     ),
                     max(
                         next.maximumRelativeMomentumError,
-                        (state.position.cross(state.velocity) - initialMomentum[index]).length() / initialMomentum[index].length(),
+                        (state.position.cross(state.velocity) - expectedMomentum[index]).length() / expectedMomentum[index].length(),
                     ),
                 )
         }
