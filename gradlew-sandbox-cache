@@ -1,0 +1,8 @@
+#!/bin/sh
+# Copyright 2026 The Compukters Developers
+# SPDX-License-Identifier: Apache-2.0
+# Adapted for Orbitalis development workflows.
+set -eu
+
+APP_HOME=$(CDPATH= cd -P "$(dirname "$0")" >/dev/null && pwd) || exit 1
+exec python3 "$APP_HOME/tools/gradle/cache.py" --root "$APP_HOME" "$@"

@@ -1,0 +1,27 @@
+# Verification scope
+
+| Changed boundary | Evidence |
+| --- | --- |
+| Gradle wrappers/cache/worktrees | python3 tools/verify.py tooling; real subprocess, locks, reflink and local Git fixtures |
+| Module/source ownership | python3 tools/verify.py architecture; compile affected modules |
+| Independent domain logic | :core:test with meaningful scenarios once behavior exists |
+| Minecraft/NeoForge adapters | Target compile/check plus focused tests; real GameTests for world lifecycle and ticks once a harness exists |
+| UI/assets | Focused build plus an observed bounded client scenario in a disposable world |
+| Metadata/archive/license | :v1_21_1-neoforge:verifyProductionJar |
+| Coordinated bootstrap/build change | verifyLocalFull |
+| Release candidate | verifyLocalFull, relevant real gameplay/server checks, exact archive hash and revision |
+
+Use ./gradlew-sandbox-dev-parallel-summary for noninteractive Gradle commands. verifyLocalFast runs
+verifyTooling, verifyArchitecture and :core:check. verifyLocalFull adds common/check, loader/check and
+production archive inspection. No domain tests exist initially because no game logic has been added;
+NO-SOURCE is not domain coverage. No GameTest task or gameplay claim is supplied by this scaffold.
+A successful client launch cannot prove visual or interactive correctness. Record manual observations,
+initial state, actions and expected outcome; mark unavailable evidence explicitly pending.
+
+Archive checks inspect actual metadata expansion, identity/version, Minecraft range, duplicate entries,
+required entry point/core class, absence of bundled Minecraft/NeoForge or GameTest classes, Java 21
+project bytecode and nested Kotlin stdlib plus its separately packaged upstream/third-party legal files. Sources and upstream legal notices are retained.
+When adding targets or libraries, extend packaging checks to their actual contracts. The import scan is
+an early architecture guardrail; compilation and review remain necessary for transitive ownership.
+
+Retain real command output in build/agent-logs. Never equate focused checks with complete release readiness.

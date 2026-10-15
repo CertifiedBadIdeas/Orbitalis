@@ -1,0 +1,18 @@
+[versions]
+kotlin = "2.4.10"
+loom = "1.17.491"
+kotlinter = "5.7.0"
+minecraft-v1211 = "1.21.1"
+neoforge-v1211 = "21.1.252"
+junit = "6.1.3"
+
+[libraries]
+minecraft-v1211 = { module = "net.minecraft:minecraft", version.ref = "minecraft-v1211" }
+neoforge-v1211 = { module = "net.neoforged:neoforge", version.ref = "neoforge-v1211" }
+kotlin-gradle = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+loom-gradle = { module = "dev.architectury.loom:dev.architectury.loom.gradle.plugin", version.ref = "loom" }
+kotlinter-gradle = { module = "org.jmailen.kotlinter:org.jmailen.kotlinter.gradle.plugin", version.ref = "kotlinter" }
+
+[plugins]
+kotlin = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+loom = { id = "dev.architectury.loom", version.ref = "loom" }

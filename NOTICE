@@ -1,0 +1,6 @@
+Orbitalis development tooling includes code adapted from Compukters.
+Copyright 2026 The Compukters Developers.
+Source: https://github.com/CertifiedBadIdeas/Compukters
+Imported revision: d2a6dccd11aae3c1ed801a0d40bf9542da61389c
+Gradle/worktree tools retain their upstream Apache-2.0 notices.
+See LICENSE.md. No Compukters game, VM, compiler or visual assets are bundled.
