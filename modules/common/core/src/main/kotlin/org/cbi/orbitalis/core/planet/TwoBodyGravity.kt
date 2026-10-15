@@ -18,6 +18,8 @@
 
 package org.cbi.orbitalis.core.planet
 
+import kotlin.math.sqrt
+
 /** Fixed central body, mu = G*M [m^3/s^2]. No atmosphere, rotation, terrain or other gravitating bodies. */
 class TwoBodyGravity(
     val mu: Double,
@@ -43,6 +45,26 @@ class TwoBodyGravity(
         val position = state.position + halfVelocity * seconds
         val velocity = halfVelocity + acceleration(position) * (seconds * 0.5)
         return CartesianState(position, velocity)
+    }
+
+    /** Distances from the central body [m], without subtracting a surface radius. */
+    data class Apsides(
+        val periapsis: Double,
+        val apoapsis: Double,
+    )
+
+    /** Instantaneous Kepler ellipse; null for parabolic/hyperbolic escape. Radial fall has periapsis zero. */
+    fun apsides(state: CartesianState): Apsides? {
+        val energy = specificEnergy(state)
+        if (energy >= 0.0) return null
+        val momentum = state.position.cross(state.velocity)
+        val semiLatusRectum = momentum.dot(momentum) / mu
+        val eccentricity = sqrt((1.0 + 2.0 * energy * semiLatusRectum / mu).coerceIn(0.0, 1.0))
+        val semiMajorAxis = -mu / (2.0 * energy)
+        val periapsis = semiLatusRectum / (1.0 + eccentricity)
+        val apoapsis = semiMajorAxis * (1.0 + eccentricity)
+        require(periapsis.isFinite() && apoapsis.isFinite()) { "Apsides are outside the representable range" }
+        return Apsides(periapsis, apoapsis)
     }
 
     /** Specific mechanical energy [m^2/s^2]. */

@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Derive instantaneous bound-orbit periapsis and apoapsis in the independent two-body core, including escape and radial-fall handling.
+
 - Add a physical Sable orbit diagnostic: central gravitational impulses evaluated at each construction’s centre of mass, independent trajectory/error measurements and complete-revolution tests across physics timesteps and frame shifts.
 
 - Add optional Sable 2.0.6 diagnostics with isolated runtime installation, native impulse/coasting and same-level frame-shift scenarios, zero-drag laboratory settings and upstream license provenance; keep Sable binaries outside the Orbitalis JAR.
