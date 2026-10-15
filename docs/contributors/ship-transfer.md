@@ -107,9 +107,16 @@ Transfer-specific native loading tickets and block-entity tick leases are releas
 1. `PREPARED`: the source remains authoritative. A full durable snapshot precedes staging. Reconstruct
    the destination with the same ship UUID and verify block/cargo data. Restore exact motion separately
    from Sable's save/load retention and small-velocity thresholds. Preparation failures retain the source.
-2. `COMMITTED`: durable destination authority precedes moving the pilot and deleting the source. Native
+2. `COMMITTED`: durable destination authority precedes deleting the source and moving the pilot. Native
    Sable owns both reconstruction and removal; no direct edits to its region files or copied implementation
-   are used. A native save checkpoint flushes both diagnostic worlds and verifies the saved destination's
+   are used. Source removal happens before dimension travel because Sable's tracking-removal packet carries
+   plot coordinates without a dimension identifier. Once native destination tracking has queued the complete
+   ship bundle, a second teleport places the pilot back on the recorded deck position. Physics and block-entity
+   ticks remain paused until vanilla acknowledges that teleport and Sable reports the pilot attached to the
+   destination ship. The acknowledgment follows the ship bundle on TCP; no new network payload is introduced.
+   Each readiness phase is bounded to 200 server ticks. An unavailable pilot or timeout retains COMMITTED
+   destination authority and paused physics for reconciliation. The same barrier protects recovery/login handoffs.
+   A native save checkpoint flushes both diagnostic worlds and verifies the saved destination's
    identity and cargo before completion. These existing native checkpoint APIs require the server thread
    and can cause a visible stall. This prototype does not claim a latency suitable for seamless flight.
 3. `DONE`: the checkpoint is complete. Replace payload snapshots with a small receipt so a stale cargo
@@ -135,6 +142,9 @@ a chest and pilot pose, occupied-slot rejection, PREPARED rollback, COMMITTED re
 occupancy bitmap, offline pilot
 reconciliation and preservation of post-DONE cargo changes. It also checks unordered block-entity
 comparison, rejection of cargo/type/position/duplicate changes and the narrowly scoped engine work-flag exception.
+The inert test pilot models delayed ship delivery and deck contact, handles the actual vanilla teleport
+acknowledgment packet and exercises the loader accessor. It checks that physics stays paused during both
+waits and that source removal precedes world travel. This is server-side evidence, not an observed client login.
 An isolated headless flight-consumer probe on 2026-10-15 reconstructed a copy of a saved player ship
 with its actual Create/Propulsion/Simulated block entities and three Honey Glue entities, then completed
 surface-to-orbit and return transactions with cargo checks. This reproduced the unordered-list and

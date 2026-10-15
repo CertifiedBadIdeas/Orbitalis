@@ -77,6 +77,9 @@ The diagnostic `SableShipTransfer` coordinator reconstructs one independent ship
 translation. Common owns native snapshots, exact-motion restoration and the versioned asynchronous
 journal and plot-chunk block-entity tick leases; NeoForge owns startup/tick/interaction wiring and
 a narrow Minecraft ticker hook that honors those leases without loading optional Sable classes.
+A second loader hook exposes vanilla's pending teleport acknowledgment without a custom network protocol.
+Common orders source tracking removal before dimension travel, then waits for the destination ship bundle,
+a subsequent teleport acknowledgment and native deck contact before releasing physics.
 PREPARED selects source authority, COMMITTED
 selects destination authority, and DONE follows a verified native checkpoint. Completed records contain
 receipts rather than stale ship payloads. Recovery does not make the journal a permanent ship store.

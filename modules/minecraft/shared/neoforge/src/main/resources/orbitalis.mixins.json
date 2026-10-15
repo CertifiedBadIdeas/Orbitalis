@@ -3,6 +3,6 @@
   "minVersion": "0.8",
   "package": "org.cbi.orbitalis.neoforge.mixin",
   "compatibilityLevel": "JAVA_21",
-  "mixins": ["LevelBlockEntityTickMixin"],
+  "mixins": ["LevelBlockEntityTickMixin", "ServerGamePacketListenerTeleportMixin"],
   "injectors": {"defaultRequire": 1}
 }

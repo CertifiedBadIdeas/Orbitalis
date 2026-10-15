@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Remove source ship tracking before switching the pilot's world, then keep diagnostic physics paused until the destination ship is sent, the follow-up vanilla teleport is acknowledged and native deck contact is reported; use the same barrier for recovered pilots.
+
 - Compare reconstructed block entities by plot coordinates, accepting Sable's unordered serialization and the pinned creative thruster's connectivity rebuild flag while preserving cargo/configuration checks; report the block and changed fields for actual payload differences.
 
 - Pause block-entity ticks in source/staged ship plot chunks during diagnostic transfer, preserving ticking engine payloads without ignoring NBT changes; report the specific preparation cancellation reason.

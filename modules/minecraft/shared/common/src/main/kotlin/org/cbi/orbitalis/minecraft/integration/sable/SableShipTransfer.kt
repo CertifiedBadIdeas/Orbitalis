@@ -21,6 +21,7 @@ package org.cbi.orbitalis.minecraft.integration.sable
 import dev.ryanhcode.sable.Sable
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer
 import dev.ryanhcode.sable.api.sublevel.ticket.SubLevelLoadingTicketType
+import dev.ryanhcode.sable.mixinterface.entity.entity_sublevel_collision.EntityMovementExtension
 import dev.ryanhcode.sable.sublevel.ServerSubLevel
 import dev.ryanhcode.sable.sublevel.storage.SubLevelOccupancySavedData
 import dev.ryanhcode.sable.sublevel.storage.SubLevelRemovalReason
@@ -46,7 +47,10 @@ import net.minecraft.util.Unit as MinecraftUnit
 class SableShipTransfer(
     private val server: MinecraftServer,
     folder: Path,
+    private val pilotSync: ShipTransferPilotSync,
 ) : AutoCloseable {
+    constructor(server: MinecraftServer, folder: Path) : this(server, folder, ShipTransferPilotSync.NATIVE)
+
     private val journal = ShipTransferJournal(folder)
     private val records = mutableMapOf<UUID, ShipTransferRecord>()
     private val startup = journal.read()
@@ -56,6 +60,7 @@ class SableShipTransfer(
     private var waitFor: (() -> Boolean)? = null
     private var afterWait: (() -> Unit)? = null
     private var waitedTicks = 0
+    private var waitFailure = "Native entity loading timed out"
     private var active: ShipTransferRecord? = null
     private var pilot: ServerPlayer? = null
     private val pauses = mutableMapOf<SubLevelPhysicsSystem, Boolean>()
@@ -127,7 +132,7 @@ class SableShipTransfer(
                 recoverNext()
             }
             waitFor?.let { ready ->
-                check(++waitedTicks <= 200) { "Native entity loading timed out" }
+                check(++waitedTicks <= 200) { waitFailure }
                 if (ready()) {
                     val next = checkNotNull(afterWait)
                     waitFor = null
@@ -155,16 +160,51 @@ class SableShipTransfer(
         bodies: List<ServerSubLevel>,
         next: () -> Unit,
     ) {
+        awaitCondition("Native entity loading timed out", { bodies.all(SableShipSnapshot::entitiesReady) }, next)
+    }
+
+    private fun awaitCondition(
+        failure: String,
+        ready: () -> Boolean,
+        next: () -> Unit,
+    ) {
         waitedTicks = 0
-        waitFor = { bodies.all(SableShipSnapshot::entitiesReady) }
+        waitFailure = failure
+        waitFor = ready
         afterWait = next
+    }
+
+    private fun handoffPilot(
+        player: ServerPlayer,
+        body: ServerSubLevel,
+        state: CompoundTag,
+        next: () -> Unit,
+    ) {
+        check(movePlayer(player, body.level, state)) { "Pilot dimension transfer was rejected" }
+
+        fun available(): Boolean {
+            check(player.isAlive && player.level() === body.level) { "Pilot became unavailable during client handoff" }
+            return true
+        }
+        awaitCondition("Destination ship tracking timed out", { available() && pilotSync.hasShip(player, body) }) {
+            // Native tracking has queued the complete ship bundle. This second teleport is
+            // ordered after it on TCP, so its vanilla acknowledgment fences client loading.
+            check(movePlayer(player, body.level, state)) { "Pilot deck positioning was rejected" }
+            awaitCondition("Pilot teleport acknowledgment or deck contact timed out", { available() && pilotSync.isReady(player, body) }) {
+                player.deltaMovement = Vec3(state.getDouble("vx"), state.getDouble("vy"), state.getDouble("vz"))
+                player.fallDistance = 0f
+                next()
+            }
+        }
     }
 
     fun begin(
         player: ServerPlayer,
         body: ServerSubLevel,
     ) {
-        require(!busy && records.values.none { it.pilotPending }) { "A transfer/recovery is running: ${error ?: "wait for completion"}" }
+        require(
+            !busy && records.values.none { it.pilotPending },
+        ) { "A transfer/recovery is running: ${error ?: "wait for completion"}" }
         require(SableFlightGravity.isFlightSpace(body.level) && player.level() === body.level) { "Use the flight or orbit test space" }
         require(
             server.playerList.players.none {
@@ -291,18 +331,21 @@ class SableShipTransfer(
         staged: ServerSubLevel,
         player: ServerPlayer,
     ) {
-        check(movePlayer(player, staged.level, record.destinationPilot)) { "Pilot dimension transfer was rejected" }
+        // Sable removal packets carry plot coordinates but no dimension. Send them while
+        // the pilot is still in the source world, before the destination respawn packet.
         SableShipSnapshot.discardAttachments(source.level, record.source)
         SubLevelContainer.getContainer(source.level)!!.removeSubLevel(source, SubLevelRemovalReason.REMOVED)
-        checkpoint()
-        verifySaved(staged)
-        persist(record.copy(phase = ShipTransferPhase.DONE)) {
-            player.sendSystemMessage(
-                Component.literal(
-                    "Transferred ship ${record.ship}; exact motion and cargo preserved. /orbitalis flight transfer returns it.",
-                ),
-            )
-            resume()
+        handoffPilot(player, staged, record.destinationPilot) {
+            checkpoint()
+            verifySaved(staged)
+            persist(record.copy(phase = ShipTransferPhase.DONE)) {
+                player.sendSystemMessage(
+                    Component.literal(
+                        "Transferred ship ${record.ship}; exact motion and cargo preserved. /orbitalis flight transfer returns it.",
+                    ),
+                )
+                resume()
+            }
         }
     }
 
@@ -405,12 +448,19 @@ class SableShipTransfer(
             awaitEntities(listOf(restored)) {
                 SableShipSnapshot.restoreAttachments(restored, snapshot)
                 val online = server.playerList.getPlayer(record.pilot)
-                if (online != null) check(movePlayer(online, winnerWorld, if (committed) record.destinationPilot else record.sourcePilot))
-                checkpoint()
-                verifySaved(restored)
-                persist(
-                    record.copy(phase = ShipTransferPhase.DONE, pilotPending = online == null, recoveredSource = !committed),
-                ) { recoverNext() }
+                val finish = {
+                    checkpoint()
+                    verifySaved(restored)
+                    persist(
+                        record.copy(phase = ShipTransferPhase.DONE, pilotPending = online == null, recoveredSource = !committed),
+                    ) { recoverNext() }
+                }
+                if (online == null) {
+                    finish()
+                } else {
+                    pilot = online
+                    handoffPilot(online, restored, if (committed) record.destinationPilot else record.sourcePilot, finish)
+                }
             }
         }
     }
@@ -433,7 +483,8 @@ class SableShipTransfer(
                 val holding = map.storage.attemptLoadHoldingChunk(chunk) ?: continue
                 for (pointer in holding.subLevelPointers.toList()) {
                     if (map.storage.attemptLoadSubLevel(chunk, pointer)?.uuid() == copy.uniqueId) {
-                        copy.lastSerializationPointer = GlobalSavedSubLevelPointer(chunk, pointer.storageIndex(), pointer.subLevelIndex())
+                        copy.lastSerializationPointer =
+                            GlobalSavedSubLevelPointer(chunk, pointer.storageIndex(), pointer.subLevelIndex())
                         map.queueDeletion(copy)
                     }
                 }
@@ -486,11 +537,16 @@ class SableShipTransfer(
         val record = records.values.firstOrNull { it.pilot == player.uuid && it.pilotPending } ?: return
         val state = if (record.recoveredSource) record.sourcePilot else record.destinationPilot
         val world = if (record.recoveredSource) level(record.sourceIsOrbit) else level(!record.sourceIsOrbit)
-        check(movePlayer(player, world, state)) { "Recovered pilot transfer was rejected" }
-        checkpoint()
         active = record
+        pilot = player
         pause()
-        persist(record.copy(pilotPending = false)) { resume() }
+        val snapshot = if (record.recoveredSource) record.source else record.destination
+        val body = checkNotNull(findCopy(world, snapshot, CompoundTag())) { "Recovered ship checkpoint is unavailable" }
+        retain(body)
+        handoffPilot(player, body, state) {
+            checkpoint()
+            persist(record.copy(pilotPending = false)) { resume() }
+        }
     }
 
     override fun close() {
@@ -519,6 +575,8 @@ class SableShipTransfer(
             state: CompoundTag,
         ): Boolean {
             val p = position(state)
+            (player as EntityMovementExtension).`sable$setTrackingSubLevel`(null)
+            (player as EntityMovementExtension).`sable$setLastTrackingSubLevelID`(null)
             val moved =
                 player.teleportTo(
                     world,

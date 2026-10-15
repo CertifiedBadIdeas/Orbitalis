@@ -19,9 +19,12 @@
 package org.cbi.orbitalis.neoforge
 
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer
+import dev.ryanhcode.sable.api.sublevel.SubLevelObserver
 import dev.ryanhcode.sable.api.sublevel.ticket.SubLevelLoadingTicketType
 import dev.ryanhcode.sable.companion.math.Pose3d
+import dev.ryanhcode.sable.mixinterface.entity.entity_sublevel_collision.EntityMovementExtension
 import dev.ryanhcode.sable.sublevel.ServerSubLevel
+import dev.ryanhcode.sable.sublevel.SubLevel
 import dev.ryanhcode.sable.sublevel.storage.SubLevelRemovalReason
 import dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem
 import net.minecraft.core.BlockPos
@@ -32,6 +35,7 @@ import net.minecraft.gametest.framework.GameTestListener
 import net.minecraft.gametest.framework.GameTestRunner
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.ListTag
+import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.item.Items
 import net.minecraft.world.level.block.Blocks
@@ -43,7 +47,9 @@ import org.cbi.orbitalis.minecraft.integration.sable.SableShipSnapshot
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipTransfer
 import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferJournal
 import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferPhase
+import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferPilotSync
 import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferRecord
+import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferTeleportState
 import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferTickGate
 import org.joml.Vector3d
 import java.nio.file.Files
@@ -65,7 +71,45 @@ object SableTransferGameTests {
         val surfaceContainer = SubLevelContainer.getContainer(surface)!!
         val orbitContainer = SubLevelContainer.getContainer(orbit)!!
         val folder = Files.createTempDirectory("orbitalis-transfer-gametest-")
-        var manager = SableShipTransfer(server, folder)
+        // Model delayed client loading explicitly; this fixture has no logged-in game client.
+        val pilotSync =
+            object : ShipTransferPilotSync {
+                var lastBody: ServerSubLevel? = null
+                var trackingTicks = 0
+                var contactTicks = 0
+
+                override fun hasShip(
+                    player: ServerPlayer,
+                    body: ServerSubLevel,
+                ): Boolean {
+                    if (lastBody !== body) {
+                        lastBody = body
+                        trackingTicks = 0
+                        contactTicks = 0
+                    }
+                    helper.assertTrue(SubLevelPhysicsSystem.require(body.level).paused, "Ship resumed before client tracking")
+                    helper.assertTrue(
+                        (player.connection as ShipTransferTeleportState).orbitalisHasPendingTeleport(),
+                        "Dimension travel did not request a vanilla teleport acknowledgment",
+                    )
+                    return ++trackingTicks > 3
+                }
+
+                override fun isReady(
+                    player: ServerPlayer,
+                    body: ServerSubLevel,
+                ): Boolean {
+                    helper.assertTrue(SubLevelPhysicsSystem.require(body.level).paused, "Ship resumed before teleport acknowledgment")
+                    // Even an early plot-space movement report cannot release a pending teleport.
+                    (player as EntityMovementExtension).`sable$setTrackingSubLevel`(body)
+                    helper.assertTrue(!ShipTransferPilotSync.NATIVE.isReady(player, body), "Unacknowledged pilot was ready")
+                    if (++contactTicks <= 3) return false
+                    GameTestPlayers.acknowledgeTeleport(player)
+                    helper.assertTrue(ShipTransferPilotSync.NATIVE.isReady(player, body), "Acknowledged attached pilot was not ready")
+                    return true
+                }
+            }
+        var manager = SableShipTransfer(server, folder, pilotSync)
         val player = GameTestPlayers.create(helper)
         val pose =
             Pose3d().also {
@@ -74,6 +118,20 @@ object SableTransferGameTests {
             }
         val source = surfaceContainer.allocateNewSubLevel(pose) as ServerSubLevel
         val ship = source.uniqueId
+        var sourceRemovedBeforeTravel = false
+        surfaceContainer.addObserver(
+            object : SubLevelObserver {
+                override fun onSubLevelRemoved(
+                    body: SubLevel,
+                    reason: SubLevelRemovalReason,
+                ) {
+                    if (body === source && reason == SubLevelRemovalReason.REMOVED) {
+                        helper.assertTrue(player.level() === surface, "Source removal packet followed dimension travel")
+                        sourceRemovedBeforeTravel = true
+                    }
+                }
+            },
+        )
         source.plot.newEmptyChunk(source.plot.centerChunk)
         source.plot.embeddedLevelAccessor.setBlock(BlockPos.ZERO, Blocks.GOLD_BLOCK.defaultBlockState(), 3)
         source.plot.embeddedLevelAccessor.setBlock(BlockPos(0, 1, 0), Blocks.CHEST.defaultBlockState(), 3)
@@ -254,6 +312,7 @@ object SableTransferGameTests {
                 helper.assertTrue(ShipTransferTickGate.blocks(surface, tickerPosition), "Source tick lease was not acquired")
                 helper.assertTrue(!ShipTransferTickGate.blocks(surface, BlockPos.ZERO), "World terrain tickers were paused")
                 waitUntil({ !manager.busy }) {
+                    helper.assertTrue(sourceRemovedBeforeTravel, "Source tracking removal was not observed before travel")
                     helper.assertTrue(blockTicks == ticksBeforeTransfer, "Source block entities kept ticking during handoff")
                     helper.assertTrue(!ShipTransferTickGate.blocks(surface, tickerPosition), "Source tick lease leaked after completion")
                     val moved = orbitContainer.getSubLevel(ship) as? ServerSubLevel ?: error("Destination ship missing")
@@ -282,7 +341,7 @@ object SableTransferGameTests {
                         // DONE snapshots must not rewind progress after an ordinary restart.
                         chest(returned).setItem(0, ItemStack(Items.COBBLESTONE, 32))
                         manager.close()
-                        manager = SableShipTransfer(server, folder)
+                        manager = SableShipTransfer(server, folder, pilotSync)
                         waitUntil({ !manager.busy }) {
                             cargo(returned, 32)
                             chest(returned).setItem(0, ItemStack(Items.COBBLESTONE, 16))
@@ -357,7 +416,7 @@ object SableTransferGameTests {
                                 // A prepared copy is not authoritative, even if reconstruction happened.
                                 SableShipSnapshot.load(orbit, shifted)
                                 manager.close()
-                                manager = SableShipTransfer(server, folder)
+                                manager = SableShipTransfer(server, folder, pilotSync)
                                 waitUntil({ !manager.busy }) {
                                     val rolledBack =
                                         surfaceContainer.getSubLevel(ship) as? ServerSubLevel ?: error("Prepared source was not restored")
@@ -382,7 +441,7 @@ object SableTransferGameTests {
                                         waitUntil({ journalWrite!!.isDone }) {
                                             journalWrite!!.join()
                                             manager.close()
-                                            manager = SableShipTransfer(server, folder)
+                                            manager = SableShipTransfer(server, folder, pilotSync)
                                             waitUntil({ !manager.busy }) {
                                                 val recovered =
                                                     orbitContainer.getSubLevel(ship) as? ServerSubLevel
