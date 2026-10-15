@@ -32,6 +32,8 @@ import net.minecraft.world.phys.Vec3
 import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.neoforge.event.RegisterCommandsEvent
 import net.neoforged.neoforge.event.server.ServerStoppingEvent
+import net.neoforged.neoforge.event.tick.ServerTickEvent
+import org.cbi.orbitalis.core.planet.SurfaceFlight
 import org.cbi.orbitalis.minecraft.integration.sable.SableLab
 import org.cbi.orbitalis.minecraft.lab.PlanetLabCoordinates
 import java.util.Locale
@@ -48,6 +50,7 @@ object SableLabIntegration {
         NeoForge.EVENT_BUS.addListener { event: ForgeSablePostPhysicsTickEvent ->
             scenes[event.physicsSystem.level.server]?.takeIf { it.level === event.physicsSystem.level }?.afterPhysics(event.timeStep)
         }
+        NeoForge.EVENT_BUS.addListener { event: ServerTickEvent.Post -> scenes[event.server]?.sampleRider() }
         NeoForge.EVENT_BUS.addListener { event: ServerStoppingEvent -> scenes.remove(event.server)?.clear() }
     }
 
@@ -70,7 +73,7 @@ object SableLabIntegration {
     private fun register(dispatcher: CommandDispatcher<CommandSourceStack>) {
         val root = Commands.literal("orbitalis").requires { it.hasPermission(2) }
         val sable = Commands.literal("sable")
-        for (action in listOf("start", "orbit", "flight", "sample", "shift", "clear")) {
+        for (action in listOf("start", "orbit", "flight", "platform", "board", "sample", "shift", "clear")) {
             sable.then(
                 Commands.literal(action).executes { context ->
                     val source = context.source
@@ -99,6 +102,24 @@ object SableLabIntegration {
                                 "Started one Sable surface flight: takeoff, insertion, unpowered orbit and return to the pad at (0,104,120). Use sample or clear."
                             }
 
+                            "platform" -> {
+                                try {
+                                    lab.startPlatform()
+                                } catch (error: IllegalArgumentException) {
+                                    throw SimpleCommandExceptionType(Component.literal(error.message ?: "Platform rejected.")).create()
+                                }
+                                "Prepared a 3x3 Sable deck at (0,105,120). Disable creative flight, then use board and launch short|orbit."
+                            }
+
+                            "board" -> {
+                                try {
+                                    lab.board(source.playerOrException)
+                                } catch (error: IllegalArgumentException) {
+                                    throw SimpleCommandExceptionType(Component.literal(error.message ?: "Boarding rejected.")).create()
+                                }
+                                "Boarded once. Release movement keys and wait for contact before launch short|orbit; sample reports native support."
+                            }
+
                             "clear" -> {
                                 lab.clear()
                                 "Cleared Orbitalis diagnostic constructions and their loading tickets."
@@ -106,15 +127,12 @@ object SableLabIntegration {
 
                             "shift" -> {
                                 val player = source.playerOrException
-                                if (!player.isCreative || player.isPassenger || lab.size != 2 || lab.shiftPending) {
-                                    throw SimpleCommandExceptionType(
-                                        Component.literal(
-                                            "Start two probes and wait for any pending shift; an unmounted creative observer is required.",
-                                        ),
-                                    ).create()
+                                try {
+                                    lab.requestShift(Vec3(32.0, 0.0, 0.0), player)
+                                } catch (error: IllegalArgumentException) {
+                                    throw SimpleCommandExceptionType(Component.literal(error.message ?: "Shift rejected.")).create()
                                 }
-                                lab.requestShift(Vec3(32.0, 0.0, 0.0), player)
-                                "Queued a 32 m frame shift for both probes and this observer. The static platforms remain in place."
+                                "Queued a 32 m frame shift. An airborne rider platform also relocates its owned pad; sample reports cancellation."
                             }
 
                             else -> {
@@ -182,11 +200,50 @@ object SableLabIntegration {
                                 }
                             }
                         }
-                    source.sendSuccess({ Component.literal(message) }, false)
+                    val rider = lab.riderReport
+                    val telemetry =
+                        if (rider == null) {
+                            ""
+                        } else {
+                            String.format(
+                                Locale.ROOT,
+                                "; rider supported=%s; local feet=(%.3f,%.3f,%.3f); contact/lost ticks=%d/%d; max deck drift=%.3f m; max height error=%.3f m",
+                                rider.supported,
+                                rider.localFeet.x,
+                                rider.localFeet.y,
+                                rider.localFeet.z,
+                                rider.supportedTicks,
+                                rider.unsupportedTicks,
+                                rider.maximumHorizontalDrift,
+                                rider.maximumHeightError,
+                            )
+                        }
+                    source.sendSuccess({ Component.literal(message + telemetry + (lab.shiftRejection?.let { "; $it" } ?: "")) }, false)
                     1
                 },
             )
         }
+        val launch = Commands.literal("launch")
+        for ((name, itinerary) in listOf("short" to SurfaceFlight.Itinerary.HOP, "orbit" to SurfaceFlight.Itinerary.ORBIT)) {
+            launch.then(
+                Commands.literal(name).executes { context ->
+                    val source = context.source
+                    if (source.level.dimension() != PlanetLabCoordinates.DIMENSION) {
+                        throw SimpleCommandExceptionType(Component.literal("Enter the planet laboratory first.")).create()
+                    }
+                    try {
+                        scene(source.server).launch(itinerary, source.playerOrException)
+                    } catch (error: IllegalArgumentException) {
+                        throw SimpleCommandExceptionType(Component.literal(error.message ?: "Launch rejected.")).create()
+                    }
+                    source.sendSuccess({
+                        Component.literal("Started $name platform flight. Use sample to inspect contact and drift, or clear to return.")
+                    }, false)
+                    1
+                },
+            )
+        }
+        sable.then(launch)
         val burn = Commands.literal("burn")
         for (direction in listOf("prograde", "retrograde")) {
             burn.then(

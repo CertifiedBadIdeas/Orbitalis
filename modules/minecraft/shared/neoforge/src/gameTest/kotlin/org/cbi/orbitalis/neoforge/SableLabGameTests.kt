@@ -19,6 +19,7 @@
 package org.cbi.orbitalis.neoforge
 
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer
+import dev.ryanhcode.sable.mixinterface.entity.entities_stick_sublevels.player.ServerboundMovePlayerPacketExtension
 import dev.ryanhcode.sable.physics.config.dimension_physics.DimensionPhysicsData
 import dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem
 import net.minecraft.core.BlockPos
@@ -27,6 +28,8 @@ import net.minecraft.gametest.framework.GameTestHelper
 import net.minecraft.gametest.framework.GameTestInfo
 import net.minecraft.gametest.framework.GameTestListener
 import net.minecraft.gametest.framework.GameTestRunner
+import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket
+import net.minecraft.world.entity.Entity
 import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.phys.Vec3
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
@@ -511,6 +514,128 @@ object SableLabGameTests {
                 }
             }
         }
+    }
+
+    /** Declared client-contact packet and native server carry fixture; real contact/camera need a client. */
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "sable_rider", timeoutTicks = 3500)
+    fun sablePlatformServerCarry(helper: GameTestHelper) {
+        val scene = SableLabIntegration.scene(helper.level.server)
+        val level = scene.level
+        val config = SubLevelPhysicsSystem.require(level).config
+        val originalSubsteps = config.substepsPerTick
+        val player = GameTestPlayers.create(helper)
+        player.teleportTo(level, 4.0, 81.0, 120.0, emptySet(), 25f, -15f)
+        val originalPosition = player.position()
+        onFinished(helper) {
+            scene.clear()
+            config.substepsPerTick = originalSubsteps
+            player.remove(Entity.RemovalReason.DISCARDED)
+        }
+        val runs =
+            listOf(
+                1 to SurfaceFlight.Itinerary.HOP,
+                4 to SurfaceFlight.Itinerary.HOP,
+                1 to SurfaceFlight.Itinerary.ORBIT,
+                4 to SurfaceFlight.Itinerary.ORBIT,
+            )
+
+        fun run(index: Int) {
+            if (index == runs.size) {
+                helper.succeed()
+                return
+            }
+            val (substeps, itinerary) = runs[index]
+            config.substepsPerTick = substeps
+            scene.startPlatform()
+            val body = SubLevelContainer.getContainer(level)!!.allSubLevels.single()
+            helper.runAfterDelay(5) {
+                helper.assertTrue(scene.flightReport == null && scene.reading(0).mass > 4.0, "Platform started without an observer")
+                for (x in 0..2) {
+                    for (z in 0..2) {
+                        helper.assertTrue(
+                            body.plot.embeddedLevelAccessor
+                                .getBlockState(
+                                    BlockPos(x, 0, z),
+                                ).`is`(if (x == 1 && z == 1) Blocks.GOLD_BLOCK else Blocks.IRON_BLOCK),
+                            "Missing deck block",
+                        )
+                    }
+                }
+                println(
+                    "ORBITALIS_SABLE_PLATFORM_INITIAL reading=${scene.reading(
+                        0,
+                    )} state=${scene.orbitalState(0)} com=${body.massTracker.centerOfMass} pose=${body.logicalPose()}",
+                )
+                player.abilities.flying = true
+                var rejected = false
+                try {
+                    scene.board(player)
+                } catch (_: IllegalArgumentException) {
+                    rejected = true
+                }
+                helper.assertTrue(rejected && scene.riderReport == null, "Flying observer was accepted")
+                player.abilities.flying = false
+                scene.board(player)
+                // Pinned Sable explicitly bypasses server-player deck collision. Its normal client packet
+                // declares contact in absolute plot coordinates. Exercise that upstream packet conversion
+                // once; this is not evidence of client collision acquisition or client networking.
+                val centre = body.plot.centerBlock
+                val packet = ServerboundMovePlayerPacket.Pos(centre.x + 1.5, centre.y + 1.05, centre.z + 1.5, true)
+                (packet as ServerboundMovePlayerPacketExtension).`sable$handle`(player)
+                helper.assertTrue(
+                    Vec3(packet.getX(0.0), packet.getY(0.0), packet.getZ(0.0)).distanceTo(player.position()) < 0.001,
+                    "Sable contact packet did not convert plot position to the boarded world position",
+                )
+                player.setOnGround(true)
+                var launched = false
+                var shifted = false
+                var maximumYawSpeed = 0.0
+                var ticks = 0
+
+                fun observe() {
+                    // Cross-level teleport registered the fixture in the lab entity manager.
+                    // ServerLevel ticks it normally; a second manual tick would apply carrying twice.
+                    val rider = scene.riderReport!!
+                    helper.assertTrue(scene.failureReason == null, scene.failureReason ?: "Platform stopped")
+                    if (!launched && rider.supported) {
+                        scene.launch(itinerary, player)
+                        launched = true
+                    }
+                    if (launched && !shifted && scene.flightReport?.phase in setOf(SurfaceFlight.Phase.HOVER, SurfaceFlight.Phase.COAST)) {
+                        scene.requestShift(Vec3(32.0, 0.0, 0.0), player)
+                        shifted = true
+                    }
+                    maximumYawSpeed = maxOf(maximumYawSpeed, abs(scene.reading(0).angularVelocity.y))
+                    ticks++
+                    helper.assertTrue(launched || ticks < 40, "Declared contact did not reach the server carry path")
+                    if (scene.flightReport?.phase == SurfaceFlight.Phase.LANDED) {
+                        println("ORBITALIS_SABLE_RIDER_FIXTURE substeps=$substeps itinerary=$itinerary report=$rider")
+                        helper.assertTrue(
+                            shifted && scene.completedShifts == 1 && scene.shiftRejection == null,
+                            "Rider frame shift failed: ${scene.shiftRejection}",
+                        )
+                        helper.assertTrue(rider.maximumHorizontalDrift < 0.4, "Server carry drifted off the deck: $rider")
+                        helper.assertTrue(rider.maximumHeightError < 0.2 && rider.unsupportedTicks < 5, "Server carry lost support: $rider")
+                        if (itinerary == SurfaceFlight.Itinerary.HOP) {
+                            helper.assertTrue(maximumYawSpeed > 0.1, "Short flight did not exercise rotation")
+                        }
+                        scene.clear()
+                        helper.assertTrue(level.getBlockState(BlockPos(-32, 104, 120)).isAir, "Translated pad was not cleaned up")
+                        helper.assertTrue(player.position().distanceTo(originalPosition) < 0.001, "Clear did not restore observer")
+                        helper.assertTrue(
+                            !player.abilities.flying && player.yRot == 25f && player.xRot == -15f,
+                            "Board changed player mode/look",
+                        )
+                        helper.runAfterDelay(1) { run(index + 1) }
+                    } else {
+                        helper.runAfterDelay(1) { observe() }
+                    }
+                }
+                observe()
+            }
+        }
+        run(0)
     }
 
     private fun onFinished(

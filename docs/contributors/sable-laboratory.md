@@ -196,13 +196,60 @@ This proves a bounded flight from and back to a small flat patch inside one Leve
 a complete solid planet, vanilla terrain curvature, a surface-chart handoff, different local frames,
 passengers, atmospheric flight or travel between dimensions.
 
+## Player-carrying platform
+
+```text
+/orbitalis lab sable platform
+/orbitalis lab sable board
+/orbitalis lab sable launch short
+/orbitalis lab sable sample
+/orbitalis lab sable clear
+```
+
+Prepare the deck, disable creative flight, then board. Boarding is one teleport onto the gold centre
+of a 3 × 3 iron-bordered deck, after its native initialization. Wait for Sable contact before launching;
+release movement keys to measure passive carrying. Short flight climbs, receives a single 0.15 rad/s
+yaw kick once clear of terrain, hovers for two seconds, descends and lands without support thrust.
+For a complete unpowered orbital revolution, use `launch orbit` instead on a fresh platform.
+Launch requires the same unmounted, non-flying creative observer standing on that deck. There is no
+seat, repeated player teleport, forced attachment, custom player gravity or camera correction.
+`sample` includes native support, deck-relative feet, contact/lost ticks and maximum horizontal/height
+drift. Feet at the centre of the surface are (1.5, 1, 1.5); the initial boarding clearance is 0.05 m.
+Embedded block positions and Sable's absolute plot coordinates are distinct; boarding and telemetry
+account for the plot centre. Clear/replacement/normal shutdown restore the observer's pre-boarding
+position/look once if still creative, unmounted and in this level. Leaving the lab is never undone.
+
+While airborne above Y = 12 m relative to the attraction centre, `sable shift` can translate this
+platform by -32 m X and increase the inertial origin by +32 m. Its owned temporary pad is prepared
+at the translated destination before the old pad is released. An occupied destination or an edited
+source pad cancels the operation with a `sample` diagnostic. The native Sable tracked-player tick
+carries the standing observer across this translation; an additional observer teleport would apply
+the shift twice. Body orientation and velocities stay intact. This only relocates the bounded owned
+scene: ordinary terrain, other players and chart platforms stay in place. It is not a global world
+origin system, surface-chart handoff or cross-dimension ship transfer.
+
+Sable 2.0.6 deliberately bypasses deck collision calculation for `ServerPlayer`. Client movement
+packets declare the tracking construction using plot coordinates, and the server converts those
+coordinates and inherits subsequent pose changes. A headless server player cannot independently
+establish that initial contact. The platform GameTest therefore explicitly declares contact through
+Sable's own movement-packet handler once, then lets normal server ticks carry the fixture. It checks
+both itineraries at one/four physics substeps, airborne scene translation, landing on the moved pad,
+rotation, player restoration and deck cleanup. This is server carry/conversion evidence, not proof
+of a client's collision acquisition, network handshake or camera smoothness.
+
+Observed headless platform results on 2026-10-15: maximum horizontal drift was 0.00480/0.00194 m
+for short flights and 0.01610/0.00507 m for orbital flights at one/four substeps, including a frame
+shift and landing. The fixture retained declared support throughout; its 0.05 m initial foot
+clearance was preserved. Real client acquisition, camera behavior and frame-shift presentation
+remain pending observation; launching a client alone is not a passed ride.
+
 ## Automated evidence
 
 ```sh
 ./gradlew verifyLocalFull :v1_21_1-neoforge:runGameTestServer
 ```
 
-The standard GameTest run executes seven planet lab scenarios and five real Sable
+The standard GameTest run executes seven planet lab scenarios and six real Sable
 native-physics scenarios, checking impulse across one/four substeps, coasting in vacuum, a frame shift
 of two bodies with nonzero linear/angular velocity, relative/global positions and observer orientation. The central-gravity scenario additionally runs a
 complete revolution at one and four substeps, shifts the frame halfway through each run, compares both

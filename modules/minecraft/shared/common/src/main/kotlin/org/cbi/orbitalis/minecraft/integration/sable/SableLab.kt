@@ -18,6 +18,7 @@
 
 package org.cbi.orbitalis.minecraft.integration.sable
 
+import dev.ryanhcode.sable.Sable
 import dev.ryanhcode.sable.api.physics.handle.RigidBodyHandle
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer
 import dev.ryanhcode.sable.api.sublevel.ticket.SubLevelLoadingTicketType
@@ -86,7 +87,12 @@ class SableLab(
     private var pulseSeconds = 0.0
     private var sceneCreatedAt: Long? = null
 
-    private enum class Mode { COAST, ORBIT, FLIGHT }
+    private enum class Mode { COAST, ORBIT, FLIGHT, PLATFORM }
+
+    private var platform = false
+    private var rider: SableRiderSession? = null
+    val riderReport get() = rider?.report
+    private var yawPending = false
 
     private var flight: SurfaceFlight? = null
     val flightReport get() = flight
@@ -110,6 +116,8 @@ class SableLab(
         private set
     val size get() = probes.size
     val shiftPending get() = shift != null
+    var shiftRejection: String? = null
+        private set
 
     init {
         require(level.dimension() == PlanetLabCoordinates.DIMENSION) { "Sable diagnostics are confined to the planet laboratory" }
@@ -121,11 +129,40 @@ class SableLab(
 
     fun startFlight() = startScene(Mode.FLIGHT)
 
+    fun startPlatform() = startScene(Mode.PLATFORM)
+
+    fun board(player: ServerPlayer) {
+        require(platform && flightInitialized && flight == null) { "Prepare a platform and wait for physics initialization" }
+        require(rider == null) { "This platform already has an observer; clear it before boarding again" }
+        val body = probes.single().body
+        rider = SableRiderSession(level, body, player)
+    }
+
+    fun launch(
+        itinerary: SurfaceFlight.Itinerary,
+        player: ServerPlayer,
+    ) {
+        require(platform && flightInitialized && flight == null) { "Prepare and board a resting platform first" }
+        require(rider?.player === player && Sable.HELPER.getTrackingSubLevel(player) === probes.single().body && player.onGround()) {
+            "Stand on the platform and wait for native Sable contact before launching"
+        }
+        require(player.level() === level && player.isCreative && !player.abilities.flying && !player.isPassenger) {
+            "An unmounted, non-flying creative observer is required"
+        }
+        flight = SurfaceFlight(itinerary)
+        yawPending = itinerary == SurfaceFlight.Itinerary.HOP
+    }
+
+    fun sampleRider() {
+        rider?.sample()
+    }
+
     private fun startScene(mode: Mode) {
         // The pinned integration fails block placement when a new scene is replaced in the same game tick.
         require(sceneCreatedAt != level.gameTime) { "Wait until the next game tick before replacing a newly created scene" }
         sceneCreatedAt = level.gameTime
         clear()
+        platform = mode == Mode.PLATFORM
         orbit = if (mode == Mode.ORBIT) SableOrbitExperiment() else null
         flight = if (mode == Mode.FLIGHT) SurfaceFlight() else null
         flightInitialized = false
@@ -136,13 +173,13 @@ class SableLab(
         completedShifts = 0
         frameOrigin.zero()
         try {
-            if (mode == Mode.FLIGHT) {
+            if (mode == Mode.FLIGHT || mode == Mode.PLATFORM) {
                 flightPad = SableFlightPad(level)
                 flightPad!!.prepare()
             }
-            repeat(if (mode == Mode.FLIGHT) 1 else 2) { index ->
+            repeat(if (mode == Mode.FLIGHT || mode == Mode.PLATFORM) 1 else 2) { index ->
                 val pose = Pose3d()
-                if (mode == Mode.FLIGHT) {
+                if (mode == Mode.FLIGHT || mode == Mode.PLATFORM) {
                     val start = FLIGHT_CENTRE + SurfaceFlight.LAUNCH
                     pose.position().set(start.x, start.y, start.z)
                 } else if (mode == Mode.ORBIT) {
@@ -157,7 +194,16 @@ class SableLab(
                 val plot = body.plot
                 plot.newEmptyChunk(plot.centerChunk)
                 val block = if (index == 0) Blocks.GOLD_BLOCK else Blocks.IRON_BLOCK
-                check(plot.embeddedLevelAccessor.setBlock(BlockPos.ZERO, block.defaultBlockState(), 3))
+                if (platform) {
+                    for (x in 0..2) {
+                        for (z in 0..2) {
+                            val material = if (x == 1 && z == 1) Blocks.GOLD_BLOCK else Blocks.IRON_BLOCK
+                            check(plot.embeddedLevelAccessor.setBlock(BlockPos(x, 0, z), material.defaultBlockState(), 3))
+                        }
+                    }
+                } else {
+                    check(plot.embeddedLevelAccessor.setBlock(BlockPos.ZERO, block.defaultBlockState(), 3))
+                }
                 if (mode == Mode.ORBIT && index == 1) {
                     check(plot.embeddedLevelAccessor.setBlock(BlockPos(0, 1, 0), block.defaultBlockState(), 3))
                 }
@@ -181,13 +227,29 @@ class SableLab(
         }
         // A command may have queued an observer who left before this physics callback.
         if (shift?.second?.let { it.level() !== level || !it.isCreative || it.isPassenger || it.isRemoved } == true) shift = null
+        if (platform && shift != null) {
+            val observer = shift!!.second
+            if (observer == null || rider?.player !== observer || Sable.HELPER.getTrackingSubLevel(observer) !== probes.single().body ||
+                flight == null || orbitalState(0).position.y < 12.0
+            ) {
+                shift = null
+                shiftRejection = "Platform shift canceled: observer contact or clearance was lost"
+            } else {
+                try {
+                    flightPad = checkNotNull(flightPad).translated(BlockPos(-32, 0, 0))
+                } catch (error: IllegalArgumentException) {
+                    shift = null
+                    shiftRejection = error.message
+                }
+            }
+        }
         shift?.let { (offset, player) ->
             val translation = Vector3d(-offset.x, -offset.y, -offset.z)
             probes.forEach { probe ->
                 val pose = probe.body.logicalPose()
                 probe.handle.teleport(Vector3d(pose.position()).add(translation), pose.orientation())
             }
-            player?.let {
+            player?.takeUnless { platform }?.let {
                 val velocity = it.deltaMovement
                 it.teleportTo(it.x - offset.x, it.y - offset.y, it.z - offset.z)
                 it.deltaMovement = velocity
@@ -200,7 +262,8 @@ class SableLab(
         // The pinned Sable build loses an impulse submitted before its first completed step.
         // Apply the complete measured pulse only after that initialization boundary.
         if (callbacks == 0) return
-        flight?.let { controller ->
+        if (flight != null || platform) {
+            val controller = flight
             val probe = probes.single()
             if (!flightInitialized) {
                 val pose = probe.body.logicalPose()
@@ -215,14 +278,18 @@ class SableLab(
                 flightInitialized = true
             }
             val state = orbitalState(0)
-            val thrust = controller.command(state, stepSeconds)
-            if (controller.failure != null) {
+            val thrust = controller?.command(state, stepSeconds) ?: Vector3.ZERO
+            if (yawPending && controller?.phase == SurfaceFlight.Phase.ASCENT && state.position.y > 11.0) {
+                probe.handle.addLinearAndAngularVelocity(Vector3d(), Vector3d(0.0, 0.15, 0.0))
+                yawPending = false
+            }
+            if (controller?.failure != null) {
                 val reason = controller.failure
                 clear()
                 failureReason = reason
                 return
             }
-            val acceleration = controller.gravity.acceleration(state.position) + thrust
+            val acceleration = (controller?.gravity ?: TwoBodyGravity(1024.0)).acceleration(state.position) + thrust
             val impulse = acceleration * (probe.body.massTracker.mass * stepSeconds)
             applyGlobalImpulse(probe, Vector3d(impulse.x, impulse.y, impulse.z))
             lastStepSeconds = stepSeconds
@@ -311,7 +378,7 @@ class SableLab(
         val com = pose.transformPosition(checkNotNull(probe.body.massTracker.centerOfMass), Vector3d()).add(frameOrigin)
         val velocity = probe.handle.getLinearVelocity(Vector3d())
         return CartesianState(
-            Vector3(com.x, com.y, com.z) - (if (flight != null) FLIGHT_CENTRE else SableOrbitExperiment.CENTRE),
+            Vector3(com.x, com.y, com.z) - (if (flight != null || platform) FLIGHT_CENTRE else SableOrbitExperiment.CENTRE),
             Vector3(velocity.x, velocity.y, velocity.z),
         )
     }
@@ -395,14 +462,28 @@ class SableLab(
         observer: ServerPlayer? = null,
     ) {
         require(offset.x.isFinite() && offset.y.isFinite() && offset.z.isFinite() && offset.length() <= 64.0)
-        require(probes.size == 2 && shift == null) { "Start a scene and wait for the previous shift" }
+        require((probes.size == 2 || platform) && shift == null) { "Start a scene and wait for the previous shift" }
         require(observer == null || (observer.level() === level && observer.isCreative && !observer.isPassenger)) {
             "The observer must be an unmounted creative player in the laboratory"
         }
+        if (platform) {
+            require(
+                offset == Vec3(32.0, 0.0, 0.0) && observer != null && rider?.player === observer &&
+                    Sable.HELPER.getTrackingSubLevel(observer) === probes.single().body &&
+                    flight != null && orbitalState(0).position.y >= 12.0,
+            ) {
+                "A platform shift requires its standing observer, an airborne flight above 12 m and the fixed 32 m X offset"
+            }
+        }
+        shiftRejection = null
         shift = offset to observer
     }
 
     fun clear() {
+        rider?.close()
+        rider = null
+        platform = false
+        yawPending = false
         flight = null
         flightInitialized = false
         flightPad?.clear()
@@ -412,6 +493,7 @@ class SableLab(
         lastBurn = null
         burnRejection = null
         shift = null
+        shiftRejection = null
         orbit = null
         failureReason = null
         // Recover only this adapter's explicitly marked constructions after a restart/crash, too.

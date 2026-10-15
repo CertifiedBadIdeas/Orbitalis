@@ -20,6 +20,7 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Add a native 3×3 rider platform, one-time boarding, short/orbital launches, support/drift telemetry and bounded airborne frame translation including its owned landing pad; distinguish declared-contact server fixtures from real client evidence.
 - Add a bounded short-hop itinerary with hover and physical touchdown to the independent flight diagnostic.
 
 - Add a real single-level Sable takeoff/orbit/return diagnostic, temporary terrain with safe cleanup, flight-phase measurements and native physical-landing tests at one/four substeps.

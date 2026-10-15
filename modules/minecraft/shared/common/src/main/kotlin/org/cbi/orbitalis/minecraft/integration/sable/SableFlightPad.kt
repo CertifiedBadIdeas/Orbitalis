@@ -28,15 +28,20 @@ import net.minecraft.world.level.block.state.BlockState
 /** Temporary terrain, owned only while this server's diagnostic scene exists. */
 internal class SableFlightPad(
     private val level: ServerLevel,
+    private val offset: BlockPos = BlockPos.ZERO,
 ) {
     private val originals = linkedMapOf<BlockPos, BlockState>()
     private val chunks = mutableSetOf<ChunkPos>()
     private val material = Blocks.OBSIDIAN.defaultBlockState()
 
     fun prepare() {
-        val cells = (-2..2).flatMap { x -> (118..122).map { z -> BlockPos(x, 104, z) } }
+        val cells = (-2..2).flatMap { x -> (118..122).map { z -> BlockPos(x, 104, z).offset(offset) } }
         require(cells.all { level.getBlockState(it).isAir }) { "Flight pad at (0,104,120) must be clear; existing blocks are preserved" }
-        require((105..113).all { y -> (-1..1).all { x -> (119..121).all { z -> level.getBlockState(BlockPos(x, y, z)).isAir } } }) {
+        require(
+            (105..113).all { y ->
+                (-1..1).all { x -> (119..121).all { z -> level.getBlockState(BlockPos(x, y, z).offset(offset)).isAir } }
+            },
+        ) {
             "Clear the launch column above the flight pad first"
         }
         cells.map(::ChunkPos).toSet().forEach { chunk ->
@@ -48,6 +53,22 @@ internal class SableFlightPad(
             originals[position] = level.getBlockState(position)
             check(level.setBlock(position, material, 3)) { "Could not place diagnostic flight pad" }
         }
+    }
+
+    /** Prepare the destination before releasing any source terrain; preserve both on rejection. */
+    fun translated(delta: BlockPos): SableFlightPad {
+        require(originals.all { (position, _) -> level.getBlockState(position) == material }) {
+            "Frame shift rejected: the temporary pad has been edited"
+        }
+        val next = SableFlightPad(level, offset.offset(delta))
+        try {
+            next.prepare()
+        } catch (error: Exception) {
+            next.clear()
+            throw error
+        }
+        clear()
+        return next
     }
 
     fun clear() {
