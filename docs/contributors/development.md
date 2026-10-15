@@ -79,3 +79,40 @@ local supported-filesystem verification remains necessary to claim copy-on-write
 Kotlin formatting/lint uses the same pinned kotlinter plugin as Compukters. Run :core:formatKotlin or
 :v1_21_1-neoforge:formatKotlin through the managed wrapper; check tasks include lint. Edit and format the
 canonical shared roots, never generated mirrors. Generated shared mirrors are excluded from lint tasks.
+
+## Agent skills
+
+The only skills versioned in `.agents/skills/` are the six `orbitalis-*` workflows. They cover
+project-specific Minecraft integration, contracts, UI, visual assets, release evidence and cross-layer
+triage. Their source of truth belongs to this repository.
+
+General development workflows live in [ai-skills](https://github.com/lazyhat/ai-skills). They include
+`production-workflow`, `brainstorming`, `debugging-strategy`, `testing-strategy`, `writing-plans`,
+`executing-plans`, `verification-workflow`, `review-feedback` and `using-github-roadmap`.
+Use the upstream [installation instructions](https://github.com/lazyhat/ai-skills#usage); keep one
+user-scoped installation rather than copied per-project versions. Installation is optional and is
+not performed by Orbitalis setup, Gradle or CI.
+
+For a fresh Codex user-scoped setup, choose an external checkout location, for example:
+
+```sh
+mkdir -p "$HOME/src" "$HOME/.agents"
+git clone https://github.com/lazyhat/ai-skills.git "$HOME/src/ai-skills"
+if [ ! -e "$HOME/.agents/skills" ] && [ ! -L "$HOME/.agents/skills" ]; then
+    ln -s "$HOME/src/ai-skills/skills" "$HOME/.agents/skills"
+else
+    printf 'Existing skills installation found; inspect it before changing it.\n'
+fi
+readlink -f "$HOME/.agents/skills"
+```
+
+Reuse an existing ai-skills checkout when available; do not rerun clone into an occupied location.
+The resolved link should point to that checkout's `skills/` directory. If a user-scoped skills directory
+already contains other skills, preserve it and follow the upstream instructions to arrange discovery;
+do not overwrite it or create a nested `skills/skills` link. Check the resolved path before relying on
+shared skills. Follow the upstream instructions for updates and other agent discovery mechanisms.
+
+Contributors without those skills use [AGENTS.md](../../AGENTS.md) and these contributor guides directly.
+All mandatory Orbitalis rules, commands, ownership boundaries, verification and licensing remain in
+this repository. Optional skills do not override them or introduce Compukters' merge authorization,
+VM/submodule requirements or GitHub project configuration. Builds and tests do not load external skills.

@@ -9,7 +9,7 @@ Only tooling and process conventions were imported; the source checkout was not 
 | gradlew-sandbox* and tools/gradle | Imported with tests; ORBITALIS environment namespace, no Rust job flags |
 | worktree-task and tools/worktrees | Imported with tests; local base detection/config, opt-in submodules, unborn doctor |
 | AGENTS.md and contributor guides | Adapted to current modules, authorized operations and honest evidence scope |
-| Shared workflow skills | Bundled local copies with relevant references; removed Compukters-only setup/completion policy |
+| Shared workflow skills | Use the upstream ai-skills user installation; no vendored copies or Orbitalis forks; repository-specific policy stays in AGENTS.md |
 | NeoForge, ABI, triage, UI, visual and release skills | Rewritten for Orbitalis ownership and current capabilities |
 | Canonical Minecraft shared roots | Shared common/neoforge layers plus version leaves and generated mirror support |
 | Apache-2.0 and attribution | LICENSE.md, NOTICE, retained upstream tooling headers, full Apache-2.0 source headers and JAR legal checks |

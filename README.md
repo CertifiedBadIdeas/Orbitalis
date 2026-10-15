@@ -31,3 +31,7 @@ run/server/eula.txt; скрипты не принимают её за вас.
 [проверки](docs/contributors/verification.md), [происхождение переноса](docs/contributors/bootstrap-provenance.md).
 Правила агентов — [AGENTS.md](AGENTS.md), лицензии — [LICENSE.md](LICENSE.md), [NOTICE](NOTICE)
 и [учёт сторонних материалов](licenses/README.md).
+
+Общие агентские скиллы подключаются отдельно из [ai-skills](https://github.com/lazyhat/ai-skills);
+[инструкция для контрибьюторов](docs/contributors/development.md#agent-skills). В репозитории хранятся
+только проектные `orbitalis-*` скиллы. Установка общих скиллов не требуется для сборки и участия.

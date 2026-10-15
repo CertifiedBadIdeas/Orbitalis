@@ -61,14 +61,23 @@ Use the pinned kotlinter formatKotlin/lintKotlin tasks; generated mirrors are ex
 Read relevant .agents/skills/<name>/SKILL.md when working in its area:
 orbitalis-neoforge-integration, orbitalis-contract-change, orbitalis-ui-development,
 orbitalis-visual-assets, orbitalis-release, orbitalis-cross-layer-triage.
-The shared production-workflow, brainstorming, debugging-strategy, testing-strategy, writing-plans,
-executing-plans, verification-workflow and review-feedback skills are bundled locally as well.
-Repository and user instructions override generic skill defaults.
+Only Orbitalis-specific skills are stored here. Shared development skills come from
+https://github.com/lazyhat/ai-skills and are optional contributor tooling; see the Agent skills section
+in docs/contributors/development.md for setup. Do not vendor, fork or require them to build or contribute.
+Repository and user instructions override generic skill defaults, including Compukters-specific rules
+in an installed shared skill. This AGENTS.md and the contributor guides remain the repository policy
+whether or not the shared skills are installed.
+
+For failures, reproduce the problem and identify its owning boundary before fixing it. Resolve material
+architecture/scope decisions before dependent implementation, and keep coordinated plans in the ignored
+working-document directories below. Check actual results before claiming success; report missing evidence.
+For review feedback, verify the claim against current code and repository decisions before changing code.
 Keep temporary specs/plans under ignored .agents/tmp/specs and .agents/tmp/plans. Durable architecture
 and contributor documentation belongs in docs/contributors. Use English for repository documentation.
 GitHub is not configured yet: do not create issues in Compukters or reuse its Projects IDs. Once this
-repository has its own roadmap, configure .github/copilot-instructions.md and use using-github-roadmap
-for architecture-scale changes. Until then record durable decisions locally and continue development.
+repository has its own roadmap, configure .github/copilot-instructions.md and link architecture-scale
+work to an issue on that roadmap; apply using-github-roadmap when installed. Until then record durable
+decisions locally and continue development.
 Use gh for authorized GitHub operations; remote operations require network permission.
 
 ## Licenses and releases
