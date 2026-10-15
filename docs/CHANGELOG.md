@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Add a bounded, independent diagnostic flight controller for takeoff, orbital insertion, a measured unpowered revolution and return to a launch pad.
+
 - Install pinned Sable automatically for standard development client/server/GameTest runs; remove the separate Gradle opt-in flag and duplicate CI profile.
 
 - Add bounded prograde/retrograde Sable diagnostic manoeuvres, per-probe orbital apsides, burn-aware reference errors and native post-burn flight checks.
