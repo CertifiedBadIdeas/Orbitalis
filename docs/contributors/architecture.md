@@ -49,7 +49,10 @@ describes the scene and its remaining evidence gaps.
 The optional Sable adapter stays in shared Minecraft common code; NeoForge alone wires its physics
 callbacks and commands after detecting the mod. Sable types do not enter core. The pinned external
 release is compile-only and is installed intact only in opt-in development runs. Its physics backend
-integrates the probes; the independent two-body stepper does not integrate those same bodies.
+integrates the probes. In the explicit orbital diagnostic, Orbitalis supplies central-gravity impulses
+at the transformed centre of mass, reconstructing inertial position across frame shifts. A separate finer
+core trajectory measures numerical error and never corrects the actual Sable state. Coasting remains a
+separate mode; no general ship registry or celestial gravity for ordinary worlds is installed.
 See [Sable laboratory](sable-laboratory.md) for the bounded frame-shift experiment and transfer gate.
 
 There is no dependency on Compukters, its VM, Rust runtime or addon SDK. There is no committed choice

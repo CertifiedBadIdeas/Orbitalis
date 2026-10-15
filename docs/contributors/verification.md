@@ -39,7 +39,7 @@ Run `:v1_21_1-neoforge:runGameTestServer` separately for real laboratory GameTes
 compiles the isolated tests and checks run visibility, but does not start the server. The GameTest run
 requires a fresh XML report containing all laboratory scenarios without failed, skipped or error results;
 missing/empty reports fail even when the launcher exits successfully. See [planet-laboratory.md](planet-laboratory.md).
-Repeat the GameTest run with `-PorbitalisSableLab=true` for the two additional real Rapier scenarios;
+Repeat the GameTest run with `-PorbitalisSableLab=true` for the three additional real Rapier scenarios;
 CI retains both base and optional-profile XML reports. See [sable-laboratory.md](sable-laboratory.md).
 A successful client launch cannot prove visual or interactive correctness. Record manual observations,
 initial state, actions and expected outcome; mark unavailable evidence explicitly pending.

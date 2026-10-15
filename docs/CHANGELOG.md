@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Add a physical Sable orbit diagnostic: central gravitational impulses evaluated at each construction’s centre of mass, independent trajectory/error measurements and complete-revolution tests across physics timesteps and frame shifts.
+
 - Add optional Sable 2.0.6 diagnostics with isolated runtime installation, native impulse/coasting and same-level frame-shift scenarios, zero-drag laboratory settings and upstream license provenance; keep Sable binaries outside the Orbitalis JAR.
 
 - Keep all production layers in Loom's single `main` development mod group; prevent client world-creation crashes caused by shared classes being assigned to a separate group.

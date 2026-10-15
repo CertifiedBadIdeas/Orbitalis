@@ -31,6 +31,8 @@ import net.minecraft.server.level.ServerPlayer
 import net.minecraft.util.Unit
 import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.phys.Vec3
+import org.cbi.orbitalis.core.planet.CartesianState
+import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.lab.PlanetLabCoordinates
 import org.joml.Quaterniond
 import org.joml.Vector3d
@@ -57,6 +59,10 @@ class SableLab(
     private val physics = checkNotNull(container.physicsSystem()) { "Sable physics is unavailable" }
     private val probes = mutableListOf<Probe>()
     private var pulseSeconds = 0.0
+    private var orbit: SableOrbitExperiment? = null
+    val orbitMetrics get() = orbit?.metrics
+    var failureReason: String? = null
+        private set
     private var shift: Pair<Vec3, ServerPlayer?>? = null
     val frameOrigin = Vector3d()
     var physicsSeconds = 0.0
@@ -76,8 +82,13 @@ class SableLab(
         require(level.dimension() == PlanetLabCoordinates.DIMENSION) { "Sable diagnostics are confined to the planet laboratory" }
     }
 
-    fun start() {
+    fun start() = startScene(false)
+
+    fun startOrbit() = startScene(true)
+
+    private fun startScene(orbital: Boolean) {
         clear()
+        orbit = if (orbital) SableOrbitExperiment() else null
         physicsSeconds = 0.0
         pulseSeconds = 0.0
         callbacks = 0
@@ -87,13 +98,22 @@ class SableLab(
         try {
             repeat(2) { index ->
                 val pose = Pose3d()
-                pose.position().set(index * 8.0, 80.0, 120.0)
+                if (orbital) {
+                    val centre = SableOrbitExperiment.CENTRE
+                    val offset = if (index == 0) SableOrbitExperiment.RADIUS else -SableOrbitExperiment.RADIUS
+                    pose.position().set(centre.x + offset, centre.y, centre.z)
+                } else {
+                    pose.position().set(index * 8.0, 80.0, 120.0)
+                }
                 val body = container.allocateNewSubLevel(pose) as ServerSubLevel
                 body.userDataTag = CompoundTag().apply { putBoolean(MARKER, true) }
                 val plot = body.plot
                 plot.newEmptyChunk(plot.centerChunk)
                 val block = if (index == 0) Blocks.GOLD_BLOCK else Blocks.IRON_BLOCK
                 check(plot.embeddedLevelAccessor.setBlock(BlockPos.ZERO, block.defaultBlockState(), 3))
+                if (orbital && index == 1) {
+                    check(plot.embeddedLevelAccessor.setBlock(BlockPos(0, 1, 0), block.defaultBlockState(), 3))
+                }
                 body.updateLastPose()
                 container.addForceLoadTicket(body, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
                 probes.add(Probe(body, physics.getPhysicsHandle(body)))
@@ -104,9 +124,14 @@ class SableLab(
         }
     }
 
-    /** Finite force pulse: integrate impulse as mass * acceleration * actual physics timestep. */
+    /** Apply the selected force experiment using mass * acceleration * actual physics timestep. */
     fun beforePhysics(stepSeconds: Double) {
         require(stepSeconds.isFinite() && stepSeconds > 0)
+        if (callbacks > 0 && probes.any { !validProbe(it) }) {
+            clear()
+            failureReason = "Diagnostic stopped: a construction became unavailable or has invalid mass."
+            return
+        }
         // A command may have queued an observer who left before this physics callback.
         if (shift?.second?.let { it.level() !== level || !it.isCreative || it.isPassenger || it.isRemoved } == true) shift = null
         shift?.let { (offset, player) ->
@@ -128,6 +153,17 @@ class SableLab(
         // The pinned Sable build loses an impulse submitted before its first completed step.
         // Apply the complete measured pulse only after that initialization boundary.
         if (callbacks == 0) return
+        orbit?.let { experiment ->
+            if (!experiment.initialized) initializeOrbit(experiment)
+            val states = checkedOrbitStates() ?: return
+            probes.forEachIndexed { index, probe ->
+                val acceleration = experiment.gravity.acceleration(states[index].position)
+                val impulse = acceleration * (probe.body.massTracker.mass * stepSeconds)
+                applyGlobalImpulse(probe, Vector3d(impulse.x, impulse.y, impulse.z))
+            }
+            lastStepSeconds = stepSeconds
+            return
+        }
         if (callbacks == 1) probes[1].handle.addLinearAndAngularVelocity(Vector3d(), Vector3d(0.0, 0.2, 0.0))
         lastStepSeconds = stepSeconds
         val forcedSeconds = min(stepSeconds, (0.5 - pulseSeconds).coerceAtLeast(0.0))
@@ -136,15 +172,31 @@ class SableLab(
             probes.forEach {
                 val mass = it.body.massTracker.mass
                 check(mass.isFinite() && mass > 0) { "Sable returned an invalid body mass" }
-                it.handle.applyLinearImpulse(Vector3d(mass * deltaV, 0.0, 0.0))
+                applyGlobalImpulse(it, Vector3d(mass * deltaV, 0.0, 0.0))
             }
             commandedDeltaV += deltaV
             pulseSeconds += forcedSeconds
         }
     }
 
+    private fun applyGlobalImpulse(
+        probe: Probe,
+        impulse: Vector3d,
+    ) {
+        // Sable accepts a body-local impulse, while celestial acceleration uses inertial axes.
+        probe.body
+            .logicalPose()
+            .orientation()
+            .transformInverse(impulse)
+        probe.handle.applyLinearImpulse(impulse)
+    }
+
     fun afterPhysics(stepSeconds: Double) {
         if (probes.isEmpty()) return
+        orbit?.takeIf { it.initialized }?.let { experiment ->
+            val states = checkedOrbitStates() ?: return
+            experiment.sample(states, stepSeconds)
+        }
         physicsSeconds += stepSeconds
         callbacks++
     }
@@ -161,6 +213,60 @@ class SableLab(
         )
     }
 
+    /** COM position relative to the fixed central body [m], with native velocity [m/s]. */
+    fun orbitalState(index: Int): CartesianState {
+        val probe = probes[index]
+        val pose = probe.body.logicalPose()
+        val com = pose.transformPosition(checkNotNull(probe.body.massTracker.centerOfMass), Vector3d()).add(frameOrigin)
+        val velocity = probe.handle.getLinearVelocity(Vector3d())
+        return CartesianState(
+            Vector3(com.x, com.y, com.z) - SableOrbitExperiment.CENTRE,
+            Vector3(velocity.x, velocity.y, velocity.z),
+        )
+    }
+
+    private fun initializeOrbit(experiment: SableOrbitExperiment) {
+        probes.forEachIndexed { index, probe ->
+            val sign = if (index == 0) 1.0 else -1.0
+            val pose = probe.body.logicalPose()
+            val com = pose.transformPosition(checkNotNull(probe.body.massTracker.centerOfMass), Vector3d())
+            val desired = SableOrbitExperiment.CENTRE + Vector3(sign * SableOrbitExperiment.RADIUS, 0.0, 0.0)
+            val translation = Vector3d(desired.x, desired.y, desired.z).sub(frameOrigin).sub(com)
+            probe.handle.teleport(Vector3d(pose.position()).add(translation), pose.orientation())
+            val velocity = probe.handle.getLinearVelocity(Vector3d())
+            probe.handle.addLinearAndAngularVelocity(
+                Vector3d(0.0, 0.0, sign * SableOrbitExperiment.SPEED).sub(velocity),
+                Vector3d(0.0, if (index == 1) 0.2 else 0.0, 0.0).sub(probe.handle.getAngularVelocity(Vector3d())),
+            )
+        }
+        experiment.initialize(List(probes.size, ::orbitalState))
+    }
+
+    private fun validProbe(probe: Probe): Boolean {
+        val mass = probe.body.massTracker.mass
+        return !probe.body.isRemoved && probe.handle.isValid && mass.isFinite() && mass > 0 && probe.body.massTracker.centerOfMass != null
+    }
+
+    private fun checkedOrbitStates(): List<CartesianState>? {
+        val states =
+            if (probes.all(::validProbe)) {
+                try {
+                    List(probes.size, ::orbitalState)
+                } catch (_: IllegalArgumentException) {
+                    emptyList()
+                }
+            } else {
+                emptyList()
+            }
+        // A bounded diagnostic scene must not feed a singularity/NaN into the native solver.
+        if (states.size != 2 || states.any { it.position.length() !in 4.0..64.0 }) {
+            clear()
+            failureReason = "Orbit stopped: a probe became invalid or left the 4–64 m diagnostic radial bounds."
+            return null
+        }
+        return states
+    }
+
     fun requestShift(
         offset: Vec3,
         observer: ServerPlayer? = null,
@@ -175,6 +281,8 @@ class SableLab(
 
     fun clear() {
         shift = null
+        orbit = null
+        failureReason = null
         // Recover only this adapter's explicitly marked constructions after a restart/crash, too.
         container.allSubLevels.toList().filter { it.userDataTag?.getBoolean(MARKER) == true }.forEach {
             container.removeForceLoadTicket(it, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)

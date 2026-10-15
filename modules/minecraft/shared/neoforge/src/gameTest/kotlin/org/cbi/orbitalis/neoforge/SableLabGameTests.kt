@@ -27,6 +27,7 @@ import net.minecraft.gametest.framework.GameTestListener
 import net.minecraft.gametest.framework.GameTestRunner
 import net.minecraft.world.phys.Vec3
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
+import org.cbi.orbitalis.minecraft.integration.sable.SableOrbitExperiment
 import org.cbi.orbitalis.minecraft.lab.PlanetLabCoordinates
 import org.cbi.orbitalis.neoforge.integration.SableLabIntegration
 import org.joml.Vector3d
@@ -57,6 +58,10 @@ object SableLabGameTests {
             helper.assertTrue(first.mass > 0.0 && first.mass.isFinite(), "Mass is invalid")
             helper.assertTrue(abs(first.velocity.x - 1.0) < 0.002, "Force pulse did not produce delta-v = 1 m/s: $first")
             helper.assertTrue(abs(first.velocity.y) < 0.002 && abs(first.velocity.z) < 0.002, "Vacuum probe acquired transverse velocity")
+            helper.assertTrue(
+                scene.reading(1).velocity.distance(first.velocity) < 0.002,
+                "Rotation changed the direction of a world-space impulse",
+            )
             val coastingVelocity = Vector3d(first.velocity)
             helper.runAfterDelay(10) {
                 helper.assertTrue(scene.reading(0).velocity.distance(coastingVelocity) < 0.002, "Probe lost velocity while coasting")
@@ -143,6 +148,64 @@ object SableLabGameTests {
                     scene.clear()
                     player.discard()
                 }
+            }
+        }
+    }
+
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "sable_orbit", timeoutTicks = 650)
+    fun sableCentralGravityOrbit(helper: GameTestHelper) {
+        val scene = SableLabIntegration.scene(helper.level.server)
+        val config = SubLevelPhysicsSystem.require(scene.level).config
+        val originalSubsteps = config.substepsPerTick
+        onFinished(helper) {
+            config.substepsPerTick = originalSubsteps
+            scene.clear()
+        }
+
+        fun runOrbit(
+            substeps: Int,
+            completed: (SableOrbitExperiment.Metrics) -> Unit,
+        ) {
+            config.substepsPerTick = substeps
+            scene.startOrbit()
+            var shifted = false
+
+            fun observe() {
+                helper.assertTrue(scene.failureReason == null, scene.failureReason ?: "Orbit stopped")
+                val metrics = scene.orbitMetrics!!
+                if (!shifted && metrics.seconds >= SableOrbitExperiment.PERIOD / 2.0) {
+                    scene.requestShift(Vec3(32.0, 0.0, 0.0))
+                    shifted = true
+                }
+                if (metrics.seconds < SableOrbitExperiment.PERIOD) {
+                    helper.runAfterDelay(1) { observe() }
+                    return
+                }
+                helper.assertTrue(scene.completedShifts == 1, "Orbit did not exercise a frame shift")
+                helper.assertTrue(scene.reading(1).mass > scene.reading(0).mass * 1.5, "Orbit requires different construction masses")
+                helper.assertTrue(metrics.maximumPositionError < 1.0, "Orbit position diverged: $metrics")
+                helper.assertTrue(metrics.maximumVelocityError < 0.5, "Orbit velocity diverged: $metrics")
+                helper.assertTrue(metrics.maximumRadiusError < 0.6, "Circular orbit radial drift: $metrics")
+                helper.assertTrue(metrics.maximumRelativeEnergyError < 0.01, "Orbit energy drift: $metrics")
+                helper.assertTrue(metrics.maximumRelativeMomentumError < 0.005, "Central force introduced torque: $metrics")
+                val first = scene.orbitalState(0)
+                val second = scene.orbitalState(1)
+                helper.assertTrue((first.position + second.position).length() < 0.02, "Different masses fell differently")
+                helper.assertTrue((first.velocity + second.velocity).length() < 0.02, "Different masses acquired different accelerations")
+                helper.assertTrue(first.position.x > 15.0 && abs(first.position.z) < 1.0, "Construction did not complete a revolution")
+                println("ORBITALIS_SABLE_ORBIT substeps=$substeps mass0=${scene.reading(0).mass} mass1=${scene.reading(1).mass} $metrics")
+                completed(metrics)
+            }
+            helper.runAfterDelay(1) { observe() }
+        }
+        runOrbit(1) { coarse ->
+            runOrbit(4) { fine ->
+                helper.assertTrue(
+                    fine.maximumPositionError < coarse.maximumPositionError * 0.6,
+                    "Smaller steps did not improve orbital accuracy",
+                )
+                helper.succeed()
             }
         }
     }

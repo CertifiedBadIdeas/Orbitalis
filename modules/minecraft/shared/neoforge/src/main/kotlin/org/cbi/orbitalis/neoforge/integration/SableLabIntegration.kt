@@ -57,7 +57,7 @@ object SableLabIntegration {
     private fun register(dispatcher: CommandDispatcher<CommandSourceStack>) {
         val root = Commands.literal("orbitalis").requires { it.hasPermission(2) }
         val sable = Commands.literal("sable")
-        for (action in listOf("start", "sample", "shift", "clear")) {
+        for (action in listOf("start", "orbit", "sample", "shift", "clear")) {
             sable.then(
                 Commands.literal(action).executes { context ->
                     val source = context.source
@@ -70,6 +70,11 @@ object SableLabIntegration {
                             "start" -> {
                                 lab.start()
                                 "Started two Sable probes: a 0.5 s force pulse followed by coasting. Use sample or clear."
+                            }
+
+                            "orbit" -> {
+                                lab.startOrbit()
+                                "Started two Sable constructions on a 16 m circular orbit: central gravity, initial speed 8 m/s. Use sample or clear."
                             }
 
                             "clear" -> {
@@ -94,20 +99,37 @@ object SableLabIntegration {
                                 if (lab.size !=
                                     2
                                 ) {
-                                    throw SimpleCommandExceptionType(Component.literal("Start the Sable scene first.")).create()
+                                    throw SimpleCommandExceptionType(
+                                        Component.literal(lab.failureReason ?: "Start the Sable scene first."),
+                                    ).create()
                                 }
                                 val a = lab.reading(0)
-                                String.format(
-                                    Locale.ROOT,
-                                    "Sable t=%.3f s; callbacks=%d; dt=%.6f s; mass=%.3f Sable units; speed=%.6f m/s; expected delta-v=%.6f m/s; shifts=%d",
-                                    lab.physicsSeconds,
-                                    lab.callbacks,
-                                    lab.lastStepSeconds,
-                                    a.mass,
-                                    a.velocity.length(),
-                                    lab.commandedDeltaV,
-                                    lab.completedShifts,
-                                )
+                                val orbit = lab.orbitMetrics
+                                if (orbit != null) {
+                                    val radius = lab.orbitalState(0).position.length()
+                                    String.format(
+                                        Locale.ROOT,
+                                        "Sable orbit t=%.3f s; radius=%.4f m; speed=%.4f m/s; max position error=%.6f m; max energy drift=%.6g; shifts=%d",
+                                        orbit.seconds,
+                                        radius,
+                                        a.velocity.length(),
+                                        orbit.maximumPositionError,
+                                        orbit.maximumRelativeEnergyError,
+                                        lab.completedShifts,
+                                    )
+                                } else {
+                                    String.format(
+                                        Locale.ROOT,
+                                        "Sable t=%.3f s; callbacks=%d; dt=%.6f s; mass=%.3f Sable units; speed=%.6f m/s; expected delta-v=%.6f m/s; shifts=%d",
+                                        lab.physicsSeconds,
+                                        lab.callbacks,
+                                        lab.lastStepSeconds,
+                                        a.mass,
+                                        a.velocity.length(),
+                                        lab.commandedDeltaV,
+                                        lab.completedShifts,
+                                    )
+                                }
                             }
                         }
                     source.sendSuccess({ Component.literal(message) }, false)

@@ -19,8 +19,8 @@ limitations under the License.
 # Orbital flight and surface transition feasibility
 
 Status: source investigation, independent mathematics and an opt-in Minecraft laboratory, 2026-10-15.
-An optional [Sable laboratory](sable-laboratory.md) now exercises native rigid-body physics.
-Minecraft orbital flight, cross-level construction transfer and seamless transitions remain unimplemented.
+An optional [Sable laboratory](sable-laboratory.md) now exercises native rigid-body physics, including bounded central-gravity orbits.
+Production orbital flight, cross-level construction transfer and seamless transitions remain unimplemented.
 
 ## Accepted direction
 

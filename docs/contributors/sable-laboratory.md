@@ -19,9 +19,9 @@ limitations under the License.
 # Sable physics laboratory
 
 This bounded experiment targets Minecraft 1.21.1 / NeoForge 21.1.252 with optional Sable 2.0.6.
-It creates two real single-block constructions, exercises Sable's native Rapier backend, and
+It creates two small real block constructions, exercises Sable's native Rapier backend, and
 translates both constructions and an unmounted creative observer within one level. It does not
-implement orbital ships, surface-to-orbit travel or transfer between dimensions. Use a disposable world.
+implement production orbital ships, surface-to-orbit travel or transfer between dimensions. Use a disposable world.
 
 ## Launch and commands
 
@@ -58,8 +58,8 @@ The second probe also receives angular velocity. Afterwards the bodies coast. Ma
 Sable's units; it is not claimed to be kilograms.
 
 The laboratory dimension alone has zero Sable gravity, pressure and universal drag. Ordinary player
-and Minecraft entity gravity remain unchanged. This vacuum scene has no celestial gravity or orbital
-integrator attached to its constructions. Do not infer a physical orbit from the particle demonstration.
+and Minecraft entity gravity remain unchanged. The `start` scene has no celestial gravity; the separate `orbit` scene below adds central attraction.
+Do not infer a physical orbit from the particle demonstration.
 
 All commands require operator permission level 2 and the lab dimension. `shift` additionally requires
 an unmounted creative observer and two running probes. On the next physics callback, it translates
@@ -72,6 +72,42 @@ A queued shift is canceled if its observer leaves the level or becomes ineligibl
 loading tickets. Restart does not resume the experiment; `start`/`clear` also recover marked leftovers.
 The marker `orbitalis_sable_diagnostic` is experimental diagnostic metadata, not a public ship schema.
 
+## Central gravity and physical orbits
+
+`/orbitalis lab sable orbit` replaces the coasting scene with two physical orbiting constructions.
+One gold block and two iron blocks give different total masses. Their centres of mass start on
+opposite sides of the same circular orbit; the iron construction also spins. After the first native
+initialization step, each is assigned its initial tangential velocity once. Subsequent motion comes
+only from Sable integrating central-gravity impulses, never teleporting onto a reference trajectory.
+
+| Quantity | Diagnostic value |
+| --- | --- |
+| Fixed inertial centre | (0, 96, 120) m |
+| Gravitational parameter mu | 1024 m³/s² |
+| Initial radius / speed | 16 m / 8 m/s |
+| Initial radial acceleration | 4 m/s² |
+| Analytic circular period | 4 pi seconds, approximately 12.566 s |
+| Orbit plane | XZ, at Y = 96 m |
+
+The adapter evaluates `a = -mu * r / |r|³` at each construction's transformed centre of mass and
+submits `mass * a * dt` on every pre-physics callback, converting the inertial impulse into
+Sable's body-local axes. Rotation must not rotate the direction of celestial attraction. Sable alone advances the real bodies.
+No gravity torque, atmosphere, thrust, terrain collisions, mutual attraction or player gravity is
+added. This is a point-field laboratory, without a solid planet. Other Sable constructions are not
+automatically enrolled. The existing `sable start` command still selects the zero-gravity force pulse.
+
+`sample` reports orbital time, radius, speed, maximum reference-position error and relative energy
+error. A separate, eight-times-finer Verlet reference is initialized from the measured initial state;
+post-physics samples compare the native result to it without feeding corrections back into Sable.
+Both reference and measured positions use the same inertial centre. A `shift` changes the local origin,
+so force evaluation reconstructs global position first; the gravitating centre does not follow a probe.
+`clear`, restart and server shutdown dispose the experiment. Invalid probes or radii outside the
+4–64 m diagnostic band stop it and remove its marked constructions before singular forces are applied.
+
+To observe the orbit, enter the lab in creative mode, enable creative flight, move near (0, 96, 88),
+look towards positive Z, then run `sable orbit`. Watch a complete revolution and use `sample`.
+Enable flight before a frame shift; the player retains vanilla gravity.
+
 ## Automated evidence
 
 ```sh
@@ -79,9 +115,13 @@ The marker `orbitalis_sable_diagnostic` is experimental diagnostic metadata, not
 ./gradlew :v1_21_1-neoforge:runGameTestServer -PorbitalisSableLab=true
 ```
 
-The base profile runs seven planet lab scenarios without Sable. The optional profile adds two real
+The base profile runs seven planet lab scenarios without Sable. The optional profile adds three real
 native-physics scenarios, checking impulse across one/four substeps, coasting in vacuum, a frame shift
-of two bodies with nonzero linear/angular velocity, relative/global positions and observer orientation.
+of two bodies with nonzero linear/angular velocity, relative/global positions and observer orientation. The central-gravity scenario additionally runs a
+complete revolution at one and four substeps, shifts the frame halfway through each run, compares both
+masses to the independent reference, and bounds radius, energy and angular-momentum error. Four substeps
+must improve trajectory accuracy. Acceptance bounds are position error < 1 m, velocity error < 0.5 m/s,
+radius error < 0.6 m, relative energy error < 0.01 and relative angular-momentum error < 0.005.
 Separate `results.xml` and `sable-results.xml` reports live under the target's
 `build/test-results/gameTestServer`. Both are required in CI; a missing fresh report or missing required
 Sable scenario fails the run. Test-only players use an inert channel and packet sink without a login;
@@ -97,6 +137,18 @@ for that boundary and then applies the entire measured pulse; it does not compen
 Sable also logs an unknown `create:flywheel` block from its bundled physics data when Create is absent.
 This upstream resource warning is nonfatal in the tested configuration.
 
+Measured central-gravity results on 2026-10-15, including a frame shift during each full revolution:
+
+| Substeps per game tick | Maximum position error | Maximum speed-vector error | Maximum radius error | Maximum relative energy error |
+| --- | --- | --- | --- | --- |
+| 1 (0.05 s) | 0.77842 m | 0.18921 m/s | 0.20664 m | 0.000652 |
+| 4 (0.0125 s) | 0.20544 m | 0.05257 m/s | 0.05159 m | 0.000410 |
+
+The constructions had masses 4 and 8 Sable units. Maximum relative angular-momentum errors were
+0.000055 and 0.000209 respectively. These are finite-duration native-solver measurements with a
+first-order gravity kick and floating-point pose readback. They do not establish long-term orbital
+accuracy, precision at large world coordinates, docking behavior or general ship support.
+
 ## Observed client scenario
 
 On 2026-10-15, the isolated Linux development client created a fresh creative world, logged into its
@@ -106,6 +158,15 @@ remained connected. `clear` removed the probes and `leave` returned to the Overw
 fell after being translated off the stationary platform, consistent with unchanged vanilla gravity.
 This confirms bounded command/rendering behavior, not cockpit continuity, multiplayer synchronization,
 passenger transport, or a seamless camera transition. Those remain unverified.
+
+The central-gravity scene was also observed in the isolated client on 2026-10-15, starting from a
+spectator observation point near (0, 100, 88). Both the gold block and spinning two-block iron
+construction rendered and circulated; a 14-second recording covered more than the analytic period.
+The independent particle reference was also started during inspection; it remains a separate scene
+and is not the physical orbit's source of authority. The client logged two missing-sublevel movement
+messages during initial construction spawn, then rendered both bodies. This test does not establish
+packet-order correctness or seamless presentation; those startup messages remain an upstream/runtime
+integration observation, not a fixed networking defect.
 
 ## Transfer decision
 

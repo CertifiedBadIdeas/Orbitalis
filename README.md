@@ -54,7 +54,7 @@ In a disposable world with cheats enabled, use `/orbitalis lab enter`, `/orbital
 `/orbitalis lab orbit`, and `/orbitalis lab leave` to try the laboratory. It contains six separate
 surface charts and a particle orbit demonstration. See the [laboratory guide](docs/contributors/planet-laboratory.md)
 for commands, limitations and server tests. The optional [Sable laboratory](docs/contributors/sable-laboratory.md)
-adds real rigid-body probes, impulse/coasting measurements and a same-level frame shift.
+adds real rigid-body probes, impulse/coasting measurements, central-gravity orbits and a same-level frame shift.
 Launch it with `./gradlew :v1_21_1-neoforge:runClient -PorbitalisSableLab=true`; this installs the
 pinned external Sable release in a separate development run directory.
 
