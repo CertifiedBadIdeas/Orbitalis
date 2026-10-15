@@ -1,3 +1,22 @@
+<!--
+The Orbitalis Developers
+
+Copyright 2026 The Compukters Developers
+Copyright 2026 Vsevolod Petrov (lazyhat)
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
 # Orbitalis repository guidelines
 
 ## Checkout and collaboration
@@ -85,7 +104,7 @@ Use gh for authorized GitHub operations; remote operations require network permi
 The project uses Apache-2.0; preserve LICENSE.md, NOTICE and upstream attribution in adapted code.
 Use the full Apache-2.0 source header in original Kotlin, Gradle, Python, shell and executable/build
 configuration files, following the format in build.gradle.kts and tools/verify.py. Use
-`Copyright 2026 The Orbitalis Developers` for current original files; use the actual creation year for
+`Copyright 2026 Vsevolod Petrov (lazyhat)` for current original files; use the actual creation year for
 future files. A bare SPDX identifier does not replace this header. Keep shebangs first in scripts.
 Preserve upstream copyright and adaptation notices in imported code; never replace a third-party
 holder with Orbitalis. Do not overwrite vendored/generated files with project headers.

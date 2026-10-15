@@ -1,10 +1,28 @@
+<!--
+The Orbitalis Developers
+
+Copyright 2026 Vsevolod Petrov (lazyhat)
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
 # Third-party material and project licensing
 
 Original Orbitalis sources are licensed under Apache-2.0 (LICENSE.md). Adapted Compukters tooling retains
 its upstream copyright and adaptation notices in full Apache-2.0 headers; NOTICE records the source revision. Keep those notices when
 refactoring. Include LICENSE.md and NOTICE in production archives; metadata declares Apache-2.0.
 Original source, build scripts and executable/build configuration use the full Apache-2.0 header,
-with `The Orbitalis Developers` and `Copyright 2026 The Orbitalis Developers` for current original files.
+with `The Orbitalis Developers` and `Copyright 2026 Vsevolod Petrov (lazyhat)` for current original files.
 See build.gradle.kts for block comments and tools/verify.py for hash comments. For future files, use
 their actual creation year. SPDX alone is not the repository's source header format. Keep script
 shebangs on the first line. Adapted Compukters files retain their upstream holder and adaptation notice.

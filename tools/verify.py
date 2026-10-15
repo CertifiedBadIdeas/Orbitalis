@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # The Orbitalis Developers
 #
-# Copyright 2026 The Orbitalis Developers
+# Copyright 2026 Vsevolod Petrov (lazyhat)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
