@@ -85,6 +85,67 @@ object SableTransferGameTests {
                 }.filterIsInstance<ChestBlockEntity>()
                 .single()
         chest(source).setItem(0, ItemStack(Items.COBBLESTONE, 16))
+        // Sable writes an unordered set of positions. Reordering must pass, while every
+        // inventory/type/position change and duplicate must still fail closed.
+        val chestTag = chest(source).saveWithFullMetadata(surface.registryAccess())
+        val otherChest = chestTag.copy().also { it.putInt("x", it.getInt("x") + 1) }
+        val entities =
+            ListTag().also {
+                it.add(chestTag)
+                it.add(otherChest)
+            }
+        val reversed =
+            ListTag().also {
+                it.add(otherChest.copy())
+                it.add(chestTag.copy())
+            }
+        SableShipSnapshot.verifyBlockEntities(entities, reversed)
+
+        fun rejectedEntities(
+            label: String,
+            alter: (ListTag) -> Unit,
+        ) {
+            val changed = reversed.copy()
+            alter(changed)
+            helper.assertTrue(
+                runCatching { SableShipSnapshot.verifyBlockEntities(entities, changed) }.isFailure,
+                "Block entity comparison accepted $label",
+            )
+        }
+        rejectedEntities("changed cargo") {
+            it
+                .getCompound(0)
+                .getList("Items", 10)
+                .getCompound(0)
+                .putInt("count", 32)
+        }
+        rejectedEntities("changed type") { it.getCompound(0).putString("id", "minecraft:barrel") }
+        rejectedEntities("changed position") { it.getCompound(0).putInt("y", 100) }
+        rejectedEntities("missing block entity") { it.removeAt(0) }
+        rejectedEntities("extra block entity") { it.add(otherChest.copy().also { tag -> tag.putInt("y", 100) }) }
+        rejectedEntities("duplicate block entity") { it.add(otherChest.copy()) }
+        rejectedEntities("connectivity flag on an unrelated block") { it.getCompound(0).putBoolean("UpdateConnectivity", true) }
+        val engine =
+            CompoundTag().also {
+                it.putString("id", "createpropulsion:creative_thruster_block_entity")
+                it.putInt("x", 0)
+                it.putInt("y", 128)
+                it.putInt("z", 0)
+                it.putInt("currentTick", 42)
+                it.putInt("Width", 1)
+                it.putFloat("Thrust", 100f)
+            }
+        val engines = ListTag().also { it.add(engine) }
+        val loadedEngines = engines.copy().also { it.getCompound(0).putBoolean("UpdateConnectivity", true) }
+        SableShipSnapshot.verifyBlockEntities(engines, loadedEngines)
+        SableShipSnapshot.verifyBlockEntities(loadedEngines, engines)
+        for (field in listOf("currentTick", "Width", "Thrust", "UpdateConnectivity")) {
+            val changed = loadedEngines.copy().also { it.getCompound(0).putInt(field, 2) }
+            helper.assertTrue(
+                runCatching { SableShipSnapshot.verifyBlockEntities(engines, changed) }.isFailure,
+                "Block entity comparison accepted changed engine $field",
+            )
+        }
         var blockTicks = 0
         // A ticking payload reproduces an external engine's persisted per-tick counters without
         // importing Create/Propulsion into this runtime. Exercise the real Level ticker dispatch.

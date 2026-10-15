@@ -25,6 +25,7 @@ import dev.ryanhcode.sable.sublevel.ServerSubLevel
 import dev.ryanhcode.sable.sublevel.storage.serialization.SubLevelSerializer
 import dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem
 import dev.ryanhcode.sable.util.SableNBTUtils
+import net.minecraft.core.BlockPos
 import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.ListTag
@@ -39,6 +40,46 @@ import org.joml.Vector3d
 
 /** Pinned native serialization stays behind this integration boundary; no upstream code is copied. */
 object SableShipSnapshot {
+    /** Native serialization iterates an unordered set of block-entity positions. */
+    fun verifyBlockEntities(
+        source: ListTag,
+        destination: ListTag,
+    ) {
+        fun index(entries: ListTag): Map<BlockPos, CompoundTag> =
+            buildMap {
+                for (entry in entries) {
+                    check(entry is CompoundTag && listOf("x", "y", "z").all { entry.contains(it, 3) }) {
+                        "Invalid block entity coordinates during reconstruction"
+                    }
+                    val position = BlockPos(entry.getInt("x"), entry.getInt("y"), entry.getInt("z"))
+                    check(put(position, entry) == null) { "Duplicate block entity at $position during reconstruction" }
+                }
+            }
+        val expected = index(source)
+        val actual = index(destination)
+        check(expected.keys == actual.keys) { "Block entity positions changed during reconstruction" }
+        for ((position, payload) in expected) {
+            val restored = actual.getValue(position)
+            check(comparablePayload(payload) == comparablePayload(restored)) {
+                val changed = (payload.allKeys + restored.allKeys).sorted().filter { payload.get(it) != restored.get(it) }
+                "Block entity payload changed during reconstruction: ${payload.getString("id")} at $position; fields: " +
+                    changed.joinToString(", ")
+            }
+        }
+    }
+
+    private fun comparablePayload(payload: CompoundTag): CompoundTag {
+        if (payload.getString("id") != "createpropulsion:creative_thruster_block_entity") return payload
+        // Propulsion 1.1.5 read() re-arms this connectivity work flag for single engines.
+        // Keep it armed on the live destination: its first resumed tick must rebuild links.
+        // It is not cargo or engine configuration; all other fields remain exact.
+        check(
+            !payload.contains("UpdateConnectivity") ||
+                (payload.contains("UpdateConnectivity", 1) && payload.getByte("UpdateConnectivity") == 1.toByte()),
+        ) { "Invalid creative thruster connectivity work flag" }
+        return payload.copy().also { it.remove("UpdateConnectivity") }
+    }
+
     fun preflight(
         body: ServerSubLevel,
         pilot: ServerPlayer,

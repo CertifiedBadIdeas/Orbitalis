@@ -561,7 +561,7 @@ class SableShipTransfer(
             for (key in a.allKeys) {
                 val ac = a.getCompound(key)
                 val bc = b.getCompound(key)
-                check(ac.get("block_entities") == bc.get("block_entities")) { "Block entity payload changed during reconstruction" }
+                SableShipSnapshot.verifyBlockEntities(ac.getList("block_entities", 10), bc.getList("block_entities", 10))
                 val sections = ac.getCompound("sections")
                 for (section in sections.allKeys) {
                     check(

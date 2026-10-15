@@ -91,7 +91,15 @@ Both diagnostic levels' native physics are paused while a transaction is active.
 are restored afterward. Player interactions are blocked during the operation and source content/pilot
 position are revalidated after asynchronous preparation. Block-entity ticks in the held source/staged
 plot chunks are suspended by the loader's Minecraft ticker hook. This includes persisted engine counters;
-the complete payload comparison remains strict. Other chunks and clients are unaffected by that hook.
+payload comparison preserves cargo and configuration. Block entities are matched by plot coordinates because
+Sable serializes an unordered position set; list order carries no meaning. Missing, extra or duplicate
+positions and NBT field changes still reject reconstruction, except for the pinned Propulsion 1.1.5
+creative thruster's `UpdateConnectivity` work flag. Its native `read()` re-arms connectivity rebuilding
+for single engines. The comparison accepts an absent/true flag without changing either snapshot or
+the live destination, so the first resumed engine tick still rebuilds links. Engine configuration,
+controller offsets, thrust, counters and all other payload fields remain exact; no other block type
+receives this exception. A payload rejection identifies the
+block type, plot position and changed fields. Other chunks and clients are unaffected by that hook.
 Ordinary scheduled/random block ticks are not globally stopped; a changed payload still cancels preparation.
 Cancellation reports distinguish block-data changes, native save-pointer changes and pilot movement.
 Transfer-specific native loading tickets and block-entity tick leases are released on completion.
@@ -125,7 +133,13 @@ transfers for inspection/restart, instead of guessing ownership. Preserve the jo
 The native GameTest exercises a round trip with a rotated ship, nonzero small linear/angular velocity,
 a chest and pilot pose, occupied-slot rejection, PREPARED rollback, COMMITTED recovery with a stale
 occupancy bitmap, offline pilot
-reconciliation and preservation of post-DONE cargo changes. Core tests cover the fixed-frame round trip
+reconciliation and preservation of post-DONE cargo changes. It also checks unordered block-entity
+comparison, rejection of cargo/type/position/duplicate changes and the narrowly scoped engine work-flag exception.
+An isolated headless flight-consumer probe on 2026-10-15 reconstructed a copy of a saved player ship
+with its actual Create/Propulsion/Simulated block entities and three Honey Glue entities, then completed
+surface-to-orbit and return transactions with cargo checks. This reproduced the unordered-list and
+engine-connectivity-flag failures before their fixes; it does not establish client rendering or control continuity.
+Core tests cover the fixed-frame round trip
 and continuous gravitational field. A synthetic interrupted journal is not a power-loss/fsync fault test
 or a full separate-JVM restart. The Sable-only GameTest does not load Create and therefore does not verify actual Super Glue NBT
 round trips. Interactive Propulsion/glue operation, packet ordering, cockpit continuity,

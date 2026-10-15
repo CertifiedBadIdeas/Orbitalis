@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Compare reconstructed block entities by plot coordinates, accepting Sable's unordered serialization and the pinned creative thruster's connectivity rebuild flag while preserving cargo/configuration checks; report the block and changed fields for actual payload differences.
+
 - Pause block-entity ticks in source/staged ship plot chunks during diagnostic transfer, preserving ticking engine payloads without ignoring NBT changes; report the specific preparation cancellation reason.
 
 - Use Propulsion's actual creative-thruster block-entity registry ID in ship transfer preflight, allowing the intended five-engine consumer fixture.
