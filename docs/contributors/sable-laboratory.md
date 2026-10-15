@@ -240,8 +240,25 @@ of a client's collision acquisition, network handshake or camera smoothness.
 Observed headless platform results on 2026-10-15: maximum horizontal drift was 0.00480/0.00194 m
 for short flights and 0.01610/0.00507 m for orbital flights at one/four substeps, including a frame
 shift and landing. The fixture retained declared support throughout; its 0.05 m initial foot
-clearance was preserved. Real client acquisition, camera behavior and frame-shift presentation
-remain pending observation; launching a client alone is not a passed ride.
+clearance was preserved.
+
+A disposable integrated-client world (`Orbitalis rider smoke`, isolated `run/rider-preview`) was
+also exercised on 2026-10-15 with the default two physics substeps (0.025 s). Creative flying
+observers were refused. With flying disabled, normal client collision acquired the deck after
+boarding: two initial unsupported ticks for the short run and one for the orbital run, with no
+additional lost-contact ticks through either flight. The short run landed with maximum horizontal
+drift 0.002 m. The orbital run completed 1.001 unpowered turns, landed with maximum drift 0.003 m,
+and reported maximum relative coast energy error 0.000215975. The 32 m airborne shift retained
+the rider on deck; post-landing position was approximately (-31.50205, 106.00008, 120.50049), the
+new pad at (-32,104,120) was obsidian, and the original pad position was air. Clear removed the
+translated pad and lab leave returned the player to the normal world.
+
+Recordings covered first/third-person views and show the rider remaining on the gold centre during
+ascent, yaw, coast and landing. A transient black edge is visible in a short-flight third-person
+frame; camera/render polish and performance are not accepted from this bounded observation.
+No arbitrary-ship, walking/jumping, remote-server latency or multiplayer guarantee follows from
+these stationary-rider runs. Local recordings and client log are retained under ignored
+`build/agent-logs/rider-client-20261015-evidence/`.
 
 ## Automated evidence
 
