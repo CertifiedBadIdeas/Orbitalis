@@ -37,6 +37,20 @@ Before running the dedicated server, read and accept the Minecraft EULA yourself
 `consumers/flight/run/server/eula.txt`. The build does not accept it automatically.
 Client and server worlds are separate under `consumers/flight/run/client` and `run/server`.
 Use disposable worlds for experiments; do not copy existing player worlds into the stand.
+The stand also contains the same checksummed Gradle 9.8.1 wrapper as the root:
+
+```sh
+cd consumers/flight
+./gradlew check
+./gradlew runClient
+```
+
+In IntelliJ, choose **Gradle distribution: Wrapper** and **Gradle JVM: JDK 25** for the consumer.
+Reload it after changing these settings. Selecting an older local Gradle distribution can cause Kotlin
+metadata errors while compiling the included build scripts; the settings now reject a mismatched
+Gradle version before configuring the included Orbitalis build. `verifyConsumer` checks that all four
+wrapper files remain identical to the root copies, so update both wrappers together.
+
 In IntelliJ, link `consumers/flight/settings.gradle.kts` as a separate Gradle build and use its
 `runClient` / `runServer` tasks or generated run configurations.
 

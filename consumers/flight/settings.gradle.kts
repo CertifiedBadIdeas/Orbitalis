@@ -25,6 +25,13 @@ pluginManagement {
         mavenCentral()
     }
 }
+val wrapperProperties = java.util.Properties().apply {
+    file("../../gradle/wrapper/gradle-wrapper.properties").inputStream().use { load(it) }
+}
+val expectedGradle = Regex("gradle-(.+)-bin\\.zip").find(wrapperProperties.getProperty("distributionUrl"))!!.groupValues[1]
+check(gradle.gradleVersion == expectedGradle) {
+    "The flight consumer requires Gradle $expectedGradle; select its Gradle wrapper in the IDE or run ./gradlew from consumers/flight. Current: ${gradle.gradleVersion}."
+}
 check(JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_25)) {
     "Run the flight consumer Gradle build with JDK 25; Minecraft uses Java 21."
 }

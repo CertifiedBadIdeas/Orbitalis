@@ -94,8 +94,17 @@ val verifyConsumer = tasks.register("verifyConsumer") {
     group = "verification"
     description = "Check the exact external mod set and the independently built Orbitalis development archive."
     dependsOn(orbitalisMod)
+    val wrapperFiles = listOf("gradlew", "gradlew.bat", "gradle/wrapper/gradle-wrapper.jar",
+        "gradle/wrapper/gradle-wrapper.properties")
+    inputs.files(wrapperFiles.map { file(it) }, wrapperFiles.map { file("../../$it") })
     inputs.files(physicsMods, originalSable, aeronauticsLibraries, sableLibraries, orbitalisMod)
     doLast {
+        listOf("gradlew", "gradlew.bat", "gradle/wrapper/gradle-wrapper.jar",
+            "gradle/wrapper/gradle-wrapper.properties").forEach { name ->
+            check(file(name).readBytes().contentEquals(file("../../$name").readBytes())) {
+                "Consumer wrapper differs from the root wrapper: $name; update both together"
+            }
+        }
         launchModGroups.forEach { (name, mods) ->
             check(mods.names == setOf("orbitalis") &&
                 mods.single().modFiles.files == orbitalisMod.files) {

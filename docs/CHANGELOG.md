@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Provide the flight consumer's own Gradle 9.8.1 wrapper for IDE import and direct launch; reject mismatched Gradle versions early and verify wrapper parity with the root build.
+
 - Add an independent flight consumer build for the current Orbitalis checkout with pinned Create, Sable, Aeronautics and Propulsion; isolate its dependencies/worlds and reject consumer implementations or dependencies in the production JAR.
 
 - Add a native 3×3 rider platform, one-time boarding, short/orbital launches, support/drift telemetry and bounded airborne frame translation including its owned landing pad; distinguish declared-contact server fixtures from real client evidence.
