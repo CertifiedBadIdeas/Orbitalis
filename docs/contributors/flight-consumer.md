@@ -127,6 +127,10 @@ oak deck, corner legs, five creative thrusters, native redstone receivers, four 
 cobblestone each and a centre Physics Assembler, with Super Glue covering the construction. It gives
 the player a configured Create Linked Controller and wrench and places the player on deck. Only setup
 moves the player; there is no flight automation. The internal `build` function is not the entry point.
+The aligned launch position must be between Y=-63 and Y=309, so the entire fixture fits inside the
+supported dimensions' build height. Outside that range the function reports an error before placing
+blocks, spawning glue, giving items or moving the player. Flying Sable ships can exceed the build
+height; invoking `setup` there cannot create a new static ship beneath the player.
 
 Select an empty hand, aim at the Physics Assembler, hold right-click and drag upward until its indicator
 reaches the end, then release. Check that Sable reports one sub-level and the whole craft moves together.

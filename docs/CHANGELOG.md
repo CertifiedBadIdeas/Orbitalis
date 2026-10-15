@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Reject terrain ship fixture setup outside its full build-height range before giving items, moving the player or reporting success.
+
 - Report all unsupported ship block-entity types and their counts in one transfer preflight rejection.
 
 - Preserve Simulated Honey Glue alongside Create Super Glue throughout ship transfer, journal validation and interrupted-transfer recovery.

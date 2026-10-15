@@ -15,6 +15,9 @@
 # limitations under the License.
 
 # Destructive within x/z +/-10 and y -1..10 of the caller; invoke once only.
+# Both supported dimensions use the vanilla -64..319 build range; validate the whole fixture first.
+execute unless predicate orbitalis_flight_test:build_height run tellraw @s {"text":"Ship setup requires a launch position between Y=-63 and Y=309. Return to terrain first; no ship or items were created.","color":"red"}
+execute unless predicate orbitalis_flight_test:build_height run return fail
 fill ~-10 ~ ~-10 ~10 ~10 ~10 minecraft:air
 fill ~-10 ~-1 ~-10 ~10 ~-1 ~10 minecraft:stone
 fill ~-3 ~4 ~-3 ~3 ~4 ~3 minecraft:oak_planks
