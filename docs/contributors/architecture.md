@@ -62,12 +62,15 @@ a physical landing without state corrections. It remains in one Level and introd
 See [Sable laboratory](sable-laboratory.md) for the bounded frame-shift experiment and transfer gate.
 
 Ordinary Sable constructions in the experimental `orbitalis:flight_test` dimension receive a separate
-server pre-physics central-gravity impulse. Core `SphericalGravity` supplies the field; common
+server pre-physics cube-to-central gravity impulse. Core `CubicGravity` supplies the conservative field; common
 `SableFlightGravity` transforms each loaded body's centre of mass and converts world force into body axes.
 This adapter has no ship ownership tags, persistent registry, loading tickets, cleanup of player ships or
 Propulsion API dependency. Native Sable owns integration, collisions and ship persistence. Its base gravity,
 drag and pressure are zero only in this test dimension; the Overworld and existing laboratory retain their
-own behavior. The dimension uses ordinary terrain as a local surface stand-in, not finite spherical worldgen.
+own behavior. The dimension uses ordinary terrain as a local surface stand-in, not finite cubic worldgen.
+The accepted planet shape is a cube with face-normal near-surface gravity and a central far field;
+see [cubic planet gravity](cubic-planet-gravity.md). Earlier `CubeSphere` charts remain a spherical
+mathematical reference, not the selected production surface geometry.
 Operator enter/leave travel transfers players only, with transient return points and an Overworld spawn fallback after
 restart. The dimension ID is stable for saved worlds; geometry and field parameters remain experimental.
 See [flight gravity](flight-gravity.md) for constants, commands and the limits of this test space.

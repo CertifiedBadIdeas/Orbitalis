@@ -20,7 +20,8 @@ limitations under the License.
 
 Status: source investigation, independent mathematics and an opt-in Minecraft laboratory, 2026-10-15.
 An optional [Sable laboratory](sable-laboratory.md) now exercises native rigid-body physics, including bounded central-gravity orbits.
-Production orbital flight, cross-level construction transfer and seamless transitions remain unimplemented.
+Production orbital flight and seamless transitions remain unimplemented. A bounded diagnostic
+cross-level transfer now exists; see [ship transfer](ship-transfer.md).
 
 ## Accepted direction
 
@@ -31,6 +32,9 @@ Test its feasibility before promising uninterrupted rendering or choosing the fi
 
 The proposed initial orbital model uses successive two-body trajectories with explicit changes
 of reference body. This is a design recommendation, not an implemented physics contract.
+The selected physical shape is now a **cube**, with flat finite faces, face-normal gravity near the
+surface and a gradual central far field; see [cubic planet gravity](cubic-planet-gravity.md).
+The cube-sphere experiment below is retained as mathematical reference, not production geography.
 New Orbitalis worlds should start on a separate finite planet; preserve the ordinary Overworld
 for compatibility. Existing worlds are not migrated by the experiment. Access to the Overworld
 and final planet geography remain undecided. Manual control versus navigation assistance, scale,
@@ -45,7 +49,7 @@ excluded from the production JAR. Core contains the candidate geometry and two-b
 the Minecraft [planet laboratory](planet-laboratory.md) now provides a separate diagnostic dimension,
 surface-coordinate samples and a particle reference orbit. The optional Sable adapter is separate from this particle demonstration.
 
-The candidate uses six finite square charts projected radially from cube faces onto a sphere.
+The earlier spherical candidate uses six finite square charts projected radially from cube faces onto a sphere.
 They describe one closed surface, not six planets or six committed Minecraft dimensions.
 Chart coordinates u/v are dimensionless in [-1, 1], altitude is in metres, and the velocity
 conversion includes the position mapping's derivatives. Raw chart rates are not physical

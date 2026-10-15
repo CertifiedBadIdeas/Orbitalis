@@ -25,8 +25,8 @@ import net.minecraft.resources.ResourceKey
 import net.minecraft.resources.ResourceLocation
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.world.level.Level
+import org.cbi.orbitalis.core.planet.CubicGravity
 import org.cbi.orbitalis.core.planet.OrbitalTestFrame
-import org.cbi.orbitalis.core.planet.SphericalGravity
 import org.cbi.orbitalis.core.planet.Vector3
 import org.joml.Vector3d
 
@@ -51,7 +51,16 @@ object SableFlightGravity {
     ): Vector3 = if (level.dimension() == ORBIT) OrbitalTestFrame.toSurface(position) else position
 
     val CENTRE = Vector3(0.0, -5936.0, 0.0)
-    val field = SphericalGravity(6000.0, 9.81)
+
+    // Experimental dimensions only. The top face remains at surface-world Y = 64.
+    val field =
+        CubicGravity(
+            halfExtent = 6000.0,
+            surfaceAcceleration = 9.81,
+            edgeBlendWidth = 64.0,
+            transitionStartAltitude = 512.0,
+            transitionEndAltitude = 6000.0,
+        )
 
     data class Reading(
         val position: Vector3,

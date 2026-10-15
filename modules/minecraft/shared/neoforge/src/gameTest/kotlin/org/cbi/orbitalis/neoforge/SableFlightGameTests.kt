@@ -35,6 +35,8 @@ import net.minecraft.server.level.ServerLevel
 import net.minecraft.util.Unit
 import net.minecraft.world.level.block.Blocks
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
+import org.cbi.orbitalis.core.planet.OrbitalTestFrame
+import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.integration.sable.FlightTestTravel
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
 import org.joml.Vector3d
@@ -44,7 +46,7 @@ import kotlin.math.abs
 object SableFlightGameTests {
     @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "flight_gravity", timeoutTicks = 150)
-    fun ordinaryShipsReceiveCentralGravity(helper: GameTestHelper) {
+    fun ordinaryShipsReceiveCubicGravity(helper: GameTestHelper) {
         val level = checkNotNull(helper.level.server.getLevel(SableFlightGravity.DIMENSION))
         helper.assertTrue(!level.hasChunk(0, 0), "Entry regression requires an initially unloaded destination chunk")
         val player = GameTestPlayers.create(helper)
@@ -138,11 +140,24 @@ object SableFlightGameTests {
         fun run(substeps: Int) {
             config.substepsPerTick = substeps
             val light = ship(level, 0.0, 200.0)
-            val heavy = ship(level, 20.0, 200.0, true)
+            val heavy = ship(level, 1600.0, 200.0, true)
             val high = ship(level, 0.0, 6064.0)
             val outside = ship(helper.level, 0.0, 1000.0)
             helper.runAfterDelay(5) {
                 val before = listOf(light, heavy, high).map(SableFlightGravity::reading)
+                helper.assertTrue(
+                    abs(before[1].acceleration.x) < 1e-12 && abs(before[1].acceleration.z) < 1e-12,
+                    "Off-centre face gravity has a lateral component",
+                )
+                val relative = Vector3(1600.0, 600.0, 1000.0)
+                val orbit = checkNotNull(level.server.getLevel(SableFlightGravity.ORBIT))
+                val surfaceField = SableFlightGravity.field.acceleration(relative - SableFlightGravity.CENTRE)
+                val orbitField =
+                    SableFlightGravity.field.acceleration(
+                        SableFlightGravity.globalPosition(orbit, OrbitalTestFrame.toOrbit(relative)) -
+                            SableFlightGravity.CENTRE,
+                    )
+                helper.assertTrue((surfaceField - orbitField).length() < 1e-12, "Frame handoff changes gravity")
                 val outsideHandle = SubLevelPhysicsSystem.require(helper.level).getPhysicsHandle(outside)
                 val outsideBefore = outsideHandle.getLinearVelocity(Vector3d())
                 // Represents another force producer, such as Propulsion: gravity must not erase it.
@@ -154,7 +169,7 @@ object SableFlightGameTests {
                     val highDelta = after[2].velocity.y - before[2].velocity.y
                     helper.assertTrue(
                         abs(lowDelta - before[0].acceleration.y) < 0.04,
-                        "Central acceleration or timestep is wrong: $lowDelta",
+                        "Cubic acceleration or timestep is wrong: $lowDelta",
                     )
                     helper.assertTrue(abs(lowDelta - heavyDelta) < 0.015, "Mass or body rotation changed gravitational acceleration")
                     helper.assertTrue(
@@ -162,6 +177,11 @@ object SableFlightGameTests {
                         "Gravity did not weaken with altitude",
                     )
                     helper.assertTrue(abs(after[0].velocity.x - before[0].velocity.x - 3.0) < 0.01, "Another producer's impulse was erased")
+                    helper.assertTrue(
+                        abs(after[1].velocity.x - before[1].velocity.x) < 1e-6 &&
+                            abs(after[1].velocity.z - before[1].velocity.z) < 1e-6,
+                        "Off-centre ship acquired lateral velocity under face gravity",
+                    )
                     helper.assertTrue(
                         physics.getPhysicsHandle(heavy).getAngularVelocity(Vector3d()).length() < 1e-5,
                         "Gravity introduced torque",

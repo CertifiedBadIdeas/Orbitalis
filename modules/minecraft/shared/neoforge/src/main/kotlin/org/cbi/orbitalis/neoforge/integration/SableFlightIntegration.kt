@@ -145,19 +145,15 @@ object SableFlightIntegration {
                                     val sample = SableFlightGravity.reading(body)
                                     String.format(
                                         Locale.ROOT,
-                                        "Ship %s; mass=%.3f Sable units; centre-of-mass=(%.2f,%.2f,%.2f) m; altitude=%.2f m; speed=%.3f m/s; gravity=(%.4f,%.4f,%.4f) m/s²; |g|=%.4f m/s²",
+                                        "Ship %s; mass=%.3f Sable units; centre-of-mass=(%.2f,%.2f,%.2f) m; cube-shell altitude=%.2f m; speed=%.3f m/s; gravity=(%.4f,%.4f,%.4f) m/s²; |g|=%.4f m/s²",
                                         body.uniqueId,
                                         sample.mass,
                                         sample.position.x,
                                         sample.position.y,
                                         sample.position.z,
-                                        (
-                                            SableFlightGravity.globalPosition(
-                                                source.level,
-                                                sample.position,
-                                            ) - SableFlightGravity.CENTRE
-                                        ).length() -
-                                            SableFlightGravity.field.radius,
+                                        SableFlightGravity.field.altitude(
+                                            SableFlightGravity.globalPosition(source.level, sample.position) - SableFlightGravity.CENTRE,
+                                        ),
                                         sample.velocity.length(),
                                         sample.acceleration.x,
                                         sample.acceleration.y,
