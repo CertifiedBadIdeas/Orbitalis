@@ -44,6 +44,8 @@ class FlightTestTravel(
         require(player.isCreative && !player.isPassenger) { "Enter as an unmounted creative player" }
         require(player.level().dimension() != SableFlightGravity.DIMENSION) { "You are already in the flight test space" }
         val level = checkNotNull(server.getLevel(SableFlightGravity.DIMENSION)) { "Flight test dimension is unavailable" }
+        // Level height queries return minBuildHeight when the destination chunk is not loaded.
+        level.getChunkAt(BlockPos.ZERO)
         val spawn = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING, BlockPos.ZERO)
         val saved = ReturnPoint(player.level().dimension(), player.position(), player.yRot, player.xRot)
         val moved = player.teleportTo(level, spawn.x + 0.5, spawn.y + 1.0, spawn.z + 0.5, emptySet(), 0f, 0f)
@@ -60,8 +62,11 @@ class FlightTestTravel(
         require(player.level().dimension() == SableFlightGravity.DIMENSION) { "Enter the flight test space first" }
         val saved = returns[player.uuid]
         val level = saved?.let { server.getLevel(it.dimension) } ?: server.overworld()
-        val spawn = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING, level.sharedSpawnPos)
-        val position = saved?.takeIf { it.dimension == level.dimension() }?.position ?: Vec3.atBottomCenterOf(spawn)
+        val position =
+            saved?.takeIf { it.dimension == level.dimension() }?.position ?: run {
+                level.getChunkAt(level.sharedSpawnPos)
+                Vec3.atBottomCenterOf(level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING, level.sharedSpawnPos))
+            }
         val moved = player.teleportTo(level, position.x, position.y, position.z, emptySet(), saved?.yaw ?: 0f, saved?.pitch ?: 0f)
         if (moved) {
             returns.remove(player.uuid)

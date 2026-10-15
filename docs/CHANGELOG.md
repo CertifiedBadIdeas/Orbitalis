@@ -20,6 +20,7 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Load destination terrain before selecting flight entry or fallback return height, avoiding underground arrival in an initially unloaded chunk.
 - Apply central gravity to ordinary loaded Sable constructions in a separate terrain test dimension, with player travel, ship telemetry and real native-physics coverage; keep Propulsion isolated in the consumer.
 - Add an explicitly invoked consumer ship fixture with native assembly, linked-controller controls and cargo markers; record user-observed Overworld ascent and persistence.
 

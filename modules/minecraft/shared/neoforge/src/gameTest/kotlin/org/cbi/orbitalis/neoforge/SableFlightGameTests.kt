@@ -35,6 +35,7 @@ import net.minecraft.server.level.ServerLevel
 import net.minecraft.util.Unit
 import net.minecraft.world.level.block.Blocks
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
+import org.cbi.orbitalis.minecraft.integration.sable.FlightTestTravel
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
 import org.joml.Vector3d
 import kotlin.math.abs
@@ -45,6 +46,23 @@ object SableFlightGameTests {
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "flight_gravity", timeoutTicks = 150)
     fun ordinaryShipsReceiveCentralGravity(helper: GameTestHelper) {
         val level = checkNotNull(helper.level.server.getLevel(SableFlightGravity.DIMENSION))
+        helper.assertTrue(!level.hasChunk(0, 0), "Entry regression requires an initially unloaded destination chunk")
+        val player = GameTestPlayers.create(helper)
+        val originalPosition = player.position()
+        val originalDimension = player.level().dimension()
+        val travel = FlightTestTravel(helper.level.server)
+        try {
+            helper.assertTrue(travel.enter(player), "Flight entry failed")
+            helper.assertTrue(player.y > level.seaLevel, "Flight entry placed the player underground")
+            helper.assertTrue(level.canSeeSky(player.blockPosition()), "Flight entry is below the surface")
+            helper.assertTrue(travel.leave(player), "Flight return failed")
+            helper.assertTrue(
+                player.level().dimension() == originalDimension && player.position().distanceTo(originalPosition) < 1e-8,
+                "Flight return lost the entry position",
+            )
+        } finally {
+            player.discard()
+        }
         val physics = SubLevelPhysicsSystem.require(level)
         val config = physics.config
         val originalSubsteps = config.substepsPerTick
