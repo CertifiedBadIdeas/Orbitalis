@@ -64,6 +64,7 @@ in the unchanged native plot coordinates. Preflight also recognizes this excepti
 entity queries, which include projected plot entities. Glue outside the selected plot remains an obstruction.
 Native entity chunks must finish loading before cleanup. Supported block
 entities are vanilla chests/barrels/signs, Create Redstone Links, the pinned Propulsion creative thruster
+(`createpropulsion:creative_thruster_block_entity`, its block-entity registry ID rather than its block ID)
 and the pinned Simulated Physics Assembler. Other block entities, including fuel-powered engines,
 are rejected before preparation. A block-entity rejection lists every unsupported registry type on the
 ship, sorted by ID with a count per type, so one attempt reports the complete block-entity inventory

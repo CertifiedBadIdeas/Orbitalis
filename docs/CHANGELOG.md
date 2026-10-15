@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Use Propulsion's actual creative-thruster block-entity registry ID in ship transfer preflight, allowing the intended five-engine consumer fixture.
+
 - Reject terrain ship fixture setup outside its full build-height range before giving items, moving the player or reporting success.
 
 - Report all unsupported ship block-entity types and their counts in one transfer preflight rejection.
