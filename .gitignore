@@ -69,3 +69,4 @@ __pycache__/
 run/
 .gradle-agent/
 /.idea/
+/consumers/flight/.idea/
