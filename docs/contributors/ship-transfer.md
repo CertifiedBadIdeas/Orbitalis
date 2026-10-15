@@ -59,7 +59,9 @@ Destination terrain/nearby entities must be clear. Other players must leave both
 Connected/overlapping native chains, kinematic contraptions, mounted pilots, other onboard players,
 mobs, loose entities, general plot-space entities and pending block/fluid ticks are rejected.
 Create Super Glue is the supported metadata-entity exception: its NBT/UUID is captured and reconstructed
-in the unchanged native plot coordinates. Native entity chunks must finish loading before cleanup. Supported block
+in the unchanged native plot coordinates. Preflight also recognizes this exception in Sable's world-space
+entity queries, which include projected plot entities. Glue outside the selected plot remains an obstruction.
+Native entity chunks must finish loading before cleanup. Supported block
 entities are vanilla chests/barrels/signs, Create Redstone Links, the pinned Propulsion creative thruster
 and the pinned Simulated Physics Assembler. Other block entities, including fuel-powered engines,
 are rejected before preparation. Native dependency chains are checked; arbitrary third-party constraints

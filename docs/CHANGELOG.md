@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Allow a ship's own Create Super Glue through transfer preflight when Sable projects plot entities into world-space queries; continue rejecting loose entities and glue outside the ship's plot.
+
 - Add a bounded diagnostic Sable ship/pilot handoff between terrain and an orbital test level, with exact motion, cargo checks, a versioned authority journal and interrupted-transfer reconciliation.
 
 - Load destination terrain before selecting flight entry or fallback return height, avoiding underground arrival in an initially unloaded chunk.

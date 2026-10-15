@@ -55,11 +55,15 @@ object SableShipSnapshot {
         val bounds = body.boundingBox()
         val area = AABB(bounds.minX(), bounds.minY(), bounds.minZ(), bounds.maxX(), bounds.maxY() + 3.0, bounds.maxZ()).inflate(1.0)
         require(area.contains(pilot.position())) { "The pilot must stand on the selected ship" }
-        require(body.level.getEntities(pilot, area).isEmpty()) { "Remove other players, mobs and loose entities from the ship" }
+        // Sable's spatial query also projects plot-space entities into the ship's world bounds.
+        // Its own glue is transferred with the plot; nearby world-space glue is still an obstruction.
+        val obstruction = body.level.getEntities(pilot, area).firstOrNull { !isSupportedAttachment(body, it) }
+        require(obstruction == null) {
+            "Remove other players, mobs and loose entities from the ship: ${BuiltInRegistries.ENTITY_TYPE.getKey(obstruction!!.type)}"
+        }
         require(
             body.level.getAllEntities().filter { it !== pilot && body.plot.contains(it.position()) }.all {
-                BuiltInRegistries.ENTITY_TYPE.getKey(it.type).toString() ==
-                    "create:super_glue"
+                isSupportedAttachment(body, it)
             },
         ) { "Only Create Super Glue metadata entities are supported inside the plot" }
         require(entitiesReady(body)) { "Wait for native plot entities to finish loading" }
@@ -85,8 +89,7 @@ object SableShipSnapshot {
         require(entities.size <= 64) { "Too many attached metadata entities" }
         for (entity in entities) {
             require(
-                BuiltInRegistries.ENTITY_TYPE.getKey(entity.type).toString() == "create:super_glue" && !entity.isVehicle &&
-                    !entity.isPassenger,
+                isSupportedAttachment(body, entity),
             ) { "Unsupported plot entity" }
             val data = CompoundTag()
             require(entity.save(data)) { "Could not save attached glue" }
@@ -164,6 +167,13 @@ object SableShipSnapshot {
     }
 
     fun entitiesReady(body: ServerSubLevel): Boolean = body.plot.loadedChunks.all { body.level.areEntitiesLoaded(it.chunk.pos.toLong()) }
+
+    private fun isSupportedAttachment(
+        body: ServerSubLevel,
+        entity: Entity,
+    ): Boolean =
+        body.plot.contains(entity.position()) && BuiltInRegistries.ENTITY_TYPE.getKey(entity.type).toString() == "create:super_glue" &&
+            !entity.isVehicle && !entity.isPassenger
 
     fun discardAttachments(
         level: ServerLevel,
