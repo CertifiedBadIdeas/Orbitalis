@@ -18,14 +18,16 @@ limitations under the License.
 
 # Orbitalis
 
-Космический мод для Minecraft. Текущая цель — **1.21.1 / NeoForge**, язык — Kotlin.
-Это рабочий каркас разработки; игровых механик пока нет. Поддержка 26.1 ещё не реализована.
+A space exploration mod for Minecraft, written in Kotlin. The current target is **1.21.1 / NeoForge**.
+The repository contains a development scaffold and an independent finite-planet mathematics experiment;
+in-game mechanics and 26.1 support are not implemented yet.
 
-Процесс разработки и разделение модулей перенесены и адаптированы из Compukters.
+The development workflow and module boundaries are adapted from Compukters.
 
-## Начало работы
+## Getting started
 
-Нужны JDK 25 для Gradle, JDK 21 для целевого кода, Python 3.11+, Git, GNU cp с reflink и flock.
+Prerequisites: JDK 25 for Gradle, JDK 21 for target compilation, Python 3.11+, Git, GNU cp with
+reflink support, and flock.
 
 ```sh
 export JAVA_HOME=/path/to/jdk-25
@@ -35,21 +37,32 @@ export JAVA_HOME=/path/to/jdk-25
 ./gradlew-sandbox-dev-parallel :v1_21_1-neoforge:runClient
 ```
 
-Для первого запуска dedicated dev server прочитайте и примите Minecraft EULA в его отдельном
-run/server/eula.txt; скрипты не принимают её за вас.
+Before the first dedicated development server launch, read and accept the Minecraft EULA in its
+separate run/server/eula.txt. The scripts do not accept it on your behalf.
 
-После первого коммита создавайте изолированные задачи:
+After the first commit, create isolated task checkouts:
 
 ```sh
 ./worktree-task feat/first-space-feature
 ```
 
-Основные документы: [разработка](docs/contributors/development.md),
-[архитектура и перенос на 26.1](docs/contributors/architecture.md),
-[проверки](docs/contributors/verification.md), [происхождение переноса](docs/contributors/bootstrap-provenance.md).
-Правила агентов — [AGENTS.md](AGENTS.md), лицензии — [LICENSE.md](LICENSE.md), [NOTICE](NOTICE)
-и [учёт сторонних материалов](licenses/README.md).
+To run the independent finite-planet experiment:
 
-Общие агентские скиллы подключаются отдельно из [ai-skills](https://github.com/lazyhat/ai-skills);
-[инструкция для контрибьюторов](docs/contributors/development.md#agent-skills). В репозитории хранятся
-только проектные `orbitalis-*` скиллы. Установка общих скиллов не требуется для сборки и участия.
+```sh
+./gradlew-sandbox-dev-parallel-summary :core:test :core:runPlanetExperiment
+```
+
+The task writes a trajectory CSV and measured report under modules/common/core/build/experiments/planet.
+See [orbital flight feasibility](docs/contributors/orbital-flight-feasibility.md) for assumptions,
+limitations and the remaining Minecraft/Sable experiments.
+
+Contributor documentation: [development](docs/contributors/development.md),
+[architecture and migration to 26.1](docs/contributors/architecture.md),
+[verification](docs/contributors/verification.md), and [import provenance](docs/contributors/bootstrap-provenance.md).
+Agent guidelines are in [AGENTS.md](AGENTS.md). Licensing is covered by [LICENSE.md](LICENSE.md),
+[NOTICE](NOTICE), and the [third-party inventory](licenses/README.md).
+
+Shared agent skills are installed separately from [ai-skills](https://github.com/lazyhat/ai-skills);
+see the [contributor setup instructions](docs/contributors/development.md#agent-skills).
+Only project-specific `orbitalis-*` skills are stored here. Installing shared skills is optional
+and is not required to build or contribute.
