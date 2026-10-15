@@ -18,6 +18,7 @@
 
 import net.fabricmc.loom.task.RemapJarTask
 import java.io.DataOutputStream
+import java.security.MessageDigest
 import java.util.zip.GZIPOutputStream
 import javax.xml.parsers.DocumentBuilderFactory
 
@@ -28,7 +29,13 @@ plugins {
 extra["orbitalisMinecraftVersion"] = libs.versions.minecraft.v1211.get()
 apply(plugin = "orbitalis-minecraft-shared")
 base.archivesName.set("orbitalis-neoforge-${libs.versions.minecraft.v1211.get()}")
+repositories {
+    maven("https://api.modrinth.com/maven") { content { includeGroup("maven.modrinth") } }
+    maven("https://maven.ryanhcode.dev/releases") { content { includeGroup("dev.ryanhcode.sable-companion") } }
+}
 dependencies {
+    "modCompileOnly"(libs.sable.v1211) { isTransitive = false }
+    compileOnly(libs.sable.companion) { isTransitive = false }
     minecraft(libs.minecraft.v1211)
     mappings(loom.officialMojangMappings())
     "neoForge"(libs.neoforge.v1211)
@@ -36,6 +43,29 @@ dependencies {
     implementation(project(path = ":v1_21_1-common", configuration = "namedElements"))
     "include"(kotlin("stdlib", libs.versions.kotlin.get()))
     "forgeRuntimeLibrary"("org.jetbrains.kotlin:kotlin-stdlib:${libs.versions.kotlin.get()}") { isTransitive = false }
+}
+val sableLabEnabled = providers.gradleProperty("orbitalisSableLab").map(String::toBooleanStrict).getOrElse(false)
+val sableDistribution = configurations.create("sableDistribution") {
+    isCanBeConsumed = false
+    isTransitive = false
+}
+dependencies { add(sableDistribution.name, libs.sable.v1211) }
+val prepareSableLab = tasks.register("prepareSableLab") {
+    inputs.files(sableDistribution)
+    val directories = listOf("client", "server", "gameTestServer").map { layout.projectDirectory.dir("run/$it-sable/mods") }
+    outputs.dirs(directories)
+    doLast {
+        val archive = sableDistribution.singleFile
+        val digest = MessageDigest.getInstance("SHA-512").digest(archive.readBytes())
+            .joinToString("") { "%02x".format(it) }
+        check(digest == "76d293ce751a01cb9c095a3659b0a41e03e005480bc9d76dfdc73ec7c2eabf7923740c7b077921d42616673c496cd5143569f2085ddcebe174fd91d81e2a04b8") {
+            "Sable release checksum differs from the pinned Modrinth artifact"
+        }
+        directories.forEach { directory ->
+            directory.asFile.mkdirs()
+            archive.copyTo(directory.file("sable-neoforge-1.21.1-2.0.6.jar").asFile, overwrite = true)
+        }
+    }
 }
 evaluationDependsOn(":core")
 evaluationDependsOn(":v1_21_1-common")
@@ -150,7 +180,7 @@ val generateGameTestResources = tasks.register("generateGameTestResources") {
 }
 gameTest.resources.srcDir(generateGameTestResources.map { generatedGameTestResources.get() })
 
-val gameTestReport = layout.buildDirectory.file("test-results/gameTestServer/results.xml")
+val gameTestReport = layout.buildDirectory.file("test-results/gameTestServer/${if (sableLabEnabled) "sable-results" else "results"}.xml")
 loom.runs.register("gameTestServer") {
     server()
     source(gameTest)
@@ -166,6 +196,12 @@ loom.runs.register("gameTestServer") {
             sourceSet(gameTest.name)
         }
     }
+}
+if (sableLabEnabled) {
+    listOf("client", "server", "gameTestServer").forEach { name ->
+        loom.runs.named(name) { runDir("run/$name-sable") }
+    }
+    tasks.matching { it.name in setOf("runClient", "runServer", "runGameTestServer") }.configureEach { dependsOn(prepareSableLab) }
 }
 tasks.named("check") { dependsOn(gameTest.classesTaskName) }
 tasks.configureEach {
@@ -183,7 +219,14 @@ tasks.configureEach {
             factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
             val document = factory.newDocumentBuilder().parse(report)
             val cases = document.getElementsByTagName("testcase")
-            check(cases.length >= 7) { "Expected at least 7 laboratory GameTests, received ${cases.length}." }
+            val minimumCases = if (sableLabEnabled) 9 else 7
+            check(cases.length >= minimumCases) { "Expected at least $minimumCases laboratory GameTests, received ${cases.length}." }
+            if (sableLabEnabled) {
+                val names = (0 until cases.length).map { (cases.item(it) as org.w3c.dom.Element).getAttribute("name") }.toSet()
+                check(names.containsAll(setOf("sableimpulseandcoasting", "sableframeshiftpreservesstate"))) {
+                    "Sable runtime profile did not execute its required physics scenarios: $names"
+                }
+            }
             listOf("failure", "error", "skipped").forEach { tag ->
                 check(document.getElementsByTagName(tag).length == 0) { "GameTest report contains $tag outcomes: $report" }
             }

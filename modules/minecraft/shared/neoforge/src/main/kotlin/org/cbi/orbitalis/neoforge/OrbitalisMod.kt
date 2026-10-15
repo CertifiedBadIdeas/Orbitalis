@@ -18,9 +18,15 @@
 
 package org.cbi.orbitalis.neoforge
 
+import net.neoforged.fml.ModList
 import net.neoforged.fml.common.Mod
 import org.cbi.orbitalis.core.Orbitalis
+import org.cbi.orbitalis.neoforge.integration.SableLabIntegration
 
 /** Loader entry point. Gameplay belongs in shared/common or the independent core. */
 @Mod(Orbitalis.MOD_ID)
-class OrbitalisMod
+class OrbitalisMod {
+    init {
+        if (ModList.get().isLoaded("sable")) SableLabIntegration.install()
+    }
+}

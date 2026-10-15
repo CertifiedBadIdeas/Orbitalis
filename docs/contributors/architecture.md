@@ -46,6 +46,12 @@ Its generated empty structure and flat world preset are excluded from normal run
 The test preset incorporates the canonical dimension JSON because the 1.21.1 GameTest server otherwise
 bakes its flat preset against an empty dimension registry. The [laboratory guide](planet-laboratory.md)
 describes the scene and its remaining evidence gaps.
+The optional Sable adapter stays in shared Minecraft common code; NeoForge alone wires its physics
+callbacks and commands after detecting the mod. Sable types do not enter core. The pinned external
+release is compile-only and is installed intact only in opt-in development runs. Its physics backend
+integrates the probes; the independent two-body stepper does not integrate those same bodies.
+See [Sable laboratory](sable-laboratory.md) for the bounded frame-shift experiment and transfer gate.
+
 There is no dependency on Compukters, its VM, Rust runtime or addon SDK. There is no committed choice
 of production orbital physics, rendering engine, rocket mechanics or external space integration.
 The exploration-first direction, Sable source investigation and proposed seamless surface/orbit

@@ -37,6 +37,7 @@ adjacent `<filename>.license` sidecar and include it with the resource in archiv
 | Gradle/worktree tooling and tests | Compukters d2a6dccd11aae3c1ed801a0d40bf9542da61389c | Apache-2.0 | Source; upstream notices preserved |
 | Gradle wrapper | Existing project wrapper; Gradle 9.8.1 distribution | Apache-2.0 | Wrapper source/binary; Gradle's notices retained by the distribution |
 | Kotlin stdlib | org.jetbrains.kotlin:kotlin-stdlib:2.4.10 | Apache-2.0 and upstream third-party notices | Nested by Loom; legal files packaged beside it from licenses/kotlin-stdlib; verified in JAR |
+| Sable API / optional development runtime | Sable 2.0.6 (Modrinth fg9dTRz9), Companion 1.6.0 API | Sable: PolyForm Shield 1.0.0; Companion: MIT | Compile-only APIs; original Sable release installed only in opt-in dev run directories; never bundled by Orbitalis; see [provenance](sable/PROVENANCE.md) |
 | Minecraft and NeoForge | Minecraft 1.21.1 / NeoForge 21.1.252 | Upstream terms | Development/runtime dependencies; not bundled in mod JAR |
 
 No third-party textures, fonts, sounds, models or Compukters branding are imported. Gradle plugins and

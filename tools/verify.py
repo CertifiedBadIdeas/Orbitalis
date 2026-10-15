@@ -45,8 +45,8 @@ def architecture():
         relative = path.relative_to(ROOT).as_posix()
         imports = re.findall(r'^import\s+(?:static\s+)?([\w.]+)', text, re.M)
         if relative.startswith('modules/common/') and any(
-                item.startswith(('net.minecraft.', 'net.neoforged.', 'com.mojang.')) for item in imports):
-            errors.append(f'{relative}: Minecraft/NeoForge imports in independent code')
+                item.startswith(('net.minecraft.', 'net.neoforged.', 'com.mojang.', 'dev.ryanhcode.', 'foundry.veil.')) for item in imports):
+            errors.append(f'{relative}: Minecraft/NeoForge/Sable imports in independent code')
         if relative.startswith('modules/minecraft/shared/common/') and any(
                 item.startswith('net.neoforged.') for item in imports):
             errors.append(f'{relative}: NeoForge imports in shared/common')
@@ -71,7 +71,9 @@ def jar(path, version):
                     'org/cbi/orbitalis/core/Orbitalis.class',
                     'org/cbi/orbitalis/neoforge/OrbitalisMod.class',
                     'data/orbitalis/dimension/planet_lab.json',
-                    'data/orbitalis/dimension/planet_lab.json.license')
+                    'data/orbitalis/dimension/planet_lab.json.license',
+                    'data/orbitalis/dimension_physics/planet_lab.json',
+                    'data/orbitalis/dimension_physics/planet_lab.json.license')
         for name in required:
             if entries.count(name) != 1:
                 raise ValueError(f'Missing or duplicated {name}')
@@ -89,7 +91,7 @@ def jar(path, version):
         dependencies = {item['modId']: item for item in parsed['dependencies']['orbitalis']}
         if dependencies['minecraft']['versionRange'] != '[1.21.1,1.21.2)':
             raise ValueError('Wrong Minecraft compatibility range')
-        if any(name.startswith(('net/minecraft/', 'net/neoforged/')) or
+        if any(name.startswith(('net/minecraft/', 'net/neoforged/', 'dev/ryanhcode/', 'foundry/veil/')) or
                ('GameTest' in name and name.endswith('.class')) for name in entries):
             raise ValueError('Upstream or GameTest classes leaked into production')
         if any(name in entries for name in ('data/orbitalis/structure/lab_empty.nbt',
@@ -107,6 +109,8 @@ def jar(path, version):
         runtimes = []
         for name in nested:
             with zipfile.ZipFile(io.BytesIO(archive.read(name))) as inner:
+                if any(entry.startswith(('dev/ryanhcode/', 'foundry/veil/')) for entry in inner.namelist()):
+                    raise ValueError(f'Upstream implementation leaked into nested archive: {name}')
                 if 'kotlin/jvm/internal/Intrinsics.class' in inner.namelist():
                     runtimes.append(name)
         if not runtimes:

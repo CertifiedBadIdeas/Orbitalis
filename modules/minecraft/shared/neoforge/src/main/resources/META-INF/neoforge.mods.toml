@@ -37,3 +37,10 @@ type="required"
 versionRange="[1.21.1,1.21.2)"
 ordering="NONE"
 side="BOTH"
+
+[[dependencies.orbitalis]]
+modId="sable"
+type="optional"
+versionRange="[2.0.6]"
+ordering="AFTER"
+side="BOTH"

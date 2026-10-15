@@ -101,6 +101,6 @@ observer to check the shared demonstration, and restart while in the laboratory 
 
 The pads do not join at their edges. Blocks, collisions, gravity and the player camera remain normal
 Minecraft behavior. There is no powered ascent, orbital player movement, wrapping terrain, custom world
-renderer, ship transport or Sable runtime integration. Those experiments follow after this diagnostic
-scene is observed. See [orbital-flight-feasibility.md](orbital-flight-feasibility.md) for the unresolved
+renderer or ship transport. Optional [Sable diagnostics](sable-laboratory.md) add a separate rigid-body
+scene in this dimension; they do not connect the particle orbit to a ship. See [orbital-flight-feasibility.md](orbital-flight-feasibility.md) for the unresolved
 surface/orbit and construction-transfer requirements.

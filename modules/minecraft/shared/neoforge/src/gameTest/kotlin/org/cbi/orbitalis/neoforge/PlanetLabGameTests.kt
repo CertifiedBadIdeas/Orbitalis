@@ -27,6 +27,7 @@ import net.minecraft.gametest.framework.JUnitLikeTestReporter
 import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.phys.Vec3
 import net.neoforged.bus.api.SubscribeEvent
+import net.neoforged.fml.ModList
 import net.neoforged.fml.common.EventBusSubscriber
 import net.neoforged.neoforge.event.RegisterGameTestsEvent
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
@@ -47,6 +48,7 @@ object PlanetLabGameTests {
             GlobalTestReporter.replaceWith(JUnitLikeTestReporter(File(path)))
         }
         event.register(PlanetLabGameTests::class.java)
+        if (ModList.get().isLoaded("sable")) event.register(SableLabGameTests::class.java)
     }
 
     @JvmStatic
@@ -84,7 +86,7 @@ object PlanetLabGameTests {
     @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis")
     fun commandsEnterSampleAndReturn(helper: GameTestHelper) {
-        val player = helper.makeMockServerPlayerInLevel()
+        val player = GameTestPlayers.create(helper)
         val originalLevel = player.level().dimension()
         val originalPosition = player.position()
         val originalMode = player.gameMode.gameModeForPlayer
@@ -127,7 +129,7 @@ object PlanetLabGameTests {
         val level = lab.level()
         val face = CubeFace.NEGATIVE_Z
         val obstruction = PlanetLabCoordinates.chartCentre(face).above()
-        val player = helper.makeMockServerPlayerInLevel()
+        val player = GameTestPlayers.create(helper)
         val originalLevel = player.level().dimension()
         val originalPosition = player.position()
         level.setBlock(obstruction, Blocks.STONE.defaultBlockState(), 2)

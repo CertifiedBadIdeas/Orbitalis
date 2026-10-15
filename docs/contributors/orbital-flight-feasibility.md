@@ -19,8 +19,8 @@ limitations under the License.
 # Orbital flight and surface transition feasibility
 
 Status: source investigation, independent mathematics and an opt-in Minecraft laboratory, 2026-10-15.
-No Sable dependency, Minecraft flight implementation, runtime compatibility or seamless
-transition has been verified yet.
+An optional [Sable laboratory](sable-laboratory.md) now exercises native rigid-body physics.
+Minecraft orbital flight, cross-level construction transfer and seamless transitions remain unimplemented.
 
 ## Accepted direction
 
@@ -43,7 +43,7 @@ The experiment writes `trajectory.csv` and `report.md` under
 `modules/common/core/build/experiments/planet/`. Its executable lives in test sources and is
 excluded from the production JAR. Core contains the candidate geometry and two-body stepper;
 the Minecraft [planet laboratory](planet-laboratory.md) now provides a separate diagnostic dimension,
-surface-coordinate samples and a particle reference orbit. There is no ship adapter or Sable dependency yet.
+surface-coordinate samples and a particle reference orbit. The optional Sable adapter is separate from this particle demonstration.
 
 The candidate uses six finite square charts projected radially from cube faces onto a sphere.
 They describe one closed surface, not six planets or six committed Minecraft dimensions.
@@ -76,7 +76,7 @@ cannot silently become the flight metric. Do not freeze chart enum names as save
 Inspected upstream revision
 [`d501fb3103c3247e20cb2151a99182ad5dd61adb`](https://github.com/ryanhcode/sable/tree/d501fb3103c3247e20cb2151a99182ad5dd61adb).
 Its [build properties](https://github.com/ryanhcode/sable/blob/d501fb3103c3247e20cb2151a99182ad5dd61adb/gradle.properties)
-declare Sable 2.0.6 and Minecraft 1.21.1. These are research coordinates, not project dependency pins.
+declare Sable 2.0.6 and Minecraft 1.21.1. The runtime experiment separately pins Modrinth release `fg9dTRz9`; see its provenance record.
 
 - [RigidBodyHandle](https://github.com/ryanhcode/sable/blob/d501fb3103c3247e20cb2151a99182ad5dd61adb/common/src/main/java/dev/ryanhcode/sable/api/physics/handle/RigidBodyHandle.java)
   exposes impulses, linear/angular velocity reads and changes, and pose teleportation.
@@ -98,7 +98,8 @@ declare Sable 2.0.6 and Minecraft 1.21.1. These are research coordinates, not pr
 
 Use upstream APIs through an integration adapter. Do not copy Sable implementation into the Apache-2.0
 core or assume its availability on 26.1. Record its actual license and distribution terms before adding
-or bundling dependencies; the research itself adds none.
+or bundling dependencies. The optional adapter now records these in [Sable provenance](../../licenses/sable/PROVENANCE.md)
+and keeps upstream binaries outside the Orbitalis archive.
 
 ## Proposed simulation boundary
 

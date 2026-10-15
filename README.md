@@ -20,7 +20,8 @@ limitations under the License.
 
 A space exploration mod for Minecraft, written in Kotlin. The current target is **1.21.1 / NeoForge**.
 The repository contains an independent finite-planet mathematics experiment and an opt-in Minecraft
-planet laboratory. Seamless flight, Sable integration and 26.1 support are not implemented yet.
+planet laboratory with optional Sable physics diagnostics. Seamless flight, cross-dimension ship
+transfer and 26.1 support are not implemented yet.
 
 The development workflow and module boundaries are adapted from Compukters.
 
@@ -52,7 +53,10 @@ limitations and the remaining Minecraft/Sable experiments.
 In a disposable world with cheats enabled, use `/orbitalis lab enter`, `/orbitalis lab sample`,
 `/orbitalis lab orbit`, and `/orbitalis lab leave` to try the laboratory. It contains six separate
 surface charts and a particle orbit demonstration. See the [laboratory guide](docs/contributors/planet-laboratory.md)
-for commands, limitations and server tests.
+for commands, limitations and server tests. The optional [Sable laboratory](docs/contributors/sable-laboratory.md)
+adds real rigid-body probes, impulse/coasting measurements and a same-level frame shift.
+Launch it with `./gradlew :v1_21_1-neoforge:runClient -PorbitalisSableLab=true`; this installs the
+pinned external Sable release in a separate development run directory.
 
 Contributor documentation: [development](docs/contributors/development.md),
 [architecture and migration to 26.1](docs/contributors/architecture.md),

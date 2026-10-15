@@ -46,6 +46,8 @@ versionRange="[1.21.1,1.21.2)"
             'org/cbi/orbitalis/neoforge/OrbitalisMod.class': self.bytecode(65),
             'data/orbitalis/dimension/planet_lab.json': b'{}',
             'data/orbitalis/dimension/planet_lab.json.license': b'Apache-2.0 fixture',
+            'data/orbitalis/dimension_physics/planet_lab.json': b'{}',
+            'data/orbitalis/dimension_physics/planet_lab.json.license': b'Apache-2.0 fixture',
         }
         for legal in verify.KOTLIN_LEGAL_FILES:
             self.files['META-INF/licenses/kotlin-stdlib/' + legal] = b'legal fixture'
@@ -91,6 +93,19 @@ versionRange="[1.21.1,1.21.2)"
 
     def test_bundled_minecraft_classes_are_rejected(self):
         self.files['net/minecraft/Example.class'] = self.bytecode(65)
+        with self.assertRaisesRegex(ValueError, 'leaked'):
+            self.run_verifier()
+
+    def test_bundled_sable_implementation_is_rejected(self):
+        self.files['dev/ryanhcode/sable/Sable.class'] = self.bytecode(65)
+        with self.assertRaisesRegex(ValueError, 'leaked'):
+            self.run_verifier()
+
+    def test_nested_sable_implementation_is_rejected(self):
+        runtime = io.BytesIO()
+        with zipfile.ZipFile(runtime, 'w') as nested:
+            nested.writestr('dev/ryanhcode/sable/Sable.class', self.bytecode(65))
+        self.files['META-INF/jars/sable.jar'] = runtime.getvalue()
         with self.assertRaisesRegex(ValueError, 'leaked'):
             self.run_verifier()
 

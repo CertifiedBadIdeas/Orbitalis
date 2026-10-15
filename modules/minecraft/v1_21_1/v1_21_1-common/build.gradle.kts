@@ -22,7 +22,13 @@ plugins {
 }
 extra["orbitalisMinecraftVersion"] = libs.versions.minecraft.v1211.get()
 apply(plugin = "orbitalis-minecraft-shared")
+repositories {
+    maven("https://api.modrinth.com/maven") { content { includeGroup("maven.modrinth") } }
+    maven("https://maven.ryanhcode.dev/releases") { content { includeGroup("dev.ryanhcode.sable-companion") } }
+}
 dependencies {
+    "modCompileOnly"(libs.sable.v1211) { isTransitive = false }
+    compileOnly(libs.sable.companion) { isTransitive = false }
     minecraft(libs.minecraft.v1211)
     mappings(loom.officialMojangMappings())
     implementation(project(":core"))

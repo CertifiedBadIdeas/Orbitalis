@@ -49,6 +49,13 @@ jobs:
           ./gradlew --no-daemon --parallel --max-workers=2 \
             -Porg.gradle.java.installations.paths="$JAVA_HOME_21_X64,$JAVA_HOME_25_X64" \
             verifyLocalFull :v1_21_1-neoforge:runGameTestServer 2>&1 | tee build/agent-logs/ci.log
+      - name: Verify optional Sable native physics profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon --parallel --max-workers=2 \
+            -Porg.gradle.java.installations.paths="$JAVA_HOME_21_X64,$JAVA_HOME_25_X64" \
+            -PorbitalisSableLab=true :v1_21_1-neoforge:runGameTestServer 2>&1 | tee build/agent-logs/ci-sable.log
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
