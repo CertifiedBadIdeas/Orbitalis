@@ -60,6 +60,15 @@ unpowered orbital revolution and physical landing back on a small temporary pad.
 The standard `./gradlew :v1_21_1-neoforge:runClient` command automatically installs the pinned
 external Sable release in the client development run directory.
 
+For an isolated flight development stand with Create, Aeronautics and Propulsion:
+
+```sh
+./gradlew -p consumers/flight runClient
+```
+
+This independent consumer builds the current Orbitalis checkout and owns its external mod stack and
+separate worlds. See the [flight consumer guide](docs/contributors/flight-consumer.md).
+
 Contributor documentation: [development](docs/contributors/development.md),
 [architecture and migration to 26.1](docs/contributors/architecture.md),
 [verification](docs/contributors/verification.md), and [import provenance](docs/contributors/bootstrap-provenance.md).

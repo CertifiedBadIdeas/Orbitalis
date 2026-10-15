@@ -136,3 +136,11 @@ Contributors without those skills use [AGENTS.md](../../AGENTS.md) and these con
 All mandatory Orbitalis rules, commands, ownership boundaries, verification and licensing remain in
 this repository. Optional skills do not override them or introduce Compukters' merge authorization,
 VM/submodule requirements or GitHub project configuration. Builds and tests do not load external skills.
+
+## Flight consumer
+
+For the combined Create/Sable/Aeronautics/Propulsion runtime, use the independent
+[flight consumer](flight-consumer.md). From this checkout, agent builds use
+`./gradlew-sandbox-dev-parallel-summary -p consumers/flight check` and interactive launches use
+`./gradlew-sandbox-dev-parallel -p consumers/flight runClient`. The same workspace build slot applies.
+The consumer has separate client/server worlds; it never opens the main laboratory run directory.

@@ -25,6 +25,12 @@ import tomllib
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
+CONSUMER_MOD_IDS = frozenset(('create', 'createpropulsion', 'aeronautics_bundled', 'aeronautics',
+                              'simulated', 'offroad', 'flywheel', 'ponder', 'registrate'))
+EXTERNAL_CLASS_PREFIXES = ('net/minecraft/', 'net/neoforged/', 'dev/ryanhcode/', 'foundry/veil/',
+                           'com/simibubi/', 'dev/propulsionteam/', 'dev/createpropulsionsimulated/',
+                           'dev/eriksonn/', 'dev/simulated_team/', 'dev/engine_room/',
+                           'net/createmod/', 'com/tterrag/registrate/')
 KOTLIN_LEGAL_FILES = ('LICENSE.txt', 'COPYRIGHT.txt', 'PROVENANCE.md',
                       'third_party/gwt_license.txt', 'third_party/guava_license.txt',
                       'third_party/threetenbp_license.txt', 'third_party/boost_LICENSE.txt')
@@ -89,9 +95,11 @@ def jar(path, version):
         if mod['modId'] != 'orbitalis' or mod['version'] != version or parsed['license'] != 'Apache-2.0':
             raise ValueError('Wrong mod identity, version or license')
         dependencies = {item['modId']: item for item in parsed['dependencies']['orbitalis']}
+        if CONSUMER_MOD_IDS.intersection(dependencies):
+            raise ValueError('Consumer-only dependency leaked into production metadata')
         if dependencies['minecraft']['versionRange'] != '[1.21.1,1.21.2)':
             raise ValueError('Wrong Minecraft compatibility range')
-        if any(name.startswith(('net/minecraft/', 'net/neoforged/', 'dev/ryanhcode/', 'foundry/veil/')) or
+        if any(name.startswith(EXTERNAL_CLASS_PREFIXES) or
                ('GameTest' in name and name.endswith('.class')) for name in entries):
             raise ValueError('Upstream or GameTest classes leaked into production')
         if any(name in entries for name in ('data/orbitalis/structure/lab_empty.nbt',
@@ -109,7 +117,7 @@ def jar(path, version):
         runtimes = []
         for name in nested:
             with zipfile.ZipFile(io.BytesIO(archive.read(name))) as inner:
-                if any(entry.startswith(('dev/ryanhcode/', 'foundry/veil/')) for entry in inner.namelist()):
+                if any(entry.startswith(EXTERNAL_CLASS_PREFIXES) for entry in inner.namelist()):
                     raise ValueError(f'Upstream implementation leaked into nested archive: {name}')
                 if 'kotlin/jvm/internal/Intrinsics.class' in inner.namelist():
                     runtimes.append(name)

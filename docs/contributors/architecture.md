@@ -32,6 +32,7 @@ Gradle runs on JDK 25, while shared/domain and 1.21.1 code compiles to Java 21.
 | modules/minecraft/shared/common | Canonical Minecraft behavior and presentation | Core and Minecraft; no NeoForge |
 | modules/minecraft/shared/neoforge | Registration, events, networking and loader adapters | Core, common and NeoForge |
 | modules/minecraft/v1_21_1 | Target-specific compatibility and archive composition | Shared sources and target libraries |
+| consumers/flight | Independent development run composition; no distributable mod | Consumes the current Orbitalis development JAR and external Create/Sable/Aeronautics/Propulsion runtime |
 | build-scripts | JVM conventions and canonical shared source wiring | Gradle plugins |
 | tools | Isolated builds, cache publication, worktree lifecycle and verification | Python, Git and GNU tools |
 
@@ -59,6 +60,12 @@ The surface-flight diagnostic adds an independent bounded thrust controller in c
 Minecraft terrain in common. One Sable body performs takeoff, insertion, an unpowered revolution and
 a physical landing without state corrections. It remains in one Level and introduces no ship save schema.
 See [Sable laboratory](sable-laboratory.md) for the bounded frame-shift experiment and transfer gate.
+
+The [flight consumer](flight-consumer.md) is an independent Gradle composite build, included only when
+explicitly selected with `-p consumers/flight`. The dependency points from consumer to Orbitalis through
+`developmentModJar`; production projects never include or depend on the consumer. Create, Aeronautics
+and Propulsion are runtime-only consumer dependencies. Their APIs do not enter canonical gameplay or
+core. The consumer assembles no release and does not alter the ordinary Sable-only laboratory runs.
 
 There is no dependency on Compukters, its VM, Rust runtime or addon SDK. There is no committed choice
 of production orbital physics, rendering engine, rocket mechanics or external space integration.

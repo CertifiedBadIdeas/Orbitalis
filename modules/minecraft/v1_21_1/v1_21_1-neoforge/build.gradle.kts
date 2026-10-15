@@ -94,6 +94,19 @@ tasks.jar {
     from(commonSources.named("main").map { it.output })
     duplicatesStrategy = DuplicatesStrategy.FAIL
 }
+// Named development classes for the independent consumer; never resolve its external runtime here.
+tasks.register<Jar>("developmentModJar") {
+    group = "build"
+    description = "Assemble the current Orbitalis layers for an independent development consumer."
+    archiveFileName.set("orbitalis-development-mod.jar")
+    destinationDirectory.set(layout.buildDirectory.dir("devlibs"))
+    from(sourceSets.main.map { it.output })
+    from(coreSources.named("main").map { it.output })
+    from(commonSources.named("main").map { it.output })
+    from(rootProject.file("LICENSE.md")) { into("META-INF") }
+    from(rootProject.file("NOTICE")) { into("META-INF") }
+    duplicatesStrategy = DuplicatesStrategy.FAIL
+}
 tasks.named<Jar>("sourcesJar") {
     from(coreSources.named("main").map { it.allSource })
     from(commonSources.named("main").map { it.allSource })

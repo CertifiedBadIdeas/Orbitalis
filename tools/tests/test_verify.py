@@ -109,6 +109,34 @@ versionRange="[1.21.1,1.21.2)"
         with self.assertRaisesRegex(ValueError, 'leaked'):
             self.run_verifier()
 
+    def test_consumer_mod_dependency_is_rejected(self):
+        for mod_id in verify.CONSUMER_MOD_IDS:
+            with self.subTest(mod_id=mod_id):
+                original = self.files['META-INF/neoforge.mods.toml']
+                self.files['META-INF/neoforge.mods.toml'] = original + (
+                    '\n[[dependencies.orbitalis]]\nmodId="' + mod_id + '"\n'
+                ).encode()
+                with self.assertRaisesRegex(ValueError, 'Consumer-only dependency'):
+                    self.run_verifier()
+                self.files['META-INF/neoforge.mods.toml'] = original
+
+    def test_consumer_implementations_are_rejected_directly_and_nested(self):
+        for prefix in verify.EXTERNAL_CLASS_PREFIXES:
+            for nested in (False, True):
+                with self.subTest(prefix=prefix, nested=nested):
+                    name = prefix + 'Example.class'
+                    if nested:
+                        data = io.BytesIO()
+                        with zipfile.ZipFile(data, 'w') as inner:
+                            inner.writestr(name, self.bytecode(65))
+                        name = 'META-INF/jars/consumer.jar'
+                        self.files[name] = data.getvalue()
+                    else:
+                        self.files[name] = self.bytecode(65)
+                    with self.assertRaisesRegex(ValueError, 'leaked'):
+                        self.run_verifier()
+                    del self.files[name]
+
     def test_missing_laboratory_resource_is_rejected(self):
         del self.files['data/orbitalis/dimension/planet_lab.json']
         with self.assertRaisesRegex(ValueError, 'planet_lab.json'):

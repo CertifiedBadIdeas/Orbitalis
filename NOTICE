@@ -7,3 +7,9 @@ Source: https://github.com/CertifiedBadIdeas/Compukters
 Imported revision: d2a6dccd11aae3c1ed801a0d40bf9542da61389c
 Gradle/worktree tools retain their upstream Apache-2.0 notices.
 See LICENSE.md. No Compukters game, VM, compiler or visual assets are bundled.
+
+The independent flight consumer's embedded-library Gradle transforms are adapted
+from Compukters revision a5a750df8fc2c58b81aca77758feef25a8de5ae0.
+Copyright 2026 The Compukters Developers and Vsevolod Petrov (lazyhat).
+See licenses/flight-consumer/PROVENANCE.md. External flight mods are development
+runtime dependencies only and are not bundled in Orbitalis archives.
