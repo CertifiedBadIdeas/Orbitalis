@@ -18,8 +18,9 @@ limitations under the License.
 
 # Orbital flight and surface transition feasibility
 
-Status: source investigation and proposed experiments, 2026-10-15. No Sable dependency,
-flight implementation, runtime compatibility or seamless transition has been verified yet.
+Status: source investigation and an independent mathematical experiment, 2026-10-15.
+No Sable dependency, Minecraft flight implementation, runtime compatibility or seamless
+transition has been verified yet.
 
 ## Accepted direction
 
@@ -30,8 +31,44 @@ Test its feasibility before promising uninterrupted rendering or choosing the fi
 
 The proposed initial orbital model uses successive two-body trajectories with explicit changes
 of reference body. This is a design recommendation, not an implemented physics contract.
-Manual control versus navigation assistance, scale, planet rotation, world mapping and time
-acceleration remain undecided. Multiplayer simulation time must be server-authoritative.
+New Orbitalis worlds should start on a separate finite planet; preserve the ordinary Overworld
+for compatibility. Existing worlds are not migrated by the experiment. Access to the Overworld
+and final planet geography remain undecided. Manual control versus navigation assistance, scale,
+planet rotation and time acceleration remain undecided. Multiplayer time must be server-authoritative.
+
+## Implemented mathematical experiment
+
+Run `./gradlew-sandbox-dev-parallel-summary :core:test :core:runPlanetExperiment`.
+The experiment writes `trajectory.csv` and `report.md` under
+`modules/common/core/build/experiments/planet/`. Its executable lives in test sources and is
+excluded from the production JAR. Core contains the candidate geometry and two-body stepper;
+there is no Minecraft dimension, ship adapter or Sable dependency yet.
+
+The candidate uses six finite square charts projected radially from cube faces onto a sphere.
+They describe one closed surface, not six planets or six committed Minecraft dimensions.
+Chart coordinates u/v are dimensionless in [-1, 1], altitude is in metres, and the velocity
+conversion includes the position mapping's derivatives. Raw chart rates are not physical
+Cartesian speeds. Shared edges/corners have deterministic ownership; converting an orbital
+position back to a chart does not integrate or teleport the physical state.
+
+The reference body is smooth, airless and nonrotating, with a 10000 m radius and mu = 981000000
+m^3/s^2. These are test parameters, not production defaults. The reference flight is an ellipse
+with surface periapsis and apoapsis 4000 m above the surface. Its initial tangential velocity
+is assigned instantly. It checks circumplanetary return and chart continuity; it does not
+demonstrate a powered ascent, terrain clearance, collision, landing, attitude or camera behavior.
+
+The fixed-step velocity-Verlet run uses 12000 steps over one analytic orbital period. Automated
+acceptance requires all six charts, return position error below 0.02 m, return velocity error
+below 0.001 m/s, altitude extrema within 0.02 m of the reference ellipse, relative specific-energy
+error below 1e-6, and chart round-trip errors below 1e-8 m / 1e-9 m/s. A step-halving check tests
+convergence. Separate tests cover a circular orbit, angular momentum, an impulsive manoeuvre,
+invalid values and chart derivatives. These tolerances apply only to this bounded experiment.
+
+Cube projection distorts distances and areas. Its geometric closure does not establish a
+consistent block grid: chart-edge block orientation, terrain sampling, collision, lighting,
+neighbour updates and chunk ownership still need an integration design and game evidence.
+In particular, mapping an equal block distance to unequal physical distances across charts
+cannot silently become the flight metric. Do not freeze chart enum names as save/network IDs.
 
 ## Sable source evidence
 

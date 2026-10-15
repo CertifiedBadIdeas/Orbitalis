@@ -20,6 +20,7 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Add an independent finite-planet coordinate and two-body trajectory experiment, behavioral tests and a repeatable CSV/report task; no Minecraft/Sable flight implementation yet.
 - Record the exploration-first orbital flight direction, Sable source findings and surface/orbit feasibility experiments.
 - Initialize the Minecraft 1.21.1 / NeoForge development scaffold with independent Kotlin core and shared Minecraft layers.
 - Add isolated task worktrees, reflink Gradle caches, managed build scheduling, complete build logs and tooling verification.

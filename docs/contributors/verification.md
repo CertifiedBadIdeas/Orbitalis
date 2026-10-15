@@ -32,8 +32,10 @@ limitations under the License.
 
 Use ./gradlew-sandbox-dev-parallel-summary for noninteractive Gradle commands. verifyLocalFast runs
 verifyTooling, verifyArchitecture and :core:check. verifyLocalFull adds common/check, loader/check and
-production archive inspection. No domain tests exist initially because no game logic has been added;
-NO-SOURCE is not domain coverage. No GameTest task or gameplay claim is supplied by this scaffold.
+production archive inspection. Core tests cover the experimental finite-planet coordinates and two-body
+trajectories; `:core:runPlanetExperiment` writes a measured reference flight CSV/report. This is mathematical
+coverage, not evidence of a Minecraft/Sable flight. NO-SOURCE is not domain coverage.
+No GameTest task or gameplay claim is supplied by this scaffold.
 A successful client launch cannot prove visual or interactive correctness. Record manual observations,
 initial state, actions and expected outcome; mark unavailable evidence explicitly pending.
 

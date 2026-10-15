@@ -35,9 +35,11 @@ Gradle runs on JDK 25, while shared/domain and 1.21.1 code compiles to Java 21.
 | build-scripts | JVM conventions and canonical shared source wiring | Gradle plugins |
 | tools | Isolated builds, cache publication, worktree lifecycle and verification | Python, Git and GNU tools |
 
-The common layer is currently empty; the sole mod entry point uses the independent mod identity.
+The Minecraft common layer is currently empty; the sole mod entry point uses the independent mod identity.
+Core now contains an experimental finite-planet coordinate model and two-body stepper. A test-source
+laboratory measures a full reference orbit through all six surface charts and back to its start.
 There is no dependency on Compukters, its VM, Rust runtime or addon SDK. There is no committed choice
-of orbital physics, rendering engine, rocket mechanics or external space integration.
+of production orbital physics, rendering engine, rocket mechanics or external space integration.
 The exploration-first direction, Sable source investigation and proposed seamless surface/orbit
 experiments are recorded in [orbital-flight-feasibility.md](orbital-flight-feasibility.md).
 That note distinguishes desired behavior and proposals from implemented or runtime-verified support.
