@@ -164,6 +164,7 @@ val verifyConsumer = tasks.register("verifyConsumer") {
             check(zip.entries().asSequence().none { entry ->
                 entry.name.endsWith(".jar") || entry.name.startsWith("net/minecraft/") ||
                     entry.name.startsWith("dev/ryanhcode/") || entry.name.startsWith("com/simibubi/") ||
+                    entry.name.startsWith("data/orbitalis_flight_test/") ||
                     entry.name.startsWith("dev/propulsionteam/") || entry.name.startsWith("org/cbi/orbitalis/consumer/") || entry.name.contains("GameTest")
             }) { "External dependencies or test fixtures leaked into development mod" }
         }
@@ -207,7 +208,7 @@ tasks.matching { it.name == "runGameTestServer" }.configureEach {
         val document = factory.newDocumentBuilder().parse(report)
         val cases = document.getElementsByTagName("testcase")
         val names = (0 until cases.length).map { (cases.item(it) as org.w3c.dom.Element).getAttribute("name") }.toSet()
-        check(names.containsAll(setOf("nativepropulsionholdandcutoff", "preflightrejectsunsafeengines", "rejectsmissingliftauthority"))) {
+        check(names.containsAll(setOf("flighttoolsavailablebydefault", "nativepropulsionholdandcutoff", "preflightrejectsunsafeengines", "rejectsmissingliftauthority"))) {
             "Missing native propulsion scenarios: $names"
         }
         listOf("failure", "error", "skipped").forEach { tag ->

@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Make flight fixture functions available automatically through the consumer mod, alongside the default flight stack and test autopilot; no manual datapack installation is needed.
+
 - Add consumer-only test autopilot commands for hold, target height, status and stop, controlling actual creative Propulsion engine throttle with consumer-local guidance/force allocation and isolated native-engine GameTests.
 
 - Draw a client-only gridded cube in the orbital test sky, using the gravity model's centre/size, with markers for the gravitational centre, surface origin and transfer patch.

@@ -150,6 +150,11 @@ versionRange="[1.21.1,1.21.2)"
         with self.assertRaisesRegex(ValueError, 'planet_lab.json'):
             self.run_verifier()
 
+    def test_consumer_resources_are_rejected(self):
+        self.files['data/orbitalis_flight_test/function/setup.mcfunction'] = b'say consumer'
+        with self.assertRaisesRegex(ValueError, 'Consumer-only resources leaked'):
+            self.run_verifier()
+
     def test_test_world_resources_are_rejected(self):
         self.files['data/minecraft/worldgen/world_preset/flat.json'] = b'{}'
         with self.assertRaisesRegex(ValueError, 'GameTest world resources leaked'):

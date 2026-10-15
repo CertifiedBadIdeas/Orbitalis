@@ -55,6 +55,23 @@ public final class PropulsionGameTests {
         event.register(PropulsionGameTests.class);
     }
 
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis")
+    public static void flightToolsAvailableByDefault(GameTestHelper helper) {
+        var server = helper.getLevel().getServer();
+        for (var name : List.of("setup", "build")) {
+            helper.assertTrue(server.getFunctions().get(ResourceLocation.parse("orbitalis_flight_test:" + name)).isPresent(),
+                "Built-in flight function missing or failed to parse: " + name);
+        }
+        var root = server.getCommands().getDispatcher().getRoot();
+        var flight = root.getChild("orbitalis").getChild("flight");
+        var autopilot = flight.getChild("autopilot");
+        helper.assertTrue(autopilot != null, "Consumer autopilot commands missing");
+        for (var name : List.of("hold", "altitude", "status", "stop")) {
+            helper.assertTrue(autopilot.getChild(name) != null, "Consumer autopilot command missing: " + name);
+        }
+        helper.succeed();
+    }
+
     private static final class Rig implements AutoCloseable {
         final ServerLevel level;
         final ServerSubLevel body;

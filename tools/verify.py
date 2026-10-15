@@ -113,6 +113,8 @@ def jar(path, version):
         if any(name in entries for name in ('data/orbitalis/structure/lab_empty.nbt',
                                             'data/minecraft/worldgen/world_preset/flat.json')):
             raise ValueError('GameTest world resources leaked into production')
+        if any(name.startswith('data/orbitalis_flight_test/') for name in entries):
+            raise ValueError('Consumer-only resources leaked into production')
         # Enforce the bytecode ceiling for the current Java 21 production target.
         for name in entries:
             if name.endswith('.class') and name.startswith('org/cbi/orbitalis/'):

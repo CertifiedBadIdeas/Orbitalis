@@ -63,7 +63,8 @@ external Sable release in the client development run directory.
 For an isolated flight development stand with Create, Aeronautics and Propulsion:
 
 ```sh
-./gradlew -p consumers/flight runClient
+cd consumers/flight
+./gradlew runClient
 ```
 
 This independent consumer builds the current Orbitalis checkout and owns its external mod stack and

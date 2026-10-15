@@ -115,10 +115,16 @@ Local evidence is retained under `build/agent-logs/flight-consumer-20261015/` an
 
 ## Repeatable terrain ship fixture
 
-Copy `consumers/flight/fixtures/terrain_ship` into the selected world's `datapacks` directory, using a
-folder name such as `orbitalis_terrain_ship`. Run `/reload` in that world. Nothing executes on load or
-every tick. In a disposable Overworld or after `/orbitalis flight enter`, stand on the intended launch
-ground, away from existing ships, and run:
+The consumer includes the fixture functions and predicates as ordinary mod data resources. Running
+`./gradlew runClient` from `consumers/flight` makes them available in new and existing worlds without
+installing a datapack or running `/reload`. The external flight stack, diagnostic commands and test
+autopilot are also enabled by default. Keep future stand tools in this consumer and wire them into its
+normal launch; they must not require manual installation or enter the production mod.
+
+If you previously copied `orbitalis_terrain_ship` into a world's `datapacks` directory, remove that old
+copy while the world is closed so it cannot override the built-in functions with an outdated version.
+Nothing executes on load or every tick. In a disposable Overworld or after `/orbitalis flight enter`,
+stand on the intended launch ground, away from existing ships, and run:
 
 ```mcfunction
 /function orbitalis_flight_test:setup
