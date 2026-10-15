@@ -71,6 +71,12 @@ neighbour updates and chunk ownership still need an integration design and game 
 In particular, mapping an equal block distance to unequal physical distances across charts
 cannot silently become the flight metric. Do not freeze chart enum names as save/network IDs.
 
+The single-Level [surface-flight diagnostic](sable-laboratory.md#surface-flight-and-physical-landing)
+now verifies takeoff from a small flat Minecraft pad, thrust-based orbital insertion, an unpowered
+revolution and return to native terrain contact. It preserves the same Sable body. This is not yet the
+surface-chart or cross-Level handoff described below; no solid spherical planet or passenger transport
+has been implemented.
+
 ## Sable source evidence
 
 Inspected upstream revision

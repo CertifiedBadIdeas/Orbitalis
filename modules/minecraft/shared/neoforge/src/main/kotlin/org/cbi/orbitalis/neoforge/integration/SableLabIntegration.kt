@@ -70,7 +70,7 @@ object SableLabIntegration {
     private fun register(dispatcher: CommandDispatcher<CommandSourceStack>) {
         val root = Commands.literal("orbitalis").requires { it.hasPermission(2) }
         val sable = Commands.literal("sable")
-        for (action in listOf("start", "orbit", "sample", "shift", "clear")) {
+        for (action in listOf("start", "orbit", "flight", "sample", "shift", "clear")) {
             sable.then(
                 Commands.literal(action).executes { context ->
                     val source = context.source
@@ -88,6 +88,15 @@ object SableLabIntegration {
                             "orbit" -> {
                                 startScene(lab, true)
                                 "Started two Sable constructions on a 16 m circular orbit: central gravity, initial speed 8 m/s. Use sample or clear."
+                            }
+
+                            "flight" -> {
+                                try {
+                                    lab.startFlight()
+                                } catch (error: IllegalArgumentException) {
+                                    throw SimpleCommandExceptionType(Component.literal(error.message ?: "Flight start rejected.")).create()
+                                }
+                                "Started one Sable surface flight: takeoff, insertion, unpowered orbit and return to the pad at (0,104,120). Use sample or clear."
                             }
 
                             "clear" -> {
@@ -109,16 +118,28 @@ object SableLabIntegration {
                             }
 
                             else -> {
-                                if (lab.size !=
-                                    2
-                                ) {
+                                if (lab.size == 0) {
                                     throw SimpleCommandExceptionType(
                                         Component.literal(lab.failureReason ?: "Start the Sable scene first."),
                                     ).create()
                                 }
                                 val a = lab.reading(0)
                                 val orbit = lab.orbitMetrics
-                                if (orbit != null) {
+                                val flight = lab.flightReport
+                                if (flight != null) {
+                                    val state = lab.orbitalState(0)
+                                    String.format(
+                                        Locale.ROOT,
+                                        "Sable flight %s; t=%.2f s; radius=%.3f m; speed=%.3f m/s; thrust=%.3f m/s²; coast=%.3f turns; max coast energy error=%.6g",
+                                        flight.phase,
+                                        flight.seconds,
+                                        state.position.length(),
+                                        state.velocity.length(),
+                                        flight.thrust.length(),
+                                        flight.coastAngle / (2.0 * Math.PI),
+                                        flight.maximumCoastEnergyError,
+                                    )
+                                } else if (orbit != null) {
                                     val radius = lab.orbitalState(0).position.length()
                                     String.format(
                                         Locale.ROOT,

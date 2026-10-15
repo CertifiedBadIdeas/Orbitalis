@@ -32,6 +32,7 @@ import net.minecraft.util.Unit
 import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.phys.Vec3
 import org.cbi.orbitalis.core.planet.CartesianState
+import org.cbi.orbitalis.core.planet.SurfaceFlight
 import org.cbi.orbitalis.core.planet.TwoBodyGravity
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.lab.PlanetLabCoordinates
@@ -84,6 +85,13 @@ class SableLab(
     private val probes = mutableListOf<Probe>()
     private var pulseSeconds = 0.0
     private var sceneCreatedAt: Long? = null
+
+    private enum class Mode { COAST, ORBIT, FLIGHT }
+
+    private var flight: SurfaceFlight? = null
+    val flightReport get() = flight
+    private var flightInitialized = false
+    private var flightPad: SableFlightPad? = null
     private var orbit: SableOrbitExperiment? = null
     val orbitMetrics get() = orbit?.metrics
     var failureReason: String? = null
@@ -107,16 +115,20 @@ class SableLab(
         require(level.dimension() == PlanetLabCoordinates.DIMENSION) { "Sable diagnostics are confined to the planet laboratory" }
     }
 
-    fun start() = startScene(false)
+    fun start() = startScene(Mode.COAST)
 
-    fun startOrbit() = startScene(true)
+    fun startOrbit() = startScene(Mode.ORBIT)
 
-    private fun startScene(orbital: Boolean) {
+    fun startFlight() = startScene(Mode.FLIGHT)
+
+    private fun startScene(mode: Mode) {
         // The pinned integration fails block placement when a new scene is replaced in the same game tick.
         require(sceneCreatedAt != level.gameTime) { "Wait until the next game tick before replacing a newly created scene" }
         sceneCreatedAt = level.gameTime
         clear()
-        orbit = if (orbital) SableOrbitExperiment() else null
+        orbit = if (mode == Mode.ORBIT) SableOrbitExperiment() else null
+        flight = if (mode == Mode.FLIGHT) SurfaceFlight() else null
+        flightInitialized = false
         physicsSeconds = 0.0
         pulseSeconds = 0.0
         callbacks = 0
@@ -124,9 +136,16 @@ class SableLab(
         completedShifts = 0
         frameOrigin.zero()
         try {
-            repeat(2) { index ->
+            if (mode == Mode.FLIGHT) {
+                flightPad = SableFlightPad(level)
+                flightPad!!.prepare()
+            }
+            repeat(if (mode == Mode.FLIGHT) 1 else 2) { index ->
                 val pose = Pose3d()
-                if (orbital) {
+                if (mode == Mode.FLIGHT) {
+                    val start = FLIGHT_CENTRE + SurfaceFlight.LAUNCH
+                    pose.position().set(start.x, start.y, start.z)
+                } else if (mode == Mode.ORBIT) {
                     val centre = SableOrbitExperiment.CENTRE
                     val offset = if (index == 0) SableOrbitExperiment.RADIUS else -SableOrbitExperiment.RADIUS
                     pose.position().set(centre.x + offset, centre.y, centre.z)
@@ -139,7 +158,7 @@ class SableLab(
                 plot.newEmptyChunk(plot.centerChunk)
                 val block = if (index == 0) Blocks.GOLD_BLOCK else Blocks.IRON_BLOCK
                 check(plot.embeddedLevelAccessor.setBlock(BlockPos.ZERO, block.defaultBlockState(), 3))
-                if (orbital && index == 1) {
+                if (mode == Mode.ORBIT && index == 1) {
                     check(plot.embeddedLevelAccessor.setBlock(BlockPos(0, 1, 0), block.defaultBlockState(), 3))
                 }
                 body.updateLastPose()
@@ -181,6 +200,34 @@ class SableLab(
         // The pinned Sable build loses an impulse submitted before its first completed step.
         // Apply the complete measured pulse only after that initialization boundary.
         if (callbacks == 0) return
+        flight?.let { controller ->
+            val probe = probes.single()
+            if (!flightInitialized) {
+                val pose = probe.body.logicalPose()
+                val com = pose.transformPosition(checkNotNull(probe.body.massTracker.centerOfMass), Vector3d())
+                val desired = FLIGHT_CENTRE + SurfaceFlight.LAUNCH
+                val translation = Vector3d(desired.x, desired.y, desired.z).sub(com)
+                probe.handle.teleport(Vector3d(pose.position()).add(translation), pose.orientation())
+                probe.handle.addLinearAndAngularVelocity(
+                    probe.handle.getLinearVelocity(Vector3d()).negate(),
+                    probe.handle.getAngularVelocity(Vector3d()).negate(),
+                )
+                flightInitialized = true
+            }
+            val state = orbitalState(0)
+            val thrust = controller.command(state, stepSeconds)
+            if (controller.failure != null) {
+                val reason = controller.failure
+                clear()
+                failureReason = reason
+                return
+            }
+            val acceleration = controller.gravity.acceleration(state.position) + thrust
+            val impulse = acceleration * (probe.body.massTracker.mass * stepSeconds)
+            applyGlobalImpulse(probe, Vector3d(impulse.x, impulse.y, impulse.z))
+            lastStepSeconds = stepSeconds
+            return
+        }
         orbit?.let { experiment ->
             if (!experiment.initialized) initializeOrbit(experiment)
             val states = checkedOrbitStates() ?: return
@@ -264,7 +311,7 @@ class SableLab(
         val com = pose.transformPosition(checkNotNull(probe.body.massTracker.centerOfMass), Vector3d()).add(frameOrigin)
         val velocity = probe.handle.getLinearVelocity(Vector3d())
         return CartesianState(
-            Vector3(com.x, com.y, com.z) - SableOrbitExperiment.CENTRE,
+            Vector3(com.x, com.y, com.z) - (if (flight != null) FLIGHT_CENTRE else SableOrbitExperiment.CENTRE),
             Vector3(velocity.x, velocity.y, velocity.z),
         )
     }
@@ -356,6 +403,10 @@ class SableLab(
     }
 
     fun clear() {
+        flight = null
+        flightInitialized = false
+        flightPad?.clear()
+        flightPad = null
         burn = null
         completedBurns = 0
         lastBurn = null
@@ -372,6 +423,7 @@ class SableLab(
     }
 
     companion object {
+        val FLIGHT_CENTRE = Vector3(0.5, 96.0, 120.5)
         private const val MARKER = "orbitalis_sable_diagnostic"
     }
 }

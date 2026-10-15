@@ -20,6 +20,7 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Add a real single-level Sable takeoff/orbit/return diagnostic, temporary terrain with safe cleanup, flight-phase measurements and native physical-landing tests at one/four substeps.
 - Add a bounded, independent diagnostic flight controller for takeoff, orbital insertion, a measured unpowered revolution and return to a launch pad.
 
 - Install pinned Sable automatically for standard development client/server/GameTest runs; remove the separate Gradle opt-in flag and duplicate CI profile.

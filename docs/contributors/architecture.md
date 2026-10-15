@@ -55,6 +55,9 @@ core trajectory measures numerical error and never corrects the actual Sable sta
 prograde/retrograde kicks apply at physics boundaries and update that reference without resetting it
 to native state; the independent core derives instantaneous orbital apsides. Coasting remains a
 separate mode; no general ship registry or celestial gravity for ordinary worlds is installed.
+The surface-flight diagnostic adds an independent bounded thrust controller in core and temporary
+Minecraft terrain in common. One Sable body performs takeoff, insertion, an unpowered revolution and
+a physical landing without state corrections. It remains in one Level and introduces no ship save schema.
 See [Sable laboratory](sable-laboratory.md) for the bounded frame-shift experiment and transfer gate.
 
 There is no dependency on Compukters, its VM, Rust runtime or addon SDK. There is no committed choice

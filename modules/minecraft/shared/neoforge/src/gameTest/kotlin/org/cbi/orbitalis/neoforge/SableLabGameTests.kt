@@ -18,20 +18,25 @@
 
 package org.cbi.orbitalis.neoforge
 
+import dev.ryanhcode.sable.api.sublevel.SubLevelContainer
 import dev.ryanhcode.sable.physics.config.dimension_physics.DimensionPhysicsData
 import dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem
+import net.minecraft.core.BlockPos
 import net.minecraft.gametest.framework.GameTest
 import net.minecraft.gametest.framework.GameTestHelper
 import net.minecraft.gametest.framework.GameTestInfo
 import net.minecraft.gametest.framework.GameTestListener
 import net.minecraft.gametest.framework.GameTestRunner
+import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.phys.Vec3
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
+import org.cbi.orbitalis.core.planet.SurfaceFlight
 import org.cbi.orbitalis.core.planet.TwoBodyGravity
 import org.cbi.orbitalis.minecraft.integration.sable.SableOrbitExperiment
 import org.cbi.orbitalis.minecraft.lab.PlanetLabCoordinates
 import org.cbi.orbitalis.neoforge.integration.SableLabIntegration
 import org.joml.Vector3d
+import kotlin.math.PI
 import kotlin.math.abs
 
 /** Registered only when Sable is present. These scenarios require its real native physics backend. */
@@ -370,6 +375,138 @@ object SableLabGameTests {
                                 }
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "sable_flight", timeoutTicks = 4000)
+    fun sableSurfaceFlightAndLanding(helper: GameTestHelper) {
+        val server = helper.level.server
+        val scene = SableLabIntegration.scene(server)
+        val level = scene.level
+        val config = SubLevelPhysicsSystem.require(level).config
+        val originalSubsteps = config.substepsPerTick
+        val corner = BlockPos(2, 104, 122)
+        val originalCorner = level.getBlockState(corner)
+        val originallyForced = level.forcedChunks.toLongArray().toSet()
+        onFinished(helper) {
+            config.substepsPerTick = originalSubsteps
+            scene.clear()
+            if (level.getBlockState(corner).`is`(Blocks.DIAMOND_BLOCK)) level.setBlock(corner, originalCorner, 3)
+        }
+        level.setBlock(corner, Blocks.DIAMOND_BLOCK.defaultBlockState(), 3)
+        var rejected = false
+        try {
+            scene.startFlight()
+        } catch (_: IllegalArgumentException) {
+            rejected = true
+        }
+        helper.assertTrue(rejected && level.getBlockState(corner).`is`(Blocks.DIAMOND_BLOCK), "Flight overwrote an occupied pad")
+        helper.assertTrue(scene.size == 0, "Failed flight start retained a construction")
+        level.setBlock(corner, originalCorner, 3)
+
+        fun runFlight(
+            substeps: Int,
+            completed: () -> Unit,
+        ) {
+            config.substepsPerTick = substeps
+            helper.assertTrue(
+                server.commands.dispatcher.execute("orbitalis lab sable flight", server.createCommandSourceStack().withLevel(level)) == 1,
+                "Flight command failed",
+            )
+            val body = SubLevelContainer.getContainer(level)!!.allSubLevels.single()
+            val phases = mutableSetOf<SurfaceFlight.Phase>()
+            var previousPhase: SurfaceFlight.Phase? = null
+            helper.runAfterDelay(3) {
+                val mass = scene.reading(0).mass
+
+                fun observe() {
+                    helper.assertTrue(scene.failureReason == null, scene.failureReason ?: "Flight stopped")
+                    val report = scene.flightReport!!
+                    phases.add(report.phase)
+                    if (report.phase != previousPhase) {
+                        println(
+                            "ORBITALIS_SABLE_FLIGHT substeps=$substeps phase=${report.phase} t=${report.seconds} state=${scene.orbitalState(
+                                0,
+                            )}",
+                        )
+                        previousPhase = report.phase
+                    }
+                    helper.assertTrue(
+                        scene.size == 1 && !body.isRemoved && SubLevelContainer.getContainer(level)!!.allSubLevels.singleOrNull() === body,
+                        "Flight replaced its construction",
+                    )
+                    helper.assertTrue(scene.reading(0).mass == mass, "Flight changed construction mass")
+                    helper.assertTrue(
+                        body.plot.embeddedLevelAccessor
+                            .getBlockState(BlockPos.ZERO)
+                            .`is`(Blocks.GOLD_BLOCK),
+                        "Flight lost its block",
+                    )
+                    helper.assertTrue(report.maximumThrust <= SurfaceFlight.MAX_THRUST + 1e-8, "Unbounded diagnostic thrust")
+                    if (report.phase in setOf(SurfaceFlight.Phase.COAST, SurfaceFlight.Phase.TOUCHDOWN, SurfaceFlight.Phase.LANDED)) {
+                        helper.assertTrue(report.thrust.length() == 0.0, "Coast or landing used hidden support thrust")
+                    }
+                    if (report.phase != SurfaceFlight.Phase.LANDED) {
+                        helper.runAfterDelay(1) { observe() }
+                        return
+                    }
+                    helper.assertTrue(
+                        phases.containsAll(
+                            SurfaceFlight.Phase.entries.filter {
+                                it != SurfaceFlight.Phase.FAILED
+                            },
+                        ),
+                        "Flight skipped stages: $phases",
+                    )
+                    helper.assertTrue(report.coastAngle >= 2.0 * PI, "Coast did not complete a measured revolution")
+                    helper.assertTrue(report.maximumCoastEnergyError < 0.01, "Unpowered orbit energy drifted")
+                    val touchdown = scene.orbitalState(0)
+                    helper.assertTrue((touchdown.position - SurfaceFlight.LAUNCH).length() < 0.15, "Flight missed its pad")
+                    helper.runAfterDelay(40) {
+                        helper.assertTrue(scene.failureReason == null, "Unsupported landing fell through the pad")
+                        val settled = scene.orbitalState(0)
+                        helper.assertTrue(
+                            (settled.position - touchdown.position).length() < 0.05 && settled.velocity.length() < 0.15,
+                            "Landing was not supported by actual terrain",
+                        )
+                        helper.assertTrue(
+                            scene.flightReport!!.thrust.length() == 0.0 && !body.isRemoved,
+                            "Post-landing state was corrected",
+                        )
+                        println(
+                            "ORBITALIS_SABLE_LANDING substeps=$substeps t=${report.seconds} maxRadius=${report.maximumRadius} energyError=${report.maximumCoastEnergyError} state=$settled",
+                        )
+                        scene.clear()
+                        helper.assertTrue(level.getBlockState(corner) == originalCorner, "Flight pad was not restored")
+                        helper.assertTrue(
+                            level.forcedChunks.toLongArray().toSet() == originallyForced,
+                            "Flight modified persistent forced chunks",
+                        )
+                        completed()
+                    }
+                }
+                observe()
+            }
+        }
+        helper.runAfterDelay(1) {
+            runFlight(1) {
+                runFlight(4) {
+                    scene.startFlight()
+                    helper.runAfterDelay(30) {
+                        helper.assertTrue(scene.flightReport!!.phase == SurfaceFlight.Phase.ASCENT, "Cancellation test never took off")
+                        level.setBlock(corner, Blocks.DIAMOND_BLOCK.defaultBlockState(), 3)
+                        scene.clear()
+                        helper.assertTrue(scene.size == 0 && scene.flightReport == null, "Clear retained an active flight")
+                        helper.assertTrue(
+                            level.getBlockState(corner).`is`(Blocks.DIAMOND_BLOCK),
+                            "Cleanup overwrote a subsequent player edit",
+                        )
+                        level.setBlock(corner, originalCorner, 3)
+                        helper.succeed()
                     }
                 }
             }

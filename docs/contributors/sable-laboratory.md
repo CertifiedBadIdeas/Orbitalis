@@ -145,13 +145,64 @@ kick; deliberately changing them is not counted as numerical drift. Maximum erro
 samples across burns. Radius error now compares measured and reference radii, so a deliberately elliptical
 orbit is not incorrectly measured against the initial 16 m circle.
 
+## Surface flight and physical landing
+
+```text
+/orbitalis lab sable flight
+/orbitalis lab sable sample
+/orbitalis lab sable clear
+```
+
+`flight` replaces the current diagnostic scene with **one** gold-block construction and a temporary
+5 × 5 obsidian pad at X = -2…2, Y = 104, Z = 118…122. The pad and the 3 × 3 launch column at Y = 105…113
+must initially contain air; existing blocks are never overwritten to start a flight. The construction’s
+centre of mass begins at (0.5, 105.5, 120.5). This scene uses a fixed gravity centre at
+(0.5, 96, 120.5), mu = 1024 m³/s², and an orbital radius of 16 m in the XY plane.
+
+The independent core controller reads measured position and velocity and returns bounded diagnostic
+thrust acceleration (maximum 40 m/s²). The common Sable adapter adds central gravity and submits
+`mass * acceleration * actual timestep` through the body-local impulse API. After the one-time native
+initialization alignment, it never writes the construction’s position or velocity. Sable owns movement
+and terrain contact. No engine, fuel or pilot controls are implemented.
+
+| Phase reported by `sample` | Behavior |
+| --- | --- |
+| `GROUND` | Confirm one second of stable terrain support with zero thrust |
+| `ASCENT` | Rise towards the point above the pad at radius 16 m |
+| `INSERTION` | Build tangential speed towards 8 m/s while controlling radius |
+| `COAST` | Disable thrust and measure a complete angular revolution under central gravity |
+| `RETURN` | Brake and return above the pad |
+| `DESCENT` | Approach the pad slowly, including a target slightly below its contact surface |
+| `TOUCHDOWN` | Disable thrust and require 1.5 seconds of stable surface support |
+| `LANDED` | Keep thrust off; central gravity and native terrain collision remain active |
+
+A landing requires position within 0.12 m of the initial contact point and speed below 0.15 m/s
+throughout touchdown settling. A construction merely hovering at its target cannot pass: touchdown
+has no support thrust. `sample` reports phase, time, radius, speed, current thrust, measured coast turns
+and maximum coast energy error. The flight aborts outside its diagnostic radius/speed bounds or after
+90 seconds without landing. It preserves the same construction and block throughout.
+
+The observer is not transported. Watch from creative flight or spectator mode near (0, 108, 92), looking
+towards positive Z. Vanilla observer gravity remains unchanged. The two-probe `shift` and `burn`
+commands do not apply to this one-probe controller scene. Use `clear` to abort it at any time.
+
+Scene replacement, `clear` and normal shutdown remove the marked construction, restore unchanged pad
+blocks to their original air states, and release temporary region tickets. Subsequent player block edits
+are retained. No persistent forced chunks are added. After a crash the transient pad ownership map is
+lost; leftover terrain must be inspected/removed manually before restarting this disposable experiment.
+No flight resumes from a save.
+
+This proves a bounded flight from and back to a small flat patch inside one Level. It does not implement
+a complete solid planet, vanilla terrain curvature, a surface-chart handoff, different local frames,
+passengers, atmospheric flight or travel between dimensions.
+
 ## Automated evidence
 
 ```sh
 ./gradlew verifyLocalFull :v1_21_1-neoforge:runGameTestServer
 ```
 
-The standard GameTest run executes seven planet lab scenarios and four real Sable
+The standard GameTest run executes seven planet lab scenarios and five real Sable
 native-physics scenarios, checking impulse across one/four substeps, coasting in vacuum, a frame shift
 of two bodies with nonzero linear/angular velocity, relative/global positions and observer orientation. The central-gravity scenario additionally runs a
 complete revolution at one and four substeps, shifts the frame halfway through each run, compares both
@@ -163,6 +214,11 @@ with an untouched gold control and a simultaneous frame shift. It checks energy 
 reaching the new apsis, predicted/observed apsides, rejection and cancellation, and improved reference
 accuracy with smaller steps. Over 14 seconds after each burn, bounds are position error < 1.6 m,
 relative energy error < 0.02, relative angular-momentum error < 0.01 and apsis discrepancy < 0.6 m.
+The surface-flight scenario additionally runs full flights at one/four substeps, retains the same body,
+mass and gold block, checks every phase and a measured unpowered revolution, and requires two more
+seconds of actual terrain support after landing. It checks occupied-pad refusal, cancellation during
+ascent, restoration of temporary terrain, preservation of subsequent edits, and unchanged persistent
+forced chunks. Maximum relative coast energy error must stay below 0.01.
 The `results.xml` report lives under the target’s `build/test-results/gameTestServer`. CI executes
 the same standard run; a missing fresh report or missing required Sable scenario fails the run. Test-only players use an inert channel and packet sink without a login;
 these tests establish server state, not a real client's mod negotiation or rendering.
@@ -205,6 +261,18 @@ The actual maximum radius reached after the prograde kick was 27.968 / 27.667 m 
 the retrograde minimum was 10.063 / 9.958 m. Gold stayed near its original circle and the COM impulse
 preserved iron's spin. These are server/native measurements; the new burn commands have not yet been
 observed interactively in a client.
+
+Measured native surface-flight results on 2026-10-15:
+
+| Substeps | Time to `LANDED` | Maximum COM radius | Maximum relative coast energy error | COM after two more seconds without thrust |
+| --- | --- | --- | --- | --- |
+| 1 | 29.40 s | 16.0671 m | 0.000481 | (0.0320, 9.5010, 0.0142) m |
+| 4 | 29.79 s | 16.0922 m | 0.000108 | (0.0093, 9.4973, -0.0163) m |
+
+COM coordinates in this table are relative to the flight gravity centre; the expected contact point is
+(0, 9.5, 0) m. Both runs completed a measured full coast revolution and kept zero touchdown/landed thrust.
+The new flight scene has not yet been observed interactively in a client. These measurements establish
+bounded server/native behavior for a single block, not general ships or seamless presentation.
 
 ## Observed client scenario
 
