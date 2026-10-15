@@ -42,14 +42,17 @@ evaluationDependsOn(":v1_21_1-common")
 val coreSources = project(":core").extensions.getByType<SourceSetContainer>()
 val commonSources = project(":v1_21_1-common").extensions.getByType<SourceSetContainer>()
 loom {
-    mods {
-        maybeCreate("orbitalis").apply {
-            sourceSet(sourceSets.main.get())
-            sourceSet(coreSources.named("main").get())
-            sourceSet(commonSources.named("main").get())
-        }
-    }
     runs {
+        configureEach {
+            // Forge run-local groups override global loom.mods, so configure every run directly.
+            mods {
+                maybeCreate("main").apply {
+                    sourceSet("main")
+                    sourceSet(coreSources.named("main").get())
+                    sourceSet(commonSources.named("main").get())
+                }
+            }
+        }
         named("client") { runDir("run/client") }
         named("server") { runDir("run/server") }
     }
@@ -159,10 +162,7 @@ loom.runs.register("gameTestServer") {
     property("orbitalis.gameTestReport", gameTestReport.get().asFile.absolutePath)
     ideConfigGenerated(true)
     mods {
-        maybeCreate("orbitalis").apply {
-            sourceSet("main")
-            sourceSet("main", ":core")
-            sourceSet("main", ":v1_21_1-common")
+        maybeCreate("main").apply {
             sourceSet(gameTest.name)
         }
     }
@@ -213,3 +213,27 @@ val verifyGameTestRunIsolation = tasks.register("verifyGameTestRunIsolation") {
     }
 }
 tasks.named("check") { dependsOn(verifyGameTestRunIsolation) }
+
+val verifyDevelopmentModGroups = tasks.register("verifyDevelopmentModGroups") {
+    group = "verification"
+    description = "Verify that every development run groups all production layers as one mod."
+    doLast {
+        val required = listOf(sourceSets.main.get(), coreSources.getByName("main"), commonSources.getByName("main"))
+            .flatMap { it.output.files }.map { it.canonicalFile }.toSet()
+        listOf("client", "server", "gameTestServer").forEach { name ->
+            val run = loom.runs.named(name).get()
+            val mods = if (run.mods.isEmpty()) loom.mods else run.mods
+            check(mods.size == 1 && mods.names == setOf("main")) {
+                "$name must use Loom's single main mod group; found ${mods.names}"
+            }
+            val mod = mods.single()
+            val externalOutputs = mod.externalGroups.get().flatMap { reference ->
+                project(reference.projectPath()).extensions.getByType<SourceSetContainer>()
+                    .getByName(reference.sourceSetName()).output.files
+            }
+            val files = (mod.modFiles.files + externalOutputs).map { it.canonicalFile }.toSet()
+            check(files.containsAll(required)) { "$name is missing production layer outputs: ${required - files}" }
+        }
+    }
+}
+tasks.named("check") { dependsOn(verifyDevelopmentModGroups) }

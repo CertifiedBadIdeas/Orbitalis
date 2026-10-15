@@ -20,6 +20,7 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Keep all production layers in Loom's single `main` development mod group; prevent client world-creation crashes caused by shared classes being assigned to a separate group.
 - Add an opt-in Minecraft planet laboratory with six bounded chart pads, operator enter/sample/orbit/leave commands, transient return points and a server-ticked particle orbit.
 - Add isolated headless laboratory GameTests, fresh XML result validation, development Kotlin runtime wiring and production checks against leaked test resources.
 - Translate the remaining Russian README into English and document standard Gradle commands and the planet experiment entry point; keep agent-specific checkout/build helpers in contributor guides.

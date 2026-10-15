@@ -58,8 +58,12 @@ Do not edit mirrors or configure a leaf to consume another version's source root
 belong behind small compatibility contracts with implementations only in target leaves; introduce those
 contracts when a real difference exists rather than predicting future APIs.
 
-NeoForge's development run groups core, common and loader source sets as one mod. Production packaging
-merges project outputs and lets Loom nest Kotlin stdlib and remap the 1.21.1 JAR. verifyProductionJar
+NeoForge's development runs group core, common and loader source sets as one mod. Metadata declares
+the actual `orbitalis` mod ID, while development source grouping uses Loom's existing `main` group.
+Do not add a second group for the same entry point: the loader may select the incomplete group and lose
+access to shared classes/resources. `verifyDevelopmentModGroups` checks every configured game run.
+Configure each run directly: Forge's run-local groups take precedence over global `loom.mods`.
+Production packaging merges project outputs and lets Loom nest Kotlin stdlib and remap the 1.21.1 JAR. verifyProductionJar
 inspects the resulting archive, including Java bytecode ceilings and legal notices.
 
 ## Adding the 26.1 family
