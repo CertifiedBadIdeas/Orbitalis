@@ -18,6 +18,7 @@
 
 import java.security.MessageDigest
 import java.util.zip.ZipFile
+import javax.xml.parsers.DocumentBuilderFactory
 
 plugins {
     java
@@ -56,16 +57,22 @@ dependencies {
     mappings(loom.officialMojangMappings())
     neoForge(orbitalis.neoforge.v1211)
     runtimeOnly(orbitalisMod)
+    compileOnly(orbitalisMod)
+    testImplementation(orbitalisMod)
+    testImplementation(platform("org.junit:junit-bom:${orbitalis.versions.junit.get()}"))
+    testImplementation("org.junit.jupiter:junit-jupiter")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testRuntimeOnly("org.jetbrains.kotlin:kotlin-stdlib:${orbitalis.versions.kotlin.get()}")
     originalSable(orbitalis.sable.v1211)
     physicsMods("maven.modrinth:create-aeronautics:44pLdPGg")
     physicsMods("maven.modrinth:create-propulsion-simulated:H13U56dc")
-    modRuntimeOnly(files(physicsMods))
-    modRuntimeOnly(aeronauticsLibraries)
-    modRuntimeOnly(orbitalis.sable.v1211) { isTransitive = false }
-    modRuntimeOnly(sableLibraries)
+    modImplementation(files(physicsMods))
+    modImplementation(aeronauticsLibraries)
+    modImplementation(orbitalis.sable.v1211) { isTransitive = false }
+    modImplementation(sableLibraries)
     forgeRuntimeLibrary(veilLibraries)
-    modRuntimeOnly("com.simibubi.create:create-1.21.1:6.0.10-280:slim") { isTransitive = false }
-    modRuntimeOnly("net.createmod.ponder:ponder-neoforge:1.0.82+mc1.21.1")
+    modImplementation("com.simibubi.create:create-1.21.1:6.0.10-280:slim") { isTransitive = false }
+    modImplementation("net.createmod.ponder:ponder-neoforge:1.0.82+mc1.21.1")
     modRuntimeOnly("dev.engine-room.flywheel:flywheel-neoforge-1.21.1:1.0.6")
     modRuntimeOnly("com.tterrag.registrate:Registrate:MC1.21-1.3.0+67")
     forgeRuntimeLibrary("org.jetbrains.kotlin:kotlin-stdlib:${orbitalis.versions.kotlin.get()}") { isTransitive = false }
@@ -73,10 +80,11 @@ dependencies {
 loom {
     runs {
         configureEach {
-            // This consumer has no own source outputs. Group the consumed mod archive directly.
+            // Keep the consumed mod and the consumer-only control adapter as distinct development mods.
             mods {
                 clear()
                 maybeCreate("orbitalis").modFiles.from(orbitalisMod)
+                maybeCreate("flight_consumer").sourceSet(sourceSets.main.get())
             }
         }
         named("client") { runDir("run/client"); ideConfigGenerated(true) }
@@ -93,7 +101,7 @@ val launchModGroups = listOf("client", "server").associateWith { name ->
 val verifyConsumer = tasks.register("verifyConsumer") {
     group = "verification"
     description = "Check the exact external mod set and the independently built Orbitalis development archive."
-    dependsOn(orbitalisMod)
+    dependsOn(orbitalisMod, tasks.classes)
     val wrapperFiles = listOf("gradlew", "gradlew.bat", "gradle/wrapper/gradle-wrapper.jar",
         "gradle/wrapper/gradle-wrapper.properties")
     inputs.files(wrapperFiles.map { file(it) }, wrapperFiles.map { file("../../$it") })
@@ -106,9 +114,15 @@ val verifyConsumer = tasks.register("verifyConsumer") {
             }
         }
         launchModGroups.forEach { (name, mods) ->
-            check(mods.names == setOf("orbitalis") &&
-                mods.single().modFiles.files == orbitalisMod.files) {
-                "$name must load only the consumed Orbitalis archive as its development mod group"
+            check(mods.names == setOf("orbitalis", "flight_consumer") &&
+                mods.getByName("orbitalis").modFiles.files == orbitalisMod.files &&
+                mods.getByName("flight_consumer").modFiles.files.containsAll(sourceSets.main.get().output.files)) {
+                "$name must isolate the Orbitalis archive and the consumer adapter source group"
+            }
+        }
+        sourceSets.main.get().output.asFileTree.matching { include("**/*.class") }.files.forEach { compiled ->
+            check(compiled.toPath().startsWith(layout.buildDirectory.dir("classes/java/main/org/cbi/orbitalis/consumer/flight").get().asFile.toPath())) {
+                "Foreign/test class in consumer main outputs: $compiled; clean stale development outputs"
             }
         }
         val hashes = mapOf(
@@ -150,7 +164,7 @@ val verifyConsumer = tasks.register("verifyConsumer") {
             check(zip.entries().asSequence().none { entry ->
                 entry.name.endsWith(".jar") || entry.name.startsWith("net/minecraft/") ||
                     entry.name.startsWith("dev/ryanhcode/") || entry.name.startsWith("com/simibubi/") ||
-                    entry.name.startsWith("dev/propulsionteam/") || entry.name.contains("GameTest")
+                    entry.name.startsWith("dev/propulsionteam/") || entry.name.startsWith("org/cbi/orbitalis/consumer/") || entry.name.contains("GameTest")
             }) { "External dependencies or test fixtures leaked into development mod" }
         }
         logger.lifecycle("Flight consumer verified: ${ids.sorted().joinToString()}")
@@ -158,3 +172,62 @@ val verifyConsumer = tasks.register("verifyConsumer") {
 }
 tasks.named("check") { dependsOn(verifyConsumer) }
 tasks.matching { it.name in setOf("runClient", "runServer") }.configureEach { dependsOn(verifyConsumer) }
+
+// Test fixtures are visible only in this combined-stack server, never ordinary runs or archives.
+val gameTest = sourceSets.create("gameTest")
+gameTest.compileClasspath += sourceSets.main.get().compileClasspath + sourceSets.main.get().output
+gameTest.runtimeClasspath += sourceSets.main.get().runtimeClasspath + sourceSets.main.get().output
+val testResources = files(layout.projectDirectory.dir(
+    "../../modules/minecraft/v1_21_1/v1_21_1-neoforge/build/generated/gameTestResources",
+)).builtBy(gradle.includedBuild("Orbitalis").task(":v1_21_1-neoforge:generateGameTestResources"))
+gameTest.resources.srcDir(testResources)
+val gameTestReport = layout.buildDirectory.file("test-results/gameTestServer/results.xml")
+loom.runs.register("gameTestServer") {
+    server()
+    source(gameTest)
+    environment("gametestserver")
+    forgeTemplate("gameTestServer")
+    runDir("run/gameTestServer")
+    property("neoforge.enabledGameTestNamespaces", "orbitalis")
+    property("neoforge.gameTestServer", "true")
+    property("orbitalis.consumerGameTestReport", gameTestReport.get().asFile.absolutePath)
+    mods.named("flight_consumer") { sourceSet(gameTest) }
+}
+tasks.named("check") { dependsOn(gameTest.classesTaskName) }
+tasks.matching { it.name == "runGameTestServer" }.configureEach {
+    dependsOn(verifyConsumer, gameTest.classesTaskName)
+    doFirst {
+        gameTestReport.get().asFile.apply { parentFile.mkdirs(); delete() }
+    }
+    doLast {
+        val report = gameTestReport.get().asFile
+        check(report.isFile) { "Consumer GameTest server did not produce a fresh report" }
+        val factory = DocumentBuilderFactory.newInstance()
+        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+        val document = factory.newDocumentBuilder().parse(report)
+        val cases = document.getElementsByTagName("testcase")
+        val names = (0 until cases.length).map { (cases.item(it) as org.w3c.dom.Element).getAttribute("name") }.toSet()
+        check(names.containsAll(setOf("nativepropulsionholdandcutoff", "preflightrejectsunsafeengines", "rejectsmissingliftauthority"))) {
+            "Missing native propulsion scenarios: $names"
+        }
+        listOf("failure", "error", "skipped").forEach { tag ->
+            check(document.getElementsByTagName(tag).length == 0) { "Consumer GameTests contain $tag: $report" }
+        }
+        logger.lifecycle("Verified ${cases.length} consumer GameTests: $report")
+    }
+}
+val verifyTestIsolation = tasks.register("verifyTestIsolation") {
+    doLast {
+        val outputs = gameTest.output.files.map { it.canonicalFile }.toSet()
+        listOf("client", "server", "gameTestServer").forEach { name ->
+            val files = loom.runs.named(name).get().mods.flatMap { it.modFiles.files }.map { it.canonicalFile }.toSet()
+            val overlap = files.intersect(outputs)
+            check(if (name == "gameTestServer") overlap.isNotEmpty() else overlap.isEmpty()) {
+                "Unexpected consumer GameTest visibility in $name: $overlap"
+            }
+        }
+    }
+}
+tasks.named("check") { dependsOn(verifyTestIsolation) }
+
+tasks.test { useJUnitPlatform() }

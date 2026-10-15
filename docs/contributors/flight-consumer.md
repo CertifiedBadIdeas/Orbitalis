@@ -19,8 +19,8 @@ limitations under the License.
 # Flight consumer development stand
 
 `consumers/flight` is an independent Gradle build for running the current Orbitalis checkout with
-Create, Sable, Create Aeronautics and Create Propulsion: Simulated. It has no gameplay sources,
-mod identity or distributable umbrella JAR. The ordinary Orbitalis build does not include this build,
+Create, Sable, Create Aeronautics and Create Propulsion: Simulated. It owns a development-only control adapter with a separate mod identity,
+`orbitalis_flight_consumer`, and produces no distributable umbrella JAR. The ordinary Orbitalis build does not include this build,
 resolve its external mod stack, or depend on it. Existing Sable laboratory runs remain available separately.
 
 ## Launch
@@ -78,20 +78,23 @@ Aeronautics mods are extracted by artifact transforms before Loom prepares the d
 They are not replaced with independently selected versions. Embedded legal notices stay with those
 artifacts. Do not also install the pinned mods manually into the run directories: duplicate IDs fail loading.
 
-Only this consumer owns Create/Aeronautics/Propulsion runtime composition. It adds no mandatory
-Orbitalis dependency, custom ship controller, flight automation, celestial gravity in the Overworld or
-cross-dimension transfer implementation. Other integrations and renderer mods are outside this stand.
-The ordinary laboratory's Sable-only GameTests remain in the main build; this consumer does not claim
-that those tests cover the combined external stack.
+Only this consumer compiles its adapter against Create/Propulsion and composes their runtime.
+Those dependencies and adapter classes never enter Orbitalis production outputs. The adapter runs
+only on the logical server; all real thrust and integration remain native Propulsion/Sable behavior.
+The ordinary laboratory's Sable-only GameTests remain in the main build. Separate consumer GameTests
+exercise the combined external stack.
 
 ## Verification
 
 `check` runs `verifyConsumer`: it builds and inspects the current development archive, checks the pinned
-physics mod set for missing/duplicate IDs, and verifies original physics release checksums. Both game
-launches depend on that check. Root `verifyLocalFull` independently checks Orbitalis, including production
+physics mod set for missing/duplicate IDs, and verifies original physics release checksums. Both ordinary game
+launches depend on that check. `check` also compiles isolated consumer GameTests and verifies that
+their outputs are absent from ordinary client/server runs. Run `./gradlew runGameTestServer` from
+`consumers/flight` for the real combined-stack scenarios; a fresh XML report must contain all required
+cases without failures, errors or skipped results. Root `verifyLocalFull` independently checks Orbitalis, including production
 archive rejection of consumer mod dependencies and bundled external implementation classes.
 
-Agent-operated builds use the repository's managed wrappers with the same `-p consumers/flight` argument;
+Agent-operated builds and launches use the consumer wrapper with the repository's managed build slot;
 see [development](development.md). A live consumer client holds the same workspace build slot.
 A successful launch establishes loading compatibility only. Ship thrust, control, landing and persistence
 must be observed in a disposable ordinary-terrain world before being described as verified gameplay.
@@ -156,3 +159,55 @@ a reproducible defect. The later flight test dimension exercises a different gra
 the Overworld observations alone do not validate that integration.
 
 See [central gravity](flight-gravity.md) for the Orbitalis force adapter and its independent checks.
+
+
+## Test autopilot (consumer only)
+
+Assemble a ship with creative Propulsion engines in a diagnostic flight/orbit dimension. Stay on deck
+in creative mode with flying disabled, and toggle the Linked Controller off. Wait for native assembly to settle. With operator permission, use:
+
+```mcfunction
+/orbitalis flight autopilot hold
+/orbitalis flight autopilot altitude 400
+/orbitalis flight autopilot status
+/orbitalis flight autopilot stop
+```
+
+`hold` captures the current centre of mass and attitude and brakes toward that point. `altitude`
+replaces the target centre-of-mass height above the cube's top face, preserving the current global
+X/Z and attitude. Height is a cube-shell height, not Minecraft Y or distance from the centre. A target
+of 400 corresponds to surface-frame Y=464, or orbit-frame Y=208. Commands retarget the same pilot's
+session; only one session is allowed per server. There is no landing, obstacle avoidance, path planning,
+orbital insertion or automatic handoff in this controller.
+
+Consumer guidance requests gravity compensation, bounded translation and attitude correction. A bounded
+nonnegative force/torque allocator uses each native engine's direction, force point and configured
+capacity. The adapter writes fractional peripheral throttle; it never changes engine power settings,
+injects impulses, sets velocity, moves the ship or creates a virtual stabilizing torque. Native engine
+startup, fade, atmospheric multipliers and collision behavior still apply. Pinned creative engines
+bypass exhaust obstruction checks in Propulsion; the adapter preserves that native behavior. Measured native output
+updates the capacity estimate once an engine produces thrust.
+
+Start airborne with clearance for startup and braking. The target-speed cap is 12 m/s and requested
+net acceleration is limited to 4 m/s²; these are guidance requests, not guaranteed physical bounds.
+The adapter rejects active manual inputs, unsupported non-creative thrusters and
+layouts that cannot approximately balance gravity. It supports up to 64 creative engine controllers
+across at most four plot chunks, within the existing ±2048 X/Z diagnostic patch and global Y=64..16000.
+Targets from `altitude` are limited to shell heights 32..15000. Current and target COM must also
+remain above local Y=64; in the orbit dimension this requires a shell height of at least 256. A single lift engine cannot provide every
+attitude correction: add spaced lift engines and opposing translation engines for more control.
+`status` reports position error and predicted unachievable force/torque. A large residual identifies
+missing authority; the controller cannot make an unsuitable layout stable.
+
+Sessions are ephemeral. Leaving the deck/dimension, logging out, losing an engine, paused physics,
+exceeding the patch or the speed/rotation limits disengages control. `flight transfer` and `flight leave`
+disengage before their snapshots/travel run; engage again after arrival. Stop clears peripheral and
+redstone inputs and restores NORMAL control, allowing the native thrust envelope to fade. Keep manual
+controllers off: normal redstone can command engines again afterwards. The pinned Propulsion server
+load resets peripheral mode to NORMAL, so a saved session cannot resume itself after reconstruction
+or restart. The autopilot does not persist a new world-data or transfer-journal schema.
+
+The native consumer tests use an isolated symmetric 24-engine rig on a connected solid core, not the five-engine terrain fixture.
+They check powered ascent and settled hold after a translation/rotation disturbance, native output
+cutoff, manual-input/missing-lift rejection and native reload behavior. These tests do not establish interactive command
+usability, pilot carrying or stable control of arbitrary user ships; those remain manual checks.

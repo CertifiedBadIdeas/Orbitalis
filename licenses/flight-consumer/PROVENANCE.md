@@ -33,6 +33,15 @@ License: Apache-2.0. Copyright 2026 The Compukters Developers and Vsevolod Petro
 Changes: Orbitalis artifact-transform namespace and attribution; the exact embedded upstream releases
 remain unchanged. No Compukters mod, addon, VM, compiler or assets are required.
 
+## Original consumer adapter
+
+The Java autopilot and its GameTests under `consumers/flight/src` are original Orbitalis Apache-2.0
+code. They compile against the pinned upstream public APIs exclusively in this development build.
+No upstream implementation or assets are copied. Engine capacity uses native configured/measured
+output; Propulsion's private atmospheric formula is not reproduced. Unit tests reuse the repository-pinned
+JUnit version as test tooling. No additional game dependency or asset was introduced for the controller.
+These classes are never bundled in an Orbitalis production archive.
+
 ## Runtime inventory
 
 | Component | Source / pin | License and holder |

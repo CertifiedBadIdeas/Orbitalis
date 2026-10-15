@@ -26,11 +26,11 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 CONSUMER_MOD_IDS = frozenset(('create', 'createpropulsion', 'aeronautics_bundled', 'aeronautics',
-                              'simulated', 'offroad', 'flywheel', 'ponder', 'registrate'))
+                              'simulated', 'offroad', 'flywheel', 'ponder', 'registrate', 'orbitalis_flight_consumer'))
 EXTERNAL_CLASS_PREFIXES = ('net/minecraft/', 'net/neoforged/', 'dev/ryanhcode/', 'foundry/veil/',
                            'com/simibubi/', 'dev/propulsionteam/', 'dev/createpropulsionsimulated/',
                            'dev/eriksonn/', 'dev/simulated_team/', 'dev/engine_room/',
-                           'net/createmod/', 'com/tterrag/registrate/')
+                           'net/createmod/', 'com/tterrag/registrate/', 'org/cbi/orbitalis/consumer/')
 KOTLIN_LEGAL_FILES = ('LICENSE.txt', 'COPYRIGHT.txt', 'PROVENANCE.md',
                       'third_party/gwt_license.txt', 'third_party/guava_license.txt',
                       'third_party/threetenbp_license.txt', 'third_party/boost_LICENSE.txt')

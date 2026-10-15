@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Add consumer-only test autopilot commands for hold, target height, status and stop, controlling actual creative Propulsion engine throttle with consumer-local guidance/force allocation and isolated native-engine GameTests.
+
 - Draw a client-only gridded cube in the orbital test sky, using the gravity model's centre/size, with markers for the gravitational centre, surface origin and transfer patch.
 
 - Select a cubic planet geometry and replace diagnostic ship gravity with a conservative field that is face-normal near the surface, continuous at edges and central far away; report cube-shell height and verify off-centre native acceleration.

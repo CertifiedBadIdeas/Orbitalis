@@ -141,6 +141,15 @@ VM/submodule requirements or GitHub project configuration. Builds and tests do n
 
 For the combined Create/Sable/Aeronautics/Propulsion runtime, use the independent
 [flight consumer](flight-consumer.md). From this checkout, agent builds use
-`./gradlew-sandbox-dev-parallel-summary -p consumers/flight check` and interactive launches use
-`./gradlew-sandbox-dev-parallel -p consumers/flight runClient`. The same workspace build slot applies.
+the managed entry point below from **inside `consumers/flight`**; it selects that module's own wrapper.
+Use `check runGameTestServer` for noninteractive verification, or `runClient` / `runServer` for an
+interactive launch. The same workspace build slot applies.
+
+```sh
+cd consumers/flight
+GRADLE_USER_HOME="$PWD/../../.gradle-sandbox" \
+ORBITALIS_BUILD_ROOT="$PWD/../.." ORBITALIS_BUILD_GRADLE=./gradlew \
+python3 ../../tools/gradle/run.py --root ../.. ../../tools/gradle/build.sh --parallel check runGameTestServer
+```
+
 The consumer has separate client/server worlds; it never opens the main laboratory run directory.

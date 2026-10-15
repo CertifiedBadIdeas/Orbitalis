@@ -25,6 +25,7 @@ limitations under the License.
 | Module/source ownership | python3 tools/verify.py architecture; compile affected modules |
 | Independent domain logic | :core:test with meaningful scenarios once behavior exists |
 | Minecraft/NeoForge adapters | Target compile/check plus focused tests; real GameTests for world lifecycle and ticks once a harness exists |
+| Consumer Propulsion control | Consumer `check` and `runGameTestServer`; actual native engine output, motion and cutoff; manual pilot/command checks remain separate |
 | UI/assets | Focused build plus an observed bounded client scenario in a disposable world |
 | Metadata/archive/license | :v1_21_1-neoforge:verifyProductionJar |
 | Coordinated bootstrap/build change | verifyLocalFull |
