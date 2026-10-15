@@ -67,11 +67,17 @@ object SableShipSnapshot {
             },
         ) { "Only Create Super Glue and Simulated Honey Glue metadata entities are supported inside the plot" }
         require(entitiesReady(body)) { "Wait for native plot entities to finish loading" }
-        for (holder in body.plot.loadedChunks) {
-            for (blockEntity in holder.chunk.blockEntities.values) {
-                val id = BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(blockEntity.type).toString()
-                require(id in SUPPORTED_BLOCK_ENTITIES) { "Unsupported block entity: $id" }
-            }
+        val unsupported =
+            body.plot.loadedChunks
+                .flatMap { it.chunk.blockEntities.values }
+                .map { BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(it.type).toString() }
+                .filter { it !in SUPPORTED_BLOCK_ENTITIES }
+                .groupingBy { it }
+                .eachCount()
+                .toSortedMap()
+        require(unsupported.isEmpty()) {
+            "Unsupported block entities (${unsupported.values.sum()}): " +
+                unsupported.entries.joinToString(", ") { (id, count) -> "$id × $count" }
         }
     }
 

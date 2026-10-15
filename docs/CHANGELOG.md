@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Report all unsupported ship block-entity types and their counts in one transfer preflight rejection.
+
 - Preserve Simulated Honey Glue alongside Create Super Glue throughout ship transfer, journal validation and interrupted-transfer recovery.
 
 - Allow a ship's own Create Super Glue through transfer preflight when Sable projects plot entities into world-space queries; continue rejecting loose entities and glue outside the ship's plot.

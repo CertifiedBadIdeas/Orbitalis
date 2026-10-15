@@ -65,7 +65,10 @@ entity queries, which include projected plot entities. Glue outside the selected
 Native entity chunks must finish loading before cleanup. Supported block
 entities are vanilla chests/barrels/signs, Create Redstone Links, the pinned Propulsion creative thruster
 and the pinned Simulated Physics Assembler. Other block entities, including fuel-powered engines,
-are rejected before preparation. Native dependency chains are checked; arbitrary third-party constraints
+are rejected before preparation. A block-entity rejection lists every unsupported registry type on the
+ship, sorted by ID with a count per type, so one attempt reports the complete block-entity inventory
+requiring compatibility work. Other preflight conditions must pass before this inventory check runs.
+Native dependency chains are checked; arbitrary third-party constraints
 created outside Sable's reported actor connections are unsupported. Do not use this diagnostic for them.
 The allowlist establishes a bounded experiment, not blanket compatibility with external mods.
 
