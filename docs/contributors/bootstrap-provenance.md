@@ -12,7 +12,7 @@ Only tooling and process conventions were imported; the source checkout was not 
 | Shared workflow skills | Bundled local copies with relevant references; removed Compukters-only setup/completion policy |
 | NeoForge, ABI, triage, UI, visual and release skills | Rewritten for Orbitalis ownership and current capabilities |
 | Canonical Minecraft shared roots | Shared common/neoforge layers plus version leaves and generated mirror support |
-| Apache-2.0 and attribution | LICENSE.md, NOTICE, retained upstream tooling headers, source SPDX and JAR legal checks |
+| Apache-2.0 and attribution | LICENSE.md, NOTICE, retained upstream tooling headers, full Apache-2.0 source headers and JAR legal checks |
 | GitHub workflow conventions | Read-only verification workflow with pinned action revisions, JDK 21/25 and retained logs/JARs; no publishing |
 | Pinned toolchains | Gradle checksum, Kotlin/Loom/NeoForge catalog, separate build JVM and target bytecode |
 | Continuous changelog | One development section in docs/CHANGELOG.md |

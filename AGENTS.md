@@ -74,8 +74,13 @@ Use gh for authorized GitHub operations; remote operations require network permi
 ## Licenses and releases
 
 The project uses Apache-2.0; preserve LICENSE.md, NOTICE and upstream attribution in adapted code.
-Use SPDX-License-Identifier: Apache-2.0 in original source/build/tool files. Do not overwrite third-party
-license notices with project headers. Follow licenses/README.md for every dependency or asset added.
+Use the full Apache-2.0 source header in original Kotlin, Gradle, Python, shell and executable/build
+configuration files, following the format in build.gradle.kts and tools/verify.py. Use
+`Copyright 2026 The Orbitalis Developers` for current original files; use the actual creation year for
+future files. A bare SPDX identifier does not replace this header. Keep shebangs first in scripts.
+Preserve upstream copyright and adaptation notices in imported code; never replace a third-party
+holder with Orbitalis. Do not overwrite vendored/generated files with project headers.
+Follow licenses/README.md for every dependency or asset added.
 Never copy Compukters branding, asset rights, unrelated native runtimes or release credentials.
 Use the local release skill before distributable/release claims. Actual production archives must pass
 verifyProductionJar including identity, compatibility, Java 21 bytecode, nested Kotlin and legal files.
