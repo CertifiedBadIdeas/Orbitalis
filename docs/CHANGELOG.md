@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Draw a client-only gridded cube in the orbital test sky, using the gravity model's centre/size, with markers for the gravitational centre, surface origin and transfer patch.
+
 - Select a cubic planet geometry and replace diagnostic ship gravity with a conservative field that is face-normal near the surface, continuous at edges and central far away; report cube-shell height and verify off-centre native acceleration.
 
 - Remove source ship tracking before switching the pilot's world, then keep diagnostic physics paused until the destination ship is sent, the follow-up vanilla teleport is acknowledged and native deck contact is reported; use the same barrier for recovered pilots.

@@ -20,47 +20,25 @@ package org.cbi.orbitalis.minecraft.integration.sable
 
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer
 import dev.ryanhcode.sable.sublevel.ServerSubLevel
-import net.minecraft.core.registries.Registries
-import net.minecraft.resources.ResourceKey
-import net.minecraft.resources.ResourceLocation
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.world.level.Level
-import org.cbi.orbitalis.core.planet.CubicGravity
-import org.cbi.orbitalis.core.planet.OrbitalTestFrame
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
 import org.joml.Vector3d
 
 /** Dimension-scoped force adapter. It neither owns ships nor integrates their motion. */
 object SableFlightGravity {
-    val DIMENSION: ResourceKey<Level> =
-        ResourceKey.create(
-            Registries.DIMENSION,
-            ResourceLocation.fromNamespaceAndPath("orbitalis", "flight_test"),
-        )
-    val ORBIT: ResourceKey<Level> =
-        ResourceKey.create(
-            Registries.DIMENSION,
-            ResourceLocation.fromNamespaceAndPath("orbitalis", "orbit_test"),
-        )
+    val DIMENSION = FlightTestSpace.SURFACE
+    val ORBIT = FlightTestSpace.ORBIT
+    val CENTRE = FlightTestSpace.CENTRE
+    val field = FlightTestSpace.gravity
 
-    fun isFlightSpace(level: Level): Boolean = level.dimension() == DIMENSION || level.dimension() == ORBIT
+    fun isFlightSpace(level: Level): Boolean = FlightTestSpace.contains(level)
 
     fun globalPosition(
         level: Level,
         position: Vector3,
-    ): Vector3 = if (level.dimension() == ORBIT) OrbitalTestFrame.toSurface(position) else position
-
-    val CENTRE = Vector3(0.0, -5936.0, 0.0)
-
-    // Experimental dimensions only. The top face remains at surface-world Y = 64.
-    val field =
-        CubicGravity(
-            halfExtent = 6000.0,
-            surfaceAcceleration = 9.81,
-            edgeBlendWidth = 64.0,
-            transitionStartAltitude = 512.0,
-            transitionEndAltitude = 6000.0,
-        )
+    ): Vector3 = FlightTestSpace.globalPosition(level, position)
 
     data class Reading(
         val position: Vector3,

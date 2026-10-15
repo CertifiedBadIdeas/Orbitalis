@@ -64,6 +64,10 @@ See [Sable laboratory](sable-laboratory.md) for the bounded frame-shift experime
 Ordinary Sable constructions in the experimental `orbitalis:flight_test` dimension receive a separate
 server pre-physics cube-to-central gravity impulse. Core `CubicGravity` supplies the conservative field; common
 `SableFlightGravity` transforms each loaded body's centre of mass and converts world force into body axes.
+`FlightTestSpace` owns shared geometry/field constants and dimension keys without optional Sable types.
+A client-only orbit reference renderer uses that same geometry for a coloured gridded cube and centre
+marker in the sky pass; the NeoForge physical-client event adapter owns render event/state restoration.
+It adds no collision terrain, chunk loading, saved data or surface/orbit rendering continuity.
 This adapter has no ship ownership tags, persistent registry, loading tickets, cleanup of player ships or
 Propulsion API dependency. Native Sable owns integration, collisions and ship persistence. Its base gravity,
 drag and pressure are zero only in this test dimension; the Overworld and existing laboratory retain their

@@ -100,3 +100,24 @@ Two samples of the same ship 2.58 seconds apart showed Y decreasing from 313.81 
 increasing from 18.813 to 42.075 m/s, and gravity increasing from 9.0389 to 9.2679 m/s². The user
 reported releasing lift; the observed motion is consistent with falling under the then-spherical field.
 These observations precede the cubic-field revision and do not validate its interactive behavior.
+
+## Orbit reference rendering
+
+In `orbitalis:orbit_test` the client draws an unlit cube with coloured faces and a grid. It uses
+`FlightTestSpace` for exactly the same centre, half-extent and translated frame as server gravity.
+The orange cross marks the gravitational centre through the reference faces. On the top face a white
+cross marks the surface origin, and a gold square outlines the existing x/z +/-2048 transfer patch.
+These references are visible without loading distant chunks and rotate/parallax with the camera.
+
+This is diagnostic sky geometry, not a texture of generated terrain and not solid collision blocks.
+It is drawn after the sky and before local terrain/ships, without writing to their depth buffer.
+Uniform camera-relative scaling preserves angular geometry inside the normal projection range.
+The renderer restores shader/model-view state; the NeoForge event adapter restores GL state and only
+subscribes on the physical client. Other dimensions receive no reference rendering. There are no
+imported textures/assets and no new saved/network state or optional Sable dependency in the renderer.
+
+Build and dedicated-server checks do not establish appearance. For manual acceptance, transfer a ship
+to orbit, look down, then rotate the camera and compare first/third-person views. Check the grid, orange
+centre cross, white origin cross and gold patch boundary from low/high altitude, and confirm the ship
+occludes the reference. Return to the surface and Overworld to check the reference disappears. Visual
+acceptance of this first implementation is pending a client observation.
