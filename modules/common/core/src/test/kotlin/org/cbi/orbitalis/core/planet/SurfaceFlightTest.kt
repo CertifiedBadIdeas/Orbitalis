@@ -27,35 +27,50 @@ import kotlin.test.assertTrue
 class SurfaceFlightTest {
     @Test
     fun `bounded controller completes a flight with an explicit point contact fixture`() {
-        for (dt in listOf(0.05, 0.0125)) {
-            val flight = SurfaceFlight()
-            var state = CartesianState(SurfaceFlight.LAUNCH, Vector3.ZERO)
-            val phases = mutableSetOf<SurfaceFlight.Phase>()
-            repeat((80.0 / dt).toInt()) {
-                val thrust = flight.command(state, dt)
-                phases.add(flight.phase)
-                assertTrue(thrust.length() <= SurfaceFlight.MAX_THRUST + 1e-10)
-                if (flight.phase in setOf(SurfaceFlight.Phase.COAST, SurfaceFlight.Phase.TOUCHDOWN, SurfaceFlight.Phase.LANDED)) {
-                    assertEquals(Vector3.ZERO, thrust)
+        for (itinerary in SurfaceFlight.Itinerary.entries) {
+            for (dt in listOf(0.05, 0.0125)) {
+                val flight = SurfaceFlight(itinerary)
+                var state = CartesianState(SurfaceFlight.LAUNCH, Vector3.ZERO)
+                val phases = mutableSetOf<SurfaceFlight.Phase>()
+                repeat((80.0 / dt).toInt()) {
+                    val thrust = flight.command(state, dt)
+                    phases.add(flight.phase)
+                    assertTrue(thrust.length() <= SurfaceFlight.MAX_THRUST + 1e-10)
+                    if (flight.phase in setOf(SurfaceFlight.Phase.COAST, SurfaceFlight.Phase.TOUCHDOWN, SurfaceFlight.Phase.LANDED)) {
+                        assertEquals(Vector3.ZERO, thrust)
+                    }
+                    // A simple contact fixture is domain evidence only, never evidence of Sable collisions.
+                    val velocity = state.velocity + (flight.gravity.acceleration(state.position) + thrust) * dt
+                    state = CartesianState(state.position + velocity * dt, velocity)
+                    if (state.position.y < 9.5 && state.position.y > 8.5 &&
+                        state.position.x * state.position.x + state.position.z * state.position.z < 1.0
+                    ) {
+                        state =
+                            state.copy(
+                                position = Vector3(state.position.x, 9.5, state.position.z),
+                                velocity = Vector3(state.velocity.x, 0.0, state.velocity.z),
+                            )
+                    }
+                    assertTrue(flight.phase != SurfaceFlight.Phase.FAILED, "dt=$dt state=$state phases=$phases")
                 }
-                // A simple contact fixture is domain evidence only, never evidence of Sable collisions.
-                val velocity = state.velocity + (flight.gravity.acceleration(state.position) + thrust) * dt
-                state = CartesianState(state.position + velocity * dt, velocity)
-                if (state.position.y < 9.5 && state.position.y > 8.5 &&
-                    state.position.x * state.position.x + state.position.z * state.position.z < 1.0
-                ) {
-                    state =
-                        state.copy(
-                            position = Vector3(state.position.x, 9.5, state.position.z),
-                            velocity = Vector3(state.velocity.x, 0.0, state.velocity.z),
+                val expected =
+                    if (itinerary == SurfaceFlight.Itinerary.ORBIT) {
+                        SurfaceFlight.Phase.entries.filter { it !in setOf(SurfaceFlight.Phase.FAILED, SurfaceFlight.Phase.HOVER) }
+                    } else {
+                        listOf(
+                            SurfaceFlight.Phase.GROUND,
+                            SurfaceFlight.Phase.ASCENT,
+                            SurfaceFlight.Phase.HOVER,
+                            SurfaceFlight.Phase.DESCENT,
+                            SurfaceFlight.Phase.TOUCHDOWN,
+                            SurfaceFlight.Phase.LANDED,
                         )
-                }
-                assertTrue(flight.phase != SurfaceFlight.Phase.FAILED, "dt=$dt state=$state phases=$phases")
+                    }
+                assertEquals(expected.toSet(), phases)
+                assertEquals(SurfaceFlight.Phase.LANDED, flight.phase)
+                assertTrue(if (itinerary == SurfaceFlight.Itinerary.ORBIT) flight.coastAngle >= 2.0 * PI else flight.coastAngle == 0.0)
+                assertTrue(flight.maximumCoastEnergyError < 0.01)
             }
-            assertTrue(phases.containsAll(SurfaceFlight.Phase.entries.filter { it != SurfaceFlight.Phase.FAILED }))
-            assertEquals(SurfaceFlight.Phase.LANDED, flight.phase)
-            assertTrue(flight.coastAngle >= 2.0 * PI)
-            assertTrue(flight.maximumCoastEnergyError < 0.01)
         }
     }
 

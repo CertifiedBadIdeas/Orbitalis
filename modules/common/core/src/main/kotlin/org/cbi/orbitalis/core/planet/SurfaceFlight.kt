@@ -24,8 +24,12 @@ import kotlin.math.atan2
 import kotlin.math.max
 
 /** Bounded laboratory autopilot. Outputs thrust acceleration; never integrates or corrects a body. */
-class SurfaceFlight {
-    enum class Phase { GROUND, ASCENT, INSERTION, COAST, RETURN, DESCENT, TOUCHDOWN, LANDED, FAILED }
+class SurfaceFlight(
+    val itinerary: Itinerary = Itinerary.ORBIT,
+) {
+    enum class Itinerary { HOP, ORBIT }
+
+    enum class Phase { GROUND, ASCENT, HOVER, INSERTION, COAST, RETURN, DESCENT, TOUCHDOWN, LANDED, FAILED }
 
     val gravity = TwoBodyGravity(1024.0)
     var phase = Phase.GROUND
@@ -76,7 +80,14 @@ class SurfaceFlight {
 
             Phase.ASCENT -> {
                 desired = seek(state, ABOVE_PAD, 3.0) - gravityAcceleration
-                if (settled((state.position - ABOVE_PAD).length() < 0.06 && slow, dt, 0.25)) transition(Phase.INSERTION)
+                if (settled((state.position - ABOVE_PAD).length() < 0.06 && slow, dt, 0.25)) {
+                    transition(if (itinerary == Itinerary.HOP) Phase.HOVER else Phase.INSERTION)
+                }
+            }
+
+            Phase.HOVER -> {
+                desired = seek(state, ABOVE_PAD, 3.0) - gravityAcceleration
+                if (settled((state.position - ABOVE_PAD).length() < 0.12 && slow, dt, 2.0)) transition(Phase.DESCENT)
             }
 
             Phase.INSERTION -> {

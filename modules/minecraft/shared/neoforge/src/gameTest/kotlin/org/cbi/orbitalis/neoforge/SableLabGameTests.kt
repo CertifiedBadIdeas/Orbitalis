@@ -457,7 +457,7 @@ object SableLabGameTests {
                     helper.assertTrue(
                         phases.containsAll(
                             SurfaceFlight.Phase.entries.filter {
-                                it != SurfaceFlight.Phase.FAILED
+                                it != SurfaceFlight.Phase.FAILED && it != SurfaceFlight.Phase.HOVER
                             },
                         ),
                         "Flight skipped stages: $phases",

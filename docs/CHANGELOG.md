@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Add a bounded short-hop itinerary with hover and physical touchdown to the independent flight diagnostic.
+
 - Add a real single-level Sable takeoff/orbit/return diagnostic, temporary terrain with safe cleanup, flight-phase measurements and native physical-landing tests at one/four substeps.
 - Add a bounded, independent diagnostic flight controller for takeoff, orbital insertion, a measured unpowered revolution and return to a launch pad.
 
