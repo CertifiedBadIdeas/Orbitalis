@@ -19,8 +19,8 @@ limitations under the License.
 # Orbitalis
 
 A space exploration mod for Minecraft, written in Kotlin. The current target is **1.21.1 / NeoForge**.
-The repository contains a development scaffold and an independent finite-planet mathematics experiment;
-in-game mechanics and 26.1 support are not implemented yet.
+The repository contains an independent finite-planet mathematics experiment and an opt-in Minecraft
+planet laboratory. Seamless flight, Sable integration and 26.1 support are not implemented yet.
 
 The development workflow and module boundaries are adapted from Compukters.
 
@@ -48,6 +48,11 @@ To run the independent finite-planet experiment:
 The task writes a trajectory CSV and measured report under modules/common/core/build/experiments/planet.
 See [orbital flight feasibility](docs/contributors/orbital-flight-feasibility.md) for assumptions,
 limitations and the remaining Minecraft/Sable experiments.
+
+In a disposable world with cheats enabled, use `/orbitalis lab enter`, `/orbitalis lab sample`,
+`/orbitalis lab orbit`, and `/orbitalis lab leave` to try the laboratory. It contains six separate
+surface charts and a particle orbit demonstration. See the [laboratory guide](docs/contributors/planet-laboratory.md)
+for commands, limitations and server tests.
 
 Contributor documentation: [development](docs/contributors/development.md),
 [architecture and migration to 26.1](docs/contributors/architecture.md),

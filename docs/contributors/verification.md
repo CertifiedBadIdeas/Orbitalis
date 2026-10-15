@@ -35,12 +35,16 @@ verifyTooling, verifyArchitecture and :core:check. verifyLocalFull adds common/c
 production archive inspection. Core tests cover the experimental finite-planet coordinates and two-body
 trajectories; `:core:runPlanetExperiment` writes a measured reference flight CSV/report. This is mathematical
 coverage, not evidence of a Minecraft/Sable flight. NO-SOURCE is not domain coverage.
-No GameTest task or gameplay claim is supplied by this scaffold.
+Run `:v1_21_1-neoforge:runGameTestServer` separately for real laboratory GameTests. `verifyLocalFull`
+compiles the isolated tests and checks run visibility, but does not start the server. The GameTest run
+requires a fresh XML report containing all laboratory scenarios without failed, skipped or error results;
+missing/empty reports fail even when the launcher exits successfully. See [planet-laboratory.md](planet-laboratory.md).
 A successful client launch cannot prove visual or interactive correctness. Record manual observations,
 initial state, actions and expected outcome; mark unavailable evidence explicitly pending.
 
 Archive checks inspect actual metadata expansion, identity/version, Minecraft range, duplicate entries,
-required entry point/core class, absence of bundled Minecraft/NeoForge or GameTest classes, Java 21
+required entry point/core class and laboratory dimension/legal resources, absence of bundled
+Minecraft/NeoForge or GameTest classes and test-only world resources, Java 21
 project bytecode and nested Kotlin stdlib plus its separately packaged upstream/third-party legal files. Sources and upstream legal notices are retained.
 When adding targets or libraries, extend packaging checks to their actual contracts. The import scan is
 an early architecture guardrail; compilation and review remain necessary for transitive ownership.

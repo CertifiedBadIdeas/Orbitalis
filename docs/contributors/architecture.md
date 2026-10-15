@@ -35,9 +35,17 @@ Gradle runs on JDK 25, while shared/domain and 1.21.1 code compiles to Java 21.
 | build-scripts | JVM conventions and canonical shared source wiring | Gradle plugins |
 | tools | Isolated builds, cache publication, worktree lifecycle and verification | Python, Git and GNU tools |
 
-The Minecraft common layer is currently empty; the sole mod entry point uses the independent mod identity.
+The Minecraft common layer owns the opt-in planet laboratory: bounded surface pads, coordinate adapters,
+operator commands and server-owned particle orbit simulation. Shared NeoForge code registers commands,
+ticks and shutdown cleanup. The laboratory dimension resource is shared common data; its ID
+`orbitalis:planet_lab` must remain stable for worlds that have entered it. The chart layout is experimental.
 Core now contains an experimental finite-planet coordinate model and two-body stepper. A test-source
 laboratory measures a full reference orbit through all six surface charts and back to its start.
+An isolated NeoForge GameTest source set exercises the Minecraft adapters in a real headless server.
+Its generated empty structure and flat world preset are excluded from normal runs and production archives.
+The test preset incorporates the canonical dimension JSON because the 1.21.1 GameTest server otherwise
+bakes its flat preset against an empty dimension registry. The [laboratory guide](planet-laboratory.md)
+describes the scene and its remaining evidence gaps.
 There is no dependency on Compukters, its VM, Rust runtime or addon SDK. There is no committed choice
 of production orbital physics, rendering engine, rocket mechanics or external space integration.
 The exploration-first direction, Sable source investigation and proposed seamless surface/orbit

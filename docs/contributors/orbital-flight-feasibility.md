@@ -18,7 +18,7 @@ limitations under the License.
 
 # Orbital flight and surface transition feasibility
 
-Status: source investigation and an independent mathematical experiment, 2026-10-15.
+Status: source investigation, independent mathematics and an opt-in Minecraft laboratory, 2026-10-15.
 No Sable dependency, Minecraft flight implementation, runtime compatibility or seamless
 transition has been verified yet.
 
@@ -42,7 +42,8 @@ Run `./gradlew-sandbox-dev-parallel-summary :core:test :core:runPlanetExperiment
 The experiment writes `trajectory.csv` and `report.md` under
 `modules/common/core/build/experiments/planet/`. Its executable lives in test sources and is
 excluded from the production JAR. Core contains the candidate geometry and two-body stepper;
-there is no Minecraft dimension, ship adapter or Sable dependency yet.
+the Minecraft [planet laboratory](planet-laboratory.md) now provides a separate diagnostic dimension,
+surface-coordinate samples and a particle reference orbit. There is no ship adapter or Sable dependency yet.
 
 The candidate uses six finite square charts projected radially from cube faces onto a sphere.
 They describe one closed surface, not six planets or six committed Minecraft dimensions.

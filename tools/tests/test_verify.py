@@ -44,6 +44,8 @@ versionRange="[1.21.1,1.21.2)"
             'META-INF/NOTICE': b'upstream fixture',
             'org/cbi/orbitalis/core/Orbitalis.class': self.bytecode(65),
             'org/cbi/orbitalis/neoforge/OrbitalisMod.class': self.bytecode(65),
+            'data/orbitalis/dimension/planet_lab.json': b'{}',
+            'data/orbitalis/dimension/planet_lab.json.license': b'Apache-2.0 fixture',
         }
         for legal in verify.KOTLIN_LEGAL_FILES:
             self.files['META-INF/licenses/kotlin-stdlib/' + legal] = b'legal fixture'
@@ -90,6 +92,16 @@ versionRange="[1.21.1,1.21.2)"
     def test_bundled_minecraft_classes_are_rejected(self):
         self.files['net/minecraft/Example.class'] = self.bytecode(65)
         with self.assertRaisesRegex(ValueError, 'leaked'):
+            self.run_verifier()
+
+    def test_missing_laboratory_resource_is_rejected(self):
+        del self.files['data/orbitalis/dimension/planet_lab.json']
+        with self.assertRaisesRegex(ValueError, 'planet_lab.json'):
+            self.run_verifier()
+
+    def test_test_world_resources_are_rejected(self):
+        self.files['data/minecraft/worldgen/world_preset/flat.json'] = b'{}'
+        with self.assertRaisesRegex(ValueError, 'GameTest world resources leaked'):
             self.run_verifier()
 
 

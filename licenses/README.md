@@ -27,6 +27,8 @@ See build.gradle.kts for block comments and tools/verify.py for hash comments. F
 their actual creation year. SPDX alone is not the repository's source header format. Keep script
 shebangs on the first line. Adapted Compukters files retain their upstream holder and adaptation notice.
 Do not apply original project headers to vendored/generated third-party files.
+For original JSON resources, which cannot contain comments, place the same full plain-text header in an
+adjacent `<filename>.license` sidecar and include it with the resource in archives.
 
 ## Current inventory
 

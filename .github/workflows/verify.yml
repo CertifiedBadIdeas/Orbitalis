@@ -41,14 +41,14 @@ jobs:
           java-version: |
             21
             25
-      - name: Verify all current targets and the distribution
+      - name: Verify all current targets, archive and laboratory GameTests
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p build/agent-logs
           ./gradlew --no-daemon --parallel --max-workers=2 \
             -Porg.gradle.java.installations.paths="$JAVA_HOME_21_X64,$JAVA_HOME_25_X64" \
-            verifyLocalFull 2>&1 | tee build/agent-logs/ci.log
+            verifyLocalFull :v1_21_1-neoforge:runGameTestServer 2>&1 | tee build/agent-logs/ci.log
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
@@ -56,5 +56,6 @@ jobs:
           path: |
             build/agent-logs/
             modules/minecraft/v1_21_1/v1_21_1-neoforge/build/libs/*.jar
+            modules/minecraft/v1_21_1/v1_21_1-neoforge/build/test-results/gameTestServer/
           if-no-files-found: warn
           retention-days: 7

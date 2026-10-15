@@ -69,7 +69,9 @@ def jar(path, version):
             raise ValueError('Duplicate archive entries')
         required = ('META-INF/neoforge.mods.toml', 'META-INF/LICENSE.md', 'META-INF/NOTICE',
                     'org/cbi/orbitalis/core/Orbitalis.class',
-                    'org/cbi/orbitalis/neoforge/OrbitalisMod.class')
+                    'org/cbi/orbitalis/neoforge/OrbitalisMod.class',
+                    'data/orbitalis/dimension/planet_lab.json',
+                    'data/orbitalis/dimension/planet_lab.json.license')
         for name in required:
             if entries.count(name) != 1:
                 raise ValueError(f'Missing or duplicated {name}')
@@ -90,6 +92,9 @@ def jar(path, version):
         if any(name.startswith(('net/minecraft/', 'net/neoforged/')) or
                ('GameTest' in name and name.endswith('.class')) for name in entries):
             raise ValueError('Upstream or GameTest classes leaked into production')
+        if any(name in entries for name in ('data/orbitalis/structure/lab_empty.nbt',
+                                            'data/minecraft/worldgen/world_preset/flat.json')):
+            raise ValueError('GameTest world resources leaked into production')
         # Enforce the bytecode ceiling for the current Java 21 production target.
         for name in entries:
             if name.endswith('.class') and name.startswith('org/cbi/orbitalis/'):

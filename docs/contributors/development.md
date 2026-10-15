@@ -89,7 +89,8 @@ GitHub remote, Roadmap project, publishing targets and credentials are not confi
 ## Continuous integration
 
 .github/workflows/verify.yml is ready for this repository's future GitHub remote. It uses pinned action
-revisions from the reference workflow, installs JDK 21/25, runs verifyLocalFull and retains logs/JARs as
+revisions from the reference workflow, installs JDK 21/25, runs verifyLocalFull and the headless laboratory
+GameTests, and retains logs/JARs/GameTest XML as
 CI artifacts with read-only repository permissions. It does not publish releases. It has not been run
 on GitHub during local bootstrap. Each CI job already has an isolated checkout/home, so it uses the
 ordinary Gradle wrapper. Reflink-specific tooling tests explicitly skip on unsupported runner filesystems;

@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Add an opt-in Minecraft planet laboratory with six bounded chart pads, operator enter/sample/orbit/leave commands, transient return points and a server-ticked particle orbit.
+- Add isolated headless laboratory GameTests, fresh XML result validation, development Kotlin runtime wiring and production checks against leaked test resources.
 - Translate the remaining Russian README into English and document standard Gradle commands and the planet experiment entry point; keep agent-specific checkout/build helpers in contributor guides.
 - Add an independent finite-planet coordinate and two-body trajectory experiment, behavioral tests and a repeatable CSV/report task; no Minecraft/Sable flight implementation yet.
 - Record the exploration-first orbital flight direction, Sable source findings and surface/orbit feasibility experiments.
