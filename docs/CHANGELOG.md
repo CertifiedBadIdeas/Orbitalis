@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Install pinned Sable automatically for standard development client/server/GameTest runs; remove the separate Gradle opt-in flag and duplicate CI profile.
+
 - Add bounded prograde/retrograde Sable diagnostic manoeuvres, per-probe orbital apsides, burn-aware reference errors and native post-burn flight checks.
 - Derive instantaneous bound-orbit periapsis and apoapsis in the independent two-body core, including escape and radial-fall handling.
 

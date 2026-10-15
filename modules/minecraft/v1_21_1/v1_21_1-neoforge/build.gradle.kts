@@ -44,7 +44,6 @@ dependencies {
     "include"(kotlin("stdlib", libs.versions.kotlin.get()))
     "forgeRuntimeLibrary"("org.jetbrains.kotlin:kotlin-stdlib:${libs.versions.kotlin.get()}") { isTransitive = false }
 }
-val sableLabEnabled = providers.gradleProperty("orbitalisSableLab").map(String::toBooleanStrict).getOrElse(false)
 val sableDistribution = configurations.create("sableDistribution") {
     isCanBeConsumed = false
     isTransitive = false
@@ -52,7 +51,7 @@ val sableDistribution = configurations.create("sableDistribution") {
 dependencies { add(sableDistribution.name, libs.sable.v1211) }
 val prepareSableLab = tasks.register("prepareSableLab") {
     inputs.files(sableDistribution)
-    val directories = listOf("client", "server", "gameTestServer").map { layout.projectDirectory.dir("run/$it-sable/mods") }
+    val directories = listOf("client", "server", "gameTestServer").map { layout.projectDirectory.dir("run/$it/mods") }
     outputs.dirs(directories)
     doLast {
         val archive = sableDistribution.singleFile
@@ -180,7 +179,7 @@ val generateGameTestResources = tasks.register("generateGameTestResources") {
 }
 gameTest.resources.srcDir(generateGameTestResources.map { generatedGameTestResources.get() })
 
-val gameTestReport = layout.buildDirectory.file("test-results/gameTestServer/${if (sableLabEnabled) "sable-results" else "results"}.xml")
+val gameTestReport = layout.buildDirectory.file("test-results/gameTestServer/results.xml")
 loom.runs.register("gameTestServer") {
     server()
     source(gameTest)
@@ -197,12 +196,7 @@ loom.runs.register("gameTestServer") {
         }
     }
 }
-if (sableLabEnabled) {
-    listOf("client", "server", "gameTestServer").forEach { name ->
-        loom.runs.named(name) { runDir("run/$name-sable") }
-    }
-    tasks.matching { it.name in setOf("runClient", "runServer", "runGameTestServer") }.configureEach { dependsOn(prepareSableLab) }
-}
+tasks.matching { it.name in setOf("runClient", "runServer", "runGameTestServer") }.configureEach { dependsOn(prepareSableLab) }
 tasks.named("check") { dependsOn(gameTest.classesTaskName) }
 tasks.configureEach {
     if (name == "runGameTestServer") {
@@ -219,13 +213,11 @@ tasks.configureEach {
             factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
             val document = factory.newDocumentBuilder().parse(report)
             val cases = document.getElementsByTagName("testcase")
-            val minimumCases = if (sableLabEnabled) 11 else 7
+            val minimumCases = 11
             check(cases.length >= minimumCases) { "Expected at least $minimumCases laboratory GameTests, received ${cases.length}." }
-            if (sableLabEnabled) {
-                val names = (0 until cases.length).map { (cases.item(it) as org.w3c.dom.Element).getAttribute("name") }.toSet()
-                check(names.containsAll(setOf("sableimpulseandcoasting", "sableframeshiftpreservesstate", "sablecentralgravityorbit", "sableorbitalmanoeuvres"))) {
-                    "Sable runtime profile did not execute its required physics scenarios: $names"
-                }
+            val names = (0 until cases.length).map { (cases.item(it) as org.w3c.dom.Element).getAttribute("name") }.toSet()
+            check(names.containsAll(setOf("sableimpulseandcoasting", "sableframeshiftpreservesstate", "sablecentralgravityorbit", "sableorbitalmanoeuvres"))) {
+                "GameTest run did not execute its required Sable physics scenarios: $names"
             }
             listOf("failure", "error", "skipped").forEach { tag ->
                 check(document.getElementsByTagName(tag).length == 0) { "GameTest report contains $tag outcomes: $report" }

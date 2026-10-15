@@ -29,9 +29,9 @@ limitations under the License.
   open-source license. Retain and assess these upstream terms independently of Orbitalis licensing.
 
 Orbitalis contains an original API adapter, not imported Sable implementation. No Sable source,
-textures, branding or binaries are redistributed in the Orbitalis JAR. The optional development
-profile installs the checksum-verified original release in separate run directories. Its embedded
-licenses/notices are preserved unchanged; the profile does not relicense or patch upstream software.
+textures, branding or binaries are redistributed in the Orbitalis JAR. Standard development
+game runs install the checksum-verified original release in their respective run directories. Its embedded
+licenses/notices are preserved unchanged; development staging does not relicense or patch upstream software.
 The Modrinth build is pinned independently of the inspected source revision; no reproducible
 source-to-binary equivalence claim is made.
 
@@ -46,6 +46,6 @@ JARs; their presence does not change Orbitalis source licensing. This inventory 
 pinned binary's embedded notices, not a complete audit of its transitive/native components.
 
 Loom's remapped mod dependency removes nested runtime JARs. Consequently compilation uses the
-remapped compile-only artifact, while the optional dev profile stages the intact original mod in
-`run/*-sable/mods`. Normal profile run directories contain no automatically installed Sable mod.
+remapped compile-only artifact, while standard development game runs stage the intact original mod in
+`run/client/mods`, `run/server/mods` and `run/gameTestServer/mods`.
 No manual Gradle cache copies or modified upstream distributions are required.

@@ -18,7 +18,7 @@ limitations under the License.
 
 # Sable physics laboratory
 
-This bounded experiment targets Minecraft 1.21.1 / NeoForge 21.1.252 with optional Sable 2.0.6.
+This bounded experiment targets Minecraft 1.21.1 / NeoForge 21.1.252 with Sable 2.0.6.
 It creates two small real block constructions, exercises Sable's native Rapier backend, and
 translates both constructions and an unmounted creative observer within one level. It does not
 implement production orbital ships, surface-to-orbit travel or transfer between dimensions. Use a disposable world.
@@ -26,12 +26,13 @@ implement production orbital ships, surface-to-orbit travel or transfer between 
 ## Launch and commands
 
 ```sh
-./gradlew :v1_21_1-neoforge:runClient -PorbitalisSableLab=true
+./gradlew :v1_21_1-neoforge:runClient
 ```
 
-The profile verifies the pinned release SHA-512 and stages the original Sable JAR under
-`run/client-sable/mods` in the NeoForge target. Server and GameTest profiles use separate
-`run/server-sable` and `run/gameTestServer-sable` directories. Normal runs do not install Sable.
+All standard development game runs verify the pinned release SHA-512 and stage the original Sable JAR
+under their `mods` directory in the NeoForge target: `run/client`, `run/server` and
+`run/gameTestServer`. No Gradle property is needed. Existing worlds in these directories remain in place;
+worlds from the former `run/*-sable` directories are not moved automatically.
 The original release carries its own Companion, Rapier and Veil dependencies; Create is not required.
 Compilation uses remapped compile-only APIs, because Loom's remapped dependency strips the nested
 JARs needed at runtime. Orbitalis does not bundle or patch Sable. See [provenance](../../licenses/sable/PROVENANCE.md)
@@ -148,10 +149,9 @@ orbit is not incorrectly measured against the initial 16 m circle.
 
 ```sh
 ./gradlew verifyLocalFull :v1_21_1-neoforge:runGameTestServer
-./gradlew :v1_21_1-neoforge:runGameTestServer -PorbitalisSableLab=true
 ```
 
-The base profile runs seven planet lab scenarios without Sable. The optional profile adds four real
+The standard GameTest run executes seven planet lab scenarios and four real Sable
 native-physics scenarios, checking impulse across one/four substeps, coasting in vacuum, a frame shift
 of two bodies with nonzero linear/angular velocity, relative/global positions and observer orientation. The central-gravity scenario additionally runs a
 complete revolution at one and four substeps, shifts the frame halfway through each run, compares both
@@ -163,9 +163,8 @@ with an untouched gold control and a simultaneous frame shift. It checks energy 
 reaching the new apsis, predicted/observed apsides, rejection and cancellation, and improved reference
 accuracy with smaller steps. Over 14 seconds after each burn, bounds are position error < 1.6 m,
 relative energy error < 0.02, relative angular-momentum error < 0.01 and apsis discrepancy < 0.6 m.
-Separate `results.xml` and `sable-results.xml` reports live under the target's
-`build/test-results/gameTestServer`. Both are required in CI; a missing fresh report or missing required
-Sable scenario fails the run. Test-only players use an inert channel and packet sink without a login;
+The `results.xml` report lives under the target’s `build/test-results/gameTestServer`. CI executes
+the same standard run; a missing fresh report or missing required Sable scenario fails the run. Test-only players use an inert channel and packet sink without a login;
 these tests establish server state, not a real client's mod negotiation or rendering.
 
 Observed headless results on 2026-10-15: gold-block mass 4.0 Sable units; X velocity

@@ -48,7 +48,7 @@ bakes its flat preset against an empty dimension registry. The [laboratory guide
 describes the scene and its remaining evidence gaps.
 The optional Sable adapter stays in shared Minecraft common code; NeoForge alone wires its physics
 callbacks and commands after detecting the mod. Sable types do not enter core. The pinned external
-release is compile-only and is installed intact only in opt-in development runs. Its physics backend
+release is compile-only and is installed intact in every standard development game run. Its physics backend
 integrates the probes. In the explicit orbital diagnostic, Orbitalis supplies central-gravity impulses
 at the transformed centre of mass, reconstructing inertial position across frame shifts. A separate finer
 core trajectory measures numerical error and never corrects the actual Sable state. Diagnostic
