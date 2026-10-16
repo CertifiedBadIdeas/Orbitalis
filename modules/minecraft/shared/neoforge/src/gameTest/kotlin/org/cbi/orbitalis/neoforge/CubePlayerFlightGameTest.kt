@@ -56,6 +56,24 @@ object CubePlayerFlightGameTest {
                 player.setPos(CubePlayerPhysics.CENTRE.add(radius, -CubePlayerPhysics.HALF_HEIGHT, 0.0))
                 helper.assertTrue(CubePlayerPhysics.active(player), "Planet mode silently stopped at radius $radius")
             }
+            player.abilities.flying = false
+            for (up in Direction.entries) {
+                player.setPos(CubePlayerPhysics.CENTRE.add(Vec3.atLowerCornerOf(up.normal).scale(120.0)).add(0.0, -0.9, 0.0))
+                CubePlayerPhysics.refresh(player)
+                player.deltaMovement = Vec3.ZERO
+                player.setOnGround(false)
+                player.aiStep()
+                val first = player.deltaMovement
+                player.aiStep()
+                helper.assertTrue(
+                    player.deltaMovement.dot(CubePlayerPhysics.gravity(player)) > 0.0,
+                    "Free fall accelerated away from the planet on $up",
+                )
+                helper.assertTrue(
+                    player.deltaMovement.length() > first.length() * 1.8,
+                    "Native tick erased weak gravity velocity instead of accumulating it on $up",
+                )
+            }
             val saved = player.saveWithoutId(CompoundTag())
             helper.assertTrue(CubePlayerModeData.read(saved), "Player save omitted scene membership")
             restored.readAdditionalSaveData(saved)

@@ -58,7 +58,7 @@ Outside planet_lab, ordinary Minecraft movement remains in effect. Enrolled non-
 vanilla's global-Y void damage because Y is not planetary altitude; other damage is unchanged. The
 world's block build-height bounds remain unchanged, and this does not add terrain below them. Loose entities, fluids, Sable ships,
 beds, ladders, swimming, riding, crouching/crawling, stepping up blocks and production survival
-rules are not supported by this standing-player experiment. Use a disposable scene without these features.
+rules are not supported by this player experiment. Use a disposable scene without these features.
 The demonstration does not validate full-block interaction/reach or multiplayer combat while the view
 is turning; camera easing and the instantaneous physical eye can differ during that interval.
 
@@ -91,6 +91,8 @@ prevents a slow player from retaining the old collider and sliding along the adj
 the previous face sideways immediately after a turn. It does not rotate or reset velocity.
 Continuous free-space frames follow the force throughout the altitude blend and central far field.
 Collider growth is delayed when obstructed, including a glider-to-standing resize below an overhang.
+Vanilla's small per-axis resting-velocity cutoff is disabled only for active scene players, so weak
+high-altitude acceleration accumulates over full entity ticks rather than resetting every tick.
 Native pose dimension changes restore the accepted envelope; a delayed resize retains the small body
 and eye until clearance is available. Exact model/terrain clearance in arbitrary edited tunnels is not established.
 Gravity does not wait for an obstructed turn. Collision sweeps tangential motion first, then motion along local up, with support tested along
@@ -128,7 +130,8 @@ The heading regression covers all 24 directed adjacent-face turns at six yaws an
 an isolated 0.5-second turn. It also checks that server players do not rebase incoming yaw. Flight regressions cover 201 altitude
 samples, a 361-sample full central-field circuit, stationary heading stability, obstructed body resizing,
 native elytra activation and 180 glider steps from each of six sides, native rocket thrust direction,
-mode save/load, cutoff crossing and the scene-local void exemption. These
+mode save/load, cutoff crossing, six-direction weak-gravity accumulation through full entity AI ticks,
+and the scene-local void exemption. These
 are native movement and numerical visual-transform checks, not observed camera-rendering evidence.
 
 Core tests cover the sharp force/potential, far field, connected interior and solid convex edges. Native
@@ -146,7 +149,7 @@ Observed on 2026-10-16 in an isolated client world copied from this task's GameT
   the client retained `flying=true` and server sampling reported `grounded=false`. A third-person
   image showed the model aligned with that face. No movement-validation correction was logged.
 - Rebuild was refused while the player occupied the scene. Leaving restored the entry position;
-  ordinary creative movement remained available outside the bounded adapter.
+  ordinary creative movement remained available outside the scene.
 - Evidence is retained locally in `build/agent-logs/cube-client/`. The original flight-input redirect
   conflicted with Sable; the final adapter modifies the resulting velocity argument instead.
 
@@ -167,6 +170,29 @@ including 39 samples with intermediate up vectors. Forward remained +Y (maximum 
 No moved-wrongly or moved-too-quickly warning was logged. Traces are retained locally in
 `build/agent-logs/camera-axis-client/`. This validates this rendered axis change under controlled
 placement, not walking comfort, overlapping turns or remote-player interpolation.
+
+Flight follow-up on 2026-10-16 used another isolated copied world, native commands and a temporary
+input fixture excluded from production sources. A controlled creative ascent recorded 500 actual-camera
+samples from cube-centre offset approximately (18.9,10,3) to (40.5,13.8,4.1), through the altitude blend.
+Camera up differed from accepted physical up by at most 0.0011 in vector distance; the largest sampled
+up change was 0.42 degrees. A second 500-sample ascent crossed radius 64 and reached approximately 84
+without disabling membership. After stopping flight and resetting velocity, a 300-sample free fall near
+radius 62 decreased radius, with velocity aligned with the inward force in every nonzero sample.
+A later return from offset (28,10,10) landed on +X at (16.9,9.25464,9.25464) and settled.
+
+Native elytra activation and a subsequent real firework boost each retained gliding, membership and
+20 health through 500 samples, including a high-altitude change from X-dominant to Z-dominant position.
+Creative flight below the ordinary void floor at world Y=-204.9 retained membership and 20 health.
+Reloading the copied world restored scene membership away from the surface. Explicit leave disabled
+membership and restored ordinary global-Y movement. No moved-wrongly or moved-too-quickly warning
+was logged. First- and third-person framebuffer images showed the planet and gravity-aligned model.
+The reported abrupt black half-face was not reproduced in these views and remains unverified;
+these observations do not establish absence of rendering artifacts at arbitrary locations. Traces,
+client log and images are retained locally in `build/agent-logs/cube-flight-client/`. Earlier exploratory
+traces with unconstrained input are retained as diagnostics, not camera-continuity evidence. A repeat
+elytra activation while already gliding was rejected by vanilla; the successful activation is the first
+`glide` trace. The initial client launch also exposed an inherited-field Mixin shadow failure; the
+teleport adapter now obtains the native client instance directly and the final client loaded successfully.
 
 These observations establish the listed routes and creative escape. They do not establish subjective camera
 comfort, all edge directions or multiplayer behavior. Remaining manual scenarios:

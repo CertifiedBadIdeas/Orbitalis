@@ -24,9 +24,7 @@ import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket;
 import org.cbi.orbitalis.minecraft.client.CubePlayerView;
 import org.cbi.orbitalis.minecraft.lab.CubePlayerFrame;
 import org.cbi.orbitalis.minecraft.lab.CubePlayerPhysics;
-import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -34,10 +32,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /** Absolute server teleports carry destination-chart yaw, not a heading to transport from the old site. */
 @Mixin(ClientPacketListener.class)
 public abstract class CubePlayerTeleportMixin {
-    @Shadow @Final private Minecraft minecraft;
-
     @Inject(method = "handleMovePlayer", at = @At("RETURN"))
     private void orbitalis$destinationFrame(ClientboundPlayerPositionPacket packet, CallbackInfo callback) {
+        Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null || !CubePlayerPhysics.active(minecraft.player)) return;
         CubePlayerFrame state = (CubePlayerFrame) minecraft.player;
         state.orbitalisSetUp(null);
