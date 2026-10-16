@@ -18,20 +18,27 @@
 
 package org.cbi.orbitalis.neoforge
 
+import net.minecraft.core.BlockPos
 import net.minecraft.core.Direction
 import net.minecraft.gametest.framework.GameTest
 import net.minecraft.gametest.framework.GameTestHelper
 import net.minecraft.nbt.CompoundTag
+import net.minecraft.world.effect.MobEffectInstance
+import net.minecraft.world.effect.MobEffects
 import net.minecraft.world.entity.EquipmentSlot
+import net.minecraft.world.entity.ai.attributes.Attributes
 import net.minecraft.world.entity.projectile.FireworkRocketEntity
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.item.Items
+import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.phys.Vec3
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
 import org.cbi.orbitalis.core.planet.GliderFlight
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
 import org.cbi.orbitalis.minecraft.lab.CubePlanetLab
 import org.cbi.orbitalis.minecraft.lab.CubePlayerFrame
+import org.cbi.orbitalis.minecraft.lab.CubePlayerLocomotion
 import org.cbi.orbitalis.minecraft.lab.CubePlayerMode
 import org.cbi.orbitalis.minecraft.lab.CubePlayerModeData
 import org.cbi.orbitalis.minecraft.lab.CubePlayerOrientation
@@ -45,6 +52,194 @@ import kotlin.math.sin
 
 @PrefixGameTestTemplate(false)
 object CubePlayerFlightGameTest {
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis")
+    fun cubeJumpMatchesVanillaOnAllFaces(helper: GameTestHelper) {
+        val nativePilot = GameTestPlayers.create(helper, locallyControlled = true)
+        val pilot = GameTestPlayers.create(helper, locallyControlled = true)
+        val reference = GameTestPlayers.controller(nativePilot)
+        val lab = CubePlanetLab.forServer(helper.level.server)
+        val floor = helper.absolutePos(BlockPos(1, 32, 1))
+        for (dx in -8..1) {
+            for (dz in -1..1) {
+                helper.level.setBlock(floor.offset(dx, 0, dz), Blocks.STONE.defaultBlockState(), 3)
+            }
+        }
+        try {
+            for (face in Direction.entries) {
+                helper.assertTrue(lab.enter(pilot, face), "Jump entry failed on $face")
+                GameTestPlayers.acknowledgeTeleport(pilot)
+                val actor = GameTestPlayers.controller(pilot)
+                try {
+                    actor.abilities.flying = false
+                    actor.deltaMovement = Vec3.ZERO
+                    repeat(20) { actor.travel(Vec3.ZERO) }
+                    helper.assertTrue(actor.onGround(), "Jump fixture did not settle on $face")
+                    val start = CubePlayerPhysics.centre(actor)
+                    val normal = CubePlayerPhysics.normal(actor)
+                    val a = SableFlightGravity.acceleration(actor.level(), Vector3(start.x, start.y, start.z))
+                    helper.assertTrue(
+                        CubePlayerPhysics.gravity(actor).distanceTo(Vec3(a.x, a.y, a.z)) < 1e-9,
+                        "Player and native ship gravity differ on $face",
+                    )
+                    reference.setPos(Vec3.atLowerCornerOf(floor).add(.5, 1.0, .5))
+                    reference.deltaMovement = Vec3.ZERO
+                    reference.setOnGround(true)
+                    reference.abilities.flying = false
+                    val nativeStart = reference.y
+                    reference.jumpFromGround()
+                    actor.jumpFromGround()
+                    var peak = 0.0
+                    var landing = 0
+                    for (tick in 1..20) {
+                        reference.travel(Vec3.ZERO)
+                        actor.travel(Vec3.ZERO)
+                        val expectedHeight = reference.y - nativeStart
+                        val height = CubePlayerPhysics.centre(actor).subtract(start).dot(normal)
+                        peak = maxOf(peak, height)
+                        helper.assertTrue(
+                            abs(height - expectedHeight) < 0.0001,
+                            "Jump path differs on $face tick=$tick: $height vs $expectedHeight",
+                        )
+                        helper.assertTrue(actor.onGround() == reference.onGround(), "Jump landing timing differs on $face tick=$tick")
+                        if (actor.onGround() && landing == 0) landing = tick
+                    }
+                    helper.assertTrue(peak in 1.24..1.27 && landing == 12, "Not a native jump on $face: peak=$peak landing=$landing")
+                    for (player in listOf(reference, actor)) {
+                        player.getAttribute(Attributes.JUMP_STRENGTH)!!.baseValue = .6
+                        player.addEffect(MobEffectInstance(MobEffects.JUMP, 100, 1))
+                        player.isSprinting = true
+                        player.yRot = 45f
+                    }
+                    val initial = Vec3(.07, -.1, .03)
+                    reference.deltaMovement = initial
+                    actor.deltaMovement = CubePlayerPhysics.rotate(initial, actor)
+                    reference.jumpFromGround()
+                    actor.jumpFromGround()
+                    helper.assertTrue(
+                        CubePlayerPhysics.local(actor.deltaMovement, actor).distanceTo(reference.deltaMovement) < 1e-6,
+                        "Native boosted sprint jump impulse differs on $face",
+                    )
+                    reference.removeAllEffects()
+                    reference.getAttribute(Attributes.JUMP_STRENGTH)!!.baseValue = .42
+                    reference.isSprinting = false
+                    checkSprintJumps(helper, reference, actor, start, floor, face)
+                    println(
+                        "ORBITALIS_CUBE_NATIVE_JUMP face=$face peak=$peak landingTick=$landing boostedSprint=true sharedShipGravity=true",
+                    )
+                } finally {
+                    actor.discard()
+                }
+            }
+        } finally {
+            lab.leave(pilot)
+            pilot.discard()
+            nativePilot.discard()
+            reference.discard()
+        }
+        helper.succeed()
+    }
+
+    private fun checkSprintJumps(
+        helper: GameTestHelper,
+        reference: net.minecraft.world.entity.player.Player,
+        actor: net.minecraft.world.entity.player.Player,
+        start: Vec3,
+        floor: BlockPos,
+        face: Direction,
+    ) {
+        fun reset() {
+            reference.setPos(Vec3.atLowerCornerOf(floor).add(.5, 1.0, .5))
+            actor.setPos(start.subtract(0.0, CubePlayerPhysics.HALF_HEIGHT, 0.0))
+            reference.setOnGround(true)
+            actor.setOnGround(true)
+            // Refresh vanilla's cached support after operator positioning, as an actual movement tick does.
+            reference.move(net.minecraft.world.entity.MoverType.SELF, Vec3(0.0, -.001, 0.0))
+        }
+        for (player in listOf(reference, actor)) {
+            player.removeAllEffects()
+            player.getAttribute(Attributes.JUMP_STRENGTH)!!.baseValue = .42
+            player.isSprinting = true
+            // Keep native Z=-10 fixed: the +X face's relief starts at Z=-7.
+            player.yRot = 90f
+            player.speed = player.getAttributeValue(Attributes.MOVEMENT_SPEED).toFloat()
+            player.deltaMovement = Vec3.ZERO
+        }
+        reset()
+        repeat(2) {
+            reference.travel(Vec3.ZERO)
+            actor.travel(Vec3.ZERO)
+        }
+        val input = Vec3(0.0, 0.0, .98f.toDouble())
+        repeat(12) {
+            val before = CubePlayerPhysics.centre(actor)
+            val nativeBefore = reference.position()
+            reference.travel(input)
+            actor.travel(input)
+            val motion = CubePlayerPhysics.local(CubePlayerPhysics.centre(actor).subtract(before), actor)
+            val expected = reference.position().subtract(nativeBefore)
+            helper.assertTrue(motion.distanceTo(expected) < 0.0001, "Sprint run differs on $face: $motion vs $expected")
+        }
+        var maximum = 0.0
+        repeat(8) { jump ->
+            reset()
+            reference.jumpFromGround()
+            actor.jumpFromGround()
+            repeat(12) { tick ->
+                val before = CubePlayerPhysics.centre(actor)
+                val nativeBefore = reference.position()
+                reference.travel(input)
+                actor.travel(input)
+                val motion = CubePlayerPhysics.local(CubePlayerPhysics.centre(actor).subtract(before), actor)
+                val expected = reference.position().subtract(nativeBefore)
+                maximum = maxOf(maximum, kotlin.math.hypot(motion.x, motion.z))
+                helper.assertTrue(
+                    motion.distanceTo(expected) < 0.0001,
+                    "Sprint jump differs on $face jump=$jump tick=$tick: $motion vs $expected",
+                )
+                helper.assertTrue(actor.onGround() == reference.onGround(), "Sprint landing differs on $face jump=$jump tick=$tick")
+            }
+        }
+        // Resolve a slippery support block in the chart's native coordinates, not global Y below the network anchor.
+        reset()
+        val support = CubePlayerPhysics.supportPosition(actor, .5f)
+        val previous = actor.level().getBlockState(support)
+        helper.assertTrue(!previous.isAir, "Native support query missed the floor on $face")
+        val patch = (-1..1).flatMap { dx -> (-1..1).map { dz -> support.offset(dx, 0, dz) } }
+        val originals = patch.associateWith { actor.level().getBlockState(it) }
+        patch.forEach { actor.level().setBlock(it, Blocks.ICE.defaultBlockState(), 3) }
+        for (dx in -1..1) for (dz in -1..1) helper.level.setBlock(floor.offset(dx, 0, dz), Blocks.ICE.defaultBlockState(), 3)
+        try {
+            helper.assertTrue(actor.level().getBlockState(support).`is`(Blocks.ICE), "Ice fixture write failed on $face")
+            helper.assertTrue(actor.blockPosBelowThatAffectsMyMovement == support, "Native support query was replaced on $face")
+            val iceFriction = (actor as CubePlayerLocomotion).orbitalisSupportFriction()
+            val nativeIceFriction = (reference as CubePlayerLocomotion).orbitalisSupportFriction()
+            helper.assertTrue(iceFriction == nativeIceFriction, "Ice friction differs on $face: $iceFriction vs $nativeIceFriction")
+            // Establish native resting state after the operator reset (which clears clipped Y velocity).
+            reference.deltaMovement = Vec3.ZERO
+            repeat(2) { reference.travel(Vec3.ZERO) }
+            // Keep vanilla's resting inward velocity; the cube consumes its equivalent contact probe.
+            reference.deltaMovement = Vec3(0.0, reference.deltaMovement.y, .1)
+            actor.deltaMovement = CubePlayerPhysics.rotate(Vec3(0.0, 0.0, .1), actor)
+            repeat(3) {
+                reference.travel(Vec3.ZERO)
+                actor.travel(Vec3.ZERO)
+                val actual = CubePlayerPhysics.local(actor.deltaMovement, actor)
+                helper.assertTrue(
+                    abs(actual.z - reference.deltaMovement.z) < 0.0001,
+                    "Native ice drag differs on $face: $actual vs ${reference.deltaMovement}; " +
+                        "ground=${actor.onGround()}/${reference.onGround()} friction=${actor.orbitalisSupportFriction()}/" +
+                        "${reference.orbitalisSupportFriction()} pos=${actor.blockPosBelowThatAffectsMyMovement}/" +
+                        "${reference.blockPosBelowThatAffectsMyMovement}",
+                )
+            }
+        } finally {
+            originals.forEach { (pos, state) -> actor.level().setBlock(pos, state, 3) }
+            for (dx in -1..1) for (dz in -1..1) helper.level.setBlock(floor.offset(dx, 0, dz), Blocks.STONE.defaultBlockState(), 3)
+        }
+        println("ORBITALIS_CUBE_SPRINT_JUMP face=$face jumps=8 maxTravelPerTick=$maximum nativeMatch=true iceDrag=true")
+    }
+
     @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis")
     fun cubeModeSurvivesAltitudeAndReload(helper: GameTestHelper) {

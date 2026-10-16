@@ -18,6 +18,7 @@
 
 package org.cbi.orbitalis.minecraft.lab
 
+import net.minecraft.core.BlockPos
 import net.minecraft.world.entity.Entity
 import net.minecraft.world.phys.AABB
 import net.minecraft.world.phys.Vec3
@@ -41,6 +42,12 @@ interface CubePlayerContacts {
         entity: Entity,
         bounds: AABB,
     ): Boolean
+
+    /** Resolve a world-space support probe into native block coordinates, or defer to parent terrain. */
+    fun supportPosition(
+        entity: Entity,
+        probe: Vec3,
+    ): BlockPos? = null
 
     companion object {
         var adapter: CubePlayerContacts? = null

@@ -56,6 +56,8 @@ object GameTestPlayers {
             }
         (player as org.cbi.orbitalis.minecraft.lab.CubePlayerMode).orbitalisSetCubeEnrolled(true)
         player.setPos(pilot.position())
+        // Match Player.aiStep's attribute-to-speed refresh for fixtures which call travel directly.
+        player.speed = player.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED).toFloat()
         player.yRot = pilot.yRot
         player.yHeadRot = pilot.yRot
         org.cbi.orbitalis.minecraft.lab.CubePlayerPhysics

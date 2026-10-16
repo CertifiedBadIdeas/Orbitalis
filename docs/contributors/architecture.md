@@ -79,6 +79,11 @@ Sable owns rigid-body integration, terrain contact, loading and persistence. Nat
 drag and pressure remain zero there. Only explicit cube preparation/rebuild creates or removes planet charts; ordinary ships are not auto-created or destroyed.
 
 `CubePlayerContacts` is the optional moving-world boundary used by planetary locomotion.
+Its optional `supportPosition(entity, worldProbe)` resolves support into native block coordinates;
+null keeps parent-world lookup. Sable produces this transient mapping from the tracked body's logical
+pose, and planetary `getOnPos` queries consume it. No save/network schema is added. The internal
+`CubePlayerLocomotion` bridge calls Minecraft's native acceleration and NeoForge block-friction hooks,
+so shared locomotion does not copy loader-specific attribute/block logic.
 `SableCubePlayerContacts` invokes Sable's native oriented contact solver and native tracking
 protocol, applies deck motion once, and retains inherited inertial velocity on departure.
 Narrow loader mixins adapt only active cube players inside that solver: unrotated dimensions,

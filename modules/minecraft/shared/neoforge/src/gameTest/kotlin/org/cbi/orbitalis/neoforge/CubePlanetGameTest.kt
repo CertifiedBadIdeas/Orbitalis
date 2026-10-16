@@ -384,7 +384,7 @@ object CubePlanetGameTest {
                 abs(player.boundingBox.xsize - 1.8) < 1e-6 && abs(player.boundingBox.ysize - 0.6) < 1e-6,
                 "Standing collider did not rotate",
             )
-            CubePlayerPhysics.jump(player)
+            player.jumpFromGround()
             helper.assertTrue(player.deltaMovement.x > 0 && abs(player.deltaMovement.y - velocity.y) < 1e-9, "Jump did not use local up")
             (player as CubePlayerFrame).orbitalisSetUp(Direction.UP)
             val obstruction = BlockPos.containing(centre.add(0.8, 0.0, 0.0))
@@ -405,6 +405,7 @@ object CubePlanetGameTest {
             level.setBlock(overhang, Blocks.GLASS.defaultBlockState(), 2)
             try {
                 val before = CubePlayerPhysics.centre(player)
+                val oldInnerPlane = player.boundingBox.minX
                 CubePlayerPhysics.refresh(player)
                 helper.assertTrue(CubePlayerPhysics.up(player) == Direction.UP, "Turn moved the old collider through an overhang")
                 helper.assertTrue(CubePlayerPhysics.centre(player) == before, "Blocked turn displaced the player")
@@ -413,8 +414,8 @@ object CubePlanetGameTest {
                 helper.assertTrue(CubePlayerPhysics.up(player) == Direction.EAST, "Clear support contact did not turn")
                 val shift = CubePlayerPhysics.centre(player).subtract(before)
                 helper.assertTrue(
-                    abs(shift.x - 0.4) < 1e-5 && shift.y == 0.0 && shift.z == 0.0,
-                    "Turn did not use minimum outward clearance: $shift",
+                    abs(player.boundingBox.minX - oldInnerPlane) < 1e-5 && shift.x > 0.0 && shift.y == 0.0 && shift.z == 0.0,
+                    "Turn did not preserve the inner support plane: $shift",
                 )
                 helper.assertTrue(level.noCollision(player, player.boundingBox.deflate(1e-5)), "Clearance left the body in terrain")
             } finally {

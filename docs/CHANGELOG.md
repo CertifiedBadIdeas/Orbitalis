@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Restore native ground/air acceleration and friction, preventing excessive speed from repeated sprint jumps; resolve slippery support blocks in each face’s native coordinates.
+
+- Restore native Minecraft jump strength, effects, sprint impulse and jump events on the cube. Match ordinary jump timing with move-before-gravity integration and normal air drag; use a shared 32 blocks/s² constant surface band for players and Sable constructions in the small fixture, with conservative distant falloff.
+
 - Double the cube scene surface gravity from 9.81 to 19.62 blocks/s² for both players and ordinary Sable constructions.
 
 - Align cube block/entity picking with the rendered eye and eased view on all faces; adapt Sable’s interpolated-eye helper so native decks no longer restore a global-Y eye offset.

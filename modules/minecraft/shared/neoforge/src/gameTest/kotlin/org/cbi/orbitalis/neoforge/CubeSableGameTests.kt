@@ -245,7 +245,7 @@ object CubeSableGameTests {
                 )
                 // Move away from support: Sable must release tracking so normal flight can resume.
                 body.updateLastPose()
-                CubePlayerPhysics.jump(player)
+                player.jumpFromGround()
                 repeat(6) { player.move(MoverType.SELF, n.scale(0.23)) }
                 helper.assertTrue(!player.onGround(), "Jump remained grounded on $up")
                 // Native tracking is a nearby moving frame, not the grounded flag. Leave its

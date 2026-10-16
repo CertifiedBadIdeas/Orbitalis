@@ -68,7 +68,18 @@ Entry explicitly builds a solid 32-block reference cube centred at (2048,96,2048
 of +Y relief and two blocks of +X relief around the demonstrated edge. Six face colours distinguish
 surfaces and their corresponding interior volumes. The reference cube remains solid through edges and corners.
 Unequal relief tapers down before each convex edge, avoiding a trench on the gravity boundary. The fixture is a global block-occupancy function, not six independent maps.
-Surface gravity is 19.62 blocks/s², shared by players and ordinary Sable constructions.
+The small fixture uses a Minecraft gameplay profile: 32 blocks/s² (0.08 blocks/tick²) for both
+players and ordinary Sable constructions, constant through cube-shell altitude 8. Above that band,
+the conservative field falls off with distance and blends toward the centre through altitude 20.
+The band covers unequal relief, standing body height and an ordinary jump. This is temporary tuning
+for the 32-block prototype; a larger generated planet can derive field parameters from its physical
+scale and mass instead of preserving this gameplay band. Players and ships share one field.
+Ordinary jumps retain native jump strength, Jump Boost, sprint impulse and the living-jump event;
+movement precedes gravity and normal air drag is 0.98, matching Minecraft's jump timing.
+Horizontal input acceleration comes from native movement attributes, with native ground friction
+and 0.91 airborne drag applied after movement. Repeated sprint-jump impulses therefore dissipate
+as they do in Minecraft. Support queries follow local down and resolve native Sable plot coordinates,
+including loader-specific block friction; ice and normal terrain need not share a coefficient.
 Walk forward from the initial clear lane to leave the green face and fall towards the orange +X face.
 WASD and mouse look use the accepted gravity frame; jump acts along local up. Creative flight remains available with normal double-jump activation; jump/shift lift follows
 local up/down, with no gravity while flying. Above the face-normal zone, up follows the sampled gravity
@@ -130,8 +141,10 @@ face-normal surface this reduces to the original six-axis standing boxes. At arb
 reject narrow passages that an exact OBB could traverse. A turn reserves room for both body frames. At a surface contact it may shift the centre outward
 along the new up by the projected growth of its envelope (plus numerical tolerance). A perpendicular
 standing turn or a glider-to-standing resize needs at most 0.6 metres.
-Native collision sweeps find the minimum clearance, and both the old body's displacement path and
-final clearance bounds must be free; an overhang or obstructed destination still delays the turn.
+Contact turns reserve the full projected growth so the new inner support plane does not intrude
+past the old one. Minimal static clearance can catch the previous face on the first inward step.
+Both the old body's displacement path and final clearance bounds must be free; an overhang or
+obstructed destination still delays the turn.
 Unobstructed turns preserve the centre, and all turns preserve inertial velocity. This contact correction
 prevents a slow player from retaining the old collider and sliding along the adjacent face, or catching
 the previous face sideways immediately after a turn. It does not rotate or reset velocity.
@@ -204,7 +217,7 @@ terrain clearance, multiplayer latency or production survival behavior.
 ## Verification and manual observations
 
 `./gradlew-sandbox-dev-parallel-summary -PorbitalisGameTestSuite=cube :v1_21_1-neoforge:runGameTestServer`
-runs twelve required cube scenarios, including native Sable attraction and six-face deck contact.
+runs thirteen required cube scenarios, including native Sable attraction and six-face deck contact.
 The default suite also includes the four retained flight/orbit/ship-transfer scenarios. A selected suite must produce a fresh report containing every required name
 and no failed/skipped cases; an unknown suite is rejected. The slow-edge regression covers all 24
 directed face transitions at zero, 0.005 and 0.03 blocks/tick, checking terrain clearance, adjacent-face

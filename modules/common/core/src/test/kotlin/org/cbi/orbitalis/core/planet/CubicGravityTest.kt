@@ -173,6 +173,40 @@ class CubicGravityTest {
     }
 
     @Test
+    fun `small cube surface band keeps jump gravity constant on all faces`() {
+        val plateau = CubicGravity(16.0, 32.0, 0.0, 8.0, 20.0, constantGravityAltitude = 8.0)
+        for (axis in axes) {
+            for (sign in listOf(-1.0, 1.0)) {
+                for (height in listOf(0.0, 0.9, 3.9, 5.5, 8.0)) {
+                    val p = axis * (sign * (16.0 + height))
+                    assertTrue((plateau.acceleration(p) - axis * (-sign * 32.0)).length() < 1e-12)
+                }
+            }
+        }
+        val far = Vector3(50.0, 30.0, 10.0)
+        val expected = far.normalized() * (-32.0 * 24.0 / far.length() * 24.0 / far.length())
+        assertTrue((plateau.acceleration(far) - expected).length() < 1e-12)
+        for (p in listOf(
+            Vector3(0.0, 5.0, 0.0),
+            Vector3(2.0, 16.0, 1.0),
+            Vector3(2.0, 20.0, 1.0),
+            Vector3(2.0, 24.0, 1.0),
+            Vector3(10.0, 29.0, 8.0),
+            far,
+        )) {
+            for (axis in axes) {
+                val h = 1e-5
+                val gradient = (plateau.sample(p + axis * h).potential - plateau.sample(p - axis * h).potential) / (2.0 * h)
+                assertEquals(-plateau.acceleration(p).dot(axis), gradient, 1e-5, "Nonconservative surface band at $p")
+                assertTrue((plateau.acceleration(p + axis * h) - plateau.acceleration(p - axis * h)).length() < 0.0001)
+            }
+        }
+        for (bad in listOf(-1.0, 9.0, Double.NaN, Double.POSITIVE_INFINITY)) {
+            assertFailsWith<IllegalArgumentException> { CubicGravity(16.0, 32.0, 0.0, 8.0, 20.0, bad) }
+        }
+    }
+
+    @Test
     fun `invalid field parameters are rejected`() {
         for (bad in listOf(0.0, -1.0, Double.NaN, Double.POSITIVE_INFINITY)) {
             assertFailsWith<IllegalArgumentException> { CubicGravity(bad, 9.81, 64.0, 512.0, 6000.0) }

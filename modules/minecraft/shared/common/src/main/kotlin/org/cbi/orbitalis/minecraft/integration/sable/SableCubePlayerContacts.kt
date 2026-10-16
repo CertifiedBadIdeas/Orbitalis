@@ -74,6 +74,15 @@ object SableCubePlayerContacts : CubePlayerContacts {
         return CubePlayerContacts.Contact(info.motion, carry, info.verticalCollisionBelow, info.verticalCollision, info.horizontalCollision)
     }
 
+    override fun supportPosition(
+        entity: Entity,
+        probe: Vec3,
+    ): BlockPos? {
+        val body = (entity as EntityMovementExtension).`sable$getTrackingSubLevel`() ?: return null
+        if (body.isRemoved) return null
+        return BlockPos.containing(body.logicalPose().transformPositionInverse(probe))
+    }
+
     /** Check a conservative world envelope against native ship block shapes before accepting a turn. */
     override fun clear(
         entity: Entity,

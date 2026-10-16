@@ -33,6 +33,8 @@ class CubicGravity(
     val edgeBlendWidth: Double,
     val transitionStartAltitude: Double,
     val transitionEndAltitude: Double,
+    /** Optional constant-strength face band before inverse-square falloff. Zero retains the original field. */
+    val constantGravityAltitude: Double = 0.0,
 ) {
     init {
         require(halfExtent.isFinite() && halfExtent > 0.0)
@@ -41,7 +43,8 @@ class CubicGravity(
         require(transitionStartAltitude.isFinite() && transitionStartAltitude >= 0.0)
         require(transitionEndAltitude.isFinite() && transitionEndAltitude > transitionStartAltitude)
         require((halfExtent + transitionEndAltitude).isFinite())
-        require((halfExtent * surfaceAcceleration).isFinite())
+        require(constantGravityAltitude.isFinite() && constantGravityAltitude in 0.0..transitionStartAltitude)
+        require(((halfExtent + 2.0 * constantGravityAltitude) * surfaceAcceleration).isFinite())
     }
 
     data class Sample(
@@ -82,14 +85,19 @@ class CubicGravity(
             }
         }
         val ratio = radius / halfExtent
+        val falloffRadius = halfExtent + constantGravityAltitude
         val derivative: Double
         val potential: Double
         if (ratio < 1.0) {
             derivative = surfaceAcceleration * ratio
-            potential = surfaceAcceleration * halfExtent * (ratio * ratio - 3.0) / 2.0
+            potential = surfaceAcceleration * halfExtent * (ratio * ratio - 3.0) / 2.0 - 2.0 * surfaceAcceleration * constantGravityAltitude
+        } else if (radius < falloffRadius) {
+            derivative = surfaceAcceleration
+            potential = surfaceAcceleration * (radius - 2.0 * falloffRadius)
         } else {
-            derivative = surfaceAcceleration / ratio / ratio
-            potential = -surfaceAcceleration * halfExtent / ratio
+            val falloffRatio = falloffRadius / radius
+            derivative = surfaceAcceleration * falloffRatio * falloffRatio
+            potential = -surfaceAcceleration * falloffRadius * falloffRatio
         }
         return Sample(gradient * -derivative, potential)
     }

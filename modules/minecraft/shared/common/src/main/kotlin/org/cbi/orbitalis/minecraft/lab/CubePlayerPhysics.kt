@@ -18,6 +18,7 @@
 
 package org.cbi.orbitalis.minecraft.lab
 
+import net.minecraft.core.BlockPos
 import net.minecraft.core.Direction
 import net.minecraft.world.entity.Entity
 import net.minecraft.world.entity.MoverType
@@ -239,18 +240,9 @@ object CubePlayerPhysics {
         val lift = nextUp.scale(growth + 1e-6)
         val outside = candidate.move(lift)
         if (!clear(entity, outside.deflate(1e-6))) return null
-        var offset = lift.add(clip(entity, outside, lift.scale(-1.0)))
-        if (!clear(entity, candidate.move(offset).deflate(1e-6))) {
-            // Native moving floors are absent from the terrain clip. Find the smallest safe
-            // outward reservation in the same bounded lift, rather than accepting a ship overlap.
-            var low = 0.0
-            var high = 1.0
-            repeat(24) {
-                val middle = (low + high) / 2.0
-                if (clear(entity, candidate.move(lift.scale(middle)).deflate(1e-6))) high = middle else low = middle
-            }
-            offset = lift.scale(high)
-        }
+        // Keep the new inner support plane outside the old one by reserving the full body growth.
+        // Minimal static clearance lets the first inward step catch the old face at a convex edge.
+        val offset = lift
         if (offset.lengthSqr() < 1e-12) return null
         if (!clear(entity, candidate.move(offset).deflate(1e-6))) return null
         if (clip(entity, oldBounds, offset).subtract(offset).lengthSqr() > 1e-12) return null
@@ -305,6 +297,15 @@ object CubePlayerPhysics {
     }
 
     @JvmStatic
+    fun supportPosition(
+        entity: Entity,
+        offset: Float,
+    ): BlockPos {
+        val probe = centre(entity).subtract(normal(entity).scale(halfHeight(entity) + offset.toDouble()))
+        return CubePlayerContacts.adapter?.supportPosition(entity, probe) ?: BlockPos.containing(probe)
+    }
+
+    @JvmStatic
     fun travel(
         player: Player,
         input: Vec3,
@@ -339,25 +340,32 @@ object CubePlayerPhysics {
             return
         }
         val old = player.deltaMovement
-        val normalMotion = normal.scale(old.dot(normal))
-        val tangentMotion = old.subtract(normalMotion)
-        val acceleration = if (player.onGround()) 0.075 else 0.009
-        val drag = if (player.onGround()) 0.65 else 0.999
-        val gravity = gravity(player)
-        player.deltaMovement =
-            normalMotion
-                .add(tangentMotion.scale(drag))
-                .add(rotate(control, player).scale(acceleration))
-                .add(gravity.x / 400.0, gravity.y / 400.0, gravity.z / 400.0)
+        val native = player as CubePlayerLocomotion
+        val friction = native.orbitalisSupportFriction()
+        val acceleration = native.orbitalisInputAcceleration(friction).toDouble()
+        val grounded = player.onGround()
+        val drag = (if (grounded) friction * 0.91f else 0.91f).toDouble()
+        val probing = grounded && old.dot(normal) <= 1e-7
+        // A resting native deck needs an inward contact probe; consume it in this tick, not as hidden fall speed.
+        val probe = if (probing) gravity(player).scale(1.0 / 400.0) else Vec3.ZERO
+        player.deltaMovement = old.add(rotate(control, player).scale(acceleration)).add(probe)
+        // Vanilla moves with the jump impulse before gravity and vertical air drag affect the next tick.
         player.move(MoverType.SELF, player.deltaMovement)
+        val next = player.deltaMovement.add(if (probing) Vec3.ZERO else gravity(player).scale(1.0 / 400.0))
+        val nextNormal = normal(player)
+        val normalSpeed = next.dot(nextNormal)
+        val retainedNormal = if (player.onGround() && normalSpeed < 0.0) 0.0 else normalSpeed * 0.98
+        player.deltaMovement = next.subtract(nextNormal.scale(normalSpeed)).scale(drag).add(nextNormal.scale(retainedNormal))
         player.fallDistance = 0f
     }
 
     @JvmStatic
-    fun jump(player: Player) {
+    fun jump(
+        player: Player,
+        power: Double,
+    ) {
         val normal = normal(player)
-        player.deltaMovement = player.deltaMovement.subtract(normal.scale(player.deltaMovement.dot(normal))).add(normal.scale(0.23))
-        player.setOnGround(false)
+        player.deltaMovement = player.deltaMovement.subtract(normal.scale(player.deltaMovement.dot(normal))).add(normal.scale(power))
         player.hasImpulse = true
     }
 

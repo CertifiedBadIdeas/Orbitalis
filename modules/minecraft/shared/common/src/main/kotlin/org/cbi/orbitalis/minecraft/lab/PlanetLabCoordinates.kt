@@ -28,7 +28,9 @@ import org.cbi.orbitalis.core.planet.CubicGravity
 /** Canonical cube scene geometry and stable dimension key retained for existing worlds. */
 object PlanetLabCoordinates {
     val CENTRE = Vec3(2048.0, 96.0, 2048.0)
-    val GRAVITY = CubicGravity(16.0, 19.62, 0.0, 4.0, 20.0)
+
+    // Vanilla player gravity is 0.08 blocks/tick² at 20 ticks/s. The band covers relief and a jump.
+    val GRAVITY = CubicGravity(16.0, 32.0, 0.0, 8.0, 20.0, constantGravityAltitude = 8.0)
 
     val DIMENSION: ResourceKey<Level> =
         ResourceKey.create(

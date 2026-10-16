@@ -235,10 +235,10 @@ tasks.configureEach {
             factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
             val document = factory.newDocumentBuilder().parse(report)
             val cases = document.getElementsByTagName("testcase")
-            val minimumCases = if (gameTestSuite == "cube") 12 else 16
+            val minimumCases = if (gameTestSuite == "cube") 13 else 17
             check(cases.length >= minimumCases) { "Expected at least $minimumCases laboratory GameTests, received ${cases.length}." }
             val names = (0 until cases.length).map { (cases.item(it) as org.w3c.dom.Element).getAttribute("name") }.toSet()
-            val cubeNames = setOf("cubeshipslandonallfaces", "cubeshipsfalltowardallfaces", "cubeplayercontactsmovingdeckonallfaces", "cubecontinuousframefollowsgravity", "cubeelytrauseslocalgravity", "cubemodesurvivesaltitudeandreload", "cubeheadingturnsaroundsharededge", "cubeslowedgelandswithoutsliding", "cubecreativeflightescapesalonglocalup", "cubefixturepreservesexcavation", "cubeplayercrossesedge", "cubeframepreservesmotionandblocksunsafeturns")
+            val cubeNames = setOf("cubejumpmatchesvanillaonallfaces", "cubeshipslandonallfaces", "cubeshipsfalltowardallfaces", "cubeplayercontactsmovingdeckonallfaces", "cubecontinuousframefollowsgravity", "cubeelytrauseslocalgravity", "cubemodesurvivesaltitudeandreload", "cubeheadingturnsaroundsharededge", "cubeslowedgelandswithoutsliding", "cubecreativeflightescapesalonglocalup", "cubefixturepreservesexcavation", "cubeplayercrossesedge", "cubeframepreservesmotionandblocksunsafeturns")
             val requiredNames = if (gameTestSuite == "cube") cubeNames else cubeNames + setOf("ordinaryshipsreceivecubicgravity", "fullspaceorbitpreservesnativeenergy", "shiptransferroundtripandrecovery", "spacetransferroundtripandrecovery")
             check(names.containsAll(requiredNames)) {
                 "GameTest run did not execute its required $gameTestSuite scenarios: $names"
