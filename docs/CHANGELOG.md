@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Extend the journaled ship handoff to the full-space frame with an explicit version-2 route, legacy version-1 reading and recovery coverage for both orbital representations.
+
 - Add a separate positive-height space frame, shared gravity/reference rendering and a native full-revolution coast test without changing legacy orbital world coordinates.
 
 - Document the finite connected cubic planet direction, through-tunnels, sharp near-surface gravity changes, eased player orientation, candidate edge terrain cuts and adaptive surface/orbit preparation; distinguish these decisions from the current diagnostics.

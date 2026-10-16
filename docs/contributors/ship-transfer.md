@@ -20,7 +20,7 @@ limitations under the License.
 
 The optional Sable adapter provides `/orbitalis flight transfer` for one independent construction
 and its unmounted creative pilot. Use a disposable world and the isolated flight consumer. The
-command toggles between `orbitalis:flight_test` terrain and the new stable `orbitalis:orbit_test` void
+command toggles between `orbitalis:flight_test` terrain and the stable `orbitalis:orbit_test` void
 level. These IDs are saved-world contracts. This is a reconstruction/ownership experiment; automatic
 height triggers, seamless rendering and production planet geography are outside this step.
 
@@ -49,12 +49,28 @@ in both levels. Cube-shell altitude in `sample` therefore remains continuous eve
 is an experimental diagnostic constant, not an automatic ascent altitude or an orbital insertion.
 The patch is limited to |x|, |z| <= 2048 m; distant locations are rejected rather than wrapped.
 
+## Full-space route
+
+`/orbitalis flight transfer space` selects `orbitalis:space_test` from the surface; plain `transfer`
+returns from either orbital representation to the surface. Plain ascent still selects the legacy
+orbit frame. Direct travel between the two orbital frames is rejected. The full-space origin is
+(0,-32000,0), so ascent adds 32000 to local Y and return subtracts it. Handoffs remain inside the
+same bounded top-face patch and physical Y=64..16000; free space flight can leave that patch, but
+must return above it before a handoff. Local positions stay above Y=64.
+
+The consumer uses `SableFlightIntegration.transferService(server)` on the server thread and calls
+`begin(player, body, targetDimension)`. This exposes the existing coordinator, not a second journal
+or ownership implementation. It must release engine inputs and wait for native fade first, remain
+idle while `busy`, fail on `error`, then reacquire the ship by UUID after client readiness completes.
+The original two-argument `begin` retains its legacy ascent/default return behavior. No guidance or
+mission controller is added to the production mod.
+
 ## Supported boundary
 
 The first diagnostic accepts a ship with at most four native plot chunks and a 4096-block bounding
 volume, at most 32 m wide in x/z. Native plot allocation is preserved. An occupied destination slot,
 including one reserved by an unloaded ship, causes rejection without deleting or remapping anything.
-Destination terrain/nearby entities must be clear. Other players must leave both diagnostic levels.
+Destination terrain/nearby entities must be clear. Other players must leave all diagnostic flight levels.
 
 Connected/overlapping native chains, kinematic contraptions, mounted pilots, other onboard players,
 mobs, loose entities, general plot-space entities and pending block/fluid ticks are rejected.
@@ -75,19 +91,22 @@ The allowlist establishes a bounded experiment, not blanket compatibility with e
 
 ## Authority and persistence
 
-`ShipTransferJournal` writes version 1 compressed NBT records to
+`ShipTransferJournal` writes version 2 compressed NBT records to
 `<save>/data/orbitalis-transfers/<ship-uuid>.nbt`. A record contains transaction/ship/pilot UUIDs, source
 side, native source/destination snapshots (including glue metadata), exact linear/angular velocities, pilot pose/motion, the
-source's previous native save pointer, phase and offline-pilot recovery flags. Unknown versions,
+source's previous native save pointer, phase, orbital dimension and offline-pilot recovery flags. Unknown versions,
 missing state, identity mismatches and invalid numeric state fail closed. Compressed and decompressed
 records are bounded to 16 MiB. Native payloads remain tied to the pinned Sable serialization format;
 future Sable/Orbitalis migrations must handle unfinished records before changing that format.
+Version 2 requires `orbital_dimension` to be exactly `orbitalis:orbit_test` or `orbitalis:space_test`.
+Version 1 records remain readable and always select the legacy orbit frame; subsequent writes migrate
+that route explicitly to version 2. Older readers reject version 2 rather than guessing coordinates.
 The version 1 manifest accepts both glue types. Existing Super Glue records remain readable; older
 Orbitalis builds that only accept Super Glue reject unfinished Honey Glue records rather than discarding them.
 
 Journal compression, reads and atomic file replacement/fsync run on one dedicated worker. Only copied
 NBT crosses threads. Minecraft world, player, plot and native storage calls remain on the server thread.
-Both diagnostic levels' native physics are paused while a transaction is active. Existing pause states
+All three diagnostic levels' native physics are paused while a transaction is active. Existing pause states
 are restored afterward. Player interactions are blocked during the operation and source content/pilot
 position are revalidated after asynchronous preparation. Block-entity ticks in the held source/staged
 plot chunks are suspended by the loader's Minecraft ticker hook. This includes persisted engine counters;
@@ -116,9 +135,12 @@ Transfer-specific native loading tickets and block-entity tick leases are releas
    destination ship. The acknowledgment follows the ship bundle on TCP; no new network payload is introduced.
    Each readiness phase is bounded to 200 server ticks. An unavailable pilot or timeout retains COMMITTED
    destination authority and paused physics for reconciliation. The same barrier protects recovery/login handoffs.
-   A native save checkpoint flushes both diagnostic worlds and verifies the saved destination's
-   identity and cargo before completion. These existing native checkpoint APIs require the server thread
-   and can cause a visible stall. This prototype does not claim a latency suitable for seamless flight.
+   A native checkpoint calls Sable's holding-map `saveAll` (the same entry point as its ServerLevel
+   save hook), flushes its storage and saves allocation/ticket SavedData plus players. It verifies the
+   destination's native saved identity and cargo before completion. Ordinary terrain is unchanged by
+   a handoff and remains under Minecraft's regular save lifecycle; the handoff does not synchronously
+   flush every vanilla chunk visited along an orbit. These native checkpoint APIs still require the
+   server thread. This prototype does not claim a latency suitable for seamless flight.
 3. `DONE`: the checkpoint is complete. Replace payload snapshots with a small receipt so a stale cargo
    backup cannot rewind normal gameplay. Normal ship persistence returns entirely to Minecraft/Sable.
    The journal is an authority/recovery record, not a second continuously updated ship simulation.
@@ -129,7 +151,7 @@ anchor and the recorded prior native storage pointer, covering a ship saved befo
 A crash during the transaction rolls the ship back to that transaction snapshot; it does not replay later
 ordinary gameplay. A pilot who is offline follows the selected winner on login; only pose/motion is
 restored, never a copied player inventory. The pending-login flag remains durable until reconciliation.
-Both diagnostic worlds stay paused and the recovered ship stays loaded until that pilot logs in, keeping
+All diagnostic worlds stay paused and the recovered ship stays loaded until that pilot logs in, keeping
 the recovery anchor stable. This first prototype has no offline flight mode; ordinary Overworld play
 continues. A missing completed native checkpoint is an error, never an excuse to replay an old payload.
 An unreadable journal or uncertain I/O failure retains paused diagnostic physics and stops further
@@ -137,7 +159,7 @@ transfers for inspection/restart, instead of guessing ownership. Preserve the jo
 
 ## Evidence and remaining work
 
-The native GameTest exercises a round trip with a rotated ship, nonzero small linear/angular velocity,
+Native GameTests exercise round trips on both orbital routes using a rotated ship, nonzero small linear/angular velocity,
 a chest and pilot pose, occupied-slot rejection, PREPARED rollback, COMMITTED recovery with a stale
 occupancy bitmap, offline pilot
 reconciliation and preservation of post-DONE cargo changes. It also checks unordered block-entity

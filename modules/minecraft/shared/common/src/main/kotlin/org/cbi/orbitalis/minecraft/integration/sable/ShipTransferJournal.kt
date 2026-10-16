@@ -22,6 +22,9 @@ import dev.ryanhcode.sable.util.SableNBTUtils
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.NbtAccounter
 import net.minecraft.nbt.NbtIo
+import net.minecraft.resources.ResourceKey
+import net.minecraft.world.level.Level
+import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
 import java.nio.channels.FileChannel
 import java.nio.file.Files
 import java.nio.file.Path
@@ -52,10 +55,12 @@ data class ShipTransferRecord(
     val phase: ShipTransferPhase,
     val pilotPending: Boolean = false,
     val recoveredSource: Boolean = false,
+    val orbitalDimension: ResourceKey<Level> = FlightTestSpace.ORBIT,
 ) {
     fun encode(): CompoundTag =
         CompoundTag().also {
-            it.putInt("version", 1)
+            it.putInt("version", 2)
+            it.putString("orbital_dimension", orbitalDimension.location().toString())
             it.putUUID("transaction", transaction)
             it.putUUID("ship", ship)
             it.putUUID("pilot", pilot)
@@ -97,7 +102,16 @@ data class ShipTransferRecord(
 
     companion object {
         fun decode(tag: CompoundTag): ShipTransferRecord {
-            require(tag.getInt("version") == 1) { "Unsupported ship transfer journal version" }
+            val version = tag.getInt("version")
+            require(version in 1..2) { "Unsupported ship transfer journal version" }
+            val orbitalDimension =
+                if (version == 1) {
+                    FlightTestSpace.ORBIT
+                } else {
+                    listOf(FlightTestSpace.ORBIT, FlightTestSpace.SPACE).singleOrNull {
+                        it.location().toString() == tag.getString("orbital_dimension")
+                    } ?: throw IllegalArgumentException("Invalid transfer orbital dimension")
+                }
             require(tag.contains("source_is_orbit", 1) && tag.contains("pilot_pending", 1) && tag.contains("recovered_source", 1)) {
                 "Missing transfer flags"
             }
@@ -106,7 +120,7 @@ data class ShipTransferRecord(
             val source = tag.getCompound("source")
             val destination = tag.getCompound("destination")
             require(source.getUUID("uuid") == ship && destination.getUUID("uuid") == ship) { "Journal ship identity mismatch" }
-            for (snapshot in if (phase == ShipTransferPhase.DONE) emptyList() else listOf(source, destination)) {
+            for ((index, snapshot) in (if (phase == ShipTransferPhase.DONE) emptyList() else listOf(source, destination)).withIndex()) {
                 require(snapshot.contains("plot", 10) && snapshot.contains("pose", 10) && snapshot.contains("world_bounds", 10)) {
                     "Incomplete native ship snapshot"
                 }
@@ -168,9 +182,11 @@ data class ShipTransferRecord(
                         bounds.maxZ() - bounds.minZ() <= 32,
                 ) { "Unbounded snapshot" }
                 val decoded = SableNBTUtils.readPose3d(pose)
+                val orbitalSnapshot = if (index == 0) tag.getBoolean("source_is_orbit") else !tag.getBoolean("source_is_orbit")
+                val heights = if (orbitalDimension == FlightTestSpace.SPACE && orbitalSnapshot) 32064.0..48256.0 else 64.0..16256.0
                 require(
                     kotlin.math.abs(decoded.position().x) <= 2048 && kotlin.math.abs(decoded.position().z) <= 2048 &&
-                        decoded.position().y in 64.0..16256.0,
+                        decoded.position().y in heights,
                 ) { "Pose outside diagnostic bounds" }
                 require(kotlin.math.abs(decoded.orientation().lengthSquared() - 1.0) < 1e-6) { "Invalid rotation magnitude" }
             }
@@ -194,6 +210,7 @@ data class ShipTransferRecord(
                 phase,
                 tag.getBoolean("pilot_pending"),
                 tag.getBoolean("recovered_source"),
+                orbitalDimension,
             )
         }
     }

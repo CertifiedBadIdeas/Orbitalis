@@ -29,13 +29,16 @@ import net.minecraft.core.BlockPos
 import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.ListTag
+import net.minecraft.resources.ResourceKey
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.entity.Entity
 import net.minecraft.world.entity.EntityType
+import net.minecraft.world.level.Level
 import net.minecraft.world.phys.AABB
 import org.cbi.orbitalis.core.planet.OrbitalTestFrame
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
 import org.joml.Vector3d
 
 /** Pinned native serialization stays behind this integration boundary; no upstream code is copied. */
@@ -152,17 +155,23 @@ object SableShipSnapshot {
         return tag
     }
 
+    @JvmOverloads
     fun translated(
         snapshot: CompoundTag,
         delta: Double,
+        target: ResourceKey<Level>? = null,
     ): CompoundTag =
         snapshot.copy().also { tag ->
             val pose = SableNBTUtils.readPose3d(tag.getCompound("pose"))
-            val surface = Vector3(pose.position().x, pose.position().y + if (delta > 0.0) delta else 0.0, pose.position().z)
-            OrbitalTestFrame.requirePatch(surface)
             pose.position().add(0.0, delta, 0.0)
-            require(pose.position().y >= 64.0 && pose.position().y <= 16000.0) {
-                "Climb above y=320 before ascent; remain inside the diagnostic altitude range"
+            val dimension = target ?: if (delta < 0) FlightTestSpace.ORBIT else FlightTestSpace.SURFACE
+            val physical = FlightTestSpace.globalPosition(dimension, Vector3(pose.position().x, pose.position().y, pose.position().z))
+            OrbitalTestFrame.requirePatch(physical)
+            require(
+                pose.position().y >= 64.0 &&
+                    (if (dimension == FlightTestSpace.SPACE) physical.y in 64.0..16000.0 else pose.position().y <= 16000.0),
+            ) {
+                "Transfer outside the diagnostic top-face altitude range; legacy orbit requires surface y>=320"
             }
             tag.put("pose", SableNBTUtils.writePose3d(pose))
             val b = SableNBTUtils.readBoundingBox(tag.getCompound("world_bounds"))

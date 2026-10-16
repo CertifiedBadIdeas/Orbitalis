@@ -35,13 +35,17 @@ import net.minecraft.gametest.framework.GameTestListener
 import net.minecraft.gametest.framework.GameTestRunner
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.ListTag
+import net.minecraft.nbt.NbtIo
+import net.minecraft.resources.ResourceKey
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.item.Items
+import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.level.block.entity.ChestBlockEntity
 import net.minecraft.world.level.block.entity.TickingBlockEntity
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
+import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipSnapshot
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipTransfer
@@ -61,10 +65,20 @@ import net.minecraft.util.Unit as MinecraftUnit
 object SableTransferGameTests {
     @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "ship_transfer", timeoutTicks = 600)
-    fun shipTransferRoundTripAndRecovery(helper: GameTestHelper) {
+    fun shipTransferRoundTripAndRecovery(helper: GameTestHelper) = transferScenario(helper, FlightTestSpace.ORBIT)
+
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "space_transfer", timeoutTicks = 600)
+    fun spaceTransferRoundTripAndRecovery(helper: GameTestHelper) = transferScenario(helper, FlightTestSpace.SPACE)
+
+    private fun transferScenario(
+        helper: GameTestHelper,
+        route: ResourceKey<Level>,
+    ) {
         val server = helper.level.server
         val surface = checkNotNull(server.getLevel(SableFlightGravity.DIMENSION))
-        val orbit = checkNotNull(server.getLevel(SableFlightGravity.ORBIT))
+        val orbit = checkNotNull(server.getLevel(route))
+        val delta = if (route == FlightTestSpace.SPACE) 32000.0 else -256.0
         // The inert fake pilot is not in the player list; keep vanilla BE ticking active.
         surface.resetEmptyTime()
         orbit.resetEmptyTime()
@@ -275,8 +289,9 @@ object SableTransferGameTests {
                     runner: GameTestRunner,
                 ) {
                     cleanup()
-                    SubLevelPhysicsSystem.require(surface).paused = false
-                    SubLevelPhysicsSystem.require(orbit).paused = false
+                    for (key in listOf(FlightTestSpace.SURFACE, FlightTestSpace.ORBIT, FlightTestSpace.SPACE)) {
+                        SubLevelPhysicsSystem.require(checkNotNull(server.getLevel(key))).paused = false
+                    }
                 }
 
                 override fun testAddedForRerun(
@@ -300,7 +315,7 @@ object SableTransferGameTests {
                 val plot = before.getCompound("plot")
                 val blocker = orbitContainer.allocateSubLevel(UUID.randomUUID(), plot.getInt("plot_x"), plot.getInt("plot_z"), Pose3d())
                 try {
-                    manager.begin(player, source)
+                    manager.begin(player, source, route)
                     helper.fail("Occupied destination was accepted")
                 } catch (_: IllegalArgumentException) {
                 }
@@ -308,7 +323,7 @@ object SableTransferGameTests {
                 orbitContainer.removeSubLevel(blocker, SubLevelRemovalReason.REMOVED)
                 val ticksBeforeTransfer = blockTicks
                 val tickerPosition = chest(source).blockPos
-                manager.begin(player, source)
+                manager.begin(player, source, route)
                 helper.assertTrue(ShipTransferTickGate.blocks(surface, tickerPosition), "Source tick lease was not acquired")
                 helper.assertTrue(!ShipTransferTickGate.blocks(surface, BlockPos.ZERO), "World terrain tickers were paused")
                 waitUntil({ !manager.busy }) {
@@ -318,7 +333,7 @@ object SableTransferGameTests {
                     val moved = orbitContainer.getSubLevel(ship) as? ServerSubLevel ?: error("Destination ship missing")
                     helper.assertTrue(surfaceContainer.getSubLevel(ship) == null, "Source ship remained after commit")
                     helper.assertTrue(
-                        player.level() === orbit && kotlin.math.abs(player.y - (startY - 256.0)) < 1e-8,
+                        player.level() === orbit && kotlin.math.abs(player.y - (startY + delta)) < 1e-8,
                         "Pilot did not retain relative position",
                     )
                     helper.assertTrue(player.yRot == 32f && player.xRot == 12f, "Pilot view changed")
@@ -346,9 +361,9 @@ object SableTransferGameTests {
                             cargo(returned, 32)
                             chest(returned).setItem(0, ItemStack(Items.COBBLESTONE, 16))
                             val snapshot = SableShipSnapshot.capture(returned)
-                            val shifted = SableShipSnapshot.translated(snapshot, -256.0)
+                            val shifted = SableShipSnapshot.translated(snapshot, delta, route)
                             val pilotState = SableShipTransfer.playerState(player)
-                            val orbitState = pilotState.copy().also { it.putDouble("y", it.getDouble("y") - 256.0) }
+                            val orbitState = pilotState.copy().also { it.putDouble("y", it.getDouble("y") + delta) }
                             val record =
                                 ShipTransferRecord(
                                     UUID.randomUUID(),
@@ -361,6 +376,7 @@ object SableTransferGameTests {
                                     orbitState,
                                     CompoundTag(),
                                     ShipTransferPhase.PREPARED,
+                                    orbitalDimension = route,
                                 )
                             // Codec coverage only: the native runtime here does not install Create/Simulated.
                             for (id in listOf("create:super_glue", "simulated:honey_glue")) {
@@ -383,6 +399,18 @@ object SableTransferGameTests {
                                     "Journal changed $id metadata",
                                 )
                             }
+                            if (route == FlightTestSpace.ORBIT) {
+                                val legacy =
+                                    record.encode().also {
+                                        it.putInt("version", 1)
+                                        it.remove("orbital_dimension")
+                                    }
+                                helper.assertTrue(
+                                    ShipTransferRecord.decode(legacy).orbitalDimension == FlightTestSpace.ORBIT,
+                                    "Version-1 journal was not kept in the legacy frame",
+                                )
+                            }
+                            helper.assertTrue(ShipTransferRecord.decode(record.encode()).orbitalDimension == route, "Journal route changed")
                             // Corrupt/unknown contracts must fail before any native mutation.
                             try {
                                 ShipTransferRecord.decode(record.encode().also { it.putInt("version", 99) })
@@ -390,6 +418,9 @@ object SableTransferGameTests {
                             } catch (_: IllegalArgumentException) {
                             }
                             for (corrupt in listOf(
+                                record.encode().also { it.putInt("version", 0) },
+                                record.encode().also { it.remove("orbital_dimension") },
+                                record.encode().also { it.putString("orbital_dimension", "orbitalis:unknown") },
                                 record.encode().also { it.getCompound("destination").putUUID("uuid", UUID.randomUUID()) },
                                 record.encode().also { it.getCompound("source").getCompound("exact_linear").putDouble("x", Double.NaN) },
                                 record.encode().also { it.remove("source_is_orbit") },
@@ -410,7 +441,19 @@ object SableTransferGameTests {
                                 ) {
                                 }
                             }
-                            journalWrite = journal.write(record)
+                            journalWrite =
+                                if (route == FlightTestSpace.ORBIT) {
+                                    CompletableFuture.supplyAsync {
+                                        val legacy =
+                                            record.encode().also {
+                                                it.putInt("version", 1)
+                                                it.remove("orbital_dimension")
+                                            }
+                                        NbtIo.writeCompressed(legacy, folder.resolve("$ship.nbt"))
+                                    }
+                                } else {
+                                    journal.write(record)
+                                }
                             waitUntil({ journalWrite!!.isDone }) {
                                 journalWrite!!.join()
                                 // A prepared copy is not authoritative, even if reconstruction happened.

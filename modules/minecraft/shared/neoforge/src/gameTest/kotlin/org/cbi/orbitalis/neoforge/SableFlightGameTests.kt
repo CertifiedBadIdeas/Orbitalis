@@ -286,7 +286,7 @@ object SableFlightGameTests {
                 helper.assertTrue(maximumRadiusError < 30.0, "Native orbit radius drift: $maximumRadiusError")
                 helper.assertTrue(maximumEnergyError < 0.003, "Native orbit energy drift: $maximumEnergyError")
                 if (sweptAngle >= 2 * kotlin.math.PI) {
-                    helper.assertTrue(relative.x < 15 && abs(relative.y - radius) < 30, "Full revolution did not close")
+                    helper.assertTrue(abs(relative.x) < 15 && abs(relative.y - radius) < 30, "Full revolution did not close")
                     helper.assertTrue(handle.getAngularVelocity(Vector3d()).length() < 0.001, "Gravity spun the free body")
                     println(
                         "ORBITALIS_FULL_SPACE_ORBIT ticks=$ticks angle=$sweptAngle radiusError=$maximumRadiusError energyError=$maximumEnergyError",

@@ -31,12 +31,16 @@ import dev.ryanhcode.sable.util.SableNBTUtils
 import net.minecraft.core.BlockPos
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.network.chat.Component
+import net.minecraft.resources.ResourceKey
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.level.ChunkPos
+import net.minecraft.world.level.Level
 import net.minecraft.world.phys.AABB
 import net.minecraft.world.phys.Vec3
+import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
 import org.joml.Vector3d
 import java.nio.file.Path
 import java.util.UUID
@@ -71,11 +75,16 @@ class SableShipTransfer(
 
     fun locks(level: ServerLevel): Boolean = (busy || records.values.any { it.pilotPending }) && SableFlightGravity.isFlightSpace(level)
 
-    private fun level(orbit: Boolean): ServerLevel =
-        checkNotNull(server.getLevel(if (orbit) SableFlightGravity.ORBIT else SableFlightGravity.DIMENSION))
+    private fun level(
+        orbit: Boolean,
+        record: ShipTransferRecord,
+    ): ServerLevel = checkNotNull(server.getLevel(if (orbit) record.orbitalDimension else FlightTestSpace.SURFACE))
+
+    private fun worlds(): List<ServerLevel> =
+        listOf(FlightTestSpace.SURFACE, FlightTestSpace.ORBIT, FlightTestSpace.SPACE).map { checkNotNull(server.getLevel(it)) }
 
     private fun pause() {
-        for (world in listOf(level(false), level(true))) {
+        for (world in worlds()) {
             val physics = SubLevelPhysicsSystem.require(world)
             pauses.putIfAbsent(physics, physics.paused)
             physics.paused = true
@@ -149,7 +158,7 @@ class SableShipTransfer(
             continuation = null
             next()
         } catch (failure: Exception) {
-            // Keep both diagnostic worlds paused; the durable record remains available for restart.
+            // Keep the diagnostic worlds paused; the durable record remains available for restart.
             error = failure.cause?.message ?: failure.message ?: failure.javaClass.simpleName
             pilot?.sendSystemMessage(Component.literal("Ship transfer stopped: $error. Restart to reconcile its journal."))
             Sable.LOGGER.error("Orbitalis ship transfer stopped; diagnostic physics remains paused", failure)
@@ -198,9 +207,11 @@ class SableShipTransfer(
         }
     }
 
+    @JvmOverloads
     fun begin(
         player: ServerPlayer,
         body: ServerSubLevel,
+        targetDimension: ResourceKey<Level>? = null,
     ) {
         require(
             !busy && records.values.none { it.pilotPending },
@@ -210,13 +221,25 @@ class SableShipTransfer(
             server.playerList.players.none {
                 it !== player && SableFlightGravity.isFlightSpace(it.serverLevel())
             },
-        ) { "Other players must leave both diagnostic spaces" }
+        ) { "Other players must leave the diagnostic spaces" }
         SableShipSnapshot.preflight(body, player)
-        val sourceOrbit = body.level.dimension() == SableFlightGravity.ORBIT
+        val sourceDimension = body.level.dimension()
+        val sourceOrbit = sourceDimension != FlightTestSpace.SURFACE
+        val orbitalDimension = if (sourceOrbit) sourceDimension else targetDimension ?: FlightTestSpace.ORBIT
+        require(orbitalDimension == FlightTestSpace.ORBIT || orbitalDimension == FlightTestSpace.SPACE) { "Unknown orbital route" }
+        val destinationDimension = if (sourceOrbit) FlightTestSpace.SURFACE else orbitalDimension
+        require(
+            targetDimension == null || targetDimension == destinationDimension,
+        ) { "Only surface-to-orbital diagnostic routes are supported" }
         val source = SableShipSnapshot.capture(body)
-        val delta = if (sourceOrbit) 256.0 else -256.0
-        val destination = SableShipSnapshot.translated(source, delta)
-        val target = level(!sourceOrbit)
+        val delta =
+            FlightTestSpace
+                .localPosition(
+                    destinationDimension,
+                    FlightTestSpace.globalPosition(sourceDimension, Vector3.ZERO),
+                ).y
+        val destination = SableShipSnapshot.translated(source, delta, destinationDimension)
+        val target = checkNotNull(server.getLevel(destinationDimension))
         checkDestination(target, destination)
         val sourcePilot = playerState(player)
         val destinationPilot = sourcePilot.copy().also { it.putDouble("y", it.getDouble("y") + delta) }
@@ -233,6 +256,7 @@ class SableShipTransfer(
                 destinationPilot,
                 savedPointer(body),
                 ShipTransferPhase.PREPARED,
+                orbitalDimension = orbitalDimension,
             )
         pause()
         retain(body)
@@ -260,11 +284,11 @@ class SableShipTransfer(
     ) {
         // Re-establish source authority durably before discarding a partially staged body.
         persist(record) {
-            if (SubLevelContainer.getContainer(level(record.sourceIsOrbit))!!.getSubLevel(record.ship) == null) {
+            if (SubLevelContainer.getContainer(level(record.sourceIsOrbit, record))!!.getSubLevel(record.ship) == null) {
                 recoverNext()
                 return@persist
             }
-            val target = SubLevelContainer.getContainer(level(!record.sourceIsOrbit))!!
+            val target = SubLevelContainer.getContainer(level(!record.sourceIsOrbit, record))!!
             val staged = target.getSubLevel(record.ship) as? ServerSubLevel
             val cleanup = {
                 if (staged != null) {
@@ -302,7 +326,7 @@ class SableShipTransfer(
             return
         }
         SableShipSnapshot.preflight(source, player)
-        val target = level(!record.sourceIsOrbit)
+        val target = level(!record.sourceIsOrbit, record)
         checkDestination(target, record.destination)
         val staged = SableShipSnapshot.load(target, record.destination)
         retain(staged)
@@ -382,9 +406,12 @@ class SableShipTransfer(
 
     /** Native save APIs own their server-thread checkpoint; journal compression/fsync uses its worker. */
     private fun checkpoint() {
-        for (world in listOf(level(false), level(true))) {
-            world.save(null, true, false)
+        for (world in worlds()) {
             val container = SubLevelContainer.getContainer(world)!!
+            // This is the same native ship checkpoint used by Sable's ServerLevel save hook.
+            // A handoff changes native plots/occupancy, not ordinary terrain. Flushing every
+            // vanilla chunk visited by a full orbit would stall the server for minutes.
+            container.holdingChunkMap.saveAll()
             container.holdingChunkMap.storage.flush()
             world.dataStorage.save()
         }
@@ -408,7 +435,7 @@ class SableShipTransfer(
             } else {
                 // This bounded diagnostic has no offline flight mode. Keep recovery anchors stable.
                 for (receipt in waiting) {
-                    val world = level(if (receipt.recoveredSource) receipt.sourceIsOrbit else !receipt.sourceIsOrbit)
+                    val world = level(if (receipt.recoveredSource) receipt.sourceIsOrbit else !receipt.sourceIsOrbit, receipt)
                     val snapshot = if (receipt.recoveredSource) receipt.source else receipt.destination
                     retain(checkNotNull(findCopy(world, snapshot, CompoundTag())) { "Recovered ship checkpoint is unavailable" })
                 }
@@ -418,8 +445,8 @@ class SableShipTransfer(
             return
         }
         active = record
-        val sourceWorld = level(record.sourceIsOrbit)
-        val destinationWorld = level(!record.sourceIsOrbit)
+        val sourceWorld = level(record.sourceIsOrbit, record)
+        val destinationWorld = level(!record.sourceIsOrbit, record)
         val copies =
             listOf(sourceWorld to record.source, destinationWorld to record.destination).map { (world, snapshot) ->
                 val container = SubLevelContainer.getContainer(world)!!
@@ -536,7 +563,7 @@ class SableShipTransfer(
         if (busy) return
         val record = records.values.firstOrNull { it.pilot == player.uuid && it.pilotPending } ?: return
         val state = if (record.recoveredSource) record.sourcePilot else record.destinationPilot
-        val world = if (record.recoveredSource) level(record.sourceIsOrbit) else level(!record.sourceIsOrbit)
+        val world = if (record.recoveredSource) level(record.sourceIsOrbit, record) else level(!record.sourceIsOrbit, record)
         active = record
         pilot = player
         pause()

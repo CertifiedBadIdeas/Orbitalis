@@ -47,8 +47,13 @@ object FlightTestSpace {
     fun globalPosition(
         level: Level,
         position: Vector3,
+    ): Vector3 = globalPosition(level.dimension(), position)
+
+    fun globalPosition(
+        dimension: ResourceKey<Level>,
+        position: Vector3,
     ): Vector3 =
-        when (level.dimension()) {
+        when (dimension) {
             ORBIT -> OrbitalTestFrame.toSurface(position)
             SPACE -> SpaceTestFrame.toSurface(position)
             else -> position

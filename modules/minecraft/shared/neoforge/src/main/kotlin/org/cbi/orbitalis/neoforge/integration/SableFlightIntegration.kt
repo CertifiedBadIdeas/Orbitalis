@@ -36,6 +36,7 @@ import net.neoforged.neoforge.event.level.BlockEvent
 import net.neoforged.neoforge.event.server.ServerStartedEvent
 import net.neoforged.neoforge.event.server.ServerStoppedEvent
 import net.neoforged.neoforge.event.tick.ServerTickEvent
+import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
 import org.cbi.orbitalis.minecraft.integration.sable.FlightTestTravel
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipTransfer
@@ -46,6 +47,9 @@ object SableFlightIntegration {
     private val travel = mutableMapOf<MinecraftServer, FlightTestTravel>()
 
     private val transfers = mutableMapOf<MinecraftServer, SableShipTransfer>()
+
+    /** Server-thread diagnostic adapter entry point; consumers must not instantiate another coordinator. */
+    fun transferService(server: MinecraftServer): SableShipTransfer = checkNotNull(transfers[server]) { "Transfer service is not ready" }
 
     fun install() {
         NeoForge.EVENT_BUS.addListener { event: ServerStartedEvent ->
@@ -170,6 +174,24 @@ object SableFlightIntegration {
                 },
             )
         }
+        flight.then(
+            Commands.literal("transfer").then(
+                Commands.literal("space").executes { context ->
+                    val player = context.source.playerOrException
+                    val body =
+                        Sable.HELPER.getTrackingSubLevel(player) as? ServerSubLevel
+                            ?: failure("Stand on the ship with creative flight disabled")
+                    try {
+                        player.closeContainer()
+                        transferService(context.source.server).begin(player, body, FlightTestSpace.SPACE)
+                    } catch (error: IllegalArgumentException) {
+                        failure(error.message ?: "Flight transfer rejected")
+                    }
+                    context.source.sendSuccess({ Component.literal("Preparing full-space diagnostic transfer; remain on deck.") }, false)
+                    1
+                },
+            ),
+        )
         dispatcher.register(Commands.literal("orbitalis").requires { it.hasPermission(2) }.then(flight))
     }
 }
