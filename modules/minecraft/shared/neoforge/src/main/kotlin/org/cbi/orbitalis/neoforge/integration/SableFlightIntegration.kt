@@ -107,7 +107,6 @@ object SableFlightIntegration {
             SableFlightGravity.beforePhysics(event.physicsSystem.level, event.timeStep)
         }
         NeoForge.EVENT_BUS.addListener { event: ServerStoppedEvent ->
-            SableCubePlanet.forget()
             travel.remove(event.server)
             transfers.remove(event.server)?.close()
         }

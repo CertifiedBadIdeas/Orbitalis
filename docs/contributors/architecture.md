@@ -47,7 +47,7 @@ journaled ship-transfer system remain supported experiments.
 The default cube uses six Sable plots as native block-coordinate charts. Each chart has local
 `+Y` pointing outwards and native `XZ` terrain, so horizontal-only mod blocks can use ordinary
 placement and neighbour queries within a face. `SableCubePlanet` in the optional common integration
-owns construction and native anchors; `CubePlanetTerrain` keeps the command layer independent of
+owns construction and fixed chart transforms; `CubePlanetTerrain` keeps the command layer independent of
 Sable classes. Sable is required to prepare this cube. Create remains a consumer-only dependency.
 The existing finite voxel fixture is partitioned by the greatest signed cell-centre component,
 with deterministic face order resolving ties: every occupied world cell belongs to exactly one chart.
@@ -55,9 +55,15 @@ This preserves the full interior, tapered relief and solid convex edges.
 
 Native force-load tickets and per-body user data persist the charts. Version 1 uses
 `orbitalis_cube_frame_version=1` and `orbitalis_cube_face` with Minecraft direction names. Blocks,
-block entities and inventories remain native Sable save data, not copied orbital data. Transient
-world anchors are rebound before native physics; unconstrained pair joints suppress internal chart
-contacts while preserving ship and player collisions. Planet charts do not receive free-body gravity
+block entities and inventories remain native Sable save data, not copied orbital data. `SablePlanetCollisionPipeline` decorates the native pipeline only in `planet_lab`: tagged planet
+charts have fixed poses and no dynamic rigid bodies, mass integration or anchoring joints. Resident
+plot chunks provide world-space kinematic collision geometry for ordinary ships. Native plot blocks,
+player voxel contacts and presentation remain in Sable. Create contraptions attached to those charts
+have their physical poses transformed to the parent world before native kinematic registration.
+The static mass descriptor is explicitly valid without mass, preventing native invalid-ship teardown.
+Scoped native load handling preserves chart identities and poses without rebuilding dynamic mass.
+The Rapier scene accessor unwraps this adapter for native integrations. Charts cannot be ordinary
+rigid-body constraint endpoints; dedicated mooring is outside this experiment. Planet charts do not receive free-body gravity
 and cannot enter ship transfer. Normal entry reuses the six identities and never fills excavations;
 an incomplete set refuses reconstruction. Legacy parent-world terrain is not silently converted:
 explicit `/orbitalis lab cube rebuild` removes disposable fixture contents and builds the replacement.

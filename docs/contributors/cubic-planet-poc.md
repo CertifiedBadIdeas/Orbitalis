@@ -26,7 +26,7 @@ constructions are preserved; no automatic cleanup of world content occurs. Use a
 
 ## Default local-frame cube
 
-The default scene now requires Sable and stores its six faces in six anchored native plots.
+The default scene now requires Sable and stores its six faces in six fixed native plots.
 Use `/orbitalis lab cube enter` (up) or append `up`, `down`, `east`, `west`, `north`, `south`.
 `/orbitalis lab cube leave` returns to the previous world. Normal entry and world reload preserve
 chart blocks and inventories. Old global-coordinate terrain requires leaving the scene and running
@@ -322,3 +322,19 @@ comfort, all edge directions or multiplayer behavior. Remaining manual scenarios
 
 Camera comfort, full interaction/reach, arbitrary edited terrain and remote multiplayer remain unverified.
 The native client observations above complement the GameTests; a successful client launch alone is insufficient.
+
+## Static chart collision experiment
+
+Planet faces use native plots for block coordinates, persistence and presentation, with fixed logical
+poses. They are not dynamic rigid bodies and have no anchoring or chart/chart exclusion joints.
+The planet-only pipeline adapter converts resident plot chunks to world-space native kinematic
+collision geometry. Ordinary ships retain native dynamic integration and collide with that geometry;
+players continue to use native plot voxel contacts. The chart mass descriptor is valid with zero
+mass so Sable does not apply its invalid-ship destruction rule. The scoped serializer adapter keeps
+these semantics during native reload, including legacy version-1 chart data.
+
+The cube GameTests compare native creative flight with ordinary and sprint input on all six faces,
+and verify that all six charts retain their exact poses under a large impulse while ships land.
+This small-scene evidence does not establish streamed 512-block generation, a measured large-planet
+performance budget or arbitrary third-party physical attachments. A planet chart cannot be a native
+dynamic-joint endpoint; ordinary block placement and native within-chart neighbour space are retained.

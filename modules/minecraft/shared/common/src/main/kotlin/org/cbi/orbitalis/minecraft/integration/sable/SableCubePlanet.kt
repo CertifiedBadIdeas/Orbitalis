@@ -18,16 +18,12 @@
 
 package org.cbi.orbitalis.minecraft.integration.sable
 
-import dev.ryanhcode.sable.api.physics.constraint.ConstraintJointAxis
-import dev.ryanhcode.sable.api.physics.constraint.GenericConstraintConfiguration
-import dev.ryanhcode.sable.api.physics.constraint.PhysicsConstraintHandle
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer
 import dev.ryanhcode.sable.api.sublevel.ticket.SubLevelLoadingTicketType
 import dev.ryanhcode.sable.companion.math.BoundingBox3d
 import dev.ryanhcode.sable.companion.math.Pose3d
 import dev.ryanhcode.sable.sublevel.ServerSubLevel
 import dev.ryanhcode.sable.sublevel.storage.SubLevelRemovalReason
-import dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem
 import net.minecraft.core.BlockPos
 import net.minecraft.core.Direction
 import net.minecraft.nbt.CompoundTag
@@ -41,7 +37,6 @@ import org.cbi.orbitalis.minecraft.lab.CubePlanetTerrain
 import org.cbi.orbitalis.minecraft.lab.PlanetLabCoordinates
 import org.joml.Quaterniond
 import org.joml.Vector3d
-import java.util.UUID
 import kotlin.math.floor
 
 /** Six native block-coordinate charts. Sable owns block, entity and inventory persistence. */
@@ -58,7 +53,6 @@ class SableCubePlanet(
         val existing = bodies
         if (existing.isNotEmpty()) {
             check(existing.size == 6) { "Incomplete local-frame cube; restore the save or explicitly rebuild the disposable fixture." }
-            restoreAnchors(level)
             return 0
         }
         val c = PlanetLabCoordinates.CENTRE
@@ -98,7 +92,6 @@ class SableCubePlanet(
             created.forEach(::remove)
             throw error
         }
-        restoreAnchors(level)
         return cells.values.sumOf { it.size }
     }
 
@@ -111,7 +104,14 @@ class SableCubePlanet(
         val pose = Pose3d()
         pose.position().set(origin.x, origin.y, origin.z)
         pose.orientation().set(q)
-        val body = container.allocateNewSubLevel(pose) as ServerSubLevel
+        val wasConstructing = SablePlanetCollisionPipeline.constructing()
+        val body =
+            try {
+                SablePlanetCollisionPipeline.constructing(true)
+                container.allocateNewSubLevel(pose) as ServerSubLevel
+            } finally {
+                SablePlanetCollisionPipeline.constructing(wasConstructing)
+            }
         try {
             body.name = "Orbitalis cube " + face.serializedName
             body.userDataTag = CompoundTag()
@@ -130,19 +130,9 @@ class SableCubePlanet(
                     Direction.NORTH -> Blocks.YELLOW_CONCRETE
                 }
             for (p in cells) check(body.plot.embeddedLevelAccessor.setBlock(p, material.defaultBlockState(), 3))
-            // Filling changes native COM. Arrange once; the native joint owns stationarity afterwards.
-            body.updateMergedMassData(1f)
-            val com = checkNotNull(body.massTracker.centerOfMass)
-            val offset = Vector3d(com).sub(centre.x.toDouble(), centre.y.toDouble(), centre.z.toDouble())
-            q.transform(offset).add(origin.x, origin.y, origin.z)
-            body.logicalPose().rotationPoint().set(com)
-            body.logicalPose().position().set(offset)
-            body.logicalPose().orientation().set(q)
-            SubLevelPhysicsSystem.require(level).getPhysicsHandle(body).teleport(offset, q)
             body.updateLastPose()
             body.forceUpdateGlobalBounds()
             container.addForceLoadTicket(body, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
-            anchor(body)
             return body
         } catch (error: RuntimeException) {
             remove(body)
@@ -176,18 +166,12 @@ class SableCubePlanet(
     }
 
     private fun remove(body: ServerSubLevel) {
-        exclusions.keys.filter { body.uniqueId in it }.toList().forEach { key ->
-            exclusions.remove(key)?.let { if (it.isValid) it.remove() }
-        }
-        anchors.remove(body.uniqueId)?.let { if (it.isValid) it.remove() }
         container.removeForceLoadTicket(body, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
         if (!body.isRemoved) container.removeSubLevel(body, SubLevelRemovalReason.REMOVED)
     }
 
     companion object {
         val faces = listOf(Direction.UP, Direction.EAST, Direction.SOUTH, Direction.WEST, Direction.DOWN, Direction.NORTH)
-        private val exclusions = mutableMapOf<Set<UUID>, PhysicsConstraintHandle>()
-        private val anchors = mutableMapOf<UUID, PhysicsConstraintHandle>()
 
         fun normal(face: Direction): Vec3 = Vec3.atLowerCornerOf(face.normal)
 
@@ -211,76 +195,5 @@ class SableCubePlanet(
         }
 
         fun isFrame(body: ServerSubLevel): Boolean = direction(body) != null && body.level.dimension() == PlanetLabCoordinates.DIMENSION
-
-        /** Force-load tickets and chart tags persist natively. Rebind before the first physics step. */
-        fun restoreAnchors(level: ServerLevel) {
-            if (level.dimension() != PlanetLabCoordinates.DIMENSION) return
-            val frames = SubLevelContainer.getContainer(level)?.allSubLevels?.filter(::isFrame) ?: return
-            frames.forEach(::anchor)
-            // Native collision margins at coincident voxel boundaries must not push charts apart.
-            // Unlocked joints exclude only chart/chart contact; ships still collide.
-            for (i in frames.indices) {
-                for (j in i + 1 until frames.size) {
-                    val a = frames[i]
-                    val b = frames[j]
-                    val key = setOf(a.uniqueId, b.uniqueId)
-                    if (exclusions[key]?.isValid == true) continue
-                    val joint =
-                        SubLevelPhysicsSystem.require(level).pipeline.addConstraint(
-                            a,
-                            b,
-                            GenericConstraintConfiguration(
-                                Vector3d(
-                                    a.plot.centerBlock.x
-                                        .toDouble(),
-                                    a.plot.centerBlock.y
-                                        .toDouble(),
-                                    a.plot.centerBlock.z
-                                        .toDouble(),
-                                ),
-                                Vector3d(
-                                    b.plot.centerBlock.x
-                                        .toDouble(),
-                                    b.plot.centerBlock.y
-                                        .toDouble(),
-                                    b.plot.centerBlock.z
-                                        .toDouble(),
-                                ),
-                                Quaterniond(),
-                                Quaterniond(),
-                                emptySet(),
-                            ),
-                        )
-                    checkNotNull(joint).setContactsEnabled(false)
-                    exclusions[key] = joint
-                }
-            }
-        }
-
-        private fun anchor(body: ServerSubLevel) {
-            if (anchors[body.uniqueId]?.isValid == true) return
-            val face = checkNotNull(direction(body))
-            val c = body.plot.centerBlock
-            val o = origin(face)
-            val joint =
-                SubLevelPhysicsSystem.require(body.level).pipeline.addConstraint(
-                    null,
-                    body,
-                    GenericConstraintConfiguration(
-                        Vector3d(o.x, o.y, o.z),
-                        Vector3d(c.x.toDouble(), c.y.toDouble(), c.z.toDouble()),
-                        rotation(face),
-                        Quaterniond(),
-                        ConstraintJointAxis.entries.toSet(),
-                    ),
-                )
-            checkNotNull(joint) { "Native physics does not support anchored planet charts" }.setContactsEnabled(false)
-            anchors[body.uniqueId] = joint
-        }
-
-        fun forget() {
-            exclusions.clear()
-            anchors.clear()
-        }
     }
 }

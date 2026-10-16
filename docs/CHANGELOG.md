@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Treat cube face plots as static block-coordinate charts rather than dynamic ships. Keep native Sable presentation and player contacts; register resident terrain through the kinematic collision path for ordinary ships.
+
 - Restore vanilla creative flight acceleration, horizontal drag and sprint speed on all cube faces.
 
 - Restore native ground/air acceleration and friction, preventing excessive speed from repeated sprint jumps; resolve slippery support blocks in each face’s native coordinates.

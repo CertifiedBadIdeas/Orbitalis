@@ -178,7 +178,25 @@ object CubeSableGameTests {
         val scene = Scene(helper)
         CubePlanetLab.forServer(helper.level.server).prepare()
         val bodies = Direction.entries.map { scene.deck(it, 24.0) }
+        val frames =
+            org.cbi.orbitalis.minecraft.integration.sable
+                .SableCubePlanet(scene.level)
+                .bodies
+        val poses =
+            frames.associateWith {
+                dev.ryanhcode.sable.companion.math
+                    .Pose3d(it.logicalPose())
+            }
+        for (frame in frames) {
+            helper.assertTrue(frame.massTracker.mass == 0.0, "Planet chart still computes rigid-body mass")
+            SubLevelPhysicsSystem.require(scene.level).getPhysicsHandle(frame).applyLinearImpulse(Vector3d(1e12, -2e12, 3e12))
+        }
         helper.runAfterDelay(120) {
+            for (frame in frames) {
+                val pose = checkNotNull(poses[frame])
+                helper.assertTrue(frame.logicalPose().position().distance(pose.position()) < 1e-12, "Static chart moved after impact")
+                helper.assertTrue(frame.logicalPose().orientation().equals(pose.orientation(), 1e-12), "Static chart rotated after impact")
+            }
             for ((index, body) in bodies.withIndex()) {
                 val reading = SableFlightGravity.reading(body)
                 val p = Vec3(reading.position.x, reading.position.y, reading.position.z).subtract(CubePlayerPhysics.CENTRE)

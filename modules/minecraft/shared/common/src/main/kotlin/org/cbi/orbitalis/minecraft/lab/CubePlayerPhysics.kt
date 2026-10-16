@@ -322,7 +322,11 @@ object CubePlayerPhysics {
             player.move(MoverType.SELF, player.deltaMovement)
             val nextUp = normal(player)
             val vertical = nextUp.scale(player.deltaMovement.dot(nextUp))
-            player.deltaMovement = player.deltaMovement.subtract(vertical).scale(0.91f.toDouble()).add(vertical.scale(0.6))
+            player.deltaMovement =
+                player.deltaMovement
+                    .subtract(vertical)
+                    .scale(0.91f.toDouble())
+                    .add(vertical.scale(0.6))
             player.fallDistance = 0f
             return
         }

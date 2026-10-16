@@ -85,7 +85,6 @@ object SableFlightGravity {
         seconds: Double,
     ) {
         if (!isFlightSpace(level) && level.dimension() != PlanetLabCoordinates.DIMENSION) return
-        SableCubePlanet.restoreAnchors(level)
         require(seconds.isFinite() && seconds > 0.0)
         val container = SubLevelContainer.getContainer(level) ?: return
         val physics = container.physicsSystem() ?: return

@@ -12,7 +12,11 @@
     "CubePlayerTravelMixin",
     "CubePlayerLocomotionMixin",
     "CubePlayerPacketMixin",
-    "SableCubeCollisionMixin"
+    "SableCubeCollisionMixin",
+    "SablePlanetPhysicsMixin",
+    "SablePlanetBodyMixin",
+    "SablePlanetLoadMixin",
+    "SablePlanetRapierMixin"
   ],
   "injectors": {
     "defaultRequire": 1
