@@ -190,6 +190,8 @@ val testResources = files(layout.projectDirectory.dir(
     "../../modules/minecraft/v1_21_1/v1_21_1-neoforge/build/generated/gameTestResources",
 )).builtBy(gradle.includedBuild("Orbitalis").task(":v1_21_1-neoforge:generateGameTestResources"))
 gameTest.resources.srcDir(testResources)
+val consumerGameTestSuite = providers.gradleProperty("orbitalisConsumerGameTestSuite").getOrElse("all")
+require(consumerGameTestSuite in setOf("all", "faces")) { "Unknown consumer GameTest suite: $consumerGameTestSuite" }
 val gameTestReport = layout.buildDirectory.file("test-results/gameTestServer/results.xml")
 loom.runs.register("gameTestServer") {
     server()
@@ -199,6 +201,7 @@ loom.runs.register("gameTestServer") {
     runDir("run/gameTestServer")
     property("neoforge.enabledGameTestNamespaces", "orbitalis")
     property("neoforge.gameTestServer", "true")
+    property("orbitalis.consumerGameTestSuite", consumerGameTestSuite)
     property("orbitalis.consumerGameTestReport", gameTestReport.get().asFile.absolutePath)
     mods.named("flight_consumer") { sourceSet(gameTest) }
 }
@@ -216,7 +219,9 @@ tasks.matching { it.name == "runGameTestServer" }.configureEach {
         val document = factory.newDocumentBuilder().parse(report)
         val cases = document.getElementsByTagName("testcase")
         val names = (0 until cases.length).map { (cases.item(it) as org.w3c.dom.Element).getAttribute("name") }.toSet()
-        check(names.containsAll(setOf("shuttleassemblyandhold", "shuttlegravityprofile", "flighttoolsavailablebydefault", "nativepropulsionholdandcutoff", "preflightrejectsunsafeengines", "rejectsmissingliftauthority", "launchbookmarkroundtripandvalidation", "nativeorbitalinsertionandreturn"))) {
+        val faceTests = setOf("localfacevaultskeepnativeinventory", "localfaceframessurvivenativereload", "playerwalksbetweenlocalfaceframes")
+        val required = if (consumerGameTestSuite == "faces") faceTests else faceTests + setOf("shuttleassemblyandhold", "shuttlegravityprofile", "flighttoolsavailablebydefault", "nativepropulsionholdandcutoff", "preflightrejectsunsafeengines", "rejectsmissingliftauthority", "launchbookmarkroundtripandvalidation", "nativeorbitalinsertionandreturn")
+        check(names == required) {
             "Missing native propulsion scenarios: $names"
         }
         listOf("failure", "error", "skipped").forEach { tag ->

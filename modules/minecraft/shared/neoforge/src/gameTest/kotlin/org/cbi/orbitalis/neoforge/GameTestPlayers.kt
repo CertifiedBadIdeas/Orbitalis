@@ -43,6 +43,26 @@ object GameTestPlayers {
         checkNotNull(teleportAcks[player]) { "Not an inert GameTest pilot" }.invoke()
     }
 
+    /** Native Sable intentionally bypasses collision for ServerPlayer; use a real controlling Player
+     * for client-owned locomotion, with the inert pilot reserved for command/teleport assertions. */
+    fun controller(pilot: ServerPlayer): net.minecraft.world.entity.player.Player {
+        val player =
+            object : net.minecraft.world.entity.player.Player(pilot.level(), pilot.blockPosition(), pilot.yRot, pilot.gameProfile) {
+                override fun isSpectator(): Boolean = false
+
+                override fun isCreative(): Boolean = true
+
+                override fun isLocalPlayer(): Boolean = true
+            }
+        (player as org.cbi.orbitalis.minecraft.lab.CubePlayerMode).orbitalisSetCubeEnrolled(true)
+        player.setPos(pilot.position())
+        player.yRot = pilot.yRot
+        player.yHeadRot = pilot.yRot
+        org.cbi.orbitalis.minecraft.lab.CubePlayerPhysics
+            .refresh(player)
+        return player
+    }
+
     fun create(
         helper: GameTestHelper,
         locallyControlled: Boolean = false,

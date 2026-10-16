@@ -39,6 +39,12 @@ object PlanetLabGameTests {
         }
         val suite = System.getProperty("orbitalis.gameTestSuite", "all")
         require(suite == "all" || suite == "cube") { "Unknown GameTest suite: $suite" }
+        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener { started: net.neoforged.neoforge.event.server.ServerStartedEvent ->
+            // This run directory is a disposable fixture, including older global-coordinate cubes.
+            org.cbi.orbitalis.minecraft.lab.CubePlanetLab
+                .forServer(started.server)
+                .rebuild()
+        }
         event.register(CubePlanetGameTest::class.java)
         event.register(CubePlayerFlightGameTest::class.java)
         if (ModList.get().isLoaded("sable")) event.register(CubeSableGameTests::class.java)

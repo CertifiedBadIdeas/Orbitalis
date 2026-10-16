@@ -29,6 +29,7 @@ import dev.ryanhcode.sable.sublevel.entity_collision.SubLevelEntityCollision
 import net.minecraft.core.BlockPos
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.entity.Entity
+import net.minecraft.world.level.Level
 import net.minecraft.world.phys.AABB
 import net.minecraft.world.phys.Vec3
 import org.cbi.orbitalis.minecraft.lab.CubePlayerContacts
@@ -77,8 +78,13 @@ object SableCubePlayerContacts : CubePlayerContacts {
     override fun clear(
         entity: Entity,
         bounds: AABB,
+    ): Boolean = clear(entity.level(), bounds)
+
+    fun clear(
+        level: Level,
+        bounds: AABB,
     ): Boolean {
-        val container = SubLevelContainer.getContainer(entity.level()) ?: return true
+        val container = SubLevelContainer.getContainer(level) ?: return true
         val sink = LevelReusedVectors()
         val c = bounds.center
         val candidate =
@@ -109,7 +115,7 @@ object SableCubePlayerContacts : CubePlayerContacts {
                 ceil(max.y).toInt(),
                 ceil(max.z).toInt(),
             )) {
-                val shape = entity.level().getBlockState(pos).getCollisionShape(entity.level(), pos)
+                val shape = level.getBlockState(pos).getCollisionShape(level, pos)
                 for (box in shape.toAabbs()) {
                     val centre =
                         pose.transformPosition(
@@ -121,7 +127,8 @@ object SableCubePlayerContacts : CubePlayerContacts {
                         )
                     val block =
                         OrientedBoundingBox3d(centre.x, centre.y, centre.z, box.xsize, box.ysize, box.zsize, pose.orientation(), sink)
-                    if (OrientedBoundingBox3d.sat(candidate, block) != null) return false
+                    // Native SAT returns a zero displacement for separated/touching boxes.
+                    if (OrientedBoundingBox3d.sat(candidate, block).lengthSquared() > 1e-12) return false
                 }
             }
         }

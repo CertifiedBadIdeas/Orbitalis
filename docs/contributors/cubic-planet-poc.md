@@ -24,6 +24,35 @@ production planetary generation or a chosen large-world storage architecture. It
 The flight/orbit/space dimensions and ship transfers remain available. Existing saved blocks and
 constructions are preserved; no automatic cleanup of world content occurs. Use an isolated disposable client world in this task checkout.
 
+## Default local-frame cube
+
+The default scene now requires Sable and stores its six faces in six anchored native plots.
+Use `/orbitalis lab cube enter` (up) or append `up`, `down`, `east`, `west`, `north`, `south`.
+`/orbitalis lab cube leave` returns to the previous world. Normal entry and world reload preserve
+chart blocks and inventories. Old global-coordinate terrain requires leaving the scene and running
+`/orbitalis lab cube rebuild`; this explicitly discards disposable fixture edits. The dimension ID
+and existing flight/orbit/space experiments are retained.
+
+Each face has a native horizontal block space; player movement remains in the common parent world.
+The finite solid volume has unique block ownership, including edges and the interior. Native neighbour
+queries remain local to each chart: multiblocks and circuits spanning different charts are unsupported.
+Six-chart acceptance on 2026-10-16 exercised native Create vault formation and shared inventories,
+both local placement axes on all six faces, 24 directed edge crossings with stable destination
+contact, and native unload/reload preserving chart identities, excavations and inventories.
+A disposable consumer client also placed ordinary vaults through `useItemOn` on every face;
+server block entities confirmed native local `axis=x`, and all six framebuffer images were inspected.
+Actual forward-key walking crossed from +Y to +X and back, settled grounded and tracked the correct
+native destination plot. Operator positioning only selected the starting lane, not the seam crossing.
+After clean client shutdown and reopening, all six chart UUIDs and six placed vault block entities
+were retained. Re-entering the saved north face settled grounded with native tracking and 20 health.
+The entry regression also checks that a nearby non-intersecting block allows entry on every face,
+while a block actually covering the spawn rejects entry without moving or enrolling the player.
+The fixture-geometry test compares all chart cells with the canonical occupied volume and rejects
+both duplicate ownership and missing cells. These observations do not establish cross-chart networks,
+arbitrary edited terrain, three-face-corner comfort or remote multiplayer.
+Evidence is retained locally with the task's Gradle logs, GameTest XML and client screenshots.
+The historical observations below describe earlier iterations and are not six-chart evidence.
+
 ## Scene and controls
 
 Run `./gradlew-sandbox-dev-parallel runClient` after `./worktree-task doctor`. Do not run a build while
@@ -37,9 +66,9 @@ the managed client holds the workspace slot. As an operator use:
 
 Entry explicitly builds a solid 32-block reference cube centred at (2048,96,2048), with three blocks
 of +Y relief and two blocks of +X relief around the demonstrated edge. Six face colours distinguish
-surfaces; stone fills the interior. The reference cube remains solid through edges and corners.
+surfaces and their corresponding interior volumes. The reference cube remains solid through edges and corners.
 Unequal relief tapers down before each convex edge, avoiding a trench on the gravity boundary. The fixture is a global block-occupancy function, not six independent maps.
-Walk forward from the initial view to leave the raised green face and fall towards the orange +X face.
+Walk forward from the initial clear lane to leave the green face and fall towards the orange +X face.
 WASD and mouse look use the accepted gravity frame; jump acts along local up. Creative flight remains available with normal double-jump activation; jump/shift lift follows
 local up/down, with no gravity while flying. Above the face-normal zone, up follows the sampled gravity
 continuously instead of choosing a face axis. Elytra retain native activation, equipment and durability;
@@ -68,12 +97,13 @@ The demonstration does not validate full-block interaction/reach or multiplayer 
 is turning; camera easing and the instantaneous physical eye can differ during that interval.
 
 The exit restores the transient entry position and view; after a runtime restart it falls back to the
-Overworld spawn. Repeated entry does not refill excavations. A lodestone at the centre marks an initialized
-fixture across restarts; removing it makes a populated site reject regeneration rather than overwrite edits.
-To replace an older cut fixture, run `cube leave`, then `/orbitalis lab cube rebuild`, then `cube enter`.
-The operator-only rebuild erases all blocks/edits in the 40×40×40 fixture volume and rejects the request
-while a non-spectator player is in the scene. Ordinary entry still preserves edits.
-This marker is a diagnostic convention, not a versioned planet save format. The scene is never built at startup.
+Overworld spawn. Repeated entry does not refill excavations. Six native chart identities and versioned
+Sable user-data tags replace the old centre lodestone marker. A partial chart set refuses regeneration.
+To replace an older fixture, run `cube leave`, then `/orbitalis lab cube rebuild`, then `cube enter`.
+The operator-only rebuild erases the six charts and all parent-world blocks in the 40×40×40 fixture
+volume and rejects requests while a non-spectator player is in the scene. Ordinary entry preserves
+edits and rejects an obstructed spawn position. The scene is built explicitly, not at startup;
+existing saved charts only regain their transient anchors before physics.
 
 ## Physics and presentation boundaries
 

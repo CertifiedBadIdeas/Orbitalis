@@ -44,6 +44,29 @@ controllers are removed. Existing world blocks and ships are not deleted. Indepe
 coordinate/orbit math remains available, and `flight_test`, `orbit_test`, `space_test` and the
 journaled ship-transfer system remain supported experiments.
 
+The default cube uses six Sable plots as native block-coordinate charts. Each chart has local
+`+Y` pointing outwards and native `XZ` terrain, so horizontal-only mod blocks can use ordinary
+placement and neighbour queries within a face. `SableCubePlanet` in the optional common integration
+owns construction and native anchors; `CubePlanetTerrain` keeps the command layer independent of
+Sable classes. Sable is required to prepare this cube. Create remains a consumer-only dependency.
+The existing finite voxel fixture is partitioned by the greatest signed cell-centre component,
+with deterministic face order resolving ties: every occupied world cell belongs to exactly one chart.
+This preserves the full interior, tapered relief and solid convex edges.
+
+Native force-load tickets and per-body user data persist the charts. Version 1 uses
+`orbitalis_cube_frame_version=1` and `orbitalis_cube_face` with Minecraft direction names. Blocks,
+block entities and inventories remain native Sable save data, not copied orbital data. Transient
+world anchors are rebound before native physics; unconstrained pair joints suppress internal chart
+contacts while preserving ship and player collisions. Planet charts do not receive free-body gravity
+and cannot enter ship transfer. Normal entry reuses the six identities and never fills excavations;
+an incomplete set refuses reconstruction. Legacy parent-world terrain is not silently converted:
+explicit `/orbitalis lab cube rebuild` removes disposable fixture contents and builds the replacement.
+Ordinary shutdown does not delete chart contents.
+
+Charts are distinct neighbour spaces. A multiblock, pipe or redstone network crossing a chart boundary
+is not connected automatically. This architecture does not claim arbitrary mod compatibility, shared
+neighbour semantics through the centre, general world generation or a production-size planet.
+
 An isolated NeoForge GameTest source set exercises native adapters in a real headless server.
 Its generated empty structure and flat world preset are excluded from normal runs and production
 archives. The test preset incorporates canonical dimension JSON because Minecraft 1.21.1 otherwise
@@ -53,7 +76,7 @@ All loaded ordinary Sable constructions in `planet_lab` receive the same conserv
 field and centre as cube players (owned by `PlanetLabCoordinates`), without enrollment tags, distance cutoffs, or imposed attitude.
 `SableFlightGravity` applies a mass-scaled impulse at each native pre-physics substep in body axes;
 Sable owns rigid-body integration, terrain contact, loading and persistence. Native base gravity,
-drag and pressure remain zero there. No experimental body is auto-created or destroyed.
+drag and pressure remain zero there. Only explicit cube preparation/rebuild creates or removes planet charts; ordinary ships are not auto-created or destroyed.
 
 `CubePlayerContacts` is the optional moving-world boundary used by planetary locomotion.
 `SableCubePlayerContacts` invokes Sable's native oriented contact solver and native tracking

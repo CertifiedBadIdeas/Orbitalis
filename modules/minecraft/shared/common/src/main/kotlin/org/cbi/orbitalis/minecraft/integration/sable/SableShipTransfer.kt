@@ -213,6 +213,7 @@ class SableShipTransfer(
         body: ServerSubLevel,
         targetDimension: ResourceKey<Level>? = null,
     ) {
+        require(!SableCubePlanet.isFrame(body)) { "Planet charts cannot be transferred as ships" }
         require(
             !busy && records.values.none { it.pilotPending },
         ) { "A transfer/recovery is running: ${error ?: "wait for completion"}" }

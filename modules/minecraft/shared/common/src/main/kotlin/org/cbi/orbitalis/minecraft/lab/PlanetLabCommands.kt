@@ -22,11 +22,27 @@ import com.mojang.brigadier.CommandDispatcher
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType
 import net.minecraft.commands.CommandSourceStack
 import net.minecraft.commands.Commands
+import net.minecraft.core.Direction
 import net.minecraft.network.chat.Component
 
 /** Operator-only lab controls. No command is run automatically when a world starts. */
 object PlanetLabCommands {
     private fun failure(message: String): Nothing = throw SimpleCommandExceptionType(Component.literal(message)).create()
+
+    private fun enter(
+        source: CommandSourceStack,
+        face: Direction,
+    ): Int {
+        try {
+            if (!CubePlanetLab.forServer(source.server).enter(source.playerOrException, face)) failure("Cube entry is obstructed.")
+        } catch (error: IllegalStateException) {
+            failure(error.message ?: "Cube preparation failed.")
+        }
+        source.sendSuccess({
+            Component.literal("Entered the local-frame cube (${face.serializedName}). Use /orbitalis lab cube leave to return.")
+        }, false)
+        return 1
+    }
 
     fun register(dispatcher: CommandDispatcher<CommandSourceStack>) {
         dispatcher.register(
@@ -37,19 +53,12 @@ object PlanetLabCommands {
                         Commands
                             .literal("cube")
                             .then(
-                                Commands.literal("enter").executes { context ->
-                                    val lab = CubePlanetLab.forServer(context.source.server)
-                                    try {
-                                        if (!lab.enter(context.source.playerOrException)) failure("Cube entry is obstructed.")
-                                    } catch (error: IllegalStateException) {
-                                        failure(error.message ?: "Cube preparation failed.")
-                                    }
-                                    context.source.sendSuccess({
-                                        Component.literal(
-                                            "Cube proof of concept: walk forward across the orange edge. Use /orbitalis lab cube leave to return.",
+                                Commands.literal("enter").executes { enter(it.source, Direction.UP) }.apply {
+                                    for (face in Direction.entries) {
+                                        then(
+                                            Commands.literal(face.serializedName).executes { enter(it.source, face) },
                                         )
-                                    }, false)
-                                    1
+                                    }
                                 },
                             ).then(
                                 Commands.literal("leave").executes { context ->

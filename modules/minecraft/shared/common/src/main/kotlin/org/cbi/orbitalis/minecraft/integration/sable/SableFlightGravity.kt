@@ -85,10 +85,12 @@ object SableFlightGravity {
         seconds: Double,
     ) {
         if (!isFlightSpace(level) && level.dimension() != PlanetLabCoordinates.DIMENSION) return
+        SableCubePlanet.restoreAnchors(level)
         require(seconds.isFinite() && seconds > 0.0)
         val container = SubLevelContainer.getContainer(level) ?: return
         val physics = container.physicsSystem() ?: return
         for (body in container.allSubLevels.filterIsInstance<ServerSubLevel>()) {
+            if (SableCubePlanet.isFrame(body)) continue
             val mass = body.massTracker.mass
             val localCom = body.massTracker.centerOfMass ?: continue
             if (!mass.isFinite() || mass <= 0.0) continue

@@ -19,12 +19,12 @@
 package org.cbi.orbitalis.minecraft.lab
 
 import net.minecraft.core.BlockPos
+import net.minecraft.core.Direction
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.phys.Vec3
-import org.cbi.orbitalis.core.planet.CubicPlanetFixture
 import java.util.UUID
 
 /** Explicitly built disposable fixture. Existing blocks and excavations survive repeated entry. */
@@ -39,53 +39,16 @@ class CubePlanetLab(
     )
 
     private val returns = mutableMapOf<UUID, ReturnPoint>()
-    private var prepared = false
-
-    fun prepare(): Int {
-        if (prepared) return 0
+    private val terrain: CubePlanetTerrain by lazy {
         val level = checkNotNull(server.getLevel(PlanetLabCoordinates.DIMENSION))
-        val origin = BlockPos.containing(CubePlayerPhysics.CENTRE)
-        // A marker avoids refilling excavations when this runtime is recreated after restart.
-        if (level.getBlockState(origin).`is`(Blocks.LODESTONE)) {
-            prepared = true
-            return 0
-        }
-        // Reject an occupied site before any writes instead of overwriting somebody's laboratory.
-        for (x in -20..19) {
-            for (z in -20..19) {
-                for (y in -20..19) {
-                    check(
-                        level.getBlockState(origin.offset(x, y, z)).isAir,
-                    ) { "Cube fixture site is occupied; use a fresh disposable world." }
-                }
-            }
-        }
-        var changed = 0
-        for (x in -20..19) {
-            for (z in -20..19) {
-                for (y in -20..19) {
-                    if (!CubicPlanetFixture.solid(x, y, z)) continue
-                    val block =
-                        when {
-                            y >= 15 -> Blocks.GREEN_CONCRETE
-                            x >= 15 -> Blocks.ORANGE_CONCRETE
-                            z >= 15 -> Blocks.BLUE_CONCRETE
-                            x <= -16 -> Blocks.RED_CONCRETE
-                            y <= -16 -> Blocks.PURPLE_CONCRETE
-                            z <= -16 -> Blocks.YELLOW_CONCRETE
-                            else -> Blocks.STONE
-                        }
-                    if (level.setBlock(origin.offset(x, y, z), block.defaultBlockState(), Block.UPDATE_CLIENTS)) changed++
-                }
-            }
-        }
-        check(level.setBlock(origin, Blocks.LODESTONE.defaultBlockState(), Block.UPDATE_CLIENTS)) { "Cube marker placement failed." }
-        prepared = true
-        return changed
+        checkNotNull(CubePlanetTerrain.factory) { "The local-frame cube requires Sable." }(level)
     }
+
+    fun prepare(): Int = terrain.prepare()
 
     /** Explicit disposable-scene reset. Ordinary entry must continue to preserve edits. */
     fun rebuild(): Int {
+        val activeTerrain = terrain
         val level = checkNotNull(server.getLevel(PlanetLabCoordinates.DIMENSION))
         check(level.players().none { CubePlayerPhysics.active(it) }) { "Leave the cube scene before rebuilding it." }
         val origin = BlockPos.containing(CubePlayerPhysics.CENTRE)
@@ -96,35 +59,44 @@ class CubePlanetLab(
                 }
             }
         }
-        prepared = false
+        activeTerrain.clear()
         return prepare()
     }
 
-    fun enter(player: ServerPlayer): Boolean {
+    fun enter(
+        player: ServerPlayer,
+        face: Direction = Direction.UP,
+    ): Boolean {
         prepare()
         val level = checkNotNull(server.getLevel(PlanetLabCoordinates.DIMENSION))
         val outside = !CubePlayerPhysics.active(player)
         val saved = ReturnPoint(player.level().dimension(), player.position(), player.yRot, player.xRot)
-        // The raised +Y terrain ends at y=115; start near its +X edge looking towards it.
-        val target = CubePlayerPhysics.CENTRE.add(10.0, 19.05, 0.5)
-        if (!level.noCollision(
-                player,
-                net.minecraft.world.phys.AABB(
-                    target.x - 0.3,
-                    target.y,
-                    target.z - 0.3,
-                    target.x + 0.3,
-                    target.y + 1.8,
-                    target.z + 0.3,
-                ),
+        // Clear lane outside the relief strips; network position remains anchored in world Y.
+        val target =
+            CubePlayerPhysics.CENTRE
+                .add(CubePlayerPhysics.rotate(Vec3(10.0, 16.95, -10.0), face))
+                .add(0.0, -CubePlayerPhysics.HALF_HEIGHT, 0.0)
+        val centre = target.add(0.0, CubePlayerPhysics.HALF_HEIGHT, 0.0)
+        val half =
+            Vec3(
+                if (face.axis ==
+                    Direction.Axis.X
+                ) {
+                    .9
+                } else {
+                    .3
+                },
+                if (face.axis == Direction.Axis.Y) .9 else .3,
+                if (face.axis == Direction.Axis.Z) .9 else .3,
             )
-        ) {
-            return false
-        }
+        val bounds =
+            net.minecraft.world.phys
+                .AABB(centre.subtract(half), centre.add(half))
+        if (!level.noCollision(player, bounds) || !terrain.clearForEntry(bounds)) return false
         val mode = player as CubePlayerMode
         val wasEnrolled = mode.orbitalisCubeEnrolled()
         mode.orbitalisSetCubeEnrolled(true)
-        (player as CubePlayerFrame).orbitalisSetUp(null)
+        (player as CubePlayerFrame).orbitalisSetUp(face)
         val moved = player.teleportTo(level, target.x, target.y, target.z, emptySet(), -90f, 0f)
         if (moved) {
             if (outside) returns[player.uuid] = saved

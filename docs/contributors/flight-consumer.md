@@ -352,3 +352,16 @@ For an interactive trial, start a disposable creative world from the consumer's 
 previous constructions. Test surface/orbit transfer separately and engage the autopilot again after
 arrival. Shuttle appearance, manual handling, landing and long powered high/offset ascents remain
 interactive acceptance checks.
+
+
+## Native planet chart acceptance
+
+The `faces` GameTest suite exercises the same six-chart cube used by `/orbitalis lab cube enter`:
+`runGameTestServer -PorbitalisConsumerGameTestSuite=faces`. It checks native Create vault formation,
+shared inventories and both placement axes on every face, all 24 directed edge crossings with native
+player contact, and native chart unload/reload with inventory, excavation and anchor retention.
+The ordinary default `all` consumer suite also includes these scenarios. Create fixture blocks and
+acceptance tests belong only to this stand; canonical planet code does not depend on Create.
+For a manual trial, use the standard cube commands in a disposable consumer world, take vaults from
+the ordinary creative inventory and place them along both local horizontal directions on each face.
+Do not expect a vault or inventory network to continue automatically across a chart seam.

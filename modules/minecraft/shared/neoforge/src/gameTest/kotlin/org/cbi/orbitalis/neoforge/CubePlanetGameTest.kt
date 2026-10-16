@@ -25,6 +25,7 @@ import net.minecraft.gametest.framework.GameTestHelper
 import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.phys.Vec3
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
+import org.cbi.orbitalis.minecraft.integration.sable.SableCubePlanet
 import org.cbi.orbitalis.minecraft.lab.CubePlanetLab
 import org.cbi.orbitalis.minecraft.lab.CubePlayerFrame
 import org.cbi.orbitalis.minecraft.lab.CubePlayerPhysics
@@ -37,24 +38,99 @@ import kotlin.math.abs
 @PrefixGameTestTemplate(false)
 object CubePlanetGameTest {
     @JvmStatic
-    @GameTest(template = "lab_empty", templateNamespace = "orbitalis")
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "cube_fixture")
     fun cubeFixturePreservesExcavation(helper: GameTestHelper) {
         val lab = CubePlanetLab.forServer(helper.level.server)
         lab.rebuild()
         val level = helper.level.server.getLevel(PlanetLabCoordinates.DIMENSION)!!
-        val origin = BlockPos.containing(CubePlayerPhysics.CENTRE)
-        helper.assertTrue(!level.getBlockState(origin.offset(0, 18, 0)).isAir, "Raised +Y face missing")
-        helper.assertTrue(level.getBlockState(origin.offset(18, 0, 0)).isAir, "Unequal face relief lost")
-        helper.assertTrue(level.getBlockState(origin.offset(16, 16, 0)).isAir, "Convex edge exterior is blocked")
-        helper.assertTrue(!level.getBlockState(origin.offset(15, 15, 0)).isAir, "Convex edge was carved into a trench")
-        val tunnel = origin.offset(-8, -8, -8)
-        val previous = level.getBlockState(tunnel)
-        level.removeBlock(tunnel, false)
+        val planet = SableCubePlanet(level)
+        val occupied = mutableSetOf<BlockPos>()
+        for (body in planet.bodies) {
+            for (x in -20..19) {
+                for (y in -20..3) {
+                    for (z in -20..19) {
+                        if (body.plot.embeddedLevelAccessor
+                                .getBlockState(BlockPos(x, y, z))
+                                .isAir
+                        ) {
+                            continue
+                        }
+                        val world = planet.world(checkNotNull(SableCubePlanet.direction(body)), x + .5, y + .5, z + .5)
+                        val relative = BlockPos.containing(world.subtract(CubePlayerPhysics.CENTRE))
+                        helper.assertTrue(occupied.add(relative), "Chart cells overlap at $relative")
+                        helper.assertTrue(
+                            org.cbi.orbitalis.core.planet.CubicPlanetFixture
+                                .solid(relative.x, relative.y, relative.z),
+                            "Unexpected terrain at $relative",
+                        )
+                    }
+                }
+            }
+        }
+        val expected =
+            (-20..19).sumOf { x ->
+                (-20..19).sumOf { y ->
+                    (-20..19).count { z ->
+                        org.cbi.orbitalis.core.planet.CubicPlanetFixture
+                            .solid(x, y, z)
+                    }
+                }
+            }
+        helper.assertTrue(occupied.size == expected, "Missing interior cells: ${occupied.size}/$expected")
+        val body = planet.body(Direction.UP)
+        val tunnel = BlockPos(-8, -3, -10)
+        val previous = body.plot.embeddedLevelAccessor.getBlockState(tunnel)
+        helper.assertTrue(!previous.isAir, "Excavation fixture is empty")
+        body.plot.embeddedLevelAccessor.setBlock(tunnel, Blocks.AIR.defaultBlockState(), 3)
         try {
             CubePlanetLab(helper.level.server).prepare()
-            helper.assertTrue(level.getBlockState(tunnel).isAir, "Re-entry refilled an excavation")
+            helper.assertTrue(
+                body.plot.embeddedLevelAccessor
+                    .getBlockState(tunnel)
+                    .isAir,
+                "Re-entry refilled excavation",
+            )
         } finally {
-            level.setBlock(tunnel, previous, 2)
+            body.plot.embeddedLevelAccessor.setBlock(tunnel, previous, 3)
+        }
+        // A nearby block shares the integer query envelope but does not intersect the player.
+        val neighbour = BlockPos(11, 0, -11)
+        for (face in Direction.entries) {
+            planet
+                .body(
+                    face,
+                ).plot.embeddedLevelAccessor
+                .setBlock(neighbour, Blocks.GLASS.defaultBlockState(), 3)
+        }
+        val entryPilot = GameTestPlayers.create(helper)
+        try {
+            for (face in Direction.entries) {
+                helper.assertTrue(lab.enter(entryPilot, face), "Clear chart entry rejected on $face")
+                GameTestPlayers.acknowledgeTeleport(entryPilot)
+                helper.assertTrue(lab.leave(entryPilot), "Could not leave $face")
+                GameTestPlayers.acknowledgeTeleport(entryPilot)
+            }
+        } finally {
+            entryPilot.discard()
+            for (face in Direction.entries) {
+                planet
+                    .body(
+                        face,
+                    ).plot.embeddedLevelAccessor
+                    .setBlock(neighbour, Blocks.AIR.defaultBlockState(), 3)
+            }
+        }
+        val obstruction = BlockPos(10, 0, -10)
+        val original = body.plot.embeddedLevelAccessor.getBlockState(obstruction)
+        val pilot = GameTestPlayers.create(helper)
+        val before = pilot.position()
+        try {
+            body.plot.embeddedLevelAccessor.setBlock(obstruction, Blocks.GLASS.defaultBlockState(), 3)
+            helper.assertTrue(!lab.enter(pilot), "Entry accepted a chart obstruction")
+            helper.assertTrue(pilot.position() == before && !CubePlayerPhysics.active(pilot), "Rejected entry changed the pilot")
+        } finally {
+            body.plot.embeddedLevelAccessor.setBlock(obstruction, original, 3)
+            pilot.discard()
         }
         helper.succeed()
     }
@@ -62,10 +138,11 @@ object CubePlanetGameTest {
     @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 220)
     fun cubePlayerCrossesEdge(helper: GameTestHelper) {
-        val player = GameTestPlayers.create(helper, locallyControlled = true)
+        val pilot = GameTestPlayers.create(helper, locallyControlled = true)
         val lab = CubePlanetLab.forServer(helper.level.server)
-        helper.assertTrue(lab.enter(player), "Cube entry failed")
-        GameTestPlayers.acknowledgeTeleport(player)
+        helper.assertTrue(lab.enter(pilot), "Cube entry failed")
+        GameTestPlayers.acknowledgeTeleport(pilot)
+        val player = GameTestPlayers.controller(pilot)
         var crossed = false
         var grounded = false
         try {
@@ -81,10 +158,11 @@ object CubePlanetGameTest {
             helper.assertTrue(crossed, "Walking off the edge did not change the physical up axis")
             helper.assertTrue(grounded, "Player did not land on the adjacent face")
             helper.assertTrue(CubePlayerPhysics.up(player) == Direction.EAST, "Unstable face selection after landing")
-            helper.assertTrue(lab.leave(player), "Cube leave failed")
-            helper.assertTrue(!CubePlayerPhysics.active(player), "Cube locomotion leaked into ordinary world")
+            helper.assertTrue(lab.leave(pilot), "Cube leave failed")
+            helper.assertTrue(!CubePlayerPhysics.active(pilot), "Cube locomotion leaked into ordinary world")
         } finally {
             player.discard()
+            pilot.discard()
         }
         helper.succeed()
     }
@@ -92,10 +170,11 @@ object CubePlanetGameTest {
     @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis")
     fun cubeSlowEdgeLandsWithoutSliding(helper: GameTestHelper) {
-        val player = GameTestPlayers.create(helper, locallyControlled = true)
+        val pilot = GameTestPlayers.create(helper, locallyControlled = true)
         val lab = CubePlanetLab.forServer(helper.level.server)
-        helper.assertTrue(lab.enter(player), "Cube entry failed")
-        GameTestPlayers.acknowledgeTeleport(player)
+        helper.assertTrue(lab.enter(pilot), "Cube entry failed")
+        GameTestPlayers.acknowledgeTeleport(pilot)
+        val player = GameTestPlayers.controller(pilot)
         try {
             for (from in Direction.entries) {
                 for (to in Direction.entries.filter { it.axis != from.axis }) {
@@ -111,7 +190,15 @@ object CubePlanetGameTest {
                                     if (from.axis != Direction.Axis.Z && to.axis != Direction.Axis.Z) 10.5 else 0.0,
                                 )
                         val label = "$from->$to at $speed blocks/tick"
-                        (player as CubePlayerFrame).orbitalisSetUp(from)
+                        (player as dev.ryanhcode.sable.mixinterface.entity.entity_sublevel_collision.EntityMovementExtension)
+                            .`sable$setTrackingSubLevel`(
+                                null,
+                            )
+                        (player as dev.ryanhcode.sable.mixinterface.entity.entity_sublevel_collision.LivingEntityMovementExtension)
+                            .`sable$getInheritedVelocity`()
+                            .zero()
+                        (player as CubePlayerFrame).orbitalisSetOrientation(null)
+                        player.orbitalisSetUp(from)
                         player.setPos(CubePlayerPhysics.CENTRE.add(start).subtract(0.0, CubePlayerPhysics.HALF_HEIGHT, 0.0))
                         player.setOnGround(false)
                         player.deltaMovement = Vec3.atLowerCornerOf(to.normal).scale(speed)
@@ -135,8 +222,9 @@ object CubePlanetGameTest {
                 }
             }
         } finally {
-            lab.leave(player)
+            lab.leave(pilot)
             player.discard()
+            pilot.discard()
         }
         helper.succeed()
     }

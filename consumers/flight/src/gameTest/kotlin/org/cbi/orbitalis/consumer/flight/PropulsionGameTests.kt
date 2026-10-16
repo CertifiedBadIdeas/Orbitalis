@@ -90,6 +90,10 @@ object PropulsionGameTests {
     @SubscribeEvent
     fun register(event: RegisterGameTestsEvent) {
         GlobalTestReporter.replaceWith(JUnitLikeTestReporter(File(System.getProperty("orbitalis.consumerGameTestReport"))))
+        val suite = System.getProperty("orbitalis.consumerGameTestSuite", "all")
+        require(suite == "all" || suite == "faces") { "Unknown consumer GameTest suite: $suite" }
+        event.register(FaceFrameGameTests::class.java)
+        if (suite == "faces") return
         event.register(PropulsionGameTests::class.java)
         event.register(ShuttleGameTests::class.java)
         event.register(OrbitalMissionGameTests::class.java)
