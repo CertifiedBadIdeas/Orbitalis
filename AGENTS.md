@@ -22,14 +22,24 @@ limitations under the License.
 ## Checkout and collaboration
 
 Read docs/contributors/development.md and architecture.md before architectural changes.
+For repository changes, use a separate task branch and worktree by default. Start new tasks from
+current local dev; reuse a worktree only while the same task is active. Preserve the user's original
+checkout, index, IDE files and unrelated changes. Read-only investigation may stay in that checkout;
+edit it only when the user explicitly requests it. The initial bootstrap may run there while HEAD is unborn.
+
 Use ./worktree-task <task-branch> after the first commit. It selects orbitalis.baseBranch
 (Git config), otherwise the first existing local branch among dev, main, master. Use --base
-to override. Do not fetch implicitly. Keep edits and checks in the task checkout; reuse it only
-for the same task. Explicit user checkout instructions take precedence.
-The initial bootstrap may run in the original checkout while HEAD is unborn. Preserve the
-user's existing index and IDE files; do not include them in an agent commit without agreement.
-Do not automatically rename branches, merge, push, tag, publish, or open PRs. Compukters'
-standing integration authorization is not inherited by this separate repository.
+to override. Do not fetch implicitly. Invocation from a linked checkout uses the main workspace's
+.worktrees directory rather than nesting checkouts. Preserve existing branches and destinations.
+Use --resume only to finish interrupted setup in the same clean registered checkout; preserve dirty
+interrupted work and finish setup manually. Required future submodules are opt-in; there is no implicit VM.
+
+Verified task changes have standing authorization to merge locally into dev and then remove that task's
+worktree, unless the user explicitly asks to retain the task branch or checkout. Keep implementation and
+checks in the task checkout, preserve unrelated destination changes, and verify the integrated result
+before completion. Retain verification evidence outside the task checkout before removal; use
+worktree-task finish and never force-remove a dirty checkout or another task's checkout.
+Do not automatically rename branches, push, tag, publish, or open PRs.
 Verify effective Git author and committer before committing; never invent an agent identity.
 Use focused Conventional Commits and rewrite only unpublished commits belonging to the task.
 

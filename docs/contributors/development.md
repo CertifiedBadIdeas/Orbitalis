@@ -32,10 +32,16 @@ someone else's staged files. During this first bootstrap, work in the original c
 
 ## Isolated tasks
 
+Use a separate task branch and worktree for repository changes by default. Start new tasks from
+current local `dev`, and reuse a checkout only while that same task remains active. Preserve the user's
+original checkout, index, IDE files and unrelated changes; read-only investigation can stay there.
+Edit the original checkout only on explicit user instruction.
+
 After the first commit, run ./worktree-task feat/example from the main checkout. Default bases are the
 configured local orbitalis.baseBranch, then dev/main/master. --base selects an explicit existing local
-branch. No implicit fetch, branch rename or remote setup occurs. --path can choose a destination;
---resume completes interrupted setup only in the same clean registered task checkout. Dirty interrupted
+branch. No implicit fetch, branch rename or remote setup occurs. Invocation from a linked checkout
+still uses the main workspace's `.worktrees/` directory; existing branches and destinations are preserved.
+--path can choose a destination; --resume completes interrupted setup only in the same clean registered task checkout. Dirty interrupted
 checkouts are preserved; complete setup manually without resetting them.
 
 Required Git submodules, if added later, are opt-in through repeatable --submodule or --all-submodules.
@@ -77,11 +83,21 @@ combined result. Preserve other agents' branches, worktrees, processes and uncom
 ## Completion
 
 Use narrow checks while iterating; inspect git diff and effective author/committer before a scoped commit.
-Do not include unrelated staged files. There is no inherited automatic merge authorization from Compukters.
-After authorized integration and verification, run ./worktree-task finish <branch> from outside that task
-checkout. It verifies integration into the recorded base and cleanliness, archives build/agent-logs plus
-ignored user files, and removes only that checkout. --evidence supplies additional evidence. It keeps the
-branch, does not merge or run checks, and refuses unsafe completion. Do not force-remove a refused checkout.
+Do not include unrelated staged files. As in the Compukters worktree workflow, verified task work has
+standing authorization to merge locally into `dev`, followed by removal of that task's checkout.
+An explicit user request to leave work on its task branch or retain its checkout overrides this default.
+This is Orbitalis' own repository policy; no shared skill or external repository is needed to grant it.
+Pushes, tags, publishing and PRs require separate authorization.
+
+Keep implementation and pre-integration checks in the task checkout. Before merging, inspect the
+destination checkout and preserve unrelated changes. Verify the integrated result with checks
+proportional to the change, then retain verification evidence outside the task checkout before removal.
+Run ./worktree-task finish <branch> from outside that task checkout. It verifies integration into the
+recorded base and cleanliness, archives build/agent-logs plus ignored user files, and removes only that checkout. --evidence supplies additional evidence. It keeps the
+branch, does not merge or run checks, and refuses unsafe completion. It refuses active managed builds
+and unsafe submodule state. For older helper-created checkouts, register interrupted setup with --resume
+only while clean. Never bypass a refusal with force-removal; resolve the cause while preserving the
+checkout, unrelated worktrees, processes and user files.
 
 Keep temporary plans/specs in ignored .agents/tmp, and maintained contributor documentation in docs.
 GitHub remote, Roadmap project, publishing targets and credentials are not configured by this bootstrap.
@@ -134,7 +150,7 @@ shared skills. Follow the upstream instructions for updates and other agent disc
 
 Contributors without those skills use [AGENTS.md](../../AGENTS.md) and these contributor guides directly.
 All mandatory Orbitalis rules, commands, ownership boundaries, verification and licensing remain in
-this repository. Optional skills do not override them or introduce Compukters' merge authorization,
+this repository. Optional skills do not override the local integration policy or introduce Compukters
 VM/submodule requirements or GitHub project configuration. Builds and tests do not load external skills.
 
 ## Flight consumer
