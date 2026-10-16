@@ -198,6 +198,8 @@ val generateGameTestResources = tasks.register("generateGameTestResources") {
 }
 gameTest.resources.srcDir(generateGameTestResources.map { generatedGameTestResources.get() })
 
+val gameTestSuite = providers.gradleProperty("orbitalisGameTestSuite").orElse("all").get()
+require(gameTestSuite in setOf("all", "cube")) { "Unknown GameTest suite: $gameTestSuite" }
 val gameTestReport = layout.buildDirectory.file("test-results/gameTestServer/results.xml")
 loom.runs.register("gameTestServer") {
     server()
@@ -207,6 +209,7 @@ loom.runs.register("gameTestServer") {
     runDir("run/gameTestServer")
     property("neoforge.enabledGameTestNamespaces", "orbitalis")
     property("neoforge.gameTestServer", "true")
+    property("orbitalis.gameTestSuite", gameTestSuite)
     property("orbitalis.gameTestReport", gameTestReport.get().asFile.absolutePath)
     ideConfigGenerated(true)
     mods {
@@ -232,16 +235,18 @@ tasks.configureEach {
             factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
             val document = factory.newDocumentBuilder().parse(report)
             val cases = document.getElementsByTagName("testcase")
-            val minimumCases = 21
+            val minimumCases = if (gameTestSuite == "cube") 5 else 22
             check(cases.length >= minimumCases) { "Expected at least $minimumCases laboratory GameTests, received ${cases.length}." }
             val names = (0 until cases.length).map { (cases.item(it) as org.w3c.dom.Element).getAttribute("name") }.toSet()
-            check(names.containsAll(setOf("cubecreativeflightescapesalonglocalup", "cubefixturepreservesexcavation", "cubeplayercrossesedge", "cubeframepreservesmotionandblocksunsafeturns", "sableimpulseandcoasting", "sableframeshiftpreservesstate", "sablecentralgravityorbit", "sableorbitalmanoeuvres", "sablesurfaceflightandlanding", "sableplatformservercarry", "ordinaryshipsreceivecubicgravity", "fullspaceorbitpreservesnativeenergy", "shiptransferroundtripandrecovery", "spacetransferroundtripandrecovery"))) {
-                "GameTest run did not execute its required Sable physics scenarios: $names"
+            val cubeNames = setOf("cubeslowedgelandswithoutsliding", "cubecreativeflightescapesalonglocalup", "cubefixturepreservesexcavation", "cubeplayercrossesedge", "cubeframepreservesmotionandblocksunsafeturns")
+            val requiredNames = if (gameTestSuite == "cube") cubeNames else cubeNames + setOf("sableimpulseandcoasting", "sableframeshiftpreservesstate", "sablecentralgravityorbit", "sableorbitalmanoeuvres", "sablesurfaceflightandlanding", "sableplatformservercarry", "ordinaryshipsreceivecubicgravity", "fullspaceorbitpreservesnativeenergy", "shiptransferroundtripandrecovery", "spacetransferroundtripandrecovery")
+            check(names.containsAll(requiredNames)) {
+                "GameTest run did not execute its required $gameTestSuite scenarios: $names"
             }
             listOf("failure", "error", "skipped").forEach { tag ->
                 check(document.getElementsByTagName(tag).length == 0) { "GameTest report contains $tag outcomes: $report" }
             }
-            logger.lifecycle("Verified ${cases.length} GameTest results: $report")
+            logger.lifecycle("Verified ${cases.length} $gameTestSuite GameTest results: $report")
         }
     }
 }

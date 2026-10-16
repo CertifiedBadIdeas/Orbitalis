@@ -88,6 +88,58 @@ object CubePlanetGameTest {
 
     @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis")
+    fun cubeSlowEdgeLandsWithoutSliding(helper: GameTestHelper) {
+        val player = GameTestPlayers.create(helper, locallyControlled = true)
+        val lab = CubePlanetLab.forServer(helper.level.server)
+        helper.assertTrue(lab.enter(player), "Cube entry failed")
+        GameTestPlayers.acknowledgeTeleport(player)
+        try {
+            for (from in Direction.entries) {
+                for (to in Direction.entries.filter { it.axis != from.axis }) {
+                    for (speed in listOf(0.0, 0.005, 0.03)) {
+                        val start =
+                            Vec3
+                                .atLowerCornerOf(from.normal)
+                                .scale(16.9)
+                                .add(Vec3.atLowerCornerOf(to.normal).scale(16.32))
+                                .add(
+                                    if (from.axis != Direction.Axis.X && to.axis != Direction.Axis.X) 10.5 else 0.0,
+                                    if (from.axis != Direction.Axis.Y && to.axis != Direction.Axis.Y) 10.5 else 0.0,
+                                    if (from.axis != Direction.Axis.Z && to.axis != Direction.Axis.Z) 10.5 else 0.0,
+                                )
+                        val label = "$from->$to at $speed blocks/tick"
+                        (player as CubePlayerFrame).orbitalisSetUp(from)
+                        player.setPos(CubePlayerPhysics.CENTRE.add(start).subtract(0.0, CubePlayerPhysics.HALF_HEIGHT, 0.0))
+                        player.setOnGround(false)
+                        player.deltaMovement = Vec3.atLowerCornerOf(to.normal).scale(speed)
+                        repeat(120) {
+                            player.travel(Vec3.ZERO)
+                            helper.assertTrue(
+                                player.level().noCollision(player, player.boundingBox.deflate(1e-5)),
+                                "$label entered terrain at ${CubePlayerPhysics.centre(player)}",
+                            )
+                        }
+                        helper.assertTrue(
+                            CubePlayerPhysics.up(player) == to && player.onGround(),
+                            "$label failed to stand: up=${CubePlayerPhysics.up(
+                                player,
+                            )}, centre=${CubePlayerPhysics.centre(player)}, velocity=${player.deltaMovement}",
+                        )
+                        val landed = CubePlayerPhysics.centre(player)
+                        repeat(40) { player.travel(Vec3.ZERO) }
+                        helper.assertTrue(CubePlayerPhysics.centre(player).distanceTo(landed) < 0.01, "$label kept sliding after landing")
+                    }
+                }
+            }
+        } finally {
+            lab.leave(player)
+            player.discard()
+        }
+        helper.succeed()
+    }
+
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis")
     fun cubeCreativeFlightEscapesAlongLocalUp(helper: GameTestHelper) {
         val player = GameTestPlayers.create(helper, locallyControlled = true)
         val lab = CubePlanetLab.forServer(helper.level.server)
@@ -150,6 +202,32 @@ object CubePlanetGameTest {
                 helper.assertTrue(CubePlayerPhysics.up(player) == Direction.UP, "Turn ignored an obstructed destination box")
             } finally {
                 level.removeBlock(obstruction, false)
+            }
+            // New box can clear the support, but the old body's head would hit this overhang.
+            val base = BlockPos.containing(CubePlayerPhysics.CENTRE)
+            val support = base.offset(22, 20, 0)
+            val overhang = base.offset(24, 21, 0)
+            (player as CubePlayerFrame).orbitalisSetUp(Direction.UP)
+            player.setPos(CubePlayerPhysics.CENTRE.add(23.5, 20.5 - CubePlayerPhysics.HALF_HEIGHT, 0.5))
+            level.setBlock(support, Blocks.GLASS.defaultBlockState(), 2)
+            level.setBlock(overhang, Blocks.GLASS.defaultBlockState(), 2)
+            try {
+                val before = CubePlayerPhysics.centre(player)
+                CubePlayerPhysics.refresh(player)
+                helper.assertTrue(CubePlayerPhysics.up(player) == Direction.UP, "Turn moved the old collider through an overhang")
+                helper.assertTrue(CubePlayerPhysics.centre(player) == before, "Blocked turn displaced the player")
+                level.removeBlock(overhang, false)
+                CubePlayerPhysics.refresh(player)
+                helper.assertTrue(CubePlayerPhysics.up(player) == Direction.EAST, "Clear support contact did not turn")
+                val shift = CubePlayerPhysics.centre(player).subtract(before)
+                helper.assertTrue(
+                    abs(shift.x - 0.4) < 1e-5 && shift.y == 0.0 && shift.z == 0.0,
+                    "Turn did not use minimum outward clearance: $shift",
+                )
+                helper.assertTrue(level.noCollision(player, player.boundingBox.deflate(1e-5)), "Clearance left the body in terrain")
+            } finally {
+                level.removeBlock(support, false)
+                level.removeBlock(overhang, false)
             }
             val outside = helper.level.sharedSpawnPos
             helper.assertTrue(!helper.level.getBlockState(outside).`is`(Blocks.ORANGE_CONCRETE), "Cube fixture touched the ordinary world")

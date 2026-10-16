@@ -47,8 +47,11 @@ object PlanetLabGameTests {
         System.getProperty("orbitalis.gameTestReport")?.let { path ->
             GlobalTestReporter.replaceWith(JUnitLikeTestReporter(File(path)))
         }
-        event.register(PlanetLabGameTests::class.java)
+        val suite = System.getProperty("orbitalis.gameTestSuite", "all")
+        require(suite == "all" || suite == "cube") { "Unknown GameTest suite: $suite" }
         event.register(CubePlanetGameTest::class.java)
+        if (suite == "cube") return
+        event.register(PlanetLabGameTests::class.java)
         if (ModList.get().isLoaded("sable")) {
             event.register(SableLabGameTests::class.java)
             event.register(SableFlightGameTests::class.java)

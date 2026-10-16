@@ -98,13 +98,61 @@ object CubePlayerPhysics {
         return AABB(c.x - x, c.y - y, c.z - z, c.x + x, c.y + y, c.z + z)
     }
 
-    /** A blocked turn retains the old collider; changing gravity never teleports the centre. */
+    /** Clear turns keep the centre. A surface contact can displace a growing collider outward. */
     @JvmStatic
     fun refresh(entity: Entity) {
         val next = desiredUp(entity)
+        val previous = up(entity)
         val candidate = box(entity, next)
-        if (entity.level().noCollision(entity, candidate.deflate(1e-6))) state(entity).orbitalisSetUp(next)
+        // Keep room for both standing frames. Checking only the new endpoint can catch the old
+        // face sideways on the following tick and send a slow player back across the boundary.
+        val clearance = if (previous.axis == next.axis) candidate else candidate.minmax(box(entity, previous))
+        if (entity.level().noCollision(entity, clearance.deflate(1e-6))) {
+            state(entity).orbitalisSetUp(next)
+        } else {
+            val offset = turnClearance(entity, previous, next, clearance)
+            if (offset != null) {
+                state(entity).orbitalisSetUp(next)
+                entity.setPos(entity.position().add(offset))
+            }
+        }
         entity.boundingBox = box(entity, up(entity))
+    }
+
+    /** Resolve only the extra half-length along new up; never move through a wall to turn. */
+    private fun turnClearance(
+        entity: Entity,
+        previous: Direction,
+        next: Direction,
+        candidate: AABB,
+    ): Vec3? {
+        if (previous.axis == next.axis) return null
+        val lift = Vec3.atLowerCornerOf(next.normal).scale(HALF_HEIGHT - HALF_WIDTH + 1e-6)
+        val outside = candidate.move(lift)
+        if (!entity.level().noCollision(entity, outside.deflate(1e-6))) return null
+        // Sweep the new box inward from a clear position to find its nearest support contact.
+        val offset = lift.add(clip(entity, outside, lift.scale(-1.0)))
+        if (offset.lengthSqr() < 1e-12) return null
+        if (!entity.level().noCollision(entity, candidate.move(offset).deflate(1e-6))) return null
+        // The old standing body must also be able to reach that centre without crossing terrain.
+        if (clip(entity, box(entity, previous), offset).subtract(offset).lengthSqr() > 1e-12) return null
+        return offset
+    }
+
+    private fun clip(
+        entity: Entity,
+        bounds: AABB,
+        movement: Vec3,
+    ): Vec3 {
+        val shapes = entity.level().getEntityCollisions(entity, bounds.expandTowards(movement))
+        // Vanilla clips global Y first. At a rotated edge that can consume the clearance before
+        // the body reaches the new support and clip its remaining fall against the old face.
+        val normal = Vec3.atLowerCornerOf(up(entity).normal)
+        val normalMotion = normal.scale(movement.dot(normal))
+        val tangentMotion = movement.subtract(normalMotion)
+        val tangent = Entity.collideBoundingBox(entity, tangentMotion, bounds, entity.level(), shapes)
+        val inward = Entity.collideBoundingBox(entity, normalMotion, bounds.move(tangent), entity.level(), shapes)
+        return tangent.add(inward)
     }
 
     @JvmStatic
@@ -175,8 +223,7 @@ object CubePlayerPhysics {
     ) {
         refresh(entity)
         val before = entity.boundingBox
-        val shapes = entity.level().getEntityCollisions(entity, before.expandTowards(requested))
-        val actual = Entity.collideBoundingBox(entity, requested, before, entity.level(), shapes)
+        val actual = clip(entity, before, requested)
         val normal = Vec3.atLowerCornerOf(up(entity).normal)
         val blocked = requested.subtract(actual)
         entity.setPos(entity.position().add(actual))
