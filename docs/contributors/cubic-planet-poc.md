@@ -68,6 +68,7 @@ Entry explicitly builds a solid 32-block reference cube centred at (2048,96,2048
 of +Y relief and two blocks of +X relief around the demonstrated edge. Six face colours distinguish
 surfaces and their corresponding interior volumes. The reference cube remains solid through edges and corners.
 Unequal relief tapers down before each convex edge, avoiding a trench on the gravity boundary. The fixture is a global block-occupancy function, not six independent maps.
+Surface gravity is 19.62 blocks/s², shared by players and ordinary Sable constructions.
 Walk forward from the initial clear lane to leave the green face and fall towards the orange +X face.
 WASD and mouse look use the accepted gravity frame; jump acts along local up. Creative flight remains available with normal double-jump activation; jump/shift lift follows
 local up/down, with no gravity while flying. Above the face-normal zone, up follows the sampled gravity

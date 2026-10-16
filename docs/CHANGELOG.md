@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Double the cube scene surface gravity from 9.81 to 19.62 blocks/s² for both players and ordinary Sable constructions.
+
 - Align cube block/entity picking with the rendered eye and eased view on all faces; adapt Sable’s interpolated-eye helper so native decks no longer restore a global-Y eye offset.
 
 - Replace the default cube terrain with six persistent Sable coordinate charts, each with native local `XZ` surfaces and outward `+Y`; retain the solid interior, convex edges and unequal relief. Add direct entry to each face, preserve edits on ordinary entry, and require explicit rebuild for legacy terrain. Keep Create acceptance fixtures in the consumer stand. Reject obstructed entries while allowing nearby non-intersecting blocks.

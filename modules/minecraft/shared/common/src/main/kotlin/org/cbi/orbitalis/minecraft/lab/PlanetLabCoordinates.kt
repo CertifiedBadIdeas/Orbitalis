@@ -28,7 +28,7 @@ import org.cbi.orbitalis.core.planet.CubicGravity
 /** Canonical cube scene geometry and stable dimension key retained for existing worlds. */
 object PlanetLabCoordinates {
     val CENTRE = Vec3(2048.0, 96.0, 2048.0)
-    val GRAVITY = CubicGravity(16.0, 9.81, 0.0, 4.0, 20.0)
+    val GRAVITY = CubicGravity(16.0, 19.62, 0.0, 4.0, 20.0)
 
     val DIMENSION: ResourceKey<Level> =
         ResourceKey.create(
