@@ -85,3 +85,16 @@ both with continuous dimension ticking. Shaft checks include 24 directed transit
 five blocks of continuation inside another geometric face, small cogs and a gearbox. Fluid checks use
 four real motor-driven circuits; no test-written pump speed or substitute transfer buffer is involved.
 Client presentation and large-planet performance remain unmeasured.
+
+Observed for closed networks on 2026-10-16: `network-loops-native-dispatch.log` passed consumer `check`
+and all nine `faces` scenarios. The two new 168-cell rings verify reciprocal physical adjacency and
+coordinate/axis closure through all six native charts, five-block foreign continuation, branches,
+alternate paths, reconnection and native chart-group restoration. The kinetic ring also checks signed
+speed, reversal, source cutoff and exact native membership without removed entities. The fluid ring
+checks a total of 4000 mB every tick and rejects a sink isolated by two solid plugs. Its long circuit uses
+a temporary native Create pump range of 512; default gameplay configuration is unchanged. Fixture setup
+explicitly closes unused pipe ports before flow. The reload harness uses native `processChanges` to
+consume holding-chunk ready entries; calling the lower-level loader directly left entries scheduled for
+a duplicate load on the following tick. The final run has no duplicate-plot loading failures. This is
+same-process native save/unload/load evidence, not a full server restart, client placement/rendering or
+planet-size performance claim.

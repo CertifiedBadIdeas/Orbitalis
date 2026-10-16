@@ -398,7 +398,8 @@ object FaceFrameGameTests {
                     )
                 }
             }
-            for (id in ids) container.holdingChunkMap.getHoldingSubLevel(id)?.let { container.holdingChunkMap.loadHoldingSubLevel(it) }
+            // Drain Sable's ready queue so loaded entries are also removed from the holding chunk.
+            container.holdingChunkMap.processChanges()
             scene.planet.prepare()
             helper.assertTrue(scene.bodies.map { it.uniqueId } == ids, "Reload replaced chart identities")
             helper.runAfterDelay(40) {

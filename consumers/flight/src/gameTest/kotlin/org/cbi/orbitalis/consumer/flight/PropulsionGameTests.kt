@@ -94,6 +94,7 @@ object PropulsionGameTests {
         require(suite == "all" || suite == "faces") { "Unknown consumer GameTest suite: $suite" }
         event.register(FaceFrameGameTests::class.java)
         event.register(CreateSeamGameTests::class.java)
+        event.register(CreateLoopGameTests::class.java)
         if (suite == "faces") return
         event.register(PropulsionGameTests::class.java)
         event.register(ShuttleGameTests::class.java)

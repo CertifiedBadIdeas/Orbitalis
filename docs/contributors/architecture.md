@@ -108,6 +108,14 @@ Removed pipe owners invalidate retained endpoint providers before another networ
 NeoForge cache. Restored fluid behaviours invoke native pressure discovery after initialization; native
 block loading does not call pipe placement logic.
 
+Consumer-only closed-network fixtures exercise a nonplanar 168-cell ring across all six charts,
+including a five-block continuation in a foreign geometric sector. They compose the native address and
+axis transforms around the loop and exercise actual Create kinetic membership, signed speeds and pipe
+transfer through alternate routes. Native chart-group restoration preserves the same identities and
+blocks; the test does not rebuild networks or introduce another logical authority. See
+[consumer acceptance](flight-consumer.md#native-planet-chart-acceptance) for exact scope and limits,
+including authored pipe states, a temporary native test pump-range setting and same-process reload.
+
 This remains a bounded connectivity experiment, not automatic support for a multiblock or arbitrary mod
 coordinate algorithm. Cardinal shafts, small cogs and ordinary pipe graphs are addressed; diagonal/large
 cog transmissions, encased chain connections and custom propagation contracts need separate adaptation.

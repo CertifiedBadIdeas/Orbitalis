@@ -219,7 +219,7 @@ tasks.matching { it.name == "runGameTestServer" }.configureEach {
         val document = factory.newDocumentBuilder().parse(report)
         val cases = document.getElementsByTagName("testcase")
         val names = (0 until cases.length).map { (cases.item(it) as org.w3c.dom.Element).getAttribute("name") }.toSet()
-        val faceTests = setOf("nativerotationcrossesfaceseam", "nativepumpmovesfluidacrossfaceseam", "nativehoppersfeedcreatevaultsacrossfaces", "localfacevaultsurviveschunkeviction", "localfacevaultskeepnativeinventory", "localfaceframessurvivenativereload", "playerwalksbetweenlocalfaceframes")
+        val faceTests = setOf("nativefluidloopclosesthroughsixfaces", "nativerotationclosesthroughsixfaces", "nativerotationcrossesfaceseam", "nativepumpmovesfluidacrossfaceseam", "nativehoppersfeedcreatevaultsacrossfaces", "localfacevaultsurviveschunkeviction", "localfacevaultskeepnativeinventory", "localfaceframessurvivenativereload", "playerwalksbetweenlocalfaceframes")
         val required = if (consumerGameTestSuite == "faces") faceTests else faceTests + setOf("shuttleassemblyandhold", "shuttlegravityprofile", "flighttoolsavailablebydefault", "nativepropulsionholdandcutoff", "preflightrejectsunsafeengines", "rejectsmissingliftauthority", "launchbookmarkroundtripandvalidation", "nativeorbitalinsertionandreturn")
         check(names == required) {
             "Missing native propulsion scenarios: $names"

@@ -369,16 +369,33 @@ Do not expect a vault or inventory network to continue automatically across a ch
 
 The opt-in seam scenario adds two native hoppers feeding actual Create vault block capabilities across
 the UP/EAST chart boundary in both directions. This proves endpoint inventory interaction only; it does
-not join vault controllers. The `faces` suite now requires seven scenarios, adding actual motor/shaft
+not join vault controllers. The `faces` suite now requires nine scenarios, adding actual motor/shaft
 and motor-driven pump/pipe/tank networks. Typed optional NeoForge adapters translate graph addresses
 and destination-local ports while native Create owns rotation, network membership, pressure and fluids.
 The tests include same-chart controls, all 24 directed shaft transitions, sign changes, motor reversal,
 removal/reconnection, fluid conservation and reversed/blocked/reconnected pipes. They also connect an
 UP-authored shaft five blocks inside the EAST geometric sector and connect authored networks above
 both faces, away from the cube edge. One native pipe/tank column is also evicted and restored while the source continues ticking, checking
-conservation and resumed flow. Full Create-network world reload, cold kinetic graph reconnection and
-client connection presentation are not established by these scenarios. Large/diagonal cog, encased chain and custom network contracts
-remain outside the validated set.
+conservation and resumed flow. Large/diagonal cog, encased chain and custom network contracts remain
+outside the validated set.
+
+Two closed-network scenarios add a 168-cell nonplanar ring visiting all six native charts, a branch and
+five cells retained in the UP chart inside the EAST geometric sector. Reciprocal neighbour checks and
+the composed address/direction transform must return to the original point and axes after the loop.
+The kinetic graph checks signed shaft speeds, one native network without removed members, reversal,
+an alternate route after a cut, source removal and reconnection. The ordinary-pipe graph uses a real
+motor-driven pump and two native tanks, checks 4000 mB conservation on every tick, transfers through
+each separately isolated route, rejects an isolated sink and resumes after reconnection. Native Create
+pressure discovery chooses endpoint paths; the two alternate routes together must cover all six faces.
+The test temporarily raises Create's own pump range from its configured value to 512 for this long
+circuit, then restores it. Production pump range is unchanged.
+
+Both rings invoke native Sable save/unload/load of the complete chart group without rebuilding their
+blocks, then check topology and resumed native network operation. The reload helpers use Sable's native
+ready-queue dispatch so restored entries cannot be loaded twice. This is same-process native restoration,
+not a two-process server restart test. Pipe connection states are authored by the fixture and checked before flow; interactive
+placement, cross-chart shape updates and client connection rendering remain unvalidated. The scenarios
+are small-cube correctness evidence, not a large-planet performance measurement.
 
 For manual investigation, `/orbitalis planet seams true` enables the transient server-side hooks while
 in the small cube dimension; `false` disables them. Toggling does not rescan existing machines or
