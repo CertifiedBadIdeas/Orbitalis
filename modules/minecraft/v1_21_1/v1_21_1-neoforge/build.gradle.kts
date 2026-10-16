@@ -232,10 +232,10 @@ tasks.configureEach {
             factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
             val document = factory.newDocumentBuilder().parse(report)
             val cases = document.getElementsByTagName("testcase")
-            val minimumCases = 17
+            val minimumCases = 21
             check(cases.length >= minimumCases) { "Expected at least $minimumCases laboratory GameTests, received ${cases.length}." }
             val names = (0 until cases.length).map { (cases.item(it) as org.w3c.dom.Element).getAttribute("name") }.toSet()
-            check(names.containsAll(setOf("sableimpulseandcoasting", "sableframeshiftpreservesstate", "sablecentralgravityorbit", "sableorbitalmanoeuvres", "sablesurfaceflightandlanding", "sableplatformservercarry", "ordinaryshipsreceivecubicgravity", "fullspaceorbitpreservesnativeenergy", "shiptransferroundtripandrecovery", "spacetransferroundtripandrecovery"))) {
+            check(names.containsAll(setOf("cubecreativeflightescapesalonglocalup", "cubefixturepreservesexcavation", "cubeplayercrossesedge", "cubeframepreservesmotionandblocksunsafeturns", "sableimpulseandcoasting", "sableframeshiftpreservesstate", "sablecentralgravityorbit", "sableorbitalmanoeuvres", "sablesurfaceflightandlanding", "sableplatformservercarry", "ordinaryshipsreceivecubicgravity", "fullspaceorbitpreservesnativeenergy", "shiptransferroundtripandrecovery", "spacetransferroundtripandrecovery"))) {
                 "GameTest run did not execute its required Sable physics scenarios: $names"
             }
             listOf("failure", "error", "skipped").forEach { tag ->

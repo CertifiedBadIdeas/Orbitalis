@@ -48,6 +48,7 @@ object PlanetLabGameTests {
             GlobalTestReporter.replaceWith(JUnitLikeTestReporter(File(path)))
         }
         event.register(PlanetLabGameTests::class.java)
+        event.register(CubePlanetGameTest::class.java)
         if (ModList.get().isLoaded("sable")) {
             event.register(SableLabGameTests::class.java)
             event.register(SableFlightGameTests::class.java)

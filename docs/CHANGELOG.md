@@ -26,7 +26,11 @@ limitations under the License.
 
 - Add a separate positive-height space frame, shared gravity/reference rendering and a native full-revolution coast test without changing legacy orbital world coordinates.
 
-- Document the finite connected cubic planet direction, through-tunnels, sharp near-surface gravity changes, eased player orientation, candidate edge terrain cuts and adaptive surface/orbit preparation; distinguish these decisions from the current diagnostics.
+- Adopt the Compukters worktree completion policy: integrate verified tasks into local `dev`, preserve evidence and remove completed task checkouts by default; keep remote publication separately authorized.
+
+- Add an opt-in cubic planet player proof of concept with unequal face relief, solid convex edges, sharp gravity, local-axis locomotion/collision, creative flight and eased camera/model orientation; keep ordinary worlds and existing ship diagnostics unchanged.
+
+- Document the finite connected cubic planet direction, through-tunnels, sharp near-surface gravity changes, eased player orientation, convex edge terrain and adaptive surface/orbit preparation; distinguish these decisions from the current diagnostics.
 
 - Replace the flight platform with a walkable 24-engine shuttle, correct Create glue placement around the complete craft, and add native blueprint assembly, attitude/position recovery and multi-height/frame gravity measurements on the consumer stand.
 

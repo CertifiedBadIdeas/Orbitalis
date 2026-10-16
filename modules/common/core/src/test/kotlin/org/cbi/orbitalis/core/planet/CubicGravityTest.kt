@@ -177,7 +177,7 @@ class CubicGravityTest {
         for (bad in listOf(0.0, -1.0, Double.NaN, Double.POSITIVE_INFINITY)) {
             assertFailsWith<IllegalArgumentException> { CubicGravity(bad, 9.81, 64.0, 512.0, 6000.0) }
             assertFailsWith<IllegalArgumentException> { CubicGravity(6000.0, bad, 64.0, 512.0, 6000.0) }
-            assertFailsWith<IllegalArgumentException> { CubicGravity(6000.0, 9.81, bad, 512.0, 6000.0) }
+            if (bad != 0.0) assertFailsWith<IllegalArgumentException> { CubicGravity(6000.0, 9.81, bad, 512.0, 6000.0) }
         }
         assertFailsWith<IllegalArgumentException> { CubicGravity(6000.0, 9.81, 6000.0, 512.0, 6000.0) }
         assertFailsWith<IllegalArgumentException> { CubicGravity(6000.0, 9.81, 64.0, -1.0, 6000.0) }

@@ -78,19 +78,17 @@ intersect terrain. Tight tunnels, grounded movement and the three-face corner re
 
 ## Terrain at edges
 
-The accepted generation direction is a narrow clearance cut along the reference cube edges: a one-block
-offset/gap is the initial candidate. Where terrain rises above an edge, the neighbouring faces should
-remain separated by an angular cleft rather than forming a solid bridge across the transition.
-This clearance is intended to let a player lose support and fall into the adjacent face region.
+The accepted edge shape is a solid convex block corner, not an angular cleft between faces.
+An earlier candidate used a one-block clearance cut; the player prototype exposed a trap along
+that cut, so the direction is superseded. Never deliberately carve a trench on the gravity boundary.
+Relief should meet the reference edge through shared occupied geometry; the prototype tapers its
+unequal face relief back to the intact cube before the edge.
 
-Generate the cut and surrounding terrain in the common planet geometry. Adjacent faces must agree
-on occupied blocks, caves and edge ownership; their heights need not be constant or identical.
-The exact cut cross-section, block discretization, width measurement and three-face corner shape
-are unresolved. One block is a prototype value, not a proven clearance for a rotating player collider.
-
-The cut is natural terrain, not an indestructible boundary. Players may excavate it or bridge it;
-normal collision and the unchanged gravity field then determine movement. Generation cannot guarantee
-the same fall after arbitrary player edits.
+Generate terrain in common planet geometry. Adjacent faces must agree on occupied blocks, caves
+and edge ownership; their interior heights need not be constant or identical. Production relief
+stitching and three-face corner traversal still need dedicated tests. A solid generated edge does
+not guarantee traversal after arbitrary excavation or player construction. Creative flight must
+remain available to escape problematic terrain during the experiment.
 
 ## Adaptive surface/orbit preparation
 
@@ -121,7 +119,7 @@ same physical gravity field. Crossing the boundary does not itself insert a ship
 ## Required experiments before implementation claims
 
 - Cross-sections through a flat edge, unequal-height mountains, a ravine, a cave and a three-face corner;
-  inspect the generated gap and shared block ownership.
+  inspect the convex edge and shared block ownership.
 - Walking, jumping and falling across edges at different speeds; camera easing, collider clearance,
   repeated boundary crossings and a player-built bridge.
 - A connected through-tunnel reaching the opposite surface, including centre behavior and orientation.

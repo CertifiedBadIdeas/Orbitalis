@@ -27,9 +27,15 @@ surface geometry. A physical cube is not a spherical surface split into six char
 ## Design update, 2026-10-16
 
 The [finite cubic planet design](cubic-planet-design.md) records the accepted connected volume,
-through-tunnels, sharp near-surface face-region gravity changes, eased player orientation and candidate
-one-block terrain cuts at edges. Sharp changes are the intended gameplay direction; the implemented
-field below still smooths edges. No physics, terrain or player behavior changed with that decision.
+through-tunnels, sharp near-surface face-region gravity changes, eased player orientation and
+solid convex terrain at edges. Sharp changes are the intended gameplay direction; the implemented
+ship field below still smooths edges. The separate bounded player prototype implements the sharp mode.
+
+## Player proof-of-concept mode
+
+The [player proof of concept](cubic-planet-poc.md) uses explicit zero edge width for a sharp cube.
+Exact ties use symmetric subgradients; the centre is zero. The positive-width field below remains
+unchanged for the existing ship diagnostics. This does not introduce production planetary terrain.
 
 ## Implemented field
 

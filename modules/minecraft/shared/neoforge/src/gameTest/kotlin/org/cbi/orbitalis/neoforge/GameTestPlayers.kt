@@ -43,7 +43,10 @@ object GameTestPlayers {
         checkNotNull(teleportAcks[player]) { "Not an inert GameTest pilot" }.invoke()
     }
 
-    fun create(helper: GameTestHelper): ServerPlayer {
+    fun create(
+        helper: GameTestHelper,
+        locallyControlled: Boolean = false,
+    ): ServerPlayer {
         val profile = GameProfile(UUID.randomUUID(), "orbitalis-test")
         val connection = Connection(PacketFlow.SERVERBOUND)
         // NeoForge dimension changes inspect channel attributes even with an inert packet sink.
@@ -51,6 +54,8 @@ object GameTestPlayers {
         var teleportId: Int? = null
         val player =
             object : ServerPlayer(helper.level.server, helper.level, profile, ClientInformation.createDefault()) {
+                override fun isControlledByLocalInstance(): Boolean = locallyControlled || super.isControlledByLocalInstance()
+
                 override fun remove(reason: RemovalReason) {
                     super.remove(reason)
                     if (reason.shouldDestroy()) {
