@@ -35,6 +35,29 @@ worlds do not satisfy this requirement. Ordinary Overworld compatibility remains
 [flight feasibility](orbital-flight-feasibility.md); it is not silently converted into this planet.
 Planet size, terrain depth and the treatment of the central interior remain open.
 
+## Logical connectivity across face coordinates
+
+Face boundaries must not require special connector blocks. Ordinary Create pipes must connect
+directly; this illustrates the broader requirement for general block connectivity across the planet. Ordinary neighbour updates, redstone, item/fluid interactions and
+multiblock/network discovery must be considered at surface edges and interior ownership boundaries,
+including through-tunnels. Preserving connected occupied geometry alone does not satisfy this criterion.
+
+The current six Sable charts provide local placement axes and native neighbours within each chart;
+an opt-in prototype now adapts selected cross-chart interactions. Retain these six spaces as the
+preferred experiment while validating broader connectivity; a bespoke replacement is a fallback,
+not a selected migration. The prototype is not yet a complete production solution for this requirement. A future topology boundary must identify the physical cell,
+its authoritative native location and the neighbour's local port direction, with explicit behaviour
+when a required chunk is cold. Visual contact, mirrored inventories or hidden transfer buffers are not
+substitutes for direct adjacency.
+
+A generic world-query adapter is not evidence that arbitrary mods work unchanged. Mods may compute
+BlockPos offsets themselves, cache native coordinates, restrict block-state directions or traverse
+multiblocks using Cartesian assumptions. The supported boundary between generic Minecraft integration
+and specific mod adaptations remains unresolved. Before committing to the large-planet storage model,
+prove neighbour notifications, a redstone path, item/fluid transfer and a multiblock across charts,
+including break/reconnect, unload/reload, two-face boundaries, corners and interior seams. Document
+unsupported algorithms instead of claiming universal compatibility from a pipe demonstration.
+
 ## Gravity and motion
 
 Near a face, gravity points inward along that face's normal. With increasing height it transitions

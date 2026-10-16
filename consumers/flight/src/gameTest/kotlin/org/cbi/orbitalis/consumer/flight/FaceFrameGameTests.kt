@@ -53,6 +53,80 @@ object FaceFrameGameTests {
     }
 
     @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "face_frames_seam", timeoutTicks = 160)
+    fun nativeHoppersFeedCreateVaultsAcrossFaces(helper: GameTestHelper) {
+        val scene = scene(helper)
+        val level = scene.level
+        level.resetEmptyTime()
+        org.cbi.orbitalis.minecraft.planet.PlanetNeighbours
+            .enable(level, true)
+        onFinished(helper) {
+            org.cbi.orbitalis.minecraft.planet.PlanetNeighbours
+                .enable(level, false)
+        }
+        val vault =
+            net.minecraft.core.registries.BuiltInRegistries.BLOCK
+                .get(
+                    net.minecraft.resources.ResourceLocation
+                        .parse("create:item_vault"),
+                ).defaultBlockState()
+                .setValue(ItemVaultBlock.HORIZONTAL_AXIS, Direction.Axis.X)
+        val samples =
+            listOf(
+                Triple(
+                    Direction.UP,
+                    org.cbi.orbitalis.core.planet
+                        .PlanetCell(14, 14, -6),
+                    Direction.EAST,
+                ),
+                Triple(
+                    Direction.EAST,
+                    org.cbi.orbitalis.core.planet
+                        .PlanetCell(14, 13, 6),
+                    Direction.WEST,
+                ),
+            )
+        val pairs =
+            samples.map { (face, cell, direction) ->
+                val body = scene.planet.body(face)
+                val source =
+                    org.cbi.orbitalis.minecraft.integration.sable.SablePlanetNeighbours
+                        .nativePosition(body, cell)
+                val edge =
+                    checkNotNull(
+                        org.cbi.orbitalis.minecraft.planet.PlanetNeighbours
+                            .neighbour(level, source, direction),
+                    )
+                helper.assertTrue(edge.ready, "Foreign vault column is not resident")
+                level.setBlock(edge.position, vault, 3)
+                level.setBlock(
+                    source,
+                    net.minecraft.world.level.block.Blocks.HOPPER
+                        .defaultBlockState()
+                        .setValue(net.minecraft.world.level.block.HopperBlock.FACING, direction),
+                    3,
+                )
+                (level.getBlockEntity(source) as net.minecraft.world.Container).setItem(0, ItemStack(Items.DIAMOND, 9))
+                source to edge.position
+            }
+        helper.runAfterDelay(60) {
+            for ((source, target) in pairs) {
+                helper.assertTrue(level.getBlockEntity(target) is ItemVaultBlockEntity, "Target is not a native Create vault")
+                val inventory = checkNotNull(level.getCapability(Capabilities.ItemHandler.BLOCK, target, Direction.UP))
+                val received = (0 until inventory.slots).sumOf { inventory.getStackInSlot(it).count }
+                val hopper = level.getBlockEntity(source) as net.minecraft.world.Container
+                val remaining = (0 until hopper.containerSize).sumOf { hopper.getItem(it).count }
+                helper.assertTrue(
+                    received > 0 && received + remaining == 9,
+                    "Native hopper/vault seam failed: received=$received remaining=$remaining",
+                )
+            }
+            println("ORBITALIS_CREATE_SEAM nativeHoppers=2 foreignVaults=2 conserved=true createGraphAdaptation=false")
+            helper.succeed()
+        }
+    }
+
+    @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "face_frames_cold", timeoutTicks = 180)
     fun localFaceVaultSurvivesChunkEviction(helper: GameTestHelper) {
         val scene = scene(helper)

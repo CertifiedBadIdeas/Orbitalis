@@ -365,3 +365,12 @@ acceptance tests belong only to this stand; canonical planet code does not depen
 For a manual trial, use the standard cube commands in a disposable consumer world, take vaults from
 the ordinary creative inventory and place them along both local horizontal directions on each face.
 Do not expect a vault or inventory network to continue automatically across a chart seam.
+
+
+The opt-in seam scenario adds two native hoppers feeding actual Create vault block capabilities across
+the UP/EAST chart boundary in both directions. No Create-specific production hook, copied inventory or
+transfer buffer is used. Together with the existing scenarios, the `faces` suite requires five tests.
+This proves endpoint inventory interaction only: it does not join two vault controllers or adapt Create's
+own fluid/kinetic graph traversal. For manual investigation, `/orbitalis planet seams true` enables the
+transient server-side hooks while in the small cube dimension; `false` disables them. Toggling does not
+rescan existing machines or synchronize client connection shapes.

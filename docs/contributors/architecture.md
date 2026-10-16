@@ -87,9 +87,27 @@ region storage or evidence of bounded total save size.
 It includes tie planes, all twelve edges, eight corners and the centre, with native plot origin offsets
 (including Sable's eight-block chunk-centre offset). It does not generate or load a 512-block game scene.
 
-Charts are distinct neighbour spaces. A multiblock, pipe or redstone network crossing a chart boundary
-is not connected automatically. This architecture does not claim arbitrary mod compatibility, shared
-neighbour semantics through the centre, general world generation or a production-size planet.
+The accepted [planet connectivity criterion](cubic-planet-design.md#logical-connectivity-across-face-coordinates)
+requires ordinary block interactions across face boundaries; pipes are one example, not the complete scope.
+The following limitation of the current experiment does not satisfy that criterion, and the production
+storage/coordinate boundary remains under investigation.
+
+Charts remain distinct native neighbour spaces. An opt-in experiment, enabled for the current small
+cube with `/orbitalis planet seams true`, resolves physical adjacent cells to an actual native plot
+position and direction. MixinExtras hooks adapt queued neighbour dispatch, native signal queries and
+NeoForge's shared hopper/dropper/crafter inventory lookup. Native blocks, capabilities and inventories
+remain authoritative; the hooks introduce no transfer buffers or mirrored block entities. The switch
+is server-side, transient and disabled by default. It does not change placement or client rendering.
+
+This is a bounded connectivity experiment, not automatic support for a multiblock, Create fluid/kinetic
+network or arbitrary mod coordinate algorithm. Shape updates, redstone dust topology and replay of
+notifications missed while a destination is cold are not implemented. Inside the reference cube, unique
+voxel ownership resolves the destination even when excavated. Outside it, a unique resident block may
+be addressed, but unknown foreign columns and overlapping authored blocks reject the lookup without
+loading chunks. Only the expected six fixed laboratory poses participate; normal ships and unrelated
+levels retain native behaviour. Keep the six-chart model while testing this path; a custom replacement
+is a fallback if required connectivity cannot be achieved. This does not establish general world
+generation or a production-size planet.
 
 An isolated NeoForge GameTest source set exercises native adapters in a real headless server.
 Its generated empty structure and flat world preset are excluded from normal runs and production

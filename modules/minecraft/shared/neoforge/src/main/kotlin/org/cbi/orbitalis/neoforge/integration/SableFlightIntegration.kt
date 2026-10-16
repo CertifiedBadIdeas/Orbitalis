@@ -58,6 +58,7 @@ object SableFlightIntegration {
     fun install() {
         CubePlanetTerrain.factory = ::SableCubePlanet
         CubePlayerContacts.adapter = SableCubePlayerContacts
+        org.cbi.orbitalis.minecraft.planet.PlanetNeighbours.adapter = org.cbi.orbitalis.minecraft.integration.sable.SablePlanetNeighbours
         NeoForge.EVENT_BUS.addListener { event: ServerStartedEvent ->
             transfers[event.server] =
                 SableShipTransfer(
@@ -102,7 +103,11 @@ object SableFlightIntegration {
             val world = event.level as? ServerLevel
             if (world != null && transfers[world.server]?.locks(world) == true) event.isCanceled = true
         }
-        NeoForge.EVENT_BUS.addListener { event: RegisterCommandsEvent -> register(event.dispatcher) }
+        NeoForge.EVENT_BUS.addListener { event: RegisterCommandsEvent ->
+            register(event.dispatcher)
+            org.cbi.orbitalis.minecraft.integration.sable.SablePlanetSeamCommands
+                .register(event.dispatcher)
+        }
         NeoForge.EVENT_BUS.addListener { event: ForgeSablePrePhysicsTickEvent ->
             SableFlightGravity.beforePhysics(event.physicsSystem.level, event.timeStep)
         }

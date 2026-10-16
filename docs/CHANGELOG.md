@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Add a disabled-by-default MixinExtras experiment for cross-face neighbour notifications, redstone signal queries and native NeoForge inventory lookup on the small cube, using exact position/side transforms and rejecting cold or ambiguous foreign blocks.
+
+- Clarify the planet design requirement for direct cross-face block connectivity: pipes are an example alongside neighbour updates, redstone, item/fluid interactions and multiblock discovery; the current experiment does not yet meet its full scope.
+
 - Add an opt-in native planet chunk unload/restore adapter with compressed cold chunks in the same Sable checkpoint, preserving inventories and scheduled ticks. Add solid 512-block volume ownership and conservative chunk-interest geometry; automatic 512-block scene streaming is not enabled yet.
 
 - Treat cube face plots as static block-coordinate charts rather than dynamic ships. Keep native Sable presentation and player contacts; register resident terrain through the kinematic collision path for ordinary ships.
