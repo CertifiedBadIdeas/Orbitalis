@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Extend the cubic player experiment with continuous gravity-aligned flight, transported heading, local elytra lift/steering and native rocket direction, conservative tilted colliders and safe glider-to-standing resizing.
+
 - Keep cubic-player scene membership beyond the old 64-metre cutoff, synchronize and save it explicitly, and exempt only active scene players from global-Y void damage.
 
 - Preserve player heading around the shared cube edge, rebase local yaw without a second server rotation, and compensate camera/model easing to remove the extra twist between side faces.

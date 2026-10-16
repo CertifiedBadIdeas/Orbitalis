@@ -24,6 +24,7 @@ import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.cbi.orbitalis.minecraft.lab.CubePlayerFrame;
+import org.joml.Quaternionf;
 import org.cbi.orbitalis.minecraft.lab.CubePlayerPhysics;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
@@ -35,28 +36,54 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(Entity.class)
 public abstract class CubePlayerEntityMixin implements CubePlayerFrame {
     @Unique private Direction orbitalis$up;
-    @Unique private int orbitalis$yawRebase;
+    @Unique private double orbitalis$yawRebase;
+    @Unique private Quaternionf orbitalis$orientation;
+    @Unique private double orbitalis$bodyHalfHeight;
 
     @Override
     public Direction orbitalisGetUp() { return orbitalis$up; }
 
     @Override
-    public void orbitalisSetUp(Direction up) { orbitalis$up = up; }
+    public void orbitalisSetUp(Direction up) {
+        orbitalis$up = up;
+        orbitalis$orientation = up == null ? null : CubePlayerPhysics.rotation(up);
+    }
 
     @Override
-    public int orbitalisGetYawRebase() { return orbitalis$yawRebase; }
+    public double orbitalisGetBodyHalfHeight() { return orbitalis$bodyHalfHeight; }
 
     @Override
-    public void orbitalisSetYawRebase(int quarterTurns) { orbitalis$yawRebase = Math.floorMod(quarterTurns, 4); }
+    public void orbitalisSetBodyHalfHeight(double height) { orbitalis$bodyHalfHeight = height; }
+
+    @Override
+    public Quaternionf orbitalisGetOrientation() { return orbitalis$orientation == null ? null : new Quaternionf(orbitalis$orientation); }
+
+    @Override
+    public void orbitalisSetOrientation(Quaternionf value) { orbitalis$orientation = value == null ? null : new Quaternionf(value); }
+
+    @Override
+    public double orbitalisGetYawRebase() { return orbitalis$yawRebase; }
+
+    @Override
+    public void orbitalisSetYawRebase(double radians) { orbitalis$yawRebase = radians % (2.0 * Math.PI); }
 
     @Inject(method = "makeBoundingBox", at = @At("HEAD"), cancellable = true)
     private void orbitalis$box(CallbackInfoReturnable<AABB> callback) {
         Entity entity = (Entity) (Object) this;
         if (entity.level() != null && CubePlayerPhysics.active(entity)) {
-            callback.setReturnValue(CubePlayerPhysics.box(entity, CubePlayerPhysics.up(entity)));
+            callback.setReturnValue(CubePlayerPhysics.box(entity));
         } else {
             orbitalis$up = null;
+            orbitalis$orientation = null;
+            orbitalis$bodyHalfHeight = 0.0;
         }
+    }
+
+    /** Native pose changes must not leave a vanilla global-Y box over the accepted collider. */
+    @Inject(method = "refreshDimensions", at = @At("RETURN"))
+    private void orbitalis$poseBounds(CallbackInfo callback) {
+        Entity entity = (Entity) (Object) this;
+        if (CubePlayerPhysics.active(entity)) CubePlayerPhysics.refresh(entity);
     }
 
     /** Global Y is not planetary altitude; only opted-in scene players bypass vanilla void damage. */
@@ -84,6 +111,12 @@ public abstract class CubePlayerEntityMixin implements CubePlayerFrame {
     private void orbitalis$eyeLerp(float partialTick, CallbackInfoReturnable<Vec3> callback) {
         Entity entity = (Entity) (Object) this;
         if (CubePlayerPhysics.active(entity)) callback.setReturnValue(CubePlayerPhysics.eye(entity, partialTick));
+    }
+
+    @Inject(method = "getLookAngle", at = @At("HEAD"), cancellable = true)
+    private void orbitalis$look(CallbackInfoReturnable<Vec3> callback) {
+        Entity entity = (Entity) (Object) this;
+        if (CubePlayerPhysics.active(entity)) callback.setReturnValue(CubePlayerPhysics.view(entity, 1f));
     }
 
     @Inject(method = "getViewVector", at = @At("HEAD"), cancellable = true)

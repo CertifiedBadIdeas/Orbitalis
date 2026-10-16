@@ -31,7 +31,7 @@ object CubePlayerView {
     private data class Frame(
         val rotation: Quaternionf,
         var nanos: Long,
-        var yawRebase: Int,
+        var yawRebase: Double,
     )
 
     private val frames = mutableMapOf<UUID, Frame>()
@@ -52,7 +52,7 @@ object CubePlayerView {
             frames.clear()
             world = entity.level()
         }
-        val target = CubePlayerPhysics.rotation(CubePlayerPhysics.up(entity))
+        val target = CubePlayerPhysics.rotation(entity)
         val yawRebase = (entity as CubePlayerFrame).orbitalisGetYawRebase()
         val now = System.nanoTime()
         val frame = frames.getOrPut(entity.uuid) { Frame(Quaternionf(target), now, yawRebase) }

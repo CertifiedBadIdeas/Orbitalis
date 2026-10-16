@@ -18,16 +18,26 @@
 
 package org.cbi.orbitalis.neoforge.client
 
+import net.minecraft.client.Minecraft
 import net.neoforged.api.distmarker.Dist
 import net.neoforged.bus.api.SubscribeEvent
 import net.neoforged.fml.common.EventBusSubscriber
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent
+import net.neoforged.neoforge.client.event.ClientTickEvent
 import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent
 import org.cbi.orbitalis.core.Orbitalis
 import org.cbi.orbitalis.minecraft.client.CubePlayerView
+import org.cbi.orbitalis.minecraft.lab.CubePlayerPhysics
 
 @EventBusSubscriber(modid = Orbitalis.MOD_ID, value = [Dist.CLIENT])
 object CubePlayerViewEvents {
+    @JvmStatic
+    @SubscribeEvent
+    fun tick(event: ClientTickEvent.Post) {
+        val player = Minecraft.getInstance().player ?: return
+        if (!CubePlayerPhysics.active(player)) CubePlayerView.forget(player.uuid)
+    }
+
     @JvmStatic
     @SubscribeEvent
     fun logout(event: ClientPlayerNetworkEvent.LoggingOut) = CubePlayerView.clear()

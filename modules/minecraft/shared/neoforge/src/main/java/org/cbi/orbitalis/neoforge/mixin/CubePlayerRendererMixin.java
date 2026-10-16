@@ -27,18 +27,35 @@ import org.cbi.orbitalis.minecraft.lab.CubePlayerPhysics;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
+import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /** Bracket every return, including a renderer event cancellation, with a balanced pose stack. */
 @Mixin(PlayerRenderer.class)
 public abstract class CubePlayerRendererMixin {
+    /** Vanilla's glider bank compares horizontal vectors; supply them in the gravity frame. */
+    @Redirect(method = "setupRotations(Lnet/minecraft/client/player/AbstractClientPlayer;Lcom/mojang/blaze3d/vertex/PoseStack;FFFF)V",
+        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/player/AbstractClientPlayer;getViewVector(F)Lnet/minecraft/world/phys/Vec3;"))
+    private Vec3 orbitalis$localGliderLook(AbstractClientPlayer player, float partialTick) {
+        Vec3 vector = player.getViewVector(partialTick);
+        return CubePlayerPhysics.active(player) ? CubePlayerPhysics.local(vector, player) : vector;
+    }
+
+    @Redirect(method = "setupRotations(Lnet/minecraft/client/player/AbstractClientPlayer;Lcom/mojang/blaze3d/vertex/PoseStack;FFFF)V",
+        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/player/AbstractClientPlayer;getDeltaMovementLerped(F)Lnet/minecraft/world/phys/Vec3;"))
+    private Vec3 orbitalis$localGliderVelocity(AbstractClientPlayer player, float partialTick) {
+        Vec3 vector = player.getDeltaMovementLerped(partialTick);
+        return CubePlayerPhysics.active(player) ? CubePlayerPhysics.local(vector, player) : vector;
+    }
+
     @Inject(method = "render(Lnet/minecraft/client/player/AbstractClientPlayer;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V", at = @At("HEAD"))
     private void orbitalis$before(AbstractClientPlayer player, float yaw, float partialTick, PoseStack poses, MultiBufferSource buffers, int light, CallbackInfo callback) {
         if (!CubePlayerPhysics.active(player)) return;
         poses.pushPose();
         poses.translate(0.0, CubePlayerPhysics.HALF_HEIGHT, 0.0);
         poses.mulPose(CubePlayerView.rotation(player));
-        poses.translate(0.0, -CubePlayerPhysics.HALF_HEIGHT, 0.0);
+        poses.translate(0.0, -CubePlayerPhysics.halfHeight(player), 0.0);
     }
 
     @Inject(method = "render(Lnet/minecraft/client/player/AbstractClientPlayer;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V", at = @At("RETURN"))

@@ -21,18 +21,24 @@ package org.cbi.orbitalis.minecraft.lab
 import net.minecraft.core.Direction
 import net.minecraft.world.entity.Entity
 import net.minecraft.world.entity.MoverType
+import net.minecraft.world.entity.Pose
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.phys.AABB
 import net.minecraft.world.phys.Vec3
 import org.cbi.orbitalis.core.planet.CubicGravity
+import org.cbi.orbitalis.core.planet.GliderFlight
 import org.cbi.orbitalis.core.planet.Vector3
+import org.joml.Quaterniond
 import org.joml.Quaternionf
+import org.joml.Vector3d
 import org.joml.Vector3f
 import kotlin.math.abs
+import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.hypot
 import kotlin.math.sin
 
-/** Bounded standing-player locomotion experiment. Vanilla movement remains outside this scene. */
+/** Opt-in cube player locomotion and flight. Vanilla movement remains outside this scene. */
 object CubePlayerPhysics {
     @JvmField
     val CENTRE = Vec3(2048.0, 96.0, 2048.0)
@@ -87,76 +93,157 @@ object CubePlayerPhysics {
     }
 
     @JvmStatic
-    fun box(
+    fun rotation(entity: Entity): Quaternionf = state(entity).orbitalisGetOrientation() ?: desiredRotation(entity)
+
+    @JvmStatic
+    fun rotate(
+        vector: Vec3,
         entity: Entity,
-        up: Direction,
+    ): Vec3 = transform(vector, rotation(entity))
+
+    @JvmStatic
+    fun local(
+        vector: Vec3,
+        entity: Entity,
+    ): Vec3 = transform(vector, rotation(entity).conjugate())
+
+    private fun transform(
+        vector: Vec3,
+        orientation: Quaternionf,
+    ): Vec3 {
+        val v = Quaterniond(orientation).transform(Vector3d(vector.x, vector.y, vector.z))
+        return Vec3(v.x, v.y, v.z)
+    }
+
+    @JvmStatic
+    fun normal(entity: Entity): Vec3 = rotate(Vec3(0.0, 1.0, 0.0), entity).normalize()
+
+    @JvmStatic
+    fun halfHeight(entity: Entity): Double = state(entity).orbitalisGetBodyHalfHeight().takeIf { it > 0.0 } ?: desiredHalfHeight(entity)
+
+    private fun desiredHalfHeight(entity: Entity): Double =
+        if (entity is Player && entity.isFallFlying &&
+            !entity.abilities.flying
+        ) {
+            HALF_WIDTH
+        } else {
+            HALF_HEIGHT
+        }
+
+    @JvmStatic
+    fun eyeOffset(entity: Entity): Double =
+        entity.getEyeHeight(if (halfHeight(entity) < HALF_HEIGHT) Pose.FALL_FLYING else Pose.STANDING) - halfHeight(entity)
+
+    @JvmStatic
+    fun gravity(entity: Entity): Vec3 {
+        val p = centre(entity).subtract(CENTRE)
+        val g = GRAVITY.acceleration(Vector3(p.x, p.y, p.z))
+        return Vec3(g.x, g.y, g.z)
+    }
+
+    private fun desiredRotation(entity: Entity): Quaternionf {
+        val p = centre(entity).subtract(CENTRE)
+        if (maxOf(abs(p.x), abs(p.y), abs(p.z)) <= GRAVITY.halfExtent + GRAVITY.transitionStartAltitude) {
+            return rotation(desiredUp(entity))
+        }
+        val g = gravity(entity)
+        if (g.lengthSqr() < 1e-18) return state(entity).orbitalisGetOrientation() ?: rotation(desiredUp(entity))
+        val n = g.normalize().scale(-1.0)
+        val horizontal = hypot(n.x, n.z)
+        if (horizontal < 1e-12) return if (n.y < 0.0) rotation(Direction.DOWN) else Quaternionf()
+        // Axis/angle in double precision avoids rotationTo's loss of accuracy near world -Y.
+        return Quaternionf(Quaterniond().rotationAxis(atan2(horizontal, n.y), n.z / horizontal, 0.0, -n.x / horizontal)).normalize()
+    }
+
+    /** Conservative world-axis envelope of the gravity-aligned body, not an exact OBB collider. */
+    @JvmStatic
+    fun box(entity: Entity): AABB = box(entity, rotation(entity))
+
+    private fun box(
+        entity: Entity,
+        orientation: Quaternionf,
+        height: Double = halfHeight(entity),
     ): AABB {
+        val right = transform(Vec3(HALF_WIDTH, 0.0, 0.0), orientation)
+        val top = transform(Vec3(0.0, height, 0.0), orientation)
+        val forward = transform(Vec3(0.0, 0.0, HALF_WIDTH), orientation)
+
+        fun extent(
+            a: Double,
+            b: Double,
+            c: Double,
+        ): Double = listOf(a, b, c).sumOf { if (abs(it) < 1e-7) 0.0 else abs(it) }
+        val x = extent(right.x, top.x, forward.x)
+        val y = extent(right.y, top.y, forward.y)
+        val z = extent(right.z, top.z, forward.z)
         val c = centre(entity)
-        val x = if (up.axis == Direction.Axis.X) HALF_HEIGHT else HALF_WIDTH
-        val y = if (up.axis == Direction.Axis.Y) HALF_HEIGHT else HALF_WIDTH
-        val z = if (up.axis == Direction.Axis.Z) HALF_HEIGHT else HALF_WIDTH
         return AABB(c.x - x, c.y - y, c.z - z, c.x + x, c.y + y, c.z + z)
     }
 
-    /** Clear turns keep the centre. A surface contact can displace a growing collider outward. */
+    /** Clear turns keep centre and inertial velocity. Contact may resolve growing bounds outward. */
     @JvmStatic
     fun refresh(entity: Entity) {
-        val next = desiredUp(entity)
-        val previous = up(entity)
-        val candidate = box(entity, next)
-        // Keep room for both standing frames. Checking only the new endpoint can catch the old
-        // face sideways on the following tick and send a slow player back across the boundary.
-        val clearance = if (previous.axis == next.axis) candidate else candidate.minmax(box(entity, previous))
+        val previous = rotation(entity)
+        val next = desiredRotation(entity)
+        val oldBounds = box(entity, previous)
+        val height = desiredHalfHeight(entity)
+        val clearance = box(entity, next, height).minmax(oldBounds)
         if (entity.level().noCollision(entity, clearance.deflate(1e-6))) {
-            acceptTurn(entity, previous, next)
+            acceptTurn(entity, previous, next, height)
         } else {
-            val offset = turnClearance(entity, previous, next, clearance)
+            val offset = turnClearance(entity, next, clearance, oldBounds)
             if (offset != null) {
-                acceptTurn(entity, previous, next)
+                acceptTurn(entity, previous, next, height)
                 entity.setPos(entity.position().add(offset))
             }
         }
-        entity.boundingBox = box(entity, up(entity))
+        entity.boundingBox = box(entity)
     }
 
     private fun acceptTurn(
         entity: Entity,
-        previous: Direction,
-        next: Direction,
+        previous: Quaternionf,
+        next: Quaternionf,
+        height: Double,
     ) {
-        // The controlling client owns vanilla yaw packets. Reapplying this on a server player
-        // would rotate an already rebased incoming heading a second time.
-        if (entity is Player && entity.isLocalPlayer && previous != next) {
-            val turns = CubePlayerOrientation.yawQuarterTurns(previous, next)
-            val yaw = turns * 90f
+        if (entity is Player && entity.isLocalPlayer) {
+            val radians = CubePlayerOrientation.yawShift(previous, next)
+            val yaw = Math.toDegrees(radians).toFloat()
             entity.yRot += yaw
             entity.yRotO += yaw
             entity.yHeadRot += yaw
             entity.yHeadRotO += yaw
             entity.yBodyRot += yaw
             entity.yBodyRotO += yaw
-            state(entity).orbitalisSetYawRebase(state(entity).orbitalisGetYawRebase() + turns)
+            state(entity).orbitalisSetYawRebase(state(entity).orbitalisGetYawRebase() + radians)
         }
-        state(entity).orbitalisSetUp(next)
+        state(entity).orbitalisSetUp(desiredUp(entity))
+        state(entity).orbitalisSetOrientation(next)
+        state(entity).orbitalisSetBodyHalfHeight(height)
     }
 
-    /** Resolve only the extra half-length along new up; never move through a wall to turn. */
+    /** Resolve only collider growth; the old body must reach the new centre without crossing terrain. */
     private fun turnClearance(
         entity: Entity,
-        previous: Direction,
-        next: Direction,
+        next: Quaternionf,
         candidate: AABB,
+        oldBounds: AABB,
     ): Vec3? {
-        if (previous.axis == next.axis) return null
-        val lift = Vec3.atLowerCornerOf(next.normal).scale(HALF_HEIGHT - HALF_WIDTH + 1e-6)
+        val nextUp = transform(Vec3(0.0, 1.0, 0.0), next).normalize()
+        val growth =
+            (
+                (candidate.xsize - oldBounds.xsize) * abs(nextUp.x) +
+                    (candidate.ysize - oldBounds.ysize) * abs(nextUp.y) +
+                    (candidate.zsize - oldBounds.zsize) * abs(nextUp.z)
+            ) / 2.0
+        if (growth < 1e-9) return null
+        val lift = nextUp.scale(growth + 1e-6)
         val outside = candidate.move(lift)
         if (!entity.level().noCollision(entity, outside.deflate(1e-6))) return null
-        // Sweep the new box inward from a clear position to find its nearest support contact.
         val offset = lift.add(clip(entity, outside, lift.scale(-1.0)))
         if (offset.lengthSqr() < 1e-12) return null
         if (!entity.level().noCollision(entity, candidate.move(offset).deflate(1e-6))) return null
-        // The old standing body must also be able to reach that centre without crossing terrain.
-        if (clip(entity, box(entity, previous), offset).subtract(offset).lengthSqr() > 1e-12) return null
+        if (clip(entity, oldBounds, offset).subtract(offset).lengthSqr() > 1e-12) return null
         return offset
     }
 
@@ -168,7 +255,7 @@ object CubePlayerPhysics {
         val shapes = entity.level().getEntityCollisions(entity, bounds.expandTowards(movement))
         // Vanilla clips global Y first. At a rotated edge that can consume the clearance before
         // the body reaches the new support and clip its remaining fall against the old face.
-        val normal = Vec3.atLowerCornerOf(up(entity).normal)
+        val normal = normal(entity)
         val normalMotion = normal.scale(movement.dot(normal))
         val tangentMotion = movement.subtract(normalMotion)
         val tangent = Entity.collideBoundingBox(entity, tangentMotion, bounds, entity.level(), shapes)
@@ -182,7 +269,7 @@ object CubePlayerPhysics {
         partialTick: Float,
     ): Vec3 {
         val position = entity.getPosition(partialTick).add(0.0, HALF_HEIGHT, 0.0)
-        return position.add(Vec3.atLowerCornerOf(up(entity).normal).scale(entity.eyeHeight - HALF_HEIGHT))
+        return position.add(normal(entity).scale(eyeOffset(entity)))
     }
 
     @JvmStatic
@@ -192,7 +279,7 @@ object CubePlayerPhysics {
     ): Vec3 {
         val yaw = Math.toRadians(entity.getViewYRot(partialTick).toDouble())
         val pitch = Math.toRadians(entity.getViewXRot(partialTick).toDouble())
-        return rotate(Vec3(-sin(yaw) * cos(pitch), -sin(pitch), cos(yaw) * cos(pitch)), up(entity))
+        return rotate(Vec3(-sin(yaw) * cos(pitch), -sin(pitch), cos(yaw) * cos(pitch)), entity)
     }
 
     @JvmStatic
@@ -200,15 +287,32 @@ object CubePlayerPhysics {
         player: Player,
         input: Vec3,
     ) {
+        if (player.abilities.flying && player.isFallFlying) player.stopFallFlying()
         refresh(player)
-        val up = up(player)
-        val normal = Vec3.atLowerCornerOf(up.normal)
+        val normal = normal(player)
         val yaw = Math.toRadians(player.yRot.toDouble())
         var control = Vec3(input.x * cos(yaw) - input.z * sin(yaw), 0.0, input.z * cos(yaw) + input.x * sin(yaw))
         if (control.lengthSqr() > 1) control = control.normalize()
         if (player.abilities.flying) {
-            player.deltaMovement = player.deltaMovement.scale(0.6).add(rotate(control, up).scale(player.abilities.flyingSpeed.toDouble()))
+            player.deltaMovement =
+                player.deltaMovement.scale(0.6).add(rotate(control, player).scale(player.abilities.flyingSpeed.toDouble()))
             player.move(MoverType.SELF, player.deltaMovement)
+            player.fallDistance = 0f
+            return
+        }
+        if (player.isFallFlying) {
+            val velocity = local(player.deltaMovement, player)
+            val force = local(gravity(player).scale(1.0 / 400.0), player)
+            val next =
+                GliderFlight.step(
+                    Vector3(velocity.x, velocity.y, velocity.z),
+                    player.yRot.toDouble(),
+                    player.xRot.toDouble(),
+                    Vector3(force.x, force.y, force.z),
+                )
+            player.deltaMovement = rotate(Vec3(next.x, next.y, next.z), player)
+            player.move(MoverType.SELF, player.deltaMovement)
+            if (player.onGround()) player.stopFallFlying()
             player.fallDistance = 0f
             return
         }
@@ -217,12 +321,11 @@ object CubePlayerPhysics {
         val tangentMotion = old.subtract(normalMotion)
         val acceleration = if (player.onGround()) 0.075 else 0.009
         val drag = if (player.onGround()) 0.65 else 0.999
-        val p = centre(player).subtract(CENTRE)
-        val gravity = GRAVITY.acceleration(Vector3(p.x, p.y, p.z))
+        val gravity = gravity(player)
         player.deltaMovement =
             normalMotion
                 .add(tangentMotion.scale(drag))
-                .add(rotate(control, up).scale(acceleration))
+                .add(rotate(control, player).scale(acceleration))
                 .add(gravity.x / 400.0, gravity.y / 400.0, gravity.z / 400.0)
         player.move(MoverType.SELF, player.deltaMovement)
         player.fallDistance = 0f
@@ -230,13 +333,13 @@ object CubePlayerPhysics {
 
     @JvmStatic
     fun jump(player: Player) {
-        val normal = Vec3.atLowerCornerOf(up(player).normal)
+        val normal = normal(player)
         player.deltaMovement = player.deltaMovement.subtract(normal.scale(player.deltaMovement.dot(normal))).add(normal.scale(0.23))
         player.setOnGround(false)
         player.hasImpulse = true
     }
 
-    /** Axis-aligned boxes rotate discretely, but centre/velocity never rotate with the face. */
+    /** Collision envelopes follow accepted gravity orientation; inertial velocity never rotates with it. */
     @JvmStatic
     fun move(
         entity: Entity,
@@ -245,7 +348,7 @@ object CubePlayerPhysics {
         refresh(entity)
         val before = entity.boundingBox
         val actual = clip(entity, before, requested)
-        val normal = Vec3.atLowerCornerOf(up(entity).normal)
+        val normal = normal(entity)
         val blocked = requested.subtract(actual)
         entity.setPos(entity.position().add(actual))
         entity.setOnGround(requested.dot(normal) < 0 && blocked.dot(normal) < -1e-7)

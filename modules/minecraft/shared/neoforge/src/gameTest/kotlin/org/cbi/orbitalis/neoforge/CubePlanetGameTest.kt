@@ -189,8 +189,8 @@ object CubePlanetGameTest {
                     val turn = Quaternionf().rotationAxis((Math.PI / 2).toFloat(), edge)
                     val position =
                         CubePlayerPhysics.CENTRE
-                            .add(Vec3.atLowerCornerOf(from.normal).scale(24.0))
-                            .add(Vec3.atLowerCornerOf(to.normal).scale(25.0))
+                            .add(Vec3.atLowerCornerOf(from.normal).scale(18.0))
+                            .add(Vec3.atLowerCornerOf(to.normal).scale(19.0))
                             .add(0.0, -CubePlayerPhysics.HALF_HEIGHT, 0.0)
                     for (yaw in listOf(-135f, -90f, 0f, 45f, 90f, 179f)) {
                         for (pitch in listOf(-60f, 0f, 60f)) {
@@ -227,7 +227,7 @@ object CubePlanetGameTest {
                                         "Visual turn used an axis other than the shared edge: $label step=$step",
                                     )
                                 }
-                                CubePlayerOrientation.ease(visual, CubePlayerPhysics.rotation(to), 0, 0.05)
+                                CubePlayerOrientation.ease(visual, CubePlayerPhysics.rotation(to), 0.0, 0.05)
                             }
                             player.abilities.flying = true
                             player.deltaMovement = Vec3.ZERO
@@ -254,7 +254,10 @@ object CubePlanetGameTest {
                     (remote as CubePlayerFrame).orbitalisSetUp(from)
                     remote.yRot = 37f
                     CubePlayerPhysics.refresh(remote)
-                    helper.assertTrue(remote.yRot == 37f && remote.orbitalisGetYawRebase() == 0, "Server rebased incoming client yaw twice")
+                    helper.assertTrue(
+                        remote.yRot == 37f && remote.orbitalisGetYawRebase() == 0.0,
+                        "Server rebased incoming client yaw twice",
+                    )
                 }
             }
         } finally {
@@ -275,7 +278,7 @@ object CubePlanetGameTest {
         GameTestPlayers.acknowledgeTeleport(player)
         val level = player.serverLevel()
         try {
-            player.setPos(CubePlayerPhysics.CENTRE.add(23.5, 20.0 - CubePlayerPhysics.HALF_HEIGHT, 0.5))
+            player.setPos(CubePlayerPhysics.CENTRE.add(19.5, 18.0 - CubePlayerPhysics.HALF_HEIGHT, 0.5))
             (player as CubePlayerFrame).orbitalisSetUp(Direction.UP)
             val centre = CubePlayerPhysics.centre(player)
             val velocity = Vec3(0.1, -0.2, 0.03)
@@ -303,10 +306,10 @@ object CubePlanetGameTest {
             }
             // New box can clear the support, but the old body's head would hit this overhang.
             val base = BlockPos.containing(CubePlayerPhysics.CENTRE)
-            val support = base.offset(22, 20, 0)
-            val overhang = base.offset(24, 21, 0)
+            val support = base.offset(18, 18, 0)
+            val overhang = base.offset(20, 19, 0)
             (player as CubePlayerFrame).orbitalisSetUp(Direction.UP)
-            player.setPos(CubePlayerPhysics.CENTRE.add(23.5, 20.5 - CubePlayerPhysics.HALF_HEIGHT, 0.5))
+            player.setPos(CubePlayerPhysics.CENTRE.add(19.5, 18.5 - CubePlayerPhysics.HALF_HEIGHT, 0.5))
             level.setBlock(support, Blocks.GLASS.defaultBlockState(), 2)
             level.setBlock(overhang, Blocks.GLASS.defaultBlockState(), 2)
             try {

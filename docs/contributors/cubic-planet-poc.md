@@ -39,8 +39,12 @@ of +Y relief and two blocks of +X relief around the demonstrated edge. Six face 
 surfaces; stone fills the interior. The reference cube remains solid through edges and corners.
 Unequal relief tapers down before each convex edge, avoiding a trench on the gravity boundary. The fixture is a global block-occupancy function, not six independent maps.
 Walk forward from the initial view to leave the raised green face and fall towards the orange +X face.
-WASD and mouse look use the current collider frame; jump acts along local up. Creative flight remains available with normal double-jump activation; jump/shift lift follows
-local up/down, with no gravity while flying. Game mode is not changed. Fall damage is suppressed in the bounded experiment.
+WASD and mouse look use the accepted gravity frame; jump acts along local up. Creative flight remains available with normal double-jump activation; jump/shift lift follows
+local up/down, with no gravity while flying. Above the face-normal zone, up follows the sampled gravity
+continuously instead of choosing a face axis. Elytra retain native activation, equipment and durability;
+planing lift, pitch steering and drag are integrated in the local gravity frame. Native fireworks use
+the same physical look direction. This is game-style gliding without an atmosphere/density model;
+fireworks can escape this small reference planet. Use `cube leave` to exit the scene at any distance. Game mode is not changed. Fall damage is suppressed in the bounded experiment.
 
 Entering the scene enrolls a player until explicit `cube leave` or travel to another dimension.
 Membership has no distance cutoff; moving past the former 64-metre boundary keeps the same gravity
@@ -53,7 +57,7 @@ record never triggers proximity migration. Membership survives save/load; return
 Outside planet_lab, ordinary Minecraft movement remains in effect. Enrolled non-spectators bypass
 vanilla's global-Y void damage because Y is not planetary altitude; other damage is unchanged. The
 world's block build-height bounds remain unchanged, and this does not add terrain below them. Loose entities, fluids, Sable ships,
-beds, ladders, swimming, riding, elytra, crouching/crawling, stepping up blocks and production survival
+beds, ladders, swimming, riding, crouching/crawling, stepping up blocks and production survival
 rules are not supported by this standing-player experiment. Use a disposable scene without these features.
 The demonstration does not validate full-block interaction/reach or multiplayer combat while the view
 is turning; camera easing and the instantaneous physical eye can differ during that interval.
@@ -74,45 +78,57 @@ The same potential and differentiated altitude blend preserve central inverse-sq
 Positive widths retain the existing smoothed flight diagnostic behavior and constants.
 
 The prototype stores the usual player network position as a fixed vertical anchor 0.9 metres below the
-physical centre, regardless of orientation. A standing 0.6 by 1.8 metre AABB aligns to one of six axes.
-A turn reserves room for both standing frames. At a surface contact it may shift the centre outward
-along the new up by at most 0.6 metres (plus numerical tolerance), the difference in collider half-extents.
+physical centre, regardless of orientation. A standing 0.6 by 1.8 metre body, or a glider 0.6-metre cube, follows the accepted gravity quaternion.
+Native collision uses a conservative world-axis AABB envelope, not an exact rotating OBB. On the
+face-normal surface this reduces to the original six-axis standing boxes. At arbitrary tilt it may
+reject narrow passages that an exact OBB could traverse. A turn reserves room for both body frames. At a surface contact it may shift the centre outward
+along the new up by the projected growth of its envelope (plus numerical tolerance). A perpendicular
+standing turn or a glider-to-standing resize needs at most 0.6 metres.
 Native collision sweeps find the minimum clearance, and both the old body's displacement path and
 final clearance bounds must be free; an overhang or obstructed destination still delays the turn.
 Unobstructed turns preserve the centre, and all turns preserve inertial velocity. This contact correction
 prevents a slow player from retaining the old collider and sliding along the adjacent face, or catching
 the previous face sideways immediately after a turn. It does not rotate or reset velocity.
-Standing frames remain six-axis; continuous physical orientation in the altitude blend is not established.
+Continuous free-space frames follow the force throughout the altitude blend and central far field.
+Collider growth is delayed when obstructed, including a glider-to-standing resize below an overhang.
+Native pose dimension changes restore the accepted envelope; a delayed resize retains the small body
+and eye until clearance is available. Exact model/terrain clearance in arbitrary edited tunnels is not established.
 Gravity does not wait for an obstructed turn. Collision sweeps tangential motion first, then motion along local up, with support tested along
 that same axis. This removes vanilla's global-Y ordering bias at rotated corners. Custom locomotion predicts on the controlling client; the server retains Minecraft movement
 packet/collision validation. Vanilla's global-Y floating counter is disabled only inside the bounded scene.
 This is not a hardened production multiplayer movement protocol.
 
-At an accepted adjacent-face turn, heading is transported by the 90-degree rotation around the
-shared edge. The controlling client rebases vanilla yaw into the destination face chart, including
+At an accepted turn, heading is transported by the shortest rotation between the old and new up.
+Near the surface an adjacent-face turn is the 90-degree rotation around the shared edge. The controlling client rebases vanilla yaw into the destination face chart, including
 previous/head/body yaw, while pitch is unchanged. The server receives this yaw through ordinary
-Minecraft movement packets and never rebases it again. A transient modulo-four client counter lets
+Minecraft movement packets and never rebases it again. A transient client counter in radians, modulo 2 pi, lets
 the visual frame compensate the chart change before easing; no new packet or saved state is added.
 Camera and visible player orientation approach the collider frame at up to 180 degrees per second.
 For an isolated adjacent-face turn the visual rotation follows the shared edge, without the extra
 yaw twist from interpolating independent global-Y face orientations. Looking along that edge keeps
 the world view direction fixed as the image rolls. Overlapping turns may redirect unfinished easing;
-opposite-face teleports have no unique shared edge. Initial visual frames start at the current face.
+opposite-face teleports have no unique shared edge. Fresh/reloaded frames and authoritative teleports initialize from destination gravity and preserve
+the vanilla destination-chart yaw. Teleports reset visual easing; ordinary flight transports heading.
 The camera offset is clipped against terrain, and third-person zoom uses native obstruction checks.
-Physical eye/view queries use the collider frame. Dedicated servers do not load camera/renderer classes.
-All physics, view and network mixins guard the explicit scene region before changing vanilla behavior.
+Physical eye, view and native look-angle queries use the accepted gravity frame; model glider banking
+compares local rather than world-horizontal vectors. Elytra collision impact damage is outside this
+experiment's survival rules, as is ordinary fall damage. Dedicated servers do not load camera/renderer classes.
+All physics, view and network mixins guard the explicit scene membership and dimension before changing vanilla behavior.
 
 ## Verification and manual observations
 
 `./gradlew-sandbox-dev-parallel-summary -PorbitalisGameTestSuite=cube :v1_21_1-neoforge:runGameTestServer`
-runs only the seven required cubic-player scenarios, with Sable still loaded. The default suite remains
+runs only the nine required cubic-player scenarios, with Sable still loaded. The default suite remains
 all laboratory scenarios. A selected suite must produce a fresh report containing every required name
 and no failed/skipped cases; an unknown suite is rejected. The slow-edge regression covers all 24
 directed face transitions at zero, 0.005 and 0.03 blocks/tick, checking terrain clearance, adjacent-face
 support and stability after landing. These are isolated near-edge releases, without a running start.
 The heading regression covers all 24 directed adjacent-face turns at six yaws and three pitches
 (432 combinations), checks forward control, and samples all three visual basis vectors throughout
-an isolated 0.5-second turn. It also checks that server players do not rebase incoming yaw. These
+an isolated 0.5-second turn. It also checks that server players do not rebase incoming yaw. Flight regressions cover 201 altitude
+samples, a 361-sample full central-field circuit, stationary heading stability, obstructed body resizing,
+native elytra activation and 180 glider steps from each of six sides, native rocket thrust direction,
+mode save/load, cutoff crossing and the scene-local void exemption. These
 are native movement and numerical visual-transform checks, not observed camera-rendering evidence.
 
 Core tests cover the sharp force/potential, far field, connected interior and solid convex edges. Native

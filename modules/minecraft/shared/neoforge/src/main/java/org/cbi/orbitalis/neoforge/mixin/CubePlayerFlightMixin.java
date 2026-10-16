@@ -33,7 +33,7 @@ public abstract class CubePlayerFlightMixin {
         LocalPlayer player = (LocalPlayer) (Object) this;
         if (CubePlayerPhysics.active(player) && player.getAbilities().flying) {
             Vec3 before = player.getDeltaMovement();
-            return before.add(CubePlayerPhysics.rotate(velocity.subtract(before), CubePlayerPhysics.up(player)));
+            return before.add(CubePlayerPhysics.rotate(velocity.subtract(before), player));
         }
         return velocity;
     }

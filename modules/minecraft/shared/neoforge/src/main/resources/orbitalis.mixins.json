@@ -17,6 +17,7 @@
   },
   "client": [
     "CubePlayerCameraMixin",
+    "CubePlayerTeleportMixin",
     "CubePlayerFlightMixin",
     "CubePlayerRendererMixin"
   ]

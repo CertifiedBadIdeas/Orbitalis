@@ -70,6 +70,7 @@ public abstract class CubePlayerModeMixin implements CubePlayerMode {
     private void orbitalis$migrate(CallbackInfo callback) {
         Player player = (Player) (Object) this;
         if (player.level().isClientSide()) return;
+        if (CubePlayerPhysics.active(player) && player.getAbilities().flying && player.isFallFlying()) player.stopFallFlying();
         if (player.level().dimension() != PlanetLabCoordinates.INSTANCE.getDIMENSION()) {
             if (orbitalisCubeEnrolled()) orbitalisSetCubeEnrolled(false);
         } else if (!orbitalis$modeRecordSeen && CubePlayerPhysics.centre(player).distanceToSqr(CubePlayerPhysics.CENTRE) < 64.0 * 64.0) {

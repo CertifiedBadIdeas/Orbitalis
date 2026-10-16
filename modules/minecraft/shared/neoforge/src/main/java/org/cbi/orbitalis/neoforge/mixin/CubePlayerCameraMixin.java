@@ -53,7 +53,7 @@ public abstract class CubePlayerCameraMixin {
         rotation.transform(new Vector3f(0f, 1f, 0f), up);
         rotation.transform(new Vector3f(-1f, 0f, 0f), left);
         Vec3 centre = entity.getPosition(partialTick).add(0.0, CubePlayerPhysics.HALF_HEIGHT, 0.0);
-        Vector3f offset = frame.transform(new Vector3f(0f, entity.getEyeHeight() - (float) CubePlayerPhysics.HALF_HEIGHT, 0f));
+        Vector3f offset = frame.transform(new Vector3f(0f, (float) CubePlayerPhysics.eyeOffset(entity), 0f));
         Vec3 eye = centre.add(offset.x, offset.y, offset.z);
         // Clip the eased eye displacement so a face turn cannot put the camera through terrain.
         eye = entity.level().clip(new ClipContext(centre, eye, ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, entity)).getLocation();

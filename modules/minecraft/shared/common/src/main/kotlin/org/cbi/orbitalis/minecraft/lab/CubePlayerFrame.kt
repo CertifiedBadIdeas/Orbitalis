@@ -19,6 +19,7 @@
 package org.cbi.orbitalis.minecraft.lab
 
 import net.minecraft.core.Direction
+import org.joml.Quaternionf
 
 /** Transient collider frame; never persisted or sent as a second source of player state. */
 interface CubePlayerFrame {
@@ -26,8 +27,16 @@ interface CubePlayerFrame {
 
     fun orbitalisSetUp(up: Direction?)
 
-    /** Client-owned chart rebase counter, modulo four. Neither saved nor independently networked. */
-    fun orbitalisGetYawRebase(): Int
+    fun orbitalisGetBodyHalfHeight(): Double
 
-    fun orbitalisSetYawRebase(quarterTurns: Int)
+    fun orbitalisSetBodyHalfHeight(height: Double)
+
+    fun orbitalisGetOrientation(): Quaternionf?
+
+    fun orbitalisSetOrientation(orientation: Quaternionf?)
+
+    /** Client-owned yaw chart rebase in radians, modulo 2 pi; not saved or independently networked. */
+    fun orbitalisGetYawRebase(): Double
+
+    fun orbitalisSetYawRebase(radians: Double)
 }

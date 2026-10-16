@@ -111,7 +111,12 @@ sharp face-region gravity direction changes near the surface, eased player orien
 terrain and adaptive surface/orbit preparation. Planet storage, player collision handling and
 seamless client presentation remain undecided; the existing ship gravity diagnostic still smooths edges.
 The [player proof of concept](cubic-planet-poc.md) adds a bounded solid cube in the existing planet lab,
-zero-width gravity, discrete standing-player collider frames and client camera/model easing. Common owns
+zero-width near-surface gravity, gravity-aligned player/glider frames and client camera/model easing.
+Opted-in player membership uses native synced entity data and an optional version-1 player NBT record;
+there is no radius cutoff. Common owns gravity-frame heading transport and native-collision AABB
+envelopes; core owns local glider integration. Scene members bypass global-Y void damage, not other
+damage or world build limits. This remains a player flight experiment rather than production orbital
+storage, exact oriented collision or atmospheric simulation. Common owns
 geometry placement and locomotion; loader mixins adapt movement, eye queries, camera and rendering.
 Its temporary centre marker prevents refilling excavations, without introducing a planetary save schema.
 
