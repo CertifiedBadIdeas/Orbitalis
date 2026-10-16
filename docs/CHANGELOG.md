@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Add a separate positive-height space frame, shared gravity/reference rendering and a native full-revolution coast test without changing legacy orbital world coordinates.
+
 - Document the finite connected cubic planet direction, through-tunnels, sharp near-surface gravity changes, eased player orientation, candidate edge terrain cuts and adaptive surface/orbit preparation; distinguish these decisions from the current diagnostics.
 
 - Replace the flight platform with a walkable 24-engine shuttle, correct Create glue placement around the complete craft, and add native blueprint assembly, attitude/position recovery and multi-height/frame gravity measurements on the consumer stand.

@@ -143,3 +143,14 @@ inspects the resulting archive, including Java bytecode ceilings and legal notic
 This scaffold reduces ownership and build migration work; it does not establish source/API compatibility
 with 26.1. Client-only classes must not load on dedicated servers. World authority belongs to the logical
 server; validate packet bounds and identifiers at receipt and keep blocking work off the tick thread.
+
+## Full-space diagnostic frame
+
+`orbitalis:space_test` adds a void representation for full free orbits. `SpaceTestFrame` translates
+physical/surface coordinates by the fixed origin (0,-32000,0), preserving axes and inertial velocity.
+The reference planet centre is consequently at local Y=26064. A radius-18000-m circle remains above
+Y=8064 and wholly in the current field's central far region, including diagonal portions of the orbit.
+The existing `orbitalis:orbit_test` retains its (0,256,0) origin; existing saves and version-1 transfer
+journals must never be reinterpreted as this new frame. New frame resources carry a distinct stable ID.
+Gravity and reference rendering select the same frame by dimension. This is a bounded diagnostic,
+not a chosen finite-planet storage topology, floating origin or seamless rendering implementation.

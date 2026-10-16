@@ -146,7 +146,8 @@ val generateGameTestResources = tasks.register("generateGameTestResources") {
     val laboratory = rootProject.file("modules/minecraft/shared/common/src/main/resources/data/orbitalis/dimension/planet_lab.json")
     val flightTest = rootProject.file("modules/minecraft/shared/common/src/main/resources/data/orbitalis/dimension/flight_test.json")
     val orbitTest = rootProject.file("modules/minecraft/shared/common/src/main/resources/data/orbitalis/dimension/orbit_test.json")
-    inputs.files(laboratory, flightTest, orbitTest)
+    val spaceTest = rootProject.file("modules/minecraft/shared/common/src/main/resources/data/orbitalis/dimension/space_test.json")
+    inputs.files(laboratory, flightTest, orbitTest, spaceTest)
     outputs.files(template, preset)
     doLast {
         // GameTestServer bakes the flat preset against an empty dimension registry in 1.21.1.
@@ -163,7 +164,8 @@ val generateGameTestResources = tasks.register("generateGameTestResources") {
                     {"height": 1, "block": "minecraft:grass_block"}]}}},
               "orbitalis:planet_lab": ${laboratory.readText()},
               "orbitalis:flight_test": ${flightTest.readText()},
-              "orbitalis:orbit_test": ${orbitTest.readText()}
+              "orbitalis:orbit_test": ${orbitTest.readText()},
+              "orbitalis:space_test": ${spaceTest.readText()}
             }}
         """.trimIndent())
         val file = template.get().asFile
@@ -233,7 +235,7 @@ tasks.configureEach {
             val minimumCases = 15
             check(cases.length >= minimumCases) { "Expected at least $minimumCases laboratory GameTests, received ${cases.length}." }
             val names = (0 until cases.length).map { (cases.item(it) as org.w3c.dom.Element).getAttribute("name") }.toSet()
-            check(names.containsAll(setOf("sableimpulseandcoasting", "sableframeshiftpreservesstate", "sablecentralgravityorbit", "sableorbitalmanoeuvres", "sablesurfaceflightandlanding", "sableplatformservercarry", "ordinaryshipsreceivecubicgravity", "shiptransferroundtripandrecovery"))) {
+            check(names.containsAll(setOf("sableimpulseandcoasting", "sableframeshiftpreservesstate", "sablecentralgravityorbit", "sableorbitalmanoeuvres", "sablesurfaceflightandlanding", "sableplatformservercarry", "ordinaryshipsreceivecubicgravity", "fullspaceorbitpreservesnativeenergy", "shiptransferroundtripandrecovery"))) {
                 "GameTest run did not execute its required Sable physics scenarios: $names"
             }
             listOf("failure", "error", "skipped").forEach { tag ->

@@ -24,12 +24,14 @@ import net.minecraft.resources.ResourceLocation
 import net.minecraft.world.level.Level
 import org.cbi.orbitalis.core.planet.CubicGravity
 import org.cbi.orbitalis.core.planet.OrbitalTestFrame
+import org.cbi.orbitalis.core.planet.SpaceTestFrame
 import org.cbi.orbitalis.core.planet.Vector3
 
 /** Shared diagnostic geometry for server forces and client reference rendering; no optional mod types. */
 object FlightTestSpace {
     val SURFACE: ResourceKey<Level> = key("flight_test")
     val ORBIT: ResourceKey<Level> = key("orbit_test")
+    val SPACE: ResourceKey<Level> = key("space_test")
     val CENTRE = Vector3(0.0, -5936.0, 0.0)
     val gravity =
         CubicGravity(
@@ -40,12 +42,27 @@ object FlightTestSpace {
             transitionEndAltitude = 6000.0,
         )
 
-    fun contains(level: Level): Boolean = level.dimension() == SURFACE || level.dimension() == ORBIT
+    fun contains(level: Level): Boolean = level.dimension() in setOf(SURFACE, ORBIT, SPACE)
 
     fun globalPosition(
         level: Level,
         position: Vector3,
-    ): Vector3 = if (level.dimension() == ORBIT) OrbitalTestFrame.toSurface(position) else position
+    ): Vector3 =
+        when (level.dimension()) {
+            ORBIT -> OrbitalTestFrame.toSurface(position)
+            SPACE -> SpaceTestFrame.toSurface(position)
+            else -> position
+        }
+
+    fun localPosition(
+        dimension: ResourceKey<Level>,
+        position: Vector3,
+    ): Vector3 =
+        when (dimension) {
+            ORBIT -> OrbitalTestFrame.toOrbit(position)
+            SPACE -> SpaceTestFrame.toSpace(position)
+            else -> position
+        }
 
     private fun key(path: String): ResourceKey<Level> =
         ResourceKey.create(Registries.DIMENSION, ResourceLocation.fromNamespaceAndPath("orbitalis", path))

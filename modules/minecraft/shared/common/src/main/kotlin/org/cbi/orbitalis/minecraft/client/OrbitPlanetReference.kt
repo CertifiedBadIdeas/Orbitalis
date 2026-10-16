@@ -26,7 +26,6 @@ import com.mojang.blaze3d.vertex.VertexFormat
 import net.minecraft.client.Camera
 import net.minecraft.client.renderer.GameRenderer
 import org.cbi.orbitalis.core.planet.CubeFace
-import org.cbi.orbitalis.core.planet.OrbitalTestFrame
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
 import org.joml.Matrix4f
@@ -35,7 +34,6 @@ import kotlin.math.sqrt
 
 /** Unlit diagnostic sky geometry, not collision terrain or a map of generated surface blocks. */
 object OrbitPlanetReference {
-    private val centre = OrbitalTestFrame.toOrbit(FlightTestSpace.CENTRE)
     private val halfExtent = FlightTestSpace.gravity.halfExtent
     private val colours = intArrayOf(0x536b89, 0x384963, 0x477860, 0x29384c, 0x67617e, 0x44566d)
 
@@ -43,6 +41,7 @@ object OrbitPlanetReference {
     fun render(
         camera: Camera,
         view: Matrix4f,
+        centre: Vector3,
     ) {
         val eye = Vector3(camera.position.x, camera.position.y, camera.position.z)
         val offset = centre - eye

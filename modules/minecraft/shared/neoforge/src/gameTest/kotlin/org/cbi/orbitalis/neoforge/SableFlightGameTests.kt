@@ -37,6 +37,7 @@ import net.minecraft.world.level.block.Blocks
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
 import org.cbi.orbitalis.core.planet.OrbitalTestFrame
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
 import org.cbi.orbitalis.minecraft.integration.sable.FlightTestTravel
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
 import org.joml.Vector3d
@@ -207,5 +208,96 @@ object SableFlightGameTests {
             }
         }
         run(1)
+    }
+
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "space_orbit", timeoutTicks = 18000)
+    fun fullSpaceOrbitPreservesNativeEnergy(helper: GameTestHelper) {
+        val level = checkNotNull(helper.level.server.getLevel(FlightTestSpace.SPACE))
+        val container = checkNotNull(SubLevelContainer.getContainer(level))
+        val physics = SubLevelPhysicsSystem.require(level)
+        val centre = FlightTestSpace.localPosition(FlightTestSpace.SPACE, FlightTestSpace.CENTRE)
+        val radius = 18000.0
+        val mu = FlightTestSpace.gravity.surfaceAcceleration * FlightTestSpace.gravity.halfExtent * FlightTestSpace.gravity.halfExtent
+        val speed = kotlin.math.sqrt(mu / radius)
+        val pose = Pose3d()
+        pose.position().set(0.0, centre.y + radius, 0.0)
+        val body = container.allocateNewSubLevel(pose) as ServerSubLevel
+        helper.testInfo.addListener(
+            object : GameTestListener {
+                override fun testStructureLoaded(test: GameTestInfo) {}
+
+                override fun testPassed(
+                    test: GameTestInfo,
+                    runner: GameTestRunner,
+                ) = cleanup()
+
+                override fun testFailed(
+                    test: GameTestInfo,
+                    runner: GameTestRunner,
+                ) = cleanup()
+
+                override fun testAddedForRerun(
+                    test: GameTestInfo,
+                    retry: GameTestInfo,
+                    runner: GameTestRunner,
+                ) {}
+
+                fun cleanup() {
+                    if (!body.isRemoved) {
+                        container.removeForceLoadTicket(body, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
+                        container.removeSubLevel(body, SubLevelRemovalReason.REMOVED)
+                    }
+                }
+            },
+        )
+        body.plot.newEmptyChunk(body.plot.centerChunk)
+        check(body.plot.embeddedLevelAccessor.setBlock(BlockPos.ZERO, Blocks.IRON_BLOCK.defaultBlockState(), 3))
+        body.updateLastPose()
+        container.addForceLoadTicket(body, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
+        helper.runAfterDelay(5) {
+            val handle = physics.getPhysicsHandle(body)
+            val before = SableFlightGravity.reading(body)
+            val desired = Vector3(0.0, centre.y + radius, 0.0)
+            val delta = desired - before.position
+            handle.teleport(Vector3d(body.logicalPose().position()).add(delta.x, delta.y, delta.z), body.logicalPose().orientation())
+            handle.addLinearAndAngularVelocity(Vector3d(speed, 0.0, 0.0).sub(before.velocity), Vector3d())
+            val referenceEnergy = -mu / (2 * radius)
+            var maximumRadiusError = 0.0
+            var maximumEnergyError = 0.0
+            var previousAngle = 0.0
+            var sweptAngle = 0.0
+            var ticks = 0
+
+            fun measure() {
+                level.resetEmptyTime()
+                val reading = SableFlightGravity.reading(body)
+                val relative = reading.position - centre
+                val angle = kotlin.math.atan2(relative.x, relative.y)
+                var advance = angle - previousAngle
+                if (advance < -kotlin.math.PI) advance += 2 * kotlin.math.PI
+                if (advance > kotlin.math.PI) advance -= 2 * kotlin.math.PI
+                sweptAngle += advance
+                previousAngle = angle
+                val energy = reading.velocity.lengthSquared() / 2 + FlightTestSpace.gravity.sample(relative).potential
+                maximumRadiusError = maxOf(maximumRadiusError, abs(relative.length() - radius))
+                maximumEnergyError = maxOf(maximumEnergyError, abs((energy - referenceEnergy) / referenceEnergy))
+                helper.assertTrue(reading.position.y >= 4000, "Full orbit crossed the safe Minecraft height")
+                helper.assertTrue(maximumRadiusError < 30.0, "Native orbit radius drift: $maximumRadiusError")
+                helper.assertTrue(maximumEnergyError < 0.003, "Native orbit energy drift: $maximumEnergyError")
+                if (sweptAngle >= 2 * kotlin.math.PI) {
+                    helper.assertTrue(relative.x < 15 && abs(relative.y - radius) < 30, "Full revolution did not close")
+                    helper.assertTrue(handle.getAngularVelocity(Vector3d()).length() < 0.001, "Gravity spun the free body")
+                    println(
+                        "ORBITALIS_FULL_SPACE_ORBIT ticks=$ticks angle=$sweptAngle radiusError=$maximumRadiusError energyError=$maximumEnergyError",
+                    )
+                    helper.succeed()
+                } else {
+                    ticks++
+                    helper.runAfterDelay(1) { measure() }
+                }
+            }
+            helper.runAfterDelay(1) { measure() }
+        }
     }
 }

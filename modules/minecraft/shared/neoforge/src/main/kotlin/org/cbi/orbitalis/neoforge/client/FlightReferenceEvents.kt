@@ -36,11 +36,16 @@ object FlightReferenceEvents {
     @SubscribeEvent
     fun render(event: RenderLevelStageEvent) {
         if (event.stage != RenderLevelStageEvent.Stage.AFTER_SKY) return
-        if (Minecraft.getInstance().level?.dimension() != FlightTestSpace.ORBIT) return
+        val dimension = Minecraft.getInstance().level?.dimension() ?: return
+        if (dimension != FlightTestSpace.ORBIT && dimension != FlightTestSpace.SPACE) return
         val state = GlStateBackup()
         RenderSystem.backupGlState(state)
         try {
-            OrbitPlanetReference.render(event.camera, event.modelViewMatrix)
+            OrbitPlanetReference.render(
+                event.camera,
+                event.modelViewMatrix,
+                FlightTestSpace.localPosition(dimension, FlightTestSpace.CENTRE),
+            )
         } finally {
             RenderSystem.restoreGlState(state)
         }

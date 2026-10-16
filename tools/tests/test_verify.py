@@ -57,6 +57,9 @@ versionRange="[1.21.1,1.21.2)"
             'data/orbitalis/dimension_physics/orbit_test.json': b'{}',
             'data/orbitalis/dimension_physics/orbit_test.json.license': b'Apache-2.0 fixture',
         }
+        for folder in ('dimension', 'dimension_physics'):
+            self.files[f'data/orbitalis/{folder}/space_test.json'] = b'{}'
+            self.files[f'data/orbitalis/{folder}/space_test.json.license'] = b'Apache-2.0 fixture'
         for legal in verify.KOTLIN_LEGAL_FILES:
             self.files['META-INF/licenses/kotlin-stdlib/' + legal] = b'legal fixture'
         runtime = io.BytesIO()
