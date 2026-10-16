@@ -25,4 +25,9 @@ interface CubePlayerFrame {
     fun orbitalisGetUp(): Direction?
 
     fun orbitalisSetUp(up: Direction?)
+
+    /** Client-owned chart rebase counter, modulo four. Neither saved nor independently networked. */
+    fun orbitalisGetYawRebase(): Int
+
+    fun orbitalisSetYawRebase(quarterTurns: Int)
 }

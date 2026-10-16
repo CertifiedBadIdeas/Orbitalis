@@ -27,8 +27,11 @@ import net.minecraft.world.phys.Vec3
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
 import org.cbi.orbitalis.minecraft.lab.CubePlanetLab
 import org.cbi.orbitalis.minecraft.lab.CubePlayerFrame
+import org.cbi.orbitalis.minecraft.lab.CubePlayerOrientation
 import org.cbi.orbitalis.minecraft.lab.CubePlayerPhysics
 import org.cbi.orbitalis.minecraft.lab.PlanetLabCoordinates
+import org.joml.Quaternionf
+import org.joml.Vector3f
 import kotlin.math.abs
 
 @PrefixGameTestTemplate(false)
@@ -164,6 +167,101 @@ object CubePlanetGameTest {
         } finally {
             lab.leave(player)
             player.discard()
+        }
+        helper.succeed()
+    }
+
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis")
+    fun cubeHeadingTurnsAroundSharedEdge(helper: GameTestHelper) {
+        val player = GameTestPlayers.create(helper, locallyControlled = true)
+        val remote = GameTestPlayers.create(helper)
+        val lab = CubePlanetLab.forServer(helper.level.server)
+        helper.assertTrue(lab.enter(player) && lab.enter(remote), "Cube entry failed")
+        GameTestPlayers.acknowledgeTeleport(player)
+        GameTestPlayers.acknowledgeTeleport(remote)
+        try {
+            for (from in Direction.entries) {
+                for (to in Direction.entries.filter { it.axis != from.axis }) {
+                    val oldUp = Vector3f(from.stepX.toFloat(), from.stepY.toFloat(), from.stepZ.toFloat())
+                    val newUp = Vector3f(to.stepX.toFloat(), to.stepY.toFloat(), to.stepZ.toFloat())
+                    val edge = Vector3f(oldUp).cross(newUp)
+                    val turn = Quaternionf().rotationAxis((Math.PI / 2).toFloat(), edge)
+                    val position =
+                        CubePlayerPhysics.CENTRE
+                            .add(Vec3.atLowerCornerOf(from.normal).scale(24.0))
+                            .add(Vec3.atLowerCornerOf(to.normal).scale(25.0))
+                            .add(0.0, -CubePlayerPhysics.HALF_HEIGHT, 0.0)
+                    for (yaw in listOf(-135f, -90f, 0f, 45f, 90f, 179f)) {
+                        for (pitch in listOf(-60f, 0f, 60f)) {
+                            player.setPos(position)
+                            (player as CubePlayerFrame).orbitalisSetUp(from)
+                            player.yRot = yaw
+                            player.yRotO = yaw
+                            player.xRot = pitch
+                            player.xRotO = pitch
+                            val before = CubePlayerPhysics.view(player, 1f)
+                            val expected = turn.transform(Vector3f(before.x.toFloat(), before.y.toFloat(), before.z.toFloat()))
+                            val rebase = player.orbitalisGetYawRebase()
+                            CubePlayerPhysics.refresh(player)
+                            val after = CubePlayerPhysics.view(player, 1f)
+                            val label = "$from->$to yaw=$yaw pitch=$pitch"
+                            helper.assertTrue(
+                                after.distanceTo(Vec3(expected.x.toDouble(), expected.y.toDouble(), expected.z.toDouble())) < 1e-5,
+                                "Heading twisted away from the shared edge: $label",
+                            )
+                            helper.assertTrue(
+                                player.xRot == pitch && player.yRotO == player.yRot,
+                                "Chart rebase changed pitch or added yaw interpolation",
+                            )
+                            // Exercise the same easing used by the camera/model, including every intermediate basis.
+                            val visual = CubePlayerPhysics.rotation(from)
+                            val oldLook = CubePlayerPhysics.rotation(from).rotateY(Math.toRadians(-yaw.toDouble()).toFloat())
+                            CubePlayerOrientation.ease(visual, CubePlayerPhysics.rotation(to), player.orbitalisGetYawRebase() - rebase, 0.0)
+                            for (step in 0..10) {
+                                val expectedLook = Quaternionf().rotationAxis((Math.PI * step / 20).toFloat(), edge).mul(oldLook)
+                                val actualLook = Quaternionf(visual).rotateY(Math.toRadians(-player.yRot.toDouble()).toFloat())
+                                for (basis in listOf(Vector3f(1f, 0f, 0f), Vector3f(0f, 1f, 0f), Vector3f(0f, 0f, 1f))) {
+                                    helper.assertTrue(
+                                        actualLook.transform(Vector3f(basis)).distance(expectedLook.transform(Vector3f(basis))) < 2e-4,
+                                        "Visual turn used an axis other than the shared edge: $label step=$step",
+                                    )
+                                }
+                                CubePlayerOrientation.ease(visual, CubePlayerPhysics.rotation(to), 0, 0.05)
+                            }
+                            player.abilities.flying = true
+                            player.deltaMovement = Vec3.ZERO
+                            player.travel(Vec3(0.0, 0.0, 1.0))
+                            val flatLook =
+                                Quaternionf(turn).transform(
+                                    CubePlayerPhysics.rotation(from).transform(
+                                        Vector3f(
+                                            -kotlin.math.sin(Math.toRadians(yaw.toDouble())).toFloat(),
+                                            0f,
+                                            kotlin.math.cos(Math.toRadians(yaw.toDouble())).toFloat(),
+                                        ),
+                                    ),
+                                )
+                            val motion = player.deltaMovement.normalize()
+                            helper.assertTrue(
+                                motion.distanceTo(Vec3(flatLook.x.toDouble(), flatLook.y.toDouble(), flatLook.z.toDouble())) < 1e-5,
+                                "Forward control diverged from transported heading: $label",
+                            )
+                        }
+                    }
+                    // Incoming vanilla yaw is already in the destination chart. The server must not rebase it again.
+                    remote.setPos(position)
+                    (remote as CubePlayerFrame).orbitalisSetUp(from)
+                    remote.yRot = 37f
+                    CubePlayerPhysics.refresh(remote)
+                    helper.assertTrue(remote.yRot == 37f && remote.orbitalisGetYawRebase() == 0, "Server rebased incoming client yaw twice")
+                }
+            }
+        } finally {
+            lab.leave(player)
+            lab.leave(remote)
+            player.discard()
+            remote.discard()
         }
         helper.succeed()
     }

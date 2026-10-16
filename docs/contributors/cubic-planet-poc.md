@@ -79,7 +79,16 @@ that same axis. This removes vanilla's global-Y ordering bias at rotated corners
 packet/collision validation. Vanilla's global-Y floating counter is disabled only inside the bounded scene.
 This is not a hardened production multiplayer movement protocol.
 
+At an accepted adjacent-face turn, heading is transported by the 90-degree rotation around the
+shared edge. The controlling client rebases vanilla yaw into the destination face chart, including
+previous/head/body yaw, while pitch is unchanged. The server receives this yaw through ordinary
+Minecraft movement packets and never rebases it again. A transient modulo-four client counter lets
+the visual frame compensate the chart change before easing; no new packet or saved state is added.
 Camera and visible player orientation approach the collider frame at up to 180 degrees per second.
+For an isolated adjacent-face turn the visual rotation follows the shared edge, without the extra
+yaw twist from interpolating independent global-Y face orientations. Looking along that edge keeps
+the world view direction fixed as the image rolls. Overlapping turns may redirect unfinished easing;
+opposite-face teleports have no unique shared edge. Initial visual frames start at the current face.
 The camera offset is clipped against terrain, and third-person zoom uses native obstruction checks.
 Physical eye/view queries use the collider frame. Dedicated servers do not load camera/renderer classes.
 All physics, view and network mixins guard the explicit scene region before changing vanilla behavior.
@@ -87,11 +96,15 @@ All physics, view and network mixins guard the explicit scene region before chan
 ## Verification and manual observations
 
 `./gradlew-sandbox-dev-parallel-summary -PorbitalisGameTestSuite=cube :v1_21_1-neoforge:runGameTestServer`
-runs only the five required cubic-player scenarios, with Sable still loaded. The default suite remains
+runs only the six required cubic-player scenarios, with Sable still loaded. The default suite remains
 all laboratory scenarios. A selected suite must produce a fresh report containing every required name
 and no failed/skipped cases; an unknown suite is rejected. The slow-edge regression covers all 24
 directed face transitions at zero, 0.005 and 0.03 blocks/tick, checking terrain clearance, adjacent-face
 support and stability after landing. These are isolated near-edge releases, without a running start.
+The heading regression covers all 24 directed adjacent-face turns at six yaws and three pitches
+(432 combinations), checks forward control, and samples all three visual basis vectors throughout
+an isolated 0.5-second turn. It also checks that server players do not rebase incoming yaw. These
+are native movement and numerical visual-transform checks, not observed camera-rendering evidence.
 
 Core tests cover the sharp force/potential, far field, connected interior and solid convex edges. Native
 GameTests cover block placement/edit preservation, walking off an edge and landing on another face,
@@ -120,6 +133,15 @@ positions, zero motion and `grounded=true`. First-person +X and third-person -Y 
 settled view/model; no moved-wrongly or moved-too-quickly warnings were logged. Evidence is retained
 in `build/agent-logs/slow-edge-client/`. This establishes these two real-client releases, not remote
 multiplayer or subjective comfort during the turn.
+
+Camera-axis follow-up on 2026-10-16 measured the actual first-person camera in an isolated copied
+GameTest world. In creative flight, operator placement moved the player from the +X (YZ) chart to
++Z (XY), then back, initially looking along world +Y. Each direction recorded 130 camera samples,
+including 39 samples with intermediate up vectors. Forward remained +Y (maximum vector error below
+5e-7); camera up stayed in XZ (off-axis component below 2e-7) and settled at the destination normal.
+No moved-wrongly or moved-too-quickly warning was logged. Traces are retained locally in
+`build/agent-logs/camera-axis-client/`. This validates this rendered axis change under controlled
+placement, not walking comfort, overlapping turns or remote-player interpolation.
 
 These observations establish the listed routes and creative escape. They do not establish subjective camera
 comfort, all edge directions or multiplayer behavior. Remaining manual scenarios:

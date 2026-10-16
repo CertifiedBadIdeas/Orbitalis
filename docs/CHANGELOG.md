@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Preserve player heading around the shared cube edge, rebase local yaw without a second server rotation, and compensate camera/model easing to remove the extra twist between side faces.
+
 - Migrate the flight consumer adapter, guidance and tests to Kotlin with pinned tooling, Java 21 targets and Kotlin lint in its default checks.
 
 - Add consumer-only orbital insertion and return-to-launch guidance using real Propulsion engines, persisted launch bookmarks and the journaled full-space handoff, with a native insertion/coast/return/landing scenario.

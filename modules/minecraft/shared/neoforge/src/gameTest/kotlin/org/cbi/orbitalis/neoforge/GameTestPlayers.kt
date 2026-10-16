@@ -56,6 +56,8 @@ object GameTestPlayers {
             object : ServerPlayer(helper.level.server, helper.level, profile, ClientInformation.createDefault()) {
                 override fun isControlledByLocalInstance(): Boolean = locallyControlled || super.isControlledByLocalInstance()
 
+                override fun isLocalPlayer(): Boolean = locallyControlled
+
                 override fun remove(reason: RemovalReason) {
                     super.remove(reason)
                     if (reason.shouldDestroy()) {

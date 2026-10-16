@@ -20,18 +20,18 @@ package org.cbi.orbitalis.minecraft.client
 
 import net.minecraft.world.entity.Entity
 import net.minecraft.world.level.Level
+import org.cbi.orbitalis.minecraft.lab.CubePlayerFrame
+import org.cbi.orbitalis.minecraft.lab.CubePlayerOrientation
 import org.cbi.orbitalis.minecraft.lab.CubePlayerPhysics
 import org.joml.Quaternionf
 import java.util.UUID
-import kotlin.math.abs
-import kotlin.math.acos
-import kotlin.math.min
 
 /** Visual frame only. Physics never reads interpolated camera state. */
 object CubePlayerView {
     private data class Frame(
         val rotation: Quaternionf,
         var nanos: Long,
+        var yawRebase: Int,
     )
 
     private val frames = mutableMapOf<UUID, Frame>()
@@ -53,12 +53,13 @@ object CubePlayerView {
             world = entity.level()
         }
         val target = CubePlayerPhysics.rotation(CubePlayerPhysics.up(entity))
+        val yawRebase = (entity as CubePlayerFrame).orbitalisGetYawRebase()
         val now = System.nanoTime()
-        val frame = frames.getOrPut(entity.uuid) { Frame(Quaternionf(), now) }
+        val frame = frames.getOrPut(entity.uuid) { Frame(Quaternionf(target), now, yawRebase) }
         val elapsed = ((now - frame.nanos) / 1e9).coerceIn(0.0, 0.1)
         frame.nanos = now
-        val angle = 2.0 * acos(abs(frame.rotation.dot(target)).coerceIn(0f, 1f).toDouble())
-        if (angle > 1e-6) frame.rotation.slerp(target, min(1.0, Math.PI * elapsed / angle).toFloat())
+        CubePlayerOrientation.ease(frame.rotation, target, yawRebase - frame.yawRebase, elapsed)
+        frame.yawRebase = yawRebase
         return Quaternionf(frame.rotation)
     }
 }

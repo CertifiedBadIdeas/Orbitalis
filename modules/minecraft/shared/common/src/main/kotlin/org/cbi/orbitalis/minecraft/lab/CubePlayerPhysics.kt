@@ -108,15 +108,36 @@ object CubePlayerPhysics {
         // face sideways on the following tick and send a slow player back across the boundary.
         val clearance = if (previous.axis == next.axis) candidate else candidate.minmax(box(entity, previous))
         if (entity.level().noCollision(entity, clearance.deflate(1e-6))) {
-            state(entity).orbitalisSetUp(next)
+            acceptTurn(entity, previous, next)
         } else {
             val offset = turnClearance(entity, previous, next, clearance)
             if (offset != null) {
-                state(entity).orbitalisSetUp(next)
+                acceptTurn(entity, previous, next)
                 entity.setPos(entity.position().add(offset))
             }
         }
         entity.boundingBox = box(entity, up(entity))
+    }
+
+    private fun acceptTurn(
+        entity: Entity,
+        previous: Direction,
+        next: Direction,
+    ) {
+        // The controlling client owns vanilla yaw packets. Reapplying this on a server player
+        // would rotate an already rebased incoming heading a second time.
+        if (entity is Player && entity.isLocalPlayer && previous != next) {
+            val turns = CubePlayerOrientation.yawQuarterTurns(previous, next)
+            val yaw = turns * 90f
+            entity.yRot += yaw
+            entity.yRotO += yaw
+            entity.yHeadRot += yaw
+            entity.yHeadRotO += yaw
+            entity.yBodyRot += yaw
+            entity.yBodyRotO += yaw
+            state(entity).orbitalisSetYawRebase(state(entity).orbitalisGetYawRebase() + turns)
+        }
+        state(entity).orbitalisSetUp(next)
     }
 
     /** Resolve only the extra half-length along new up; never move through a wall to turn. */

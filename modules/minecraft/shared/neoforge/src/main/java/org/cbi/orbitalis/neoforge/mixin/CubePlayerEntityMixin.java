@@ -35,12 +35,19 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(Entity.class)
 public abstract class CubePlayerEntityMixin implements CubePlayerFrame {
     @Unique private Direction orbitalis$up;
+    @Unique private int orbitalis$yawRebase;
 
     @Override
     public Direction orbitalisGetUp() { return orbitalis$up; }
 
     @Override
     public void orbitalisSetUp(Direction up) { orbitalis$up = up; }
+
+    @Override
+    public int orbitalisGetYawRebase() { return orbitalis$yawRebase; }
+
+    @Override
+    public void orbitalisSetYawRebase(int quarterTurns) { orbitalis$yawRebase = Math.floorMod(quarterTurns, 4); }
 
     @Inject(method = "makeBoundingBox", at = @At("HEAD"), cancellable = true)
     private void orbitalis$box(CallbackInfoReturnable<AABB> callback) {
