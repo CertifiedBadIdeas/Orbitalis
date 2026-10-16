@@ -121,6 +121,9 @@ class CubePlanetLab(
         ) {
             return false
         }
+        val mode = player as CubePlayerMode
+        val wasEnrolled = mode.orbitalisCubeEnrolled()
+        mode.orbitalisSetCubeEnrolled(true)
         (player as CubePlayerFrame).orbitalisSetUp(null)
         val moved = player.teleportTo(level, target.x, target.y, target.z, emptySet(), -90f, 0f)
         if (moved) {
@@ -129,6 +132,7 @@ class CubePlanetLab(
             player.fallDistance = 0f
             CubePlayerPhysics.refresh(player)
         }
+        if (!moved) mode.orbitalisSetCubeEnrolled(wasEnrolled)
         return moved
     }
 
@@ -151,6 +155,8 @@ class CubePlanetLab(
         (player as CubePlayerFrame).orbitalisSetUp(null)
         val moved = player.teleportTo(level, pos.x, pos.y, pos.z, emptySet(), saved?.yaw ?: 0f, saved?.pitch ?: 0f)
         if (moved) {
+            (player as CubePlayerMode).orbitalisSetCubeEnrolled(false)
+            player.setPos(player.position())
             returns.remove(player.uuid)
             player.deltaMovement = Vec3.ZERO
             player.fallDistance = 0f

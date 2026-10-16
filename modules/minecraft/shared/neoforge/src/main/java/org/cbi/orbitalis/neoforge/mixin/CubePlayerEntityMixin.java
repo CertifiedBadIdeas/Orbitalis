@@ -59,6 +59,12 @@ public abstract class CubePlayerEntityMixin implements CubePlayerFrame {
         }
     }
 
+    /** Global Y is not planetary altitude; only opted-in scene players bypass vanilla void damage. */
+    @Inject(method = "checkBelowWorld", at = @At("HEAD"), cancellable = true)
+    private void orbitalis$planetVoid(CallbackInfo callback) {
+        if (CubePlayerPhysics.active((Entity) (Object) this)) callback.cancel();
+    }
+
     @Inject(method = "move", at = @At("HEAD"), cancellable = true)
     private void orbitalis$move(MoverType type, Vec3 movement, CallbackInfo callback) {
         Entity entity = (Entity) (Object) this;

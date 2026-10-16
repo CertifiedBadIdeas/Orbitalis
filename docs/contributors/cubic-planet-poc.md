@@ -42,8 +42,17 @@ Walk forward from the initial view to leave the raised green face and fall towar
 WASD and mouse look use the current collider frame; jump acts along local up. Creative flight remains available with normal double-jump activation; jump/shift lift follows
 local up/down, with no gravity while flying. Game mode is not changed. Fall damage is suppressed in the bounded experiment.
 
-Only non-spectator players within 64 metres of this centre in planet_lab use custom locomotion.
-Outside this region, ordinary Minecraft movement remains in effect. Loose entities, fluids, Sable ships,
+Entering the scene enrolls a player until explicit `cube leave` or travel to another dimension.
+Membership has no distance cutoff; moving past the former 64-metre boundary keeps the same gravity
+and camera mode. Spectators bypass custom movement. Native player entity data synchronizes the
+server-owned membership boolean. Optional player NBT `orbitalis:cube_player` contains integer
+`version: 1` and byte boolean `enabled`; missing, malformed and unknown versions decode disabled.
+A legacy player without a record inside the old 64-metre region is enrolled on the next server tick.
+Older players stranded beyond that region must use `cube enter`. An explicitly disabled or unknown
+record never triggers proximity migration. Membership survives save/load; return points remain transient.
+Outside planet_lab, ordinary Minecraft movement remains in effect. Enrolled non-spectators bypass
+vanilla's global-Y void damage because Y is not planetary altitude; other damage is unchanged. The
+world's block build-height bounds remain unchanged, and this does not add terrain below them. Loose entities, fluids, Sable ships,
 beds, ladders, swimming, riding, elytra, crouching/crawling, stepping up blocks and production survival
 rules are not supported by this standing-player experiment. Use a disposable scene without these features.
 The demonstration does not validate full-block interaction/reach or multiplayer combat while the view
@@ -96,7 +105,7 @@ All physics, view and network mixins guard the explicit scene region before chan
 ## Verification and manual observations
 
 `./gradlew-sandbox-dev-parallel-summary -PorbitalisGameTestSuite=cube :v1_21_1-neoforge:runGameTestServer`
-runs only the six required cubic-player scenarios, with Sable still loaded. The default suite remains
+runs only the seven required cubic-player scenarios, with Sable still loaded. The default suite remains
 all laboratory scenarios. A selected suite must produce a fresh report containing every required name
 and no failed/skipped cases; an unknown suite is rejected. The slow-edge regression covers all 24
 directed face transitions at zero, 0.005 and 0.03 blocks/tick, checking terrain clearance, adjacent-face

@@ -50,6 +50,7 @@ object PlanetLabGameTests {
         val suite = System.getProperty("orbitalis.gameTestSuite", "all")
         require(suite == "all" || suite == "cube") { "Unknown GameTest suite: $suite" }
         event.register(CubePlanetGameTest::class.java)
+        event.register(CubePlayerFlightGameTest::class.java)
         if (suite == "cube") return
         event.register(PlanetLabGameTests::class.java)
         if (ModList.get().isLoaded("sable")) {

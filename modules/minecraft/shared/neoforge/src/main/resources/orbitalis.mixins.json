@@ -7,6 +7,7 @@
     "LevelBlockEntityTickMixin",
     "ServerGamePacketListenerTeleportMixin",
     "CubePlayerEntityMixin",
+    "CubePlayerModeMixin",
     "CubePlayerTravelMixin",
     "CubePlayerLocomotionMixin",
     "CubePlayerPacketMixin"

@@ -46,7 +46,7 @@ object CubePlayerPhysics {
     @JvmStatic
     fun active(entity: Entity): Boolean =
         entity is Player && entity.level().dimension() == PlanetLabCoordinates.DIMENSION &&
-            centre(entity).subtract(CENTRE).lengthSqr() < 64.0 * 64.0 && !entity.isSpectator
+            (entity as CubePlayerMode).orbitalisCubeEnrolled() && !entity.isSpectator
 
     @JvmStatic
     fun centre(entity: Entity): Vec3 = entity.position().add(0.0, HALF_HEIGHT, 0.0)
