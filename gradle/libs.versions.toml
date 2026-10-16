@@ -35,5 +35,6 @@ sable-v1211 = { module = "maven.modrinth:sable", version.ref = "sable-v1211" }
 sable-companion = { module = "dev.ryanhcode.sable-companion:sable-companion-common-1.21.1", version.ref = "sable-companion" }
 
 [plugins]
+kotlinter = { id = "org.jmailen.kotlinter", version.ref = "kotlinter" }
 kotlin = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 loom = { id = "dev.architectury.loom", version.ref = "loom" }

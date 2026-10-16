@@ -23,14 +23,17 @@ Create, Sable, Create Aeronautics and Create Propulsion: Simulated. It owns a de
 `orbitalis_flight_consumer`, and produces no distributable umbrella JAR. The ordinary Orbitalis build does not include this build,
 resolve its external mod stack, or depend on it. Existing Sable laboratory runs remain available separately.
 
+The adapter, guidance, unit tests and GameTests are written in Kotlin. Keep new consumer code in
+`src/main/kotlin`, `src/test/kotlin` or `src/gameTest/kotlin`. Kotlin and kotlinter versions come from
+the root version catalog; `check` includes Kotlin lint and the Java 21 compilation target.
+
 ## Launch
 
-Use JDK 25 for Gradle and a Java 21 toolchain. Verify from the repository root, then launch through
-the consumer's own wrapper:
+Use JDK 25 for Gradle and a Java 21 toolchain. Verify and launch through the consumer's own wrapper:
 
 ```sh
-./gradlew -p consumers/flight check
 cd consumers/flight
+./gradlew check
 ./gradlew runClient
 ./gradlew runServer
 ```
@@ -284,11 +287,11 @@ consumer; the production mod only supplies frames, gravity, rendering and journa
 The full-space native coast test is server evidence for a complete unpowered revolution. The consumer
 mission scenario exercises real Propulsion insertion, coast, restored-bookmark return, both journaled
 handoffs, preserved cargo/UUID and touchdown supported by native terrain with thrust off. On
-2026-10-16 all eight consumer GameTests and eight unit tests passed. The mission landed at tick 27201
+2026-10-16 all eight consumer GameTests and eight unit tests passed after the Kotlin migration. The mission landed at tick 27200
 with a displayed launch error of 0.2 m (asserted below 0.5 m), speed 0.05 m/s and no engine output;
 the native terrain supported it for 60 ticks before success. The 200-tick coast measurement starts
 only after native engine power and actual thrust both reach zero. Evidence is retained in
-`build/agent-logs/consumer-orbit-return-descent.log`. Its inert pilot
+`build/agent-logs/consumer-kotlin-native-2.log`. Its inert pilot
 models client acknowledgments/contact; real cockpit continuity and interaction still require a client
 trial. Sable also requests ordinary world chunks along a full orbit, which can make initial world
 saving expensive. This fixed-origin stand does not establish the eventual space chunk-loading policy,

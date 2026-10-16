@@ -21,13 +21,18 @@ import java.util.zip.ZipFile
 import javax.xml.parsers.DocumentBuilderFactory
 
 plugins {
-    java
+    alias(orbitalis.plugins.kotlin)
+    alias(orbitalis.plugins.kotlinter)
     alias(orbitalis.plugins.loom)
 }
 
 group = "org.cbi.orbitalis.consumer"
 version = "development"
 java { toolchain.languageVersion.set(JavaLanguageVersion.of(21)) }
+kotlin {
+    jvmToolchain(21)
+    compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
+}
 repositories {
     mavenCentral()
     maven("https://maven.neoforged.net/releases/")
@@ -121,7 +126,7 @@ val verifyConsumer = tasks.register("verifyConsumer") {
             }
         }
         sourceSets.main.get().output.asFileTree.matching { include("**/*.class") }.files.forEach { compiled ->
-            check(compiled.toPath().startsWith(layout.buildDirectory.dir("classes/java/main/org/cbi/orbitalis/consumer/flight").get().asFile.toPath())) {
+            check(compiled.toPath().startsWith(layout.buildDirectory.dir("classes/kotlin/main/org/cbi/orbitalis/consumer/flight").get().asFile.toPath())) {
                 "Foreign/test class in consumer main outputs: $compiled; clean stale development outputs"
             }
         }
@@ -176,6 +181,9 @@ tasks.matching { it.name in setOf("runClient", "runServer") }.configureEach { de
 
 // Test fixtures are visible only in this combined-stack server, never ordinary runs or archives.
 val gameTest = sourceSets.create("gameTest")
+kotlin.target.compilations.named(gameTest.name) {
+    associateWith(kotlin.target.compilations.getByName("main"))
+}
 gameTest.compileClasspath += sourceSets.main.get().compileClasspath + sourceSets.main.get().output
 gameTest.runtimeClasspath += sourceSets.main.get().runtimeClasspath + sourceSets.main.get().output
 val testResources = files(layout.projectDirectory.dir(
