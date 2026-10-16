@@ -18,6 +18,12 @@ limitations under the License.
 
 # Sable physics laboratory
 
+> Historical experiment, retired during cube/Sable integration. The chart/particle and Sable
+> coasting/orbit/flight/platform commands below are no longer registered. Existing saves are not
+> deleted. Use the [cube PoC](cubic-planet-poc.md); [flight dimensions](flight-gravity.md) and
+> [ship transfer](ship-transfer.md) remain available.
+
+
 This bounded experiment targets Minecraft 1.21.1 / NeoForge 21.1.252 with Sable 2.0.6.
 It creates two small real block constructions, exercises Sable's native Rapier backend, and
 translates both constructions and an unmounted creative observer within one level. It does not

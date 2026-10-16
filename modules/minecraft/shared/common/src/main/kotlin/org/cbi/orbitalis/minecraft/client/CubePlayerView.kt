@@ -20,6 +20,7 @@ package org.cbi.orbitalis.minecraft.client
 
 import net.minecraft.world.entity.Entity
 import net.minecraft.world.level.Level
+import net.minecraft.world.phys.Vec3
 import org.cbi.orbitalis.minecraft.lab.CubePlayerFrame
 import org.cbi.orbitalis.minecraft.lab.CubePlayerPhysics
 import org.cbi.orbitalis.minecraft.lab.CubePlayerVisualFrame
@@ -28,6 +29,17 @@ import java.util.UUID
 
 /** Visual frame only. Physics never reads interpolated camera state. */
 object CubePlayerView {
+    /** Installed only on the physical client when an optional moving-world provider is present. */
+    var movingCentre: ((Entity, Float) -> Vec3?)? = null
+
+    @JvmStatic
+    fun centre(
+        entity: Entity,
+        partialTick: Float,
+    ): Vec3 =
+        movingCentre?.invoke(entity, partialTick)
+            ?: entity.getPosition(partialTick).add(0.0, CubePlayerPhysics.HALF_HEIGHT, 0.0)
+
     private data class Frame(
         val visual: CubePlayerVisualFrame,
         var yawRebase: Double,

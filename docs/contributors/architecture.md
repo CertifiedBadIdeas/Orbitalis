@@ -36,30 +36,34 @@ Gradle runs on JDK 25, while shared/domain and 1.21.1 code compiles to Java 21.
 | build-scripts | JVM conventions and canonical shared source wiring | Gradle plugins |
 | tools | Isolated builds, cache publication, worktree lifecycle and verification | Python, Git and GNU tools |
 
-The Minecraft common layer owns the opt-in planet laboratory: bounded surface pads, coordinate adapters,
-operator commands and server-owned particle orbit simulation. Shared NeoForge code registers commands,
-ticks and shutdown cleanup. The laboratory dimension resource is shared common data; its ID
-`orbitalis:planet_lab` must remain stable for worlds that have entered it. The chart layout is experimental.
-Core now contains an experimental finite-planet coordinate model and two-body stepper. A test-source
-laboratory measures a full reference orbit through all six surface charts and back to its start.
-An isolated NeoForge GameTest source set exercises the Minecraft adapters in a real headless server.
-Its generated empty structure and flat world preset are excluded from normal runs and production archives.
-The test preset incorporates the canonical dimension JSON because the 1.21.1 GameTest server otherwise
-bakes its flat preset against an empty dimension registry. The [laboratory guide](planet-laboratory.md)
-describes the scene and its remaining evidence gaps.
-The optional Sable adapter stays in shared Minecraft common code; NeoForge alone wires its physics
-callbacks and commands after detecting the mod. Sable types do not enter core. The pinned external
-release is compile-only and is installed intact in every standard development game run. Its physics backend
-integrates the probes. In the explicit orbital diagnostic, Orbitalis supplies central-gravity impulses
-at the transformed centre of mass, reconstructing inertial position across frame shifts. A separate finer
-core trajectory measures numerical error and never corrects the actual Sable state. Diagnostic
-prograde/retrograde kicks apply at physics boundaries and update that reference without resetting it
-to native state; the independent core derives instantaneous orbital apsides. Coasting remains a
-separate mode; no general ship registry or celestial gravity for ordinary worlds is installed.
-The surface-flight diagnostic adds an independent bounded thrust controller in core and temporary
-Minecraft terrain in common. One Sable body performs takeoff, insertion, an unpowered revolution and
-a physical landing without state corrections. It remains in one Level and introduces no ship save schema.
-See [Sable laboratory](sable-laboratory.md) for the bounded frame-shift experiment and transfer gate.
+The Minecraft common layer owns the cubic planet proof of concept and its operator commands;
+NeoForge registers those commands and shutdown cleanup. The existing dimension ID
+`orbitalis:planet_lab` remains stable. Earlier surface charts, particle orbits and Sable
+coasting/orbit/flight/platform laboratory scenes have been retired: their commands and runtime
+controllers are removed. Existing world blocks and ships are not deleted. Independent core
+coordinate/orbit math remains available, and `flight_test`, `orbit_test`, `space_test` and the
+journaled ship-transfer system remain supported experiments.
+
+An isolated NeoForge GameTest source set exercises native adapters in a real headless server.
+Its generated empty structure and flat world preset are excluded from normal runs and production
+archives. The test preset incorporates canonical dimension JSON because Minecraft 1.21.1 otherwise
+bakes it against an empty dimension registry.
+
+All loaded ordinary Sable constructions in `planet_lab` receive the same conservative gravity
+field and centre as cube players (owned by `PlanetLabCoordinates`), without enrollment tags, distance cutoffs, or imposed attitude.
+`SableFlightGravity` applies a mass-scaled impulse at each native pre-physics substep in body axes;
+Sable owns rigid-body integration, terrain contact, loading and persistence. Native base gravity,
+drag and pressure remain zero there. No experimental body is auto-created or destroyed.
+
+`CubePlayerContacts` is the optional moving-world boundary used by planetary locomotion.
+`SableCubePlayerContacts` invokes Sable's native oriented contact solver and native tracking
+protocol, applies deck motion once, and retains inherited inertial velocity on departure.
+Narrow loader mixins adapt only active cube players inside that solver: unrotated dimensions,
+accepted physical quaternion, centre and temporary network-anchor conversion. The native solver
+itself is not forked. Terrain retains the conservative world-axis envelope and tangent/normal
+clipping. Gravity is planetary even aboard a rotating construction; no ship-defined down is added.
+Server players retain Sable's client-authoritative contact path. Dedicated servers never load
+client camera code. See [cubic planet PoC](cubic-planet-poc.md) for verification limits.
 
 Ordinary Sable constructions in the experimental `orbitalis:flight_test` dimension receive a separate
 server pre-physics cube-to-central gravity impulse. Core `CubicGravity` supplies the conservative field; common
@@ -70,8 +74,7 @@ marker in the sky pass; the NeoForge physical-client event adapter owns render e
 It adds no collision terrain, chunk loading, saved data or surface/orbit rendering continuity.
 This adapter has no ship ownership tags, persistent registry, loading tickets, cleanup of player ships or
 Propulsion API dependency. Native Sable owns integration, collisions and ship persistence. Its base gravity,
-drag and pressure are zero only in this test dimension; the Overworld and existing laboratory retain their
-own behavior. The dimension uses ordinary terrain as a local surface stand-in, not finite cubic worldgen.
+drag and pressure are zero in the flight frames and cube dimension; the Overworld retains its own behavior. The dimension uses ordinary terrain as a local surface stand-in, not finite cubic worldgen.
 The accepted planet shape is a cube with face-normal near-surface gravity and a central far field;
 see [cubic planet gravity](cubic-planet-gravity.md). Earlier `CubeSphere` charts remain a spherical
 mathematical reference, not the selected production surface geometry.

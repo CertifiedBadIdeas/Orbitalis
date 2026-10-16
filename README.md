@@ -50,13 +50,13 @@ The task writes a trajectory CSV and measured report under modules/common/core/b
 See [orbital flight feasibility](docs/contributors/orbital-flight-feasibility.md) for assumptions,
 limitations and the remaining Minecraft/Sable experiments.
 
-In a disposable world with cheats enabled, use `/orbitalis lab enter`, `/orbitalis lab sample`,
-`/orbitalis lab orbit`, and `/orbitalis lab leave` to try the laboratory. It contains six separate
-surface charts and a particle orbit demonstration. See the [laboratory guide](docs/contributors/planet-laboratory.md)
-for commands, limitations and server tests. The [Sable laboratory](docs/contributors/sable-laboratory.md)
-adds real rigid-body probes, impulse/coasting measurements, central-gravity orbits, bounded prograde/retrograde manoeuvres
-and a same-level frame shift. `/orbitalis lab sable flight` runs a one-construction takeoff,
-unpowered orbital revolution and physical landing back on a small temporary pad.
+In a disposable world with cheats enabled, use `/orbitalis lab cube enter`,
+`/orbitalis lab cube sample` and `/orbitalis lab cube leave` to try the
+[cubic planet PoC](docs/contributors/cubic-planet-poc.md). Sable constructions in its world receive
+planetary gravity, and active players use native ship contacts and moving decks. Earlier surface
+charts, particle orbits and Sable probe/orbit/flight/platform scenes have been retired. Existing
+saved content is preserved. The separate [flight dimensions](docs/contributors/flight-gravity.md)
+and [ship transfers](docs/contributors/ship-transfer.md) remain available.
 The standard `./gradlew :v1_21_1-neoforge:runClient` command automatically installs the pinned
 external Sable release in the client development run directory.
 

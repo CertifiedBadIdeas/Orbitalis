@@ -38,8 +38,10 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent
 import net.neoforged.neoforge.event.tick.ServerTickEvent
 import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
 import org.cbi.orbitalis.minecraft.integration.sable.FlightTestTravel
+import org.cbi.orbitalis.minecraft.integration.sable.SableCubePlayerContacts
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipTransfer
+import org.cbi.orbitalis.minecraft.lab.CubePlayerContacts
 import java.util.Locale
 
 /** Registered only with Sable present. No Create or Propulsion classes cross this boundary. */
@@ -52,6 +54,7 @@ object SableFlightIntegration {
     fun transferService(server: MinecraftServer): SableShipTransfer = checkNotNull(transfers[server]) { "Transfer service is not ready" }
 
     fun install() {
+        CubePlayerContacts.adapter = SableCubePlayerContacts
         NeoForge.EVENT_BUS.addListener { event: ServerStartedEvent ->
             transfers[event.server] =
                 SableShipTransfer(

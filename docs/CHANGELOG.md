@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Apply cube gravity to ordinary Sable constructions in the cube dimension and connect planetary player movement to native oriented ship contacts and moving decks.
+
+- Retire earlier chart, particle-orbit and Sable probe/orbit/flight/platform laboratory scenes and commands; preserve saved content, the cube, flight/orbit/space dimensions and ship transfers.
+
 - Prevent unpowered elytra steering from creating kinetic energy as planetary gravity turns; interpolate camera/model orientation between game ticks and retain tiny far-field turns.
 
 - Preserve weak planetary free-fall velocity across native ticks so high-altitude gravity can accumulate instead of being erased by vanilla resting thresholds.

@@ -25,7 +25,6 @@ import net.minecraft.world.entity.Pose
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.phys.AABB
 import net.minecraft.world.phys.Vec3
-import org.cbi.orbitalis.core.planet.CubicGravity
 import org.cbi.orbitalis.core.planet.GliderFlight
 import org.cbi.orbitalis.core.planet.Vector3
 import org.joml.Quaterniond
@@ -41,10 +40,10 @@ import kotlin.math.sin
 /** Opt-in cube player locomotion and flight. Vanilla movement remains outside this scene. */
 object CubePlayerPhysics {
     @JvmField
-    val CENTRE = Vec3(2048.0, 96.0, 2048.0)
+    val CENTRE = PlanetLabCoordinates.CENTRE
 
     @JvmField
-    val GRAVITY = CubicGravity(16.0, 9.81, 0.0, 4.0, 20.0)
+    val GRAVITY = PlanetLabCoordinates.GRAVITY
 
     const val HALF_HEIGHT = 0.9
     private const val HALF_WIDTH = 0.3
@@ -188,7 +187,7 @@ object CubePlayerPhysics {
         val oldBounds = box(entity, previous)
         val height = desiredHalfHeight(entity)
         val clearance = box(entity, next, height).minmax(oldBounds)
-        if (entity.level().noCollision(entity, clearance.deflate(1e-6))) {
+        if (clear(entity, clearance.deflate(1e-6))) {
             acceptTurn(entity, previous, next, height)
         } else {
             val offset = turnClearance(entity, next, clearance, oldBounds)
@@ -239,13 +238,30 @@ object CubePlayerPhysics {
         if (growth < 1e-9) return null
         val lift = nextUp.scale(growth + 1e-6)
         val outside = candidate.move(lift)
-        if (!entity.level().noCollision(entity, outside.deflate(1e-6))) return null
-        val offset = lift.add(clip(entity, outside, lift.scale(-1.0)))
+        if (!clear(entity, outside.deflate(1e-6))) return null
+        var offset = lift.add(clip(entity, outside, lift.scale(-1.0)))
+        if (!clear(entity, candidate.move(offset).deflate(1e-6))) {
+            // Native moving floors are absent from the terrain clip. Find the smallest safe
+            // outward reservation in the same bounded lift, rather than accepting a ship overlap.
+            var low = 0.0
+            var high = 1.0
+            repeat(24) {
+                val middle = (low + high) / 2.0
+                if (clear(entity, candidate.move(lift.scale(middle)).deflate(1e-6))) high = middle else low = middle
+            }
+            offset = lift.scale(high)
+        }
         if (offset.lengthSqr() < 1e-12) return null
-        if (!entity.level().noCollision(entity, candidate.move(offset).deflate(1e-6))) return null
+        if (!clear(entity, candidate.move(offset).deflate(1e-6))) return null
         if (clip(entity, oldBounds, offset).subtract(offset).lengthSqr() > 1e-12) return null
+        if (CubePlayerContacts.adapter?.clear(entity, oldBounds.minmax(oldBounds.move(offset)).deflate(1e-6)) == false) return null
         return offset
     }
+
+    private fun clear(
+        entity: Entity,
+        bounds: AABB,
+    ): Boolean = entity.level().noCollision(entity, bounds) && CubePlayerContacts.adapter?.clear(entity, bounds) != false
 
     private fun clip(
         entity: Entity,
@@ -347,15 +363,27 @@ object CubePlayerPhysics {
     ) {
         refresh(entity)
         val before = entity.boundingBox
-        val actual = clip(entity, before, requested)
+        val contact = CubePlayerContacts.adapter?.collide(entity, requested) ?: CubePlayerContacts.Contact(requested)
+        val actual = clip(entity, before, contact.motion)
         val normal = normal(entity)
-        val blocked = requested.subtract(actual)
+        // Native ship collision can change velocity along its contact normal. Only terrain clipping
+        // below uses axis rejection; do not erase a ship's tangential collision response a second time.
+        val blocked = contact.motion.subtract(actual)
         entity.setPos(entity.position().add(actual))
-        entity.setOnGround(requested.dot(normal) < 0 && blocked.dot(normal) < -1e-7)
-        entity.verticalCollision = abs(blocked.dot(normal)) > 1e-7
+        val carry = clip(entity, entity.boundingBox, contact.carry)
+        entity.setPos(entity.position().add(carry))
+        entity.setOnGround(contact.grounded || (requested.dot(normal) < 0 && blocked.dot(normal) < -1e-7))
+        entity.verticalCollision = contact.verticalCollision || abs(blocked.dot(normal)) > 1e-7
         entity.verticalCollisionBelow = entity.onGround()
-        entity.horizontalCollision = blocked.subtract(normal.scale(blocked.dot(normal))).lengthSqr() > 1e-12
-        val velocity = entity.deltaMovement
+        entity.horizontalCollision = contact.horizontalCollision || blocked.subtract(normal.scale(blocked.dot(normal))).lengthSqr() > 1e-12
+        var velocity = entity.deltaMovement
+        val normalSpeed = velocity.dot(normal)
+        val shipBlockedNormal = requested.subtract(contact.motion).dot(normal)
+        if ((contact.grounded && normalSpeed < 0.0) ||
+            (contact.verticalCollision && shipBlockedNormal * normalSpeed > 1e-12)
+        ) {
+            velocity = velocity.subtract(normal.scale(normalSpeed))
+        }
         entity.deltaMovement =
             Vec3(
                 if (abs(blocked.x) > 1e-7) 0.0 else velocity.x,

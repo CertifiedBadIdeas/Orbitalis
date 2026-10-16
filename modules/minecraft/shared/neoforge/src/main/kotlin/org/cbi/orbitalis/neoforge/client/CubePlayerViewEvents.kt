@@ -21,16 +21,22 @@ package org.cbi.orbitalis.neoforge.client
 import net.minecraft.client.Minecraft
 import net.neoforged.api.distmarker.Dist
 import net.neoforged.bus.api.SubscribeEvent
+import net.neoforged.fml.ModList
 import net.neoforged.fml.common.EventBusSubscriber
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent
 import net.neoforged.neoforge.client.event.ClientTickEvent
 import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent
 import org.cbi.orbitalis.core.Orbitalis
 import org.cbi.orbitalis.minecraft.client.CubePlayerView
+import org.cbi.orbitalis.minecraft.client.SableCubePlayerView
 import org.cbi.orbitalis.minecraft.lab.CubePlayerPhysics
 
 @EventBusSubscriber(modid = Orbitalis.MOD_ID, value = [Dist.CLIENT])
 object CubePlayerViewEvents {
+    init {
+        if (ModList.get().isLoaded("sable")) CubePlayerView.movingCentre = SableCubePlayerView::centre
+    }
+
     @JvmStatic
     @SubscribeEvent
     fun tick(event: ClientTickEvent.Post) {

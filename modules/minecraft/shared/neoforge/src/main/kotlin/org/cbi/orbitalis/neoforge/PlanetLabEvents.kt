@@ -22,10 +22,9 @@ import net.neoforged.bus.api.SubscribeEvent
 import net.neoforged.fml.common.EventBusSubscriber
 import net.neoforged.neoforge.event.RegisterCommandsEvent
 import net.neoforged.neoforge.event.server.ServerStoppedEvent
-import net.neoforged.neoforge.event.tick.ServerTickEvent
 import org.cbi.orbitalis.core.Orbitalis
+import org.cbi.orbitalis.minecraft.lab.CubePlanetLab
 import org.cbi.orbitalis.minecraft.lab.PlanetLabCommands
-import org.cbi.orbitalis.minecraft.lab.PlanetLabServices
 
 @EventBusSubscriber(modid = Orbitalis.MOD_ID)
 object PlanetLabEvents {
@@ -35,9 +34,5 @@ object PlanetLabEvents {
 
     @JvmStatic
     @SubscribeEvent
-    fun tick(event: ServerTickEvent.Post) = PlanetLabServices.tick(event.server)
-
-    @JvmStatic
-    @SubscribeEvent
-    fun stop(event: ServerStoppedEvent) = PlanetLabServices.forget(event.server)
+    fun stop(event: ServerStoppedEvent) = CubePlanetLab.forget(event.server)
 }

@@ -18,6 +18,12 @@ limitations under the License.
 
 # Minecraft planet laboratory
 
+> Historical experiment, retired during cube/Sable integration. The chart/particle and Sable
+> coasting/orbit/flight/platform commands below are no longer registered. Existing saves are not
+> deleted. Use the [cube PoC](cubic-planet-poc.md); [flight dimensions](flight-gravity.md) and
+> [ship transfer](ship-transfer.md) remain available.
+
+
 This opt-in diagnostic scene targets Minecraft 1.21.1 / NeoForge. It connects the independent
 cube-sphere coordinates and two-body stepper to Minecraft commands and server ticks. It is an
 experiment, not the starting planet or a seamless flight implementation. Use a disposable world.

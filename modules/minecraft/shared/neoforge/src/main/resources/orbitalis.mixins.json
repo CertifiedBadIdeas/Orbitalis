@@ -10,7 +10,8 @@
     "CubePlayerModeMixin",
     "CubePlayerTravelMixin",
     "CubePlayerLocomotionMixin",
-    "CubePlayerPacketMixin"
+    "CubePlayerPacketMixin",
+    "SableCubeCollisionMixin"
   ],
   "injectors": {
     "defaultRequire": 1

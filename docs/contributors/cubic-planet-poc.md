@@ -20,8 +20,9 @@ limitations under the License.
 
 This is a bounded player/terrain experiment for the [accepted design](cubic-planet-design.md), not
 production planetary generation or a chosen large-world storage architecture. It shares the existing
-`orbitalis:planet_lab` dimension without changing that saved-world ID. Existing chart pads and flight
-diagnostics remain separate. Use an isolated disposable client world in this task checkout.
+`orbitalis:planet_lab` dimension without changing that saved-world ID. Earlier chart, particle-orbit and Sable platform/orbit/flight scenes and commands are retired.
+The flight/orbit/space dimensions and ship transfers remain available. Existing saved blocks and
+constructions are preserved; no automatic cleanup of world content occurs. Use an isolated disposable client world in this task checkout.
 
 ## Scene and controls
 
@@ -60,7 +61,7 @@ Older players stranded beyond that region must use `cube enter`. An explicitly d
 record never triggers proximity migration. Membership survives save/load; return points remain transient.
 Outside planet_lab, ordinary Minecraft movement remains in effect. Enrolled non-spectators bypass
 vanilla's global-Y void damage because Y is not planetary altitude; other damage is unchanged. The
-world's block build-height bounds remain unchanged, and this does not add terrain below them. Loose entities, fluids, Sable ships,
+world's block build-height bounds remain unchanged, and this does not add terrain below them. Loose entities, fluids,
 beds, ladders, swimming, riding, crouching/crawling, stepping up blocks and production survival
 rules are not supported by this player experiment. Use a disposable scene without these features.
 The demonstration does not validate full-block interaction/reach or multiplayer combat while the view
@@ -127,11 +128,43 @@ compares local rather than world-horizontal vectors. Elytra collision impact dam
 experiment's survival rules, as is ordinary fall damage. Dedicated servers do not load camera/renderer classes.
 All physics, view and network mixins guard the explicit scene membership and dimension before changing vanilla behavior.
 
+## Sable constructions
+
+Every loaded construction in this dimension receives gravity from the same centre and field as
+players. No owner tags or distance cutoff are required. Gravity applies at the transformed centre
+of mass; it does not align the hull or reset other forces. Sable integrates the body and resolves
+terrain impacts. Native base gravity, drag and pressure are zero to avoid counting them twice.
+
+Active cube players use Sable's native OBB ship contact and native tracking packets alongside
+planetary terrain collision. Accepted physical orientation and dimensions feed that solver; the
+network anchor remains unchanged. Deck displacement is applied once, with inertial velocity
+retained when departing. Standing on a ship does not replace planetary gravity or orient the
+player to its deck. A steep or inverted deck therefore cannot act as an artificial floor.
+Crouch edge protection, step-up and vehicle seats are outside this prototype's support contract.
+
+## Cube/Sable integration observations (2026-10-16)
+
+The focused native cube suite passed twelve scenarios, including attraction on all six faces,
+native Rapier terrain landing on all six faces, and controlling-player landing, stable standing,
+deck translation, departure and underside ceiling contact on all six faces. The controlling-player fixture intentionally is
+not a ServerPlayer: Sable bypasses its collision solver for server players and trusts client tracking.
+
+In a copied disposable CubeFlight client world, an ordinary 11-by-11 iron deck settled on +Y.
+The local and integrated-server player tracked the same native body. Normal input walked about
+2.94 blocks without losing support; jump removed support, then gravity returned the player to the
+deck. A world-space native impulse lifted and translated the deck, carrying the player through
+its ascent and landing. A second deck settled on +X; first-person camera and third-person model
+were inspected, walking retained support, and creative ascent moved outward along +X until native
+tracking cleared. No moved-wrongly/too-quickly warning occurred. One native Sable movement packet
+arrived before its newly created body bundle; subsequent client/server tracking matched.
+These bounded observations do not establish arbitrary rotating concave hulls, seats, exact tilted
+terrain clearance, multiplayer latency or production survival behavior.
+
 ## Verification and manual observations
 
 `./gradlew-sandbox-dev-parallel-summary -PorbitalisGameTestSuite=cube :v1_21_1-neoforge:runGameTestServer`
-runs only the nine required cubic-player scenarios, with Sable still loaded. The default suite remains
-all laboratory scenarios. A selected suite must produce a fresh report containing every required name
+runs twelve required cube scenarios, including native Sable attraction and six-face deck contact.
+The default suite also includes the four retained flight/orbit/ship-transfer scenarios. A selected suite must produce a fresh report containing every required name
 and no failed/skipped cases; an unknown suite is rejected. The slow-edge regression covers all 24
 directed face transitions at zero, 0.005 and 0.03 blocks/tick, checking terrain clearance, adjacent-face
 support and stability after landing. These are isolated near-edge releases, without a running start.
