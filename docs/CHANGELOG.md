@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Enable native chart interactions and fluid simulation by default in the cube planet dimension; retain transient explicit seam overrides and leave other dimensions unchanged.
+
 - Extend the opt-in small-cube seam experiment to native water/lava ticks, physical gravity and rotated collision faces, retaining Minecraft source/decay/contact rules and deferring cold queries. Keep client liquid rendering, swimming and fire spread outside this stage.
 
 - Allow the Aeronautics/Simulated Physics Assembler to assemble new ordinary ships from fixed planet charts without trying to disassemble the planet; preserve native cargo and physical pose. Reverse disassembly onto charts remains a separate boundary.

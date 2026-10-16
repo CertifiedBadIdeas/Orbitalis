@@ -403,7 +403,6 @@ assembly still receives the real parent chart and preserves the new ship's physi
 The new ship remains dynamic and all six planet identities remain unchanged. This does not validate
 ship-to-chart disassembly or client lever animation/hover text.
 
-For manual investigation, `/orbitalis planet seams true` enables the transient server-side hooks while
-in the small cube dimension; `false` disables them. Toggling does not rescan existing machines or
-synchronize client connection shapes. Keep this opt-in until world lifecycle and presentation evidence
-supports broader use.
+The small cube dimension enables the server-side hooks by default. For manual investigation,
+`/orbitalis planet seams false` disables them for the current server session; `true` restores them. Toggling does not rescan existing machines or
+synchronize client connection shapes. This default does not establish world lifecycle or client presentation correctness.

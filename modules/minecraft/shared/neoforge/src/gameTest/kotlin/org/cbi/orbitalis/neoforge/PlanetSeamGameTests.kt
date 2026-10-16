@@ -103,7 +103,20 @@ object PlanetSeamGameTests {
                 }
             },
         )
-        PlanetNeighbours.enable(level, true)
+        PlanetNeighbours.reset(level)
+        helper.assertTrue(PlanetNeighbours.active(level), "Planet seams are not enabled by default")
+        helper.assertTrue(!PlanetNeighbours.active(helper.level), "Planet seams changed the ordinary test dimension")
+        val commands = level.server.commands
+        val source =
+            level.server
+                .createCommandSourceStack()
+                .withLevel(level)
+                .withSuppressedOutput()
+        commands.performPrefixedCommand(source, "orbitalis planet seams false")
+        helper.assertTrue(!PlanetNeighbours.active(level), "Explicit seam disable did not override the default")
+        commands.performPrefixedCommand(source, "orbitalis planet seams true")
+        helper.assertTrue(PlanetNeighbours.active(level), "Explicit seam enable failed")
+        PlanetNeighbours.reset(level)
         for (a in CubicFace.entries) {
             for (b in CubicFace.entries) {
                 if (a.outward.dot(b.outward) != 0.0) continue

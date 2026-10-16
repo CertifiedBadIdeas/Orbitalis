@@ -22,10 +22,11 @@ import net.minecraft.core.BlockPos
 import net.minecraft.core.Direction
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.world.level.Level
+import org.cbi.orbitalis.minecraft.lab.PlanetLabCoordinates
 import java.util.Collections
 import java.util.WeakHashMap
 
-/** Transient, explicitly enabled seam experiment. No alternate block or inventory authority. */
+/** Default planet-chart interactions with transient per-level overrides. No alternate block or inventory authority. */
 object PlanetNeighbours {
     /** Direction is the source-to-neighbour vector expressed in the destination chart axes. */
     data class Edge(
@@ -68,17 +69,22 @@ object PlanetNeighbours {
     }
 
     var adapter: Adapter? = null
-    private val enabled = Collections.synchronizedSet(Collections.newSetFromMap(WeakHashMap<Level, Boolean>()))
+    private val overrides = Collections.synchronizedMap(WeakHashMap<Level, Boolean>())
 
     @JvmStatic fun enable(
         level: ServerLevel,
         value: Boolean,
     ) {
         check(level.server.isSameThread)
-        if (value) enabled.add(level) else enabled.remove(level)
+        overrides[level] = value
     }
 
-    @JvmStatic fun active(level: Level): Boolean = level in enabled
+    @JvmStatic fun reset(level: ServerLevel) {
+        check(level.server.isSameThread)
+        overrides.remove(level)
+    }
+
+    @JvmStatic fun active(level: Level): Boolean = overrides[level] ?: (!level.isClientSide && level.dimension() == PlanetLabCoordinates.DIMENSION)
 
     @JvmStatic fun neighbour(
         level: Level,

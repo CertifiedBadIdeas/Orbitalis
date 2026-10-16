@@ -26,7 +26,7 @@ import net.minecraft.network.chat.Component
 import org.cbi.orbitalis.minecraft.lab.PlanetLabCoordinates
 import org.cbi.orbitalis.minecraft.planet.PlanetNeighbours
 
-/** Opt-in, transient native block-interaction experiment on the existing small cube. */
+/** Transient override of the default native block-interaction experiment on the existing small cube. */
 object SablePlanetSeamCommands {
     fun register(dispatcher: CommandDispatcher<CommandSourceStack>) {
         dispatcher.register(

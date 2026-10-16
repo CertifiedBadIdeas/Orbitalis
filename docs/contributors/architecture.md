@@ -92,12 +92,12 @@ requires ordinary block interactions across face boundaries; pipes are one examp
 The following limitation of the current experiment does not satisfy that criterion, and the production
 storage/coordinate boundary remains under investigation.
 
-Charts remain distinct native neighbour spaces. An opt-in experiment, enabled for the current small
-cube with `/orbitalis planet seams true`, resolves physical adjacent cells to an actual native plot
+Charts remain distinct native neighbour spaces. The small-cube experiment, enabled by default in
+the planet dimension and controlled with `/orbitalis planet seams true|false`, resolves physical adjacent cells to an actual native plot
 position and direction. MixinExtras hooks adapt queued neighbour dispatch, native signal queries and
 NeoForge's shared hopper/dropper/crafter inventory lookup. Native blocks, capabilities and inventories
 remain authoritative; the hooks introduce no transfer buffers or mirrored block entities. The switch
-is server-side, transient and disabled by default. It does not change placement or client rendering.
+is server-side; explicit overrides are transient. Other dimensions remain disabled by default. It does not change placement or client rendering.
 
 Optional Create 6.0.10 adapters also convert native kinetic adjacency/source directions and pipe pressure,
 flow traversal and sided endpoint addresses. Create retains its actual block-entity addresses, network
@@ -116,7 +116,7 @@ blocks; the test does not rebuild networks or introduce another logical authorit
 [consumer acceptance](flight-consumer.md#native-planet-chart-acceptance) for exact scope and limits,
 including authored pipe states, a temporary native test pump-range setting and same-process reload.
 
-The same opt-in switch adapts native Minecraft water/lava scheduled ticks. Fluid offsets resolve actual
+The same default and override switch adapt native Minecraft water/lava scheduled ticks. Fluid offsets resolve actual
 occupied cells before canonical air, including air outside the finite reference cube. Gravity follows the
 physical cell's dominant face, independently of the chart storing its blocks. Native source conversion,
 spread/decay delays, liquid-container rules and NeoForge contact reactions remain authoritative. Scoped
