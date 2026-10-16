@@ -18,10 +18,13 @@
 
 package org.cbi.orbitalis.neoforge.mixin;
 
+import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LevelAccessor;
+import net.minecraft.core.Direction;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.redstone.NeighborUpdater;
@@ -32,6 +35,17 @@ import org.spongepowered.asm.mixin.injection.At;
 /** Transform at native dispatch, preserving the normal queued update limit and order. */
 @Mixin(NeighborUpdater.class)
 public interface PlanetNeighbourMixin {
+    @WrapMethod(method = "executeShapeUpdate")
+    private static void orbitalis$shape(LevelAccessor world, Direction direction, BlockState neighbour,
+            BlockPos position, BlockPos source, int flags, int depth, Operation<Void> original) {
+        var edge = world instanceof Level level ? PlanetNeighbours.notification(level, position, source) : null;
+        if (edge == null) {
+            original.call(world, direction, neighbour, position, source, flags, depth);
+        } else if (edge.getReady()) {
+            original.call(world, edge.getDirection().getOpposite(), neighbour, edge.getPosition(), source, flags, depth);
+        }
+    }
+
     @WrapOperation(method = "executeUpdate", at = @At(value = "INVOKE", target =
         "Lnet/minecraft/world/level/block/state/BlockState;handleNeighborChanged(Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/Block;Lnet/minecraft/core/BlockPos;Z)V"))
     private static void orbitalis$notify(BlockState state, Level level, BlockPos position, Block block,

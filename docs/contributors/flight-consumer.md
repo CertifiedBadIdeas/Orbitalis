@@ -369,7 +369,7 @@ Do not expect a vault or inventory network to continue automatically across a ch
 
 The opt-in seam scenario adds two native hoppers feeding actual Create vault block capabilities across
 the UP/EAST chart boundary in both directions. This proves endpoint inventory interaction only; it does
-not join vault controllers. The `faces` suite now requires ten scenarios, adding actual motor/shaft
+not join vault controllers. The `faces` suite now requires twelve scenarios, adding actual motor/shaft
 and motor-driven pump/pipe/tank networks. Typed optional NeoForge adapters translate graph addresses
 and destination-local ports while native Create owns rotation, network membership, pressure and fluids.
 The tests include same-chart controls, all 24 directed shaft transitions, sign changes, motor reversal,
@@ -406,3 +406,10 @@ ship-to-chart disassembly or client lever animation/hover text.
 The small cube dimension enables the server-side hooks by default. For manual investigation,
 `/orbitalis planet seams false` disables them for the current server session; `true` restores them. Toggling does not rescan existing machines or
 synchronize client connection shapes. This default does not establish world lifecycle or client presentation correctness.
+
+Additional player-placement scenarios use ordinary `BlockItem.place` contexts without authored foreign
+shaft axes or pipe ports and without preparing empty columns in the other charts. A shaft must choose
+its native preferred axis from a foreign motor and join its live kinetic network. An elbow pipe must
+recompute both native seam ports and transfer 4000 mB through a real motor-driven pump without loss.
+These checks exercise server placement/shape dispatch; they do not validate interactive client prediction
+or connection rendering.

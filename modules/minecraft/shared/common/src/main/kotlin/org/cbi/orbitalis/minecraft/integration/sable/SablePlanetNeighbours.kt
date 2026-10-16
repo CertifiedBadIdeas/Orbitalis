@@ -79,15 +79,22 @@ object SablePlanetNeighbours : PlanetNeighbours.Adapter, PlanetFluids.Adapter {
                     step.dot(destinationFace.outward).toInt(),
                     step.dot(destinationFace.forward).toInt(),
                 )!!
-            val ready = destination.plot.getChunkHolder(destination.plot.toLocal(ChunkPos(p))) != null
+            val ready = !SablePlanetChunks.isCold(destination, destination.plot.toLocal(ChunkPos(p)))
             return PlanetNeighbours.Edge(p, d, ready)
         }
+        // A fully loaded plot's absent column is native empty space. Only an explicitly evicted
+        // column has unknown blocks. Do not allocate empty columns just to prove uniqueness.
         // Storage provenance is independent of geometric ownership: authored blocks can extend
         // from any chart deep into another face. Resolve actual occupancy before canonical air.
         if (charts.size != 6 || charts.mapNotNull(::face).toSet().size != 6) return blocked()
         val candidates = charts.map(::address)
         if (candidates.any { !it.ready }) return blocked()
-        val occupied = candidates.filter { !level.getBlockState(it.position).isAir }
+        val occupied =
+            candidates.filter { candidate ->
+                val destination = container.getPlot(ChunkPos(candidate.position)) ?: return@filter false
+                destination.getChunkHolder(destination.toLocal(ChunkPos(candidate.position))) != null &&
+                    !level.getBlockState(candidate.position).isAir
+            }
         if (occupied.size > 1) return blocked()
         val edge =
             occupied.singleOrNull()
@@ -160,7 +167,7 @@ object SablePlanetNeighbours : PlanetNeighbours.Adapter, PlanetFluids.Adapter {
                 }
             for (x in (projected.minOf { it.x } shr 4)..(projected.maxOf { it.x } shr 4)) {
                 for (z in (projected.minOf { it.z } shr 4)..(projected.maxOf { it.z } shr 4)) {
-                    if (body.plot.getChunkHolder(body.plot.toLocal(ChunkPos(x, z))) == null) return false
+                    if (SablePlanetChunks.isCold(body, body.plot.toLocal(ChunkPos(x, z)))) return false
                 }
             }
         }

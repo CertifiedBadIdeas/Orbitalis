@@ -194,6 +194,90 @@ object PlanetFluidGameTests {
     }
 
     @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "planet_bucket_play", timeoutTicks = 100)
+    fun playerPoursBucketOnOrdinaryCubeFaces(helper: GameTestHelper) {
+        val level = checkNotNull(helper.level.server.getLevel(PlanetLabCoordinates.DIMENSION))
+        val planet = SableCubePlanet(level)
+        planet.clear()
+        planet.prepare()
+        PlanetNeighbours.reset(level)
+        helper.runAfterDelay(2) {
+            val results = mutableListOf<String>()
+            val samples = mutableListOf<Pair<Direction, BlockPos>>()
+            try {
+                for (face in SableCubePlanet.faces) {
+                    val body = planet.body(face)
+                    val floor = (5 downTo -16).first { !level.getBlockState(body.plot.centerBlock.offset(0, it, 0)).isAir }
+                    val centre = planet.world(face, 0.5, floor + 2.8, 0.5)
+                    val player =
+                        object : net.minecraft.world.entity.player.Player(
+                            level,
+                            BlockPos.containing(centre),
+                            0f,
+                            com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), "bucket-face"),
+                        ) {
+                            override fun isSpectator() = false
+
+                            override fun isCreative() = true
+
+                            override fun isLocalPlayer() = true
+                        }
+                    (player as org.cbi.orbitalis.minecraft.lab.CubePlayerMode).orbitalisSetCubeEnrolled(true)
+                    (player as org.cbi.orbitalis.minecraft.lab.CubePlayerFrame).orbitalisSetUp(face)
+                    player.setPos(centre.add(0.0, -org.cbi.orbitalis.minecraft.lab.CubePlayerPhysics.HALF_HEIGHT, 0.0))
+                    org.cbi.orbitalis.minecraft.lab.CubePlayerPhysics
+                        .refresh(player)
+                    player.xRot = 90f
+                    player.yRot = 0f
+                    player.setItemInHand(
+                        net.minecraft.world.InteractionHand.MAIN_HAND,
+                        net.minecraft.world.item
+                            .ItemStack(net.minecraft.world.item.Items.WATER_BUCKET),
+                    )
+                    val result =
+                        net.minecraft.world.item.Items.WATER_BUCKET
+                            .use(level, player, net.minecraft.world.InteractionHand.MAIN_HAND)
+                    val source = body.plot.centerBlock.offset(0, floor + 1, 0)
+                    val columns = planet.bodies.sumOf { it.plot.loadedChunks.size }
+                    val ready = PlanetFluids.ready(level, source, 8)
+                    helper.assertTrue(
+                        columns == planet.bodies.sumOf { it.plot.loadedChunks.size },
+                        "Fluid readiness allocated empty candidate columns",
+                    )
+                    samples.add(face to source)
+                    val water = level.getFluidState(source).isSource
+                    results.add("$face result=${result.result} water=$water ready=$ready")
+                    player.discard()
+                }
+                println("ORBITALIS_BUCKET_PLAY " + results.joinToString("; "))
+                helper.assertTrue(
+                    results.all { "water=true" in it && "ready=true" in it },
+                    "Bucket gameplay failed: ${results.joinToString("; ")}",
+                )
+                helper.runAfterDelay(20) {
+                    try {
+                        for ((face, source) in samples) {
+                            helper.assertTrue(
+                                Direction.Plane.HORIZONTAL.any {
+                                    level.getFluidState(source.relative(it)).type.isSame(Fluids.WATER)
+                                },
+                                "Player-poured water did not spread on $face",
+                            )
+                        }
+                        println("ORBITALIS_BUCKET_FLOW faces=6 actualBucket=true nativeSpread=true noForeignAirPreparation=true")
+                        helper.succeed()
+                    } finally {
+                        planet.clear()
+                    }
+                }
+            } catch (error: Throwable) {
+                planet.clear()
+                throw error
+            }
+        }
+    }
+
+    @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "planet_fluid_falling_contact", timeoutTicks = 100)
     fun fallingLavaMakesStoneAcrossGravitySeam(helper: GameTestHelper) {
         val s = Scene(helper)

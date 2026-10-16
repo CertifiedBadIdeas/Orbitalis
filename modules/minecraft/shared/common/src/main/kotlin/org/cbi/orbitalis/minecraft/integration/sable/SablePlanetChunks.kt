@@ -55,7 +55,7 @@ object SablePlanetChunks {
     fun isCold(
         body: ServerSubLevel,
         local: ChunkPos,
-    ): Boolean = storage(body).getCompound("chunks").contains(local.toLong().toString())
+    ): Boolean = body.userDataTag?.contains(STORAGE) == true && storage(body).getCompound("chunks").contains(local.toLong().toString())
 
     fun evict(
         body: ServerSubLevel,

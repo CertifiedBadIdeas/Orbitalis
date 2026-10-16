@@ -40,10 +40,10 @@ Run `:v1_21_1-neoforge:runGameTestServer` separately for real laboratory GameTes
 compiles the isolated tests and checks run visibility, but does not start the server. The GameTest run
 requires a fresh XML report containing all laboratory scenarios without failed, skipped or error results;
 missing/empty reports fail even when the launcher exits successfully. See [planet-laboratory.md](planet-laboratory.md).
-The standard GameTest run includes Sable and requires twenty-eight scenarios: twenty-four cube/player/Sable/fluid scenarios and four retained
+The standard GameTest run includes Sable and requires twenty-nine scenarios: twenty-five cube/player/Sable/fluid scenarios and four retained
 flight/orbit/transfer scenarios. CI retains the resulting `results.xml` report. See [sable-laboratory.md](sable-laboratory.md), [flight gravity](flight-gravity.md) and [ship transfer](ship-transfer.md).
 For player movement iterations, select `-PorbitalisGameTestSuite=cube` with the same `runGameTestServer`
-task. This runs twenty-four required cube scenarios and validates their fresh XML report; it does not establish
+task. This runs twenty-five required cube scenarios and validates their fresh XML report; it does not establish
 flight-space orbit or transfer coverage. The default `all` suite retains all scenarios and required-name checks.
 A successful client launch cannot prove visual or interactive correctness. Record manual observations,
 initial state, actions and expected outcome; mark unavailable evidence explicitly pending.
@@ -120,3 +120,18 @@ failed before the adapter, then passed on all six faces with native cargo and ph
 The root fluid scenarios additionally verify native stone formation when incoming down and target-cell
 gravity disagree at a seam. These are headless server observations; client liquid rendering, forces and
 interactive lever presentation remain unverified.
+
+Gameplay-path correction: `gradle-20261016T205323Z-86763.log` reproduced the reported bucket failure:
+ordinary use consumed the bucket on UP and missed all five other faces; all six had false readiness.
+The native POV helper rebuilt a global-Y ray, and readiness confused absent native air columns with cold
+stored chunks. `gradle-20261016T205912Z-101703.log` passed all 25 root cube scenarios, including actual
+bucket sources and subsequent native spreading on all six unprepared faces without query allocation.
+The cold-column defer/restore scenarios still pass. The default-on scenario also executes the real seam
+false/true commands and checks that the ordinary test dimension remains disabled.
+
+`player-create-green.log` passed consumer checks and all 12 face scenarios, including actual player
+shaft placement following a foreign motor, live native rotation and automatic elbow-pipe connections
+with conserved native pump transfer. The shaft reproducer failed before its placement adapter. The
+initial pump fixture used a motor on the wrong rotation axis; that fixture was corrected to native cog
+transmission before using its result as evidence. The previous prepared-state network tests did not
+establish these player-placement paths. Client prediction/rendering remain separately unverified.

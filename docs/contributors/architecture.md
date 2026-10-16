@@ -93,14 +93,16 @@ The following limitation of the current experiment does not satisfy that criteri
 storage/coordinate boundary remains under investigation.
 
 Charts remain distinct native neighbour spaces. The small-cube experiment, enabled by default in
-the planet dimension and controlled with `/orbitalis planet seams true|false`, resolves physical adjacent cells to an actual native plot
-position and direction. MixinExtras hooks adapt queued neighbour dispatch, native signal queries and
+the planet dimension and controlled with `/orbitalis planet seams true|false`, resolves physical adjacent cells to an actual native
+plot position and direction. MixinExtras hooks adapt queued neighbour and shape dispatch, native signal queries and
 NeoForge's shared hopper/dropper/crafter inventory lookup. Native blocks, capabilities and inventories
 remain authoritative; the hooks introduce no transfer buffers or mirrored block entities. The switch
-is server-side; explicit overrides are transient. Other dimensions remain disabled by default. It does not change placement or client rendering.
+is server-side; explicit overrides are transient. Other dimensions remain disabled by default.
+Item rays and Create shaft placement use the adapters described below.
+Client connection rendering remains separately unvalidated.
 
-Optional Create 6.0.10 adapters also convert native kinetic adjacency/source directions and pipe pressure,
-flow traversal and sided endpoint addresses. Create retains its actual block-entity addresses, network
+Optional Create 6.0.10 adapters also convert native preferred shaft-axis probes, kinetic adjacency/source
+directions and pipe pressure, flow traversal and sided endpoint addresses. Create retains its actual block-entity addresses, network
 membership, stress, pressure and fluid inventories. No transfer buffer, mirrored entity or replacement
 simulation is introduced. The typed hooks live in shared/neoforge; the target leaf pins Create and Ponder
 as compile-only dependencies and never bundles their implementation. Missing Create skips its pseudo mixins.
@@ -116,8 +118,9 @@ blocks; the test does not rebuild networks or introduce another logical authorit
 [consumer acceptance](flight-consumer.md#native-planet-chart-acceptance) for exact scope and limits,
 including authored pipe states, a temporary native test pump-range setting and same-process reload.
 
-The same default and override switch adapt native Minecraft water/lava scheduled ticks. Fluid offsets resolve actual
-occupied cells before canonical air, including air outside the finite reference cube. Gravity follows the
+The same default and override switch adapt native Minecraft water/lava scheduled ticks. Bucket POV rays
+use the player's gravity-aware view instead of rebuilding a global-Y look vector from local yaw/pitch.
+Fluid offsets resolve actual occupied cells before canonical air, including air outside the finite reference cube. Gravity follows the
 physical cell's dominant face, independently of the chart storing its blocks. Native source conversion,
 spread/decay delays, liquid-container rules and NeoForge contact reactions remain authoritative. Scoped
 incoming directions preserve the falling source cell's downward axis through a gravity seam, including
@@ -138,12 +141,17 @@ not establish reverse disassembly onto planet charts or interactive lever presen
 This remains a bounded connectivity experiment, not automatic support for a multiblock or arbitrary mod
 coordinate algorithm. Cardinal shafts, small cogs and ordinary pipe graphs are addressed; diagonal/large
 cog transmissions, encased chain connections and custom propagation contracts need separate adaptation.
-Shape updates, redstone dust topology and general replay of missed cold notifications are not implemented.
+Native queued shape updates convert the actual destination and incoming side while preserving the native
+queue, flags and recursion limit. Arbitrary block-specific interpretation of rotated neighbour states,
+redstone dust topology and general replay of missed cold notifications remain separate boundaries.
 Geometric face ownership is only the fallback address for empty cells inside the reference cube.
 An actual uniquely occupied voxel takes precedence, regardless of its storage chart: a shaft or pipe may
-extend from one chart several blocks inside another geometric sector before connecting. All projected
-columns must be resident to establish uniqueness; unknown foreign columns and overlapping occupied
-voxels reject the lookup without loading chunks. This resolver is deliberately bounded to six small charts;
+extend from one chart several blocks inside another geometric sector before connecting. All six native plots must be loaded to establish uniqueness. Within a fully loaded
+native plot, a
+never-created column is known empty space; only explicit cold records contain unresolved stored blocks.
+Read-only queries skip absent holders and never allocate foreign empty columns. Explicitly cold projected
+columns and overlapping occupied voxels reject the lookup without loading chunks.
+This resolver is deliberately bounded to six small charts;
 it is not a measured solution for arbitrary large-planet neighbour queries. Only the expected six fixed
 laboratory poses participate; normal ships and unrelated
 levels retain native behaviour. Keep the six-chart model while testing this path; a custom replacement

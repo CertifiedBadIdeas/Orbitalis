@@ -84,7 +84,10 @@ object PlanetNeighbours {
         overrides.remove(level)
     }
 
-    @JvmStatic fun active(level: Level): Boolean = overrides[level] ?: (!level.isClientSide && level.dimension() == PlanetLabCoordinates.DIMENSION)
+    @JvmStatic fun active(level: Level): Boolean {
+        val default = !level.isClientSide && level.dimension() == PlanetLabCoordinates.DIMENSION
+        return overrides[level] ?: default
+    }
 
     @JvmStatic fun neighbour(
         level: Level,

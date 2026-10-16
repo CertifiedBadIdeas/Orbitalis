@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Fix actual bucket use on all cube faces by using the gravity-aware item ray. Distinguish never-created native empty plot columns from explicitly cold chunks so normal gameplay does not require test-prepared foreign air columns.
+
+- Adapt native queued shape updates and Create's preferred shaft axis across charts. Exercise actual BlockItem placement, automatic elbow-pipe ports, motor rotation and conserved pump transfer without authored connection states.
+
 - Enable native chart interactions and fluid simulation by default in the cube planet dimension; retain transient explicit seam overrides and leave other dimensions unchanged.
 
 - Extend the opt-in small-cube seam experiment to native water/lava ticks, physical gravity and rotated collision faces, retaining Minecraft source/decay/contact rules and deferring cold queries. Keep client liquid rendering, swimming and fire spread outside this stage.
