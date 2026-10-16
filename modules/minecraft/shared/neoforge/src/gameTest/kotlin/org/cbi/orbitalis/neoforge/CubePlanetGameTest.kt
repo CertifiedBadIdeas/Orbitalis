@@ -243,7 +243,8 @@ object CubePlanetGameTest {
             player.abilities.flying = true
             player.deltaMovement = Vec3.ZERO
             val before = CubePlayerPhysics.centre(player)
-            repeat(20) {
+            // Stay in the face-normal band; above it, the field intentionally bends towards the centre.
+            repeat(10) {
                 val lift = CubePlayerPhysics.rotate(Vec3(0.0, 0.15, 0.0), CubePlayerPhysics.up(player))
                 player.deltaMovement = player.deltaMovement.add(lift)
                 player.travel(Vec3.ZERO)
@@ -252,11 +253,76 @@ object CubePlanetGameTest {
             helper.assertTrue(player.abilities.flying, "Cube travel disabled creative flight")
             helper.assertTrue(after.x > before.x + 3.0, "Creative lift did not escape along the side face normal")
             helper.assertTrue(abs(after.y - before.y) < 1e-5, "Vanilla global-Y flight or gravity leaked into local lift")
+            checkNativeCreativeFlight(helper, lab, player)
         } finally {
             lab.leave(player)
             player.discard()
         }
         helper.succeed()
+    }
+
+    private fun checkNativeCreativeFlight(
+        helper: GameTestHelper,
+        lab: CubePlanetLab,
+        pilot: net.minecraft.server.level.ServerPlayer,
+    ) {
+        val nativePilot = GameTestPlayers.create(helper, locallyControlled = true)
+        val reference = GameTestPlayers.controller(nativePilot)
+        try {
+            reference.abilities.mayfly = true
+            reference.abilities.flying = true
+            for (face in Direction.entries) {
+                helper.assertTrue(lab.enter(pilot, face), "Flight entry failed on $face")
+                GameTestPlayers.acknowledgeTeleport(pilot)
+                val actor = GameTestPlayers.controller(pilot)
+                try {
+                    actor.abilities.mayfly = true
+                    actor.abilities.flying = true
+                    val position = CubePlayerPhysics.CENTRE.add(Vec3.atLowerCornerOf(face.normal).scale(22.0))
+                    var normalSpeed = 0.0
+                    for (sprint in listOf(false, true)) {
+                        reference.isSprinting = sprint
+                        actor.isSprinting = sprint
+                        reference.deltaMovement = Vec3.ZERO
+                        actor.deltaMovement = Vec3.ZERO
+                        for (tick in 1..30) {
+                            // Reposition within the same empty lane; retain velocity to test sustained flight.
+                            reference.setPos(Vec3.atLowerCornerOf(helper.absolutePos(BlockPos(1, 48, 1))))
+                            actor.setPos(position.add(0.0, -CubePlayerPhysics.HALF_HEIGHT, 0.0))
+                            reference.setOnGround(false)
+                            actor.setOnGround(false)
+                            reference.yRot = 0f
+                            actor.yRot = 0f
+                            val beforeReference = reference.position()
+                            val beforeActor = CubePlayerPhysics.centre(actor)
+                            reference.travel(Vec3(0.0, 0.0, 1.0))
+                            actor.travel(Vec3(0.0, 0.0, 1.0))
+                            val expected = reference.position().subtract(beforeReference)
+                            val actual = CubePlayerPhysics.local(CubePlayerPhysics.centre(actor).subtract(beforeActor), actor)
+                            helper.assertTrue(
+                                actual.distanceTo(expected) < 0.0001,
+                                "Creative travel differs from native: face=$face sprint=$sprint tick=$tick actual=$actual expected=$expected",
+                            )
+                        }
+                        val speed = actor.deltaMovement.length()
+                        if (!sprint) {
+                            normalSpeed = speed
+                        } else {
+                            helper.assertTrue(
+                                abs(speed / normalSpeed - 2.0) < 0.001,
+                                "Sprint did not double flight speed on $face",
+                            )
+                        }
+                    }
+                    println("ORBITALIS_CUBE_CREATIVE_SPEED face=$face nativeMatch=true sprintRatio=2")
+                } finally {
+                    actor.discard()
+                }
+            }
+        } finally {
+            reference.discard()
+            nativePilot.discard()
+        }
     }
 
     @JvmStatic

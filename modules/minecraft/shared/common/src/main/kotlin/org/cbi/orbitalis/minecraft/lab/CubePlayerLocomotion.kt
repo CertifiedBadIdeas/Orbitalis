@@ -23,4 +23,6 @@ interface CubePlayerLocomotion {
     fun orbitalisInputAcceleration(friction: Float): Float
 
     fun orbitalisSupportFriction(): Float
+
+    fun orbitalisFlyingSpeed(): Float
 }

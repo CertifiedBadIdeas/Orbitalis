@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Restore vanilla creative flight acceleration, horizontal drag and sprint speed on all cube faces.
+
 - Restore native ground/air acceleration and friction, preventing excessive speed from repeated sprint jumps; resolve slippery support blocks in each face’s native coordinates.
 
 - Restore native Minecraft jump strength, effects, sprint impulse and jump events on the cube. Match ordinary jump timing with move-before-gravity integration and normal air drag; use a shared 32 blocks/s² constant surface band for players and Sable constructions in the small fixture, with conservative distant falloff.

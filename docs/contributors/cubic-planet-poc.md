@@ -82,7 +82,8 @@ as they do in Minecraft. Support queries follow local down and resolve native Sa
 including loader-specific block friction; ice and normal terrain need not share a coefficient.
 Walk forward from the initial clear lane to leave the green face and fall towards the orange +X face.
 WASD and mouse look use the accepted gravity frame; jump acts along local up. Creative flight remains available with normal double-jump activation; jump/shift lift follows
-local up/down, with no gravity while flying. Above the face-normal zone, up follows the sampled gravity
+local up/down, with no gravity while flying. Creative travel uses native flying speed (including
+sprint), horizontal drag 0.91 and normal drag 0.6 after movement, matching vanilla free-flight trajectories. Above the face-normal zone, up follows the sampled gravity
 continuously instead of choosing a face axis. Elytra retain native activation, equipment and durability;
 planing lift, pitch steering and drag are integrated in the local gravity frame. Unpowered aerodynamic
 steering is bounded by the kinetic energy after gravity and before dissipative drag: lifting the nose

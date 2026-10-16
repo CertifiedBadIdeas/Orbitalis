@@ -317,9 +317,12 @@ object CubePlayerPhysics {
         var control = Vec3(input.x * cos(yaw) - input.z * sin(yaw), 0.0, input.z * cos(yaw) + input.x * sin(yaw))
         if (control.lengthSqr() > 1) control = control.normalize()
         if (player.abilities.flying) {
-            player.deltaMovement =
-                player.deltaMovement.scale(0.6).add(rotate(control, player).scale(player.abilities.flyingSpeed.toDouble()))
+            val speed = (player as CubePlayerLocomotion).orbitalisFlyingSpeed().toDouble()
+            player.deltaMovement = player.deltaMovement.add(rotate(control, player).scale(speed))
             player.move(MoverType.SELF, player.deltaMovement)
+            val nextUp = normal(player)
+            val vertical = nextUp.scale(player.deltaMovement.dot(nextUp))
+            player.deltaMovement = player.deltaMovement.subtract(vertical).scale(0.91f.toDouble()).add(vertical.scale(0.6))
             player.fallDistance = 0f
             return
         }

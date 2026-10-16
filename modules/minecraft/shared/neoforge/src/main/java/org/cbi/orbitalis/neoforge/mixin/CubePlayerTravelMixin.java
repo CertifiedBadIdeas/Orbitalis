@@ -38,6 +38,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(LivingEntity.class)
 public abstract class CubePlayerTravelMixin implements CubePlayerLocomotion {
     @Shadow protected abstract float getFrictionInfluencedSpeed(float friction);
+    @Shadow protected abstract float getFlyingSpeed();
+
+    @Override
+    public float orbitalisFlyingSpeed() { return getFlyingSpeed(); }
 
     @Override
     public float orbitalisInputAcceleration(float friction) { return getFrictionInfluencedSpeed(friction); }
