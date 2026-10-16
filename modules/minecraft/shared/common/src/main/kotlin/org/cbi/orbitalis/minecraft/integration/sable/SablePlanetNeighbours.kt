@@ -30,6 +30,8 @@ import org.cbi.orbitalis.core.planet.PlanetCell
 import org.cbi.orbitalis.minecraft.lab.PlanetLabCoordinates
 import org.cbi.orbitalis.minecraft.planet.PlanetFluids
 import org.cbi.orbitalis.minecraft.planet.PlanetNeighbours
+import org.joml.Quaterniond
+import org.joml.Vector3d
 
 /** Integer signed-permutation addressing for fixed planet charts; never loads a native chunk. */
 object SablePlanetNeighbours : PlanetNeighbours.Adapter, PlanetFluids.Adapter {
@@ -217,9 +219,13 @@ object SablePlanetNeighbours : PlanetNeighbours.Adapter, PlanetFluids.Adapter {
         val expected = PlanetLabCoordinates.CENTRE.add(SableCubePlanet.normal(direction).scale(16.0))
         val pose = body.logicalPose()
         val pivot = body.plot.centerBlock
-        return pose.position().distance(expected.x, expected.y, expected.z) < 1e-6 &&
-            pose.rotationPoint().distance(pivot.x.toDouble(), pivot.y.toDouble(), pivot.z.toDouble()) < 1e-6 &&
-            kotlin.math.abs(pose.orientation().dot(SableCubePlanet.rotation(direction))) > 1.0 - 1e-12
+        // Position is the world location of rotationPoint, not necessarily the plot centre.
+        // Older native saves retain a centre-of-mass pivot and float-rounded physics poses.
+        // Validate the actual grid transform without relocating blocks or rewriting that pivot.
+        val centre = pose.transformPosition(Vector3d(pivot.x.toDouble(), pivot.y.toDouble(), pivot.z.toDouble()), Vector3d())
+        return centre.distance(expected.x, expected.y, expected.z) < 1.0 / 1024.0 &&
+            pose.scale().distance(1.0, 1.0, 1.0) < 1e-9 &&
+            kotlin.math.abs(Quaterniond(pose.orientation()).normalize().dot(SableCubePlanet.rotation(direction))) > 1.0 - 1e-12
     }
 
     fun face(body: ServerSubLevel): CubicFace? = SableCubePlanet.direction(body)?.let { direction -> CubicFace.valueOf(direction.name) }

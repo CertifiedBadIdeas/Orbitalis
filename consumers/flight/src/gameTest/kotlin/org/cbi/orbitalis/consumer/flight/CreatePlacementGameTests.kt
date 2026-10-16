@@ -22,6 +22,7 @@ import com.mojang.authlib.GameProfile
 import com.simibubi.create.content.fluids.pipes.FluidPipeBlock
 import com.simibubi.create.content.kinetics.base.KineticBlockEntity
 import com.simibubi.create.content.kinetics.motor.CreativeMotorBlockEntity
+import dev.ryanhcode.sable.companion.math.Pose3d
 import net.minecraft.core.BlockPos
 import net.minecraft.core.Direction
 import net.minecraft.core.registries.BuiltInRegistries
@@ -49,6 +50,7 @@ import org.cbi.orbitalis.minecraft.lab.CubePlayerMode
 import org.cbi.orbitalis.minecraft.lab.CubePlayerPhysics
 import org.cbi.orbitalis.minecraft.lab.PlanetLabCoordinates
 import org.cbi.orbitalis.minecraft.planet.PlanetNeighbours
+import org.joml.Vector3d
 import java.util.UUID
 
 /** Native player placement and native shape updates, without authored pipe ports or foreign air chunks. */
@@ -60,6 +62,19 @@ object CreatePlacementGameTests {
         val s = FaceFrameScene(checkNotNull(helper.level.server.getLevel(PlanetLabCoordinates.DIMENSION)))
         s.planet.clear()
         s.prepare()
+        // Existing gameplay saves retain a centre-of-mass pivot and float-rounded native poses.
+        // Reproduce those saved pose fields without changing block ownership or rebuilding machines.
+        for (body in s.bodies) {
+            val pose = body.logicalPose()
+            val pivot = Vector3d(pose.rotationPoint()).add(.075544875, -3.353883282, -.023767736)
+            val position = pose.transformPosition(pivot, Vector3d())
+            pose.rotationPoint().set(pivot)
+            pose.position().set(position.x.toFloat().toDouble(), position.y.toFloat().toDouble(), position.z.toFloat().toDouble())
+            val q = pose.orientation()
+            q.set(q.x.toFloat().toDouble(), q.y.toFloat().toDouble(), q.z.toFloat().toDouble(), q.w.toFloat().toDouble())
+            body.updateLastPose()
+            body.forceUpdateGlobalBounds()
+        }
         PlanetNeighbours.reset(s.level)
         helper.onEachTick { s.level.resetEmptyTime() }
         onFinished(helper) { s.close() }
@@ -136,7 +151,28 @@ object CreatePlacementGameTests {
                     result.speed != 0f && result.network == drive.network,
                     "Player-placed shaft did not join the native motor network",
                 )
-                println("ORBITALIS_CREATE_PLAYER_SHAFT nativeBlockItem=true preferredAxis=true nativeRotation=true")
+                // Pivot freedom must not admit genuinely shifted, rotated or scaled grids.
+                val body = s.planet.body(Direction.EAST)
+                val pose = body.logicalPose()
+                val saved = Pose3d(pose)
+
+                fun connected() = PlanetNeighbours.neighbour(s.level, motor, Direction.EAST)?.ready == true
+                helper.assertTrue(connected(), "Rebased saved grid was rejected")
+                try {
+                    pose.position().add(.125, 0.0, 0.0)
+                    helper.assertTrue(!connected(), "Shifted chart was accepted")
+                    pose.set(saved)
+                    pose.orientation().rotateY(.01)
+                    helper.assertTrue(!connected(), "Rotated chart was accepted")
+                    pose.set(saved)
+                    pose.scale().set(1.01, 1.0, 1.0)
+                    helper.assertTrue(!connected(), "Scaled chart was accepted")
+                } finally {
+                    pose.set(saved)
+                }
+                println(
+                    "ORBITALIS_CREATE_PLAYER_SHAFT savedPose=true rebasedPivot=true roundedPose=true nativeBlockItem=true preferredAxis=true nativeRotation=true",
+                )
                 helper.succeed()
             }
         }
@@ -178,7 +214,9 @@ object CreatePlacementGameTests {
                 val a = tank(source).getFluidInTank(0).amount
                 val b = tank(target).getFluidInTank(0).amount
                 helper.assertTrue(b > 0 && a + b == 4000, "Player-placed native pipes did not transfer conserved fluid: $a/$b")
-                println("ORBITALIS_CREATE_PLAYER_PIPE nativeBlockItem=true nativeShapes=true nativePump=true conserved=true")
+                println(
+                    "ORBITALIS_CREATE_PLAYER_PIPE savedPose=true rebasedPivot=true roundedPose=true nativeBlockItem=true nativeShapes=true nativePump=true conserved=true",
+                )
                 helper.succeed()
             }
         }

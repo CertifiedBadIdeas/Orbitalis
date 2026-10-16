@@ -413,3 +413,9 @@ its native preferred axis from a foreign motor and join its live kinetic network
 recompute both native seam ports and transfer 4000 mB through a real motor-driven pump without loss.
 These checks exercise server placement/shape dispatch; they do not validate interactive client prediction
 or connection rendering.
+
+The player-placement scenarios also reproduce saved native pose fields: all six charts use equivalent
+centre-of-mass pivots and float-rounded positions/orientations before machine placement. Actual shaft
+rotation and pipe transfer must still work; genuinely translated, rotated or scaled grids must be
+rejected. This covers existing-world grid recognition without migrating blocks or resetting poses.
+Native group reload is covered separately by the closed-network scenarios above.

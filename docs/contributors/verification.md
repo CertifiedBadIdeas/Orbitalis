@@ -135,3 +135,17 @@ with conserved native pump transfer. The shaft reproducer failed before its plac
 initial pump fixture used a motor on the wrong rotation axis; that fixture was corrected to native cog
 transmission before using its result as evidence. The previous prepared-state network tests did not
 establish these player-placement paths. Client prediction/rendering remain separately unverified.
+
+Existing-world recognition correction (2026-10-17): read-only inspection of the gameplay save found
+six marked fixed charts with centre-of-mass pivots and float-rounded poses. Their transformed plot
+centres were aligned with the canonical grids, but the old guard compared raw pose position/pivot.
+`rebased-seams-red-clean.log` reproduced both failures on a clean test world: native shaft placement
+chose the wrong axis and native pipe shape updates did not open the seam; the other ten face scenarios
+passed. `rebased-seams-green.log` passes all 12 after checking the affine grid rather than the pivot.
+The strengthened placement scenarios reproduce saved pose fields before ordinary machine placement,
+then assert actual motor rotation and conserved pump transfer. They also reject a genuinely translated,
+rotated or scaled grid. Existing closed-network tests continue to cover native group reload separately.
+A separate read-only replay of the six actual saved pose fields through pinned JOML transforms
+(`live-chart-transform-probe.log`) accepts all six grids with centre errors of 0.00011–0.00034 blocks.
+The initial immediate-reload fixture failed before placement; its log is not connectivity evidence.
+These are headless observations plus read-only save inspection, not an observed interactive client retest.

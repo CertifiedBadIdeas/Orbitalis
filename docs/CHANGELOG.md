@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Recognize existing fixed cube charts with centre-of-mass pivots and float-rounded native poses by their actual block-grid transform. Preserve saved blocks and poses while allowing cross-chart Create connections; reject genuinely moved, rotated or scaled charts.
+
 - Fix actual bucket use on all cube faces by using the gravity-aware item ray. Distinguish never-created native empty plot columns from explicitly cold chunks so normal gameplay does not require test-prepared foreign air columns.
 
 - Adapt native queued shape updates and Create's preferred shaft axis across charts. Exercise actual BlockItem placement, automatic elbow-pipe ports, motor rotation and conserved pump transfer without authored connection states.

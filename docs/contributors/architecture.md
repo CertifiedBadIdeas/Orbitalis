@@ -153,8 +153,11 @@ Read-only queries skip absent holders and never allocate foreign empty columns. 
 columns and overlapping occupied voxels reject the lookup without loading chunks.
 This resolver is deliberately bounded to six small charts;
 it is not a measured solution for arbitrary large-planet neighbour queries. Only the expected six fixed
-laboratory poses participate; normal ships and unrelated
-levels retain native behaviour. Keep the six-chart model while testing this path; a custom replacement
+laboratory grids participate. The guard compares the transformed plot centre to the expected face
+origin (within 1/1024 block for native float-rounded laboratory saves), normalized orientation and unit
+scale. A native centre-of-mass pivot may differ from the plot centre without moving the grid; raw pose
+position and pivot are therefore not identity checks. This does not rewrite saved poses or blocks.
+Genuinely moved, rotated or scaled charts, normal ships and unrelated levels retain native behaviour. Keep the six-chart model while testing this path; a custom replacement
 is a fallback if required connectivity cannot be achieved. This does not establish general world
 generation or a production-size planet.
 
