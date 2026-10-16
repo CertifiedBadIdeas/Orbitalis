@@ -63,8 +63,12 @@ The opt-in seam GameTest uses all 24 directed adjacent-face pairs, reciprocal na
 centre/corner/interior samples. It verifies ordinary placement/removal powering a native lamp, actual
 hopper/dropper transfers, item conservation through native chunk eviction/restoration and native furnace
 sides above the reference cube. The consumer additionally exercises native hoppers feeding foreign
-Create vault capabilities. These are server behaviour checks; they do not prove Create pipe/kinetic graph
-traversal, cross-chart multiblocks, wire shape/rendering or arbitrary mod compatibility. The seam switch
+Create vault capabilities. Separate native motor and pump scenarios exercise shafts across all 24 directed
+face pairs, small cog and gearbox transmission, reversal, break/reconnection, fluid conservation and a
+native pipe/tank column's cold restoration. Both graphs include authored blocks continuing inside another
+face's geometric sector and connections above the cube away from its edges. The empty test dimension
+must be kept awake on every tick for scenarios exceeding Minecraft's idle timeout. These are server checks;
+they do not prove cross-chart multiblocks, arbitrary/custom transmissions or client shape/rendering. The seam switch
 must remain explicit until those boundaries are separately validated.
 
 Observed on 2026-10-16: `gradle-20261016T162315Z-653065.log` passed `verifyLocalFull` and all fifteen
@@ -73,3 +77,11 @@ address checks, lamp notifications, native inventory transfers, cold reconnectio
 acceptance/rejection. The independent `seam-create-consumer.log` run passed its five face scenarios,
 including two native hoppers feeding foreign Create vaults with conserved item counts. These observations
 do not establish interactive/client correctness or a general performance budget.
+
+Observed for the Create extension on 2026-10-16: `create-seam-live-init.log` passed consumer `check` and
+all seven `faces` GameTests. Earlier bounded iterations exposed an invalid retained capability provider
+on pipe removal and a missing native pressure discovery after restoration; the final scenario exercises
+both with continuous dimension ticking. Shaft checks include 24 directed transitions plus controls,
+five blocks of continuation inside another geometric face, small cogs and a gearbox. Fluid checks use
+four real motor-driven circuits; no test-written pump speed or substitute transfer buffer is involved.
+Client presentation and large-planet performance remain unmeasured.

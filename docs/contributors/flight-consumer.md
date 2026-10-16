@@ -361,16 +361,26 @@ The `faces` GameTest suite exercises the same six-chart cube used by `/orbitalis
 shared inventories and both placement axes on every face, all 24 directed edge crossings with native
 player contact, and native chart unload/reload with inventory, excavation and anchor retention.
 The ordinary default `all` consumer suite also includes these scenarios. Create fixture blocks and
-acceptance tests belong only to this stand; canonical planet code does not depend on Create.
+acceptance tests belong only to this stand; canonical shared/common planet code does not depend on Create.
 For a manual trial, use the standard cube commands in a disposable consumer world, take vaults from
 the ordinary creative inventory and place them along both local horizontal directions on each face.
 Do not expect a vault or inventory network to continue automatically across a chart seam.
 
 
 The opt-in seam scenario adds two native hoppers feeding actual Create vault block capabilities across
-the UP/EAST chart boundary in both directions. No Create-specific production hook, copied inventory or
-transfer buffer is used. Together with the existing scenarios, the `faces` suite requires five tests.
-This proves endpoint inventory interaction only: it does not join two vault controllers or adapt Create's
-own fluid/kinetic graph traversal. For manual investigation, `/orbitalis planet seams true` enables the
-transient server-side hooks while in the small cube dimension; `false` disables them. Toggling does not
-rescan existing machines or synchronize client connection shapes.
+the UP/EAST chart boundary in both directions. This proves endpoint inventory interaction only; it does
+not join vault controllers. The `faces` suite now requires seven scenarios, adding actual motor/shaft
+and motor-driven pump/pipe/tank networks. Typed optional NeoForge adapters translate graph addresses
+and destination-local ports while native Create owns rotation, network membership, pressure and fluids.
+The tests include same-chart controls, all 24 directed shaft transitions, sign changes, motor reversal,
+removal/reconnection, fluid conservation and reversed/blocked/reconnected pipes. They also connect an
+UP-authored shaft five blocks inside the EAST geometric sector and connect authored networks above
+both faces, away from the cube edge. One native pipe/tank column is also evicted and restored while the source continues ticking, checking
+conservation and resumed flow. Full Create-network world reload, cold kinetic graph reconnection and
+client connection presentation are not established by these scenarios. Large/diagonal cog, encased chain and custom network contracts
+remain outside the validated set.
+
+For manual investigation, `/orbitalis planet seams true` enables the transient server-side hooks while
+in the small cube dimension; `false` disables them. Toggling does not rescan existing machines or
+synchronize client connection shapes. Keep this opt-in until world lifecycle and presentation evidence
+supports broader use.

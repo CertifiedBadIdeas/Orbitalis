@@ -48,8 +48,6 @@ object SablePlanetNeighbours : PlanetNeighbours.Adapter {
         val volume = small
         val origin = plot.centerBlock
         val sourceCell = volume.toPlanet(face, PlanetCell(source.x - origin.x, source.y - origin.y, source.z - origin.z))
-        // Do not alias a non-owning chart's air inside the solid volume.
-        if (volume.contains(sourceCell) && volume.owner(sourceCell) != face) return null
         val step =
             face.right * direction.stepX.toDouble() + face.outward * direction.stepY.toDouble() + face.forward * direction.stepZ.toDouble()
         val target = PlanetCell(sourceCell.x + step.x.toInt(), sourceCell.y + step.y.toInt(), sourceCell.z + step.z.toInt())
@@ -70,21 +68,53 @@ object SablePlanetNeighbours : PlanetNeighbours.Adapter {
             val ready = destination.plot.getChunkHolder(destination.plot.toLocal(ChunkPos(p))) != null
             return PlanetNeighbours.Edge(p, d, ready)
         }
-        if (volume.contains(target)) {
-            val owner = volume.owner(target)
-            if (owner == face) return null
-            val destination = charts.singleOrNull { face(it) == owner } ?: return blocked()
-            return address(destination)
-        }
-        // Authored blocks outside the reference cube: require unique, resident physical occupancy.
-        // Unknown foreign columns and overlapping authored blocks fail closed; no guessed air.
-        if (charts.size != 6) return blocked()
+        // Storage provenance is independent of geometric ownership: authored blocks can extend
+        // from any chart deep into another face. Resolve actual occupancy before canonical air.
+        if (charts.size != 6 || charts.mapNotNull(::face).toSet().size != 6) return blocked()
         val candidates = charts.map(::address)
         if (candidates.any { !it.ready }) return blocked()
         val occupied = candidates.filter { !level.getBlockState(it.position).isAir }
         if (occupied.size > 1) return blocked()
-        val edge = occupied.singleOrNull() ?: return null
+        val edge =
+            occupied.singleOrNull()
+                ?: if (volume.contains(target)) address(charts.single { face(it) == volume.owner(target) }) else return null
         return edge.takeUnless { it.position == source.relative(direction) }
+    }
+
+    override fun relation(
+        level: Level,
+        source: BlockPos,
+        target: BlockPos,
+    ): PlanetNeighbours.Relation? {
+        if (level.dimension() != PlanetLabCoordinates.DIMENSION || level.isClientSide) return null
+        val container = SubLevelContainer.getContainer(level) ?: return null
+        val a = container.getPlot(ChunkPos(source))?.subLevel as? ServerSubLevel ?: return null
+        val b = container.getPlot(ChunkPos(target))?.subLevel as? ServerSubLevel ?: return null
+        if (a === b || !participates(a) || !participates(b)) return null
+        val af = checkNotNull(face(a))
+        val bf = checkNotNull(face(b))
+
+        fun physical(
+            body: ServerSubLevel,
+            p: BlockPos,
+        ): PlanetCell {
+            val origin = body.plot.centerBlock
+            return small.toPlanet(checkNotNull(face(body)), PlanetCell(p.x - origin.x, p.y - origin.y, p.z - origin.z))
+        }
+        val pa = physical(a, source)
+        val pb = physical(b, target)
+        val delta =
+            org.cbi.orbitalis.core.planet
+                .Vector3((pb.x - pa.x).toDouble(), (pb.y - pa.y).toDouble(), (pb.z - pa.z).toDouble())
+
+        fun mapped(v: org.cbi.orbitalis.core.planet.Vector3) =
+            Direction.fromDelta(v.dot(bf.right).toInt(), v.dot(bf.outward).toInt(), v.dot(bf.forward).toInt())!!
+        return PlanetNeighbours.Relation(
+            BlockPos(delta.dot(af.right).toInt(), delta.dot(af.outward).toInt(), delta.dot(af.forward).toInt()),
+            mapped(af.right),
+            mapped(af.outward),
+            mapped(af.forward),
+        )
     }
 
     private fun participates(body: ServerSubLevel): Boolean {

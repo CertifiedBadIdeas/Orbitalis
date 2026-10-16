@@ -131,6 +131,19 @@ versionRange="[1.21.1,1.21.2)"
                     self.run_verifier()
                 self.files['META-INF/neoforge.mods.toml'] = original
 
+    def test_only_pinned_optional_create_dependency_is_allowed(self):
+        original = self.files['META-INF/neoforge.mods.toml']
+        contract = ('\n[[dependencies.orbitalis]]\nmodId="create"\ntype="optional"\n'
+                    'versionRange="[6.0.10]"\nordering="AFTER"\nside="BOTH"\n')
+        self.files['META-INF/neoforge.mods.toml'] = original + contract.encode()
+        self.run_verifier()
+        for key, wrong in (('optional', 'required'), ('6.0.10', '6.0.11'), ('AFTER', 'NONE'), ('BOTH', 'CLIENT')):
+            with self.subTest(key=key):
+                self.files['META-INF/neoforge.mods.toml'] = original + contract.replace(key, wrong).encode()
+                with self.assertRaisesRegex(ValueError, 'pinned optional Create'):
+                    self.run_verifier()
+        self.files['META-INF/neoforge.mods.toml'] = original
+
     def test_consumer_implementations_are_rejected_directly_and_nested(self):
         for prefix in verify.EXTERNAL_CLASS_PREFIXES:
             for nested in (False, True):

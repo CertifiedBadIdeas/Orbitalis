@@ -34,12 +34,37 @@ object PlanetNeighbours {
         val ready: Boolean,
     )
 
+    data class Relation(
+        val offset: BlockPos,
+        val east: Direction,
+        val up: Direction,
+        val south: Direction,
+    ) {
+        fun toTarget(direction: Direction): Direction {
+            val positive =
+                when (direction.axis) {
+                    Direction.Axis.X -> east
+                    Direction.Axis.Y -> up
+                    Direction.Axis.Z -> south
+                }
+            return if (direction.axisDirection == Direction.AxisDirection.POSITIVE) positive else positive.opposite
+        }
+
+        fun toSource(direction: Direction): Direction = Direction.entries.single { toTarget(it) == direction }
+    }
+
     fun interface Adapter {
         fun neighbour(
             level: Level,
             source: BlockPos,
             direction: Direction,
         ): Edge?
+
+        fun relation(
+            level: Level,
+            source: BlockPos,
+            target: BlockPos,
+        ): Relation? = null
     }
 
     var adapter: Adapter? = null
@@ -60,6 +85,12 @@ object PlanetNeighbours {
         source: BlockPos,
         direction: Direction,
     ): Edge? = if (active(level)) adapter?.neighbour(level, source, direction) else null
+
+    @JvmStatic fun relation(
+        level: Level,
+        source: BlockPos,
+        target: BlockPos,
+    ): Relation? = if (active(level)) adapter?.relation(level, source, target) else null
 
     /** SignalGetter's direction points from the consumer towards the queried source. */
     @JvmStatic fun signal(

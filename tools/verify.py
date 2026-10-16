@@ -107,8 +107,12 @@ def jar(path, version):
         if mod['modId'] != 'orbitalis' or mod['version'] != version or parsed['license'] != 'Apache-2.0':
             raise ValueError('Wrong mod identity, version or license')
         dependencies = {item['modId']: item for item in parsed['dependencies']['orbitalis']}
-        if CONSUMER_MOD_IDS.intersection(dependencies):
+        if (CONSUMER_MOD_IDS - {'create'}).intersection(dependencies):
             raise ValueError('Consumer-only dependency leaked into production metadata')
+        if 'create' in dependencies and any(
+                dependencies['create'].get(key) != value for key, value in
+                {'type': 'optional', 'versionRange': '[6.0.10]', 'ordering': 'AFTER', 'side': 'BOTH'}.items()):
+            raise ValueError('Consumer-only dependency requires the pinned optional Create contract')
         if dependencies['minecraft']['versionRange'] != '[1.21.1,1.21.2)':
             raise ValueError('Wrong Minecraft compatibility range')
         if any(name.startswith(EXTERNAL_CLASS_PREFIXES) or

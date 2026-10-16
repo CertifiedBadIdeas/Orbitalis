@@ -48,7 +48,7 @@ The default cube uses six Sable plots as native block-coordinate charts. Each ch
 `+Y` pointing outwards and native `XZ` terrain, so horizontal-only mod blocks can use ordinary
 placement and neighbour queries within a face. `SableCubePlanet` in the optional common integration
 owns construction and fixed chart transforms; `CubePlanetTerrain` keeps the command layer independent of
-Sable classes. Sable is required to prepare this cube. Create remains a consumer-only dependency.
+Sable classes. Sable is required to prepare this cube. Create is an optional, pinned compile-only dependency of the loader compatibility layer; core and shared/common do not import its APIs.
 The existing finite voxel fixture is partitioned by the greatest signed cell-centre component,
 with deterministic face order resolving ties: every occupied world cell belongs to exactly one chart.
 This preserves the full interior, tapered relief and solid convex edges.
@@ -99,12 +99,26 @@ NeoForge's shared hopper/dropper/crafter inventory lookup. Native blocks, capabi
 remain authoritative; the hooks introduce no transfer buffers or mirrored block entities. The switch
 is server-side, transient and disabled by default. It does not change placement or client rendering.
 
-This is a bounded connectivity experiment, not automatic support for a multiblock, Create fluid/kinetic
-network or arbitrary mod coordinate algorithm. Shape updates, redstone dust topology and replay of
-notifications missed while a destination is cold are not implemented. Inside the reference cube, unique
-voxel ownership resolves the destination even when excavated. Outside it, a unique resident block may
-be addressed, but unknown foreign columns and overlapping authored blocks reject the lookup without
-loading chunks. Only the expected six fixed laboratory poses participate; normal ships and unrelated
+Optional Create 6.0.10 adapters also convert native kinetic adjacency/source directions and pipe pressure,
+flow traversal and sided endpoint addresses. Create retains its actual block-entity addresses, network
+membership, stress, pressure and fluid inventories. No transfer buffer, mirrored entity or replacement
+simulation is introduced. The typed hooks live in shared/neoforge; the target leaf pins Create and Ponder
+as compile-only dependencies and never bundles their implementation. Missing Create skips its pseudo mixins.
+Removed pipe owners invalidate retained endpoint providers before another network queries their disabled
+NeoForge cache. Restored fluid behaviours invoke native pressure discovery after initialization; native
+block loading does not call pipe placement logic.
+
+This remains a bounded connectivity experiment, not automatic support for a multiblock or arbitrary mod
+coordinate algorithm. Cardinal shafts, small cogs and ordinary pipe graphs are addressed; diagonal/large
+cog transmissions, encased chain connections and custom propagation contracts need separate adaptation.
+Shape updates, redstone dust topology and general replay of missed cold notifications are not implemented.
+Geometric face ownership is only the fallback address for empty cells inside the reference cube.
+An actual uniquely occupied voxel takes precedence, regardless of its storage chart: a shaft or pipe may
+extend from one chart several blocks inside another geometric sector before connecting. All projected
+columns must be resident to establish uniqueness; unknown foreign columns and overlapping occupied
+voxels reject the lookup without loading chunks. This resolver is deliberately bounded to six small charts;
+it is not a measured solution for arbitrary large-planet neighbour queries. Only the expected six fixed
+laboratory poses participate; normal ships and unrelated
 levels retain native behaviour. Keep the six-chart model while testing this path; a custom replacement
 is a fallback if required connectivity cannot be achieved. This does not establish general world
 generation or a production-size planet.
@@ -167,9 +181,10 @@ See [ship transfer](ship-transfer.md) for limits, failure handling and the serve
 
 The [flight consumer](flight-consumer.md) is an independent Gradle composite build, included only when
 explicitly selected with `-p consumers/flight`. The dependency points from consumer to Orbitalis through
-`developmentModJar`; production projects never include or depend on the consumer. Create, Aeronautics
-and Propulsion APIs are confined to the consumer adapter and its isolated GameTests. Their types do
-not enter canonical gameplay or core. Hold guidance, bounded thrust allocation, commands and their tests
+`developmentModJar`; production projects never include or depend on the consumer. Aeronautics and
+Propulsion APIs remain confined to the consumer adapter and its isolated GameTests. Create APIs also
+appear in the optional NeoForge seam adapters, with compile-only dependencies owned by the target leaf;
+no Create types enter core or canonical shared/common gameplay. Hold guidance, bounded thrust allocation, commands and their tests
 all belong to the disposable consumer. It reuses existing Orbitalis vector/gravity/frame types but adds
 no autopilot API to production. The consumer assembles no release and does not alter the ordinary
 Sable-only laboratory runs.

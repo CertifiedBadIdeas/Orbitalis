@@ -38,6 +38,7 @@ adjacent `<filename>.license` sidecar and include it with the resource in archiv
 | Gradle wrapper | Existing project wrapper; Gradle 9.8.1 distribution | Apache-2.0 | Wrapper source/binary; Gradle's notices retained by the distribution |
 | Kotlin stdlib | org.jetbrains.kotlin:kotlin-stdlib:2.4.10 | Apache-2.0 and upstream third-party notices | Nested by Loom; legal files packaged beside it from licenses/kotlin-stdlib; verified in JAR |
 | Sable API / development runtime | Sable 2.0.6 (Modrinth fg9dTRz9), Companion 1.6.0 API | Sable: PolyForm Shield 1.0.0; Companion: MIT | Compile-only APIs; original Sable release installed automatically in standard dev game run directories; never bundled by Orbitalis; see [provenance](sable/PROVENANCE.md) |
+| Optional Create seam API | Create 6.0.10-280 (slim), Ponder 1.0.82+mc1.21.1 | Create split code/assets terms; Ponder MIT | Pinned compile-only NeoForge APIs; original address adapters, no bundled upstream implementation or assets; see [provenance](flight-consumer/PROVENANCE.md) |
 | Flight consumer API/runtime and adapted extraction scripts | Create 6.0.10, Aeronautics bundle 1.3.2, Propulsion 1.1.5 and supporting libraries | Separate upstream code/asset terms | Development-only independent consumer; never bundled by Orbitalis; see [inventory and licenses](flight-consumer/PROVENANCE.md) |
 | Minecraft and NeoForge | Minecraft 1.21.1 / NeoForge 21.1.252 | Upstream terms | Development/runtime dependencies; not bundled in mod JAR |
 

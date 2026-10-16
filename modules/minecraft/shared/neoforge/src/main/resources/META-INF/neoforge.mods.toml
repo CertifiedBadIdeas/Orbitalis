@@ -47,3 +47,10 @@ type="optional"
 versionRange="[2.0.6]"
 ordering="AFTER"
 side="BOTH"
+
+[[dependencies.orbitalis]]
+modId="create"
+type="optional"
+versionRange="[6.0.10]"
+ordering="AFTER"
+side="BOTH"

@@ -21,7 +21,17 @@
     "SablePlanetServerPlotMixin",
     "PlanetSignalMixin",
     "PlanetNeighbourMixin",
-    "PlanetInventoryMixin"
+    "PlanetInventoryMixin",
+    "CreatePlanetRotationMixin",
+    "CreatePlanetSourceFacingMixin",
+    "CreatePlanetFluidNetworkMixin",
+    "CreatePlanetPipeConnectionMixin",
+    "CreatePlanetFlowPipeMixin",
+    "CreatePlanetFlowHandlerMixin",
+    "CreatePlanetFluidPropagatorMixin",
+    "CreatePlanetPumpMixin",
+    "CreatePlanetPipeBlockMixin",
+    "CreatePlanetFluidLifecycleMixin"
   ],
   "injectors": {
     "defaultRequire": 1

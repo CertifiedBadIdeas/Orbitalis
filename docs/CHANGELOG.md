@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Extend the opt-in small-cube seam experiment to native Create shaft rotation and pump/pipe fluid graphs, translating actual addresses and local port directions without replacing Create networks. Resolve uniquely occupied blocks independently of their chart of origin, including authored shafts continuing five blocks into another geometric face. Keep unvalidated custom/diagonal transmissions and client connection presentation explicit.
+
 - Add a disabled-by-default MixinExtras experiment for cross-face neighbour notifications, redstone signal queries and native NeoForge inventory lookup on the small cube, using exact position/side transforms and rejecting cold or ambiguous foreign blocks.
 
 - Clarify the planet design requirement for direct cross-face block connectivity: pipes are an example alongside neighbour updates, redstone, item/fluid interactions and multiblock discovery; the current experiment does not yet meet its full scope.
