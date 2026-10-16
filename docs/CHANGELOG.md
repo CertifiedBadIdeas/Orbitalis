@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Extend the opt-in small-cube seam experiment to native water/lava ticks, physical gravity and rotated collision faces, retaining Minecraft source/decay/contact rules and deferring cold queries. Keep client liquid rendering, swimming and fire spread outside this stage.
+
+- Allow the Aeronautics/Simulated Physics Assembler to assemble new ordinary ships from fixed planet charts without trying to disassemble the planet; preserve native cargo and physical pose. Reverse disassembly onto charts remains a separate boundary.
+
 - Add native Create closed-network experiments across all six Sable charts: coordinate-cycle closure, signed kinetic rotation, alternate routes, source cutoff, fluid conservation and chart-group save/unload/reload. Keep pipe placement/rendering, full server restart and large-planet performance outside this evidence.
 
 - Extend the opt-in small-cube seam experiment to native Create shaft rotation and pump/pipe fluid graphs, translating actual addresses and local port directions without replacing Create networks. Resolve uniquely occupied blocks independently of their chart of origin, including authored shafts continuing five blocks into another geometric face. Keep unvalidated custom/diagonal transmissions and client connection presentation explicit.

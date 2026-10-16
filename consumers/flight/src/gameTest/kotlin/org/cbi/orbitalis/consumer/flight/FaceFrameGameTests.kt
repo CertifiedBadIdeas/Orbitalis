@@ -53,6 +53,89 @@ object FaceFrameGameTests {
     }
 
     @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "face_frames_assembly", timeoutTicks = 160)
+    fun nativeAssemblerBuildsShipsOnAllFaces(helper: GameTestHelper) {
+        val scene = scene(helper)
+        val level = scene.level
+        val container =
+            checkNotNull(
+                dev.ryanhcode.sable.api.sublevel.SubLevelContainer
+                    .getContainer(level),
+            )
+        val frames = scene.bodies.map { it.uniqueId }.toSet()
+        val previous = container.allSubLevels.map { it.uniqueId }.toSet()
+        onFinished(helper) {
+            for (body in container.allSubLevels.toList()) {
+                if (body.uniqueId !in previous && body is dev.ryanhcode.sable.sublevel.ServerSubLevel) {
+                    container.removeSubLevel(body, dev.ryanhcode.sable.sublevel.storage.SubLevelRemovalReason.REMOVED)
+                }
+            }
+        }
+        val assemblerState =
+            net.minecraft.core.registries.BuiltInRegistries.BLOCK
+                .get(
+                    net.minecraft.resources.ResourceLocation
+                        .parse("simulated:physics_assembler"),
+                ).defaultBlockState()
+        val sticky =
+            dev.simulated_team.simulated.content.blocks.physics_assembler.PhysicsAssemblerBlock
+                .getStickyFacing(assemblerState)
+        for (face in SableCubePlanet.faces) {
+            val frame = scene.planet.body(face)
+            val assemblerPos = frame.plot.centerBlock.offset(0, 4, 0)
+            val cargoPos = assemblerPos.relative(sticky)
+            level.setBlock(
+                cargoPos,
+                net.minecraft.world.level.block.Blocks.CHEST
+                    .defaultBlockState(),
+                3,
+            )
+            (level.getBlockEntity(cargoPos) as net.minecraft.world.level.block.entity.ChestBlockEntity)
+                .setItem(0, ItemStack(Items.DIAMOND, 7))
+            level.setBlock(assemblerPos, assemblerState, 3)
+            val expected = frame.logicalPose().transformPosition(org.joml.Vector3d(cargoPos.x + 0.5, cargoPos.y + 0.5, cargoPos.z + 0.5))
+            val before = container.allSubLevels.map { it.uniqueId }.toSet()
+            val assembler =
+                level.getBlockEntity(
+                    assemblerPos,
+                ) as dev.simulated_team.simulated.content.blocks.physics_assembler.PhysicsAssemblerBlockEntity
+            assembler.assembleOrDisassemble()
+            val created = container.allSubLevels.filter { it.uniqueId !in before }
+            helper.assertTrue(created.size == 1, "Native assembler did not build a ship on $face")
+            val ship = created.single() as dev.ryanhcode.sable.sublevel.ServerSubLevel
+            val cargo =
+                ship.plot.loadedChunks
+                    .flatMap { it.chunk.blockEntities.values }
+                    .filterIsInstance<net.minecraft.world.level.block.entity.ChestBlockEntity>()
+                    .single()
+            val actual =
+                ship.logicalPose().transformPosition(
+                    org.joml.Vector3d(
+                        cargo.blockPos.x + 0.5,
+                        cargo.blockPos.y + 0.5,
+                        cargo.blockPos.z + 0.5,
+                    ),
+                )
+            helper.assertTrue(actual.distance(expected) < 0.001, "Assembled cargo changed physical position on $face")
+            val up = ship.logicalPose().orientation().transform(org.joml.Vector3d(0.0, 1.0, 0.0))
+            helper.assertTrue(
+                up.distance(org.joml.Vector3d(face.stepX.toDouble(), face.stepY.toDouble(), face.stepZ.toDouble())) < 0.001,
+                "Assembled ship lost face orientation on $face",
+            )
+            helper.assertTrue(cargo.getItem(0).count == 7 && cargo.getItem(0).`is`(Items.DIAMOND), "Native assembly lost cargo")
+            helper.assertTrue(level.getBlockState(cargoPos).isAir && !frame.isRemoved, "Assembly copied cargo or removed the planet face")
+            helper.assertTrue(
+                !org.cbi.orbitalis.minecraft.integration.sable.SablePlanetCollisionPipeline
+                    .isStatic(ship),
+                "Assembled ship became a fixed face",
+            )
+        }
+        helper.assertTrue(scene.bodies.map { it.uniqueId }.toSet() == frames, "Assembly changed the planet charts")
+        println("ORBITALIS_PLANET_ASSEMBLY faces=6 nativeAssembler=true physicalPose=true cargo=true fixedFacesPreserved=true")
+        helper.succeed()
+    }
+
+    @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "face_frames_seam", timeoutTicks = 160)
     fun nativeHoppersFeedCreateVaultsAcrossFaces(helper: GameTestHelper) {
         val scene = scene(helper)

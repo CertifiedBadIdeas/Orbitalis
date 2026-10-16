@@ -116,6 +116,25 @@ blocks; the test does not rebuild networks or introduce another logical authorit
 [consumer acceptance](flight-consumer.md#native-planet-chart-acceptance) for exact scope and limits,
 including authored pipe states, a temporary native test pump-range setting and same-process reload.
 
+The same opt-in switch adapts native Minecraft water/lava scheduled ticks. Fluid offsets resolve actual
+occupied cells before canonical air, including air outside the finite reference cube. Gravity follows the
+physical cell's dominant face, independently of the chart storing its blocks. Native source conversion,
+spread/decay delays, liquid-container rules and NeoForge contact reactions remain authoritative. Scoped
+incoming directions preserve the falling source cell's downward axis through a gravity seam, including
+native water replacement and lava-to-water stone. Cross-chart
+collision queries rotate the target shape into the source basis; recursive slope caches key bounded physical
+XYZ offsets rather than aliased plot XZ coordinates. A cold projected lookahead defers the native tick and
+never loads a column. Standard native water/lava slope ranges are covered; custom extended-range algorithms
+are not. Only Sable's storage-column containment veto is skipped on participating planet charts: a bounded
+Mixin selector verifies the upstream handler's provenance without relying on its generated name prefix.
+Native block/fluid vetoes and ordinary ship containment remain intact. Client liquid height/flow rendering,
+fluid forces/swimming, lava fire spread and arbitrary fluid overrides require separate work and evidence.
+
+The native Simulated Physics Assembler (bundled with Aeronautics) treats a fixed planet chart as terrain
+when choosing assembly versus disassembly. Native Sable assembly still sees its real parent plot and
+preserves the physical position/orientation when detaching a new ordinary ship. This server adaptation does
+not establish reverse disassembly onto planet charts or interactive lever presentation.
+
 This remains a bounded connectivity experiment, not automatic support for a multiblock or arbitrary mod
 coordinate algorithm. Cardinal shafts, small cogs and ordinary pipe graphs are addressed; diagonal/large
 cog transmissions, encased chain connections and custom propagation contracts need separate adaptation.

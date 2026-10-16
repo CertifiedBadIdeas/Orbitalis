@@ -59,6 +59,7 @@ object SableFlightIntegration {
         CubePlanetTerrain.factory = ::SableCubePlanet
         CubePlayerContacts.adapter = SableCubePlayerContacts
         org.cbi.orbitalis.minecraft.planet.PlanetNeighbours.adapter = org.cbi.orbitalis.minecraft.integration.sable.SablePlanetNeighbours
+        org.cbi.orbitalis.minecraft.planet.PlanetFluids.adapter = org.cbi.orbitalis.minecraft.integration.sable.SablePlanetNeighbours
         NeoForge.EVENT_BUS.addListener { event: ServerStartedEvent ->
             transfers[event.server] =
                 SableShipTransfer(

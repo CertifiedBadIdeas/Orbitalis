@@ -369,7 +369,7 @@ Do not expect a vault or inventory network to continue automatically across a ch
 
 The opt-in seam scenario adds two native hoppers feeding actual Create vault block capabilities across
 the UP/EAST chart boundary in both directions. This proves endpoint inventory interaction only; it does
-not join vault controllers. The `faces` suite now requires nine scenarios, adding actual motor/shaft
+not join vault controllers. The `faces` suite now requires ten scenarios, adding actual motor/shaft
 and motor-driven pump/pipe/tank networks. Typed optional NeoForge adapters translate graph addresses
 and destination-local ports while native Create owns rotation, network membership, pressure and fluids.
 The tests include same-chart controls, all 24 directed shaft transitions, sign changes, motor reversal,
@@ -396,6 +396,12 @@ ready-queue dispatch so restored entries cannot be loaded twice. This is same-pr
 not a two-process server restart test. Pipe connection states are authored by the fixture and checked before flow; interactive
 placement, cross-chart shape updates and client connection rendering remain unvalidated. The scenarios
 are small-cube correctness evidence, not a large-planet performance measurement.
+
+The Physics Assembler scenario uses the native Aeronautics/Simulated assembler to build a new ship
+on each face. Fixed planet charts are terrain for the assembly/disassembly mode decision; native Sable
+assembly still receives the real parent chart and preserves the new ship's physical pose and cargo.
+The new ship remains dynamic and all six planet identities remain unchanged. This does not validate
+ship-to-chart disassembly or client lever animation/hover text.
 
 For manual investigation, `/orbitalis planet seams true` enables the transient server-side hooks while
 in the small cube dimension; `false` disables them. Toggling does not rescan existing machines or

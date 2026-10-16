@@ -28,16 +28,30 @@ import org.cbi.orbitalis.core.planet.CubicFace
 import org.cbi.orbitalis.core.planet.CubicPlanetVolume
 import org.cbi.orbitalis.core.planet.PlanetCell
 import org.cbi.orbitalis.minecraft.lab.PlanetLabCoordinates
+import org.cbi.orbitalis.minecraft.planet.PlanetFluids
 import org.cbi.orbitalis.minecraft.planet.PlanetNeighbours
 
 /** Integer signed-permutation addressing for fixed planet charts; never loads a native chunk. */
-object SablePlanetNeighbours : PlanetNeighbours.Adapter {
+object SablePlanetNeighbours : PlanetNeighbours.Adapter, PlanetFluids.Adapter {
     private val small = CubicPlanetVolume(16)
 
     override fun neighbour(
         level: Level,
         source: BlockPos,
         direction: Direction,
+    ): PlanetNeighbours.Edge? = resolve(level, source, direction, false)
+
+    override fun fluidNeighbour(
+        level: Level,
+        position: BlockPos,
+        direction: Direction,
+    ): PlanetNeighbours.Edge? = resolve(level, position, direction, true)
+
+    private fun resolve(
+        level: Level,
+        source: BlockPos,
+        direction: Direction,
+        outside: Boolean,
     ): PlanetNeighbours.Edge? {
         if (level.dimension() != PlanetLabCoordinates.DIMENSION || level.isClientSide) return null
         val container = SubLevelContainer.getContainer(level) ?: return null
@@ -77,8 +91,80 @@ object SablePlanetNeighbours : PlanetNeighbours.Adapter {
         if (occupied.size > 1) return blocked()
         val edge =
             occupied.singleOrNull()
-                ?: if (volume.contains(target)) address(charts.single { face(it) == volume.owner(target) }) else return null
+                ?: if (volume.contains(target)) {
+                    address(charts.single { face(it) == volume.owner(target) })
+                } else if (outside) {
+                    address(
+                        charts.single {
+                            face(it) ==
+                                geometricFace(target)
+                        },
+                    )
+                } else {
+                    return null
+                }
         return edge.takeUnless { it.position == source.relative(direction) }
+    }
+
+    private fun geometricFace(cell: PlanetCell): CubicFace = CubicFace.entries.maxBy { cell.centre().dot(it.outward) }
+
+    override fun frame(
+        level: Level,
+        position: BlockPos,
+    ): PlanetFluids.Frame? {
+        if (level.dimension() != PlanetLabCoordinates.DIMENSION || level.isClientSide) return null
+        val body = SubLevelContainer.getContainer(level)?.getPlot(ChunkPos(position))?.subLevel as? ServerSubLevel ?: return null
+        if (!participates(body)) return null
+        val axes = checkNotNull(face(body))
+        val origin = body.plot.centerBlock
+        val cell = small.toPlanet(axes, PlanetCell(position.x - origin.x, position.y - origin.y, position.z - origin.z))
+
+        fun cardinal(v: org.cbi.orbitalis.core.planet.Vector3): Direction =
+            checkNotNull(Direction.fromDelta(v.x.toInt(), v.y.toInt(), v.z.toInt()))
+        val physicalDown = geometricFace(cell).outward * -1.0
+        val down =
+            checkNotNull(
+                Direction.fromDelta(
+                    physicalDown.dot(axes.right).toInt(),
+                    physicalDown.dot(axes.outward).toInt(),
+                    physicalDown.dot(axes.forward).toInt(),
+                ),
+            )
+        return PlanetFluids.Frame(
+            BlockPos(cell.x, cell.y, cell.z),
+            cardinal(axes.right),
+            cardinal(axes.outward),
+            cardinal(axes.forward),
+            down,
+        )
+    }
+
+    override fun ready(
+        level: Level,
+        position: BlockPos,
+        radius: Int,
+    ): Boolean {
+        val f = frame(level, position) ?: return false
+        if (radius !in 1..15) return false
+        val container = SubLevelContainer.getContainer(level) ?: return false
+        val charts = container.allSubLevels.filterIsInstance<ServerSubLevel>().filter(::participates)
+        if (charts.size != 6 || charts.mapNotNull(::face).toSet().size != 6) return false
+        for (body in charts) {
+            val projected =
+                listOf(-radius, radius).flatMap { x ->
+                    listOf(-radius, radius).flatMap { y ->
+                        listOf(-radius, radius).map { z ->
+                            nativePosition(body, PlanetCell(f.physical.x + x, f.physical.y + y, f.physical.z + z))
+                        }
+                    }
+                }
+            for (x in (projected.minOf { it.x } shr 4)..(projected.maxOf { it.x } shr 4)) {
+                for (z in (projected.minOf { it.z } shr 4)..(projected.maxOf { it.z } shr 4)) {
+                    if (body.plot.getChunkHolder(body.plot.toLocal(ChunkPos(x, z))) == null) return false
+                }
+            }
+        }
+        return true
     }
 
     override fun relation(

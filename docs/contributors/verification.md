@@ -40,10 +40,10 @@ Run `:v1_21_1-neoforge:runGameTestServer` separately for real laboratory GameTes
 compiles the isolated tests and checks run visibility, but does not start the server. The GameTest run
 requires a fresh XML report containing all laboratory scenarios without failed, skipped or error results;
 missing/empty reports fail even when the launcher exits successfully. See [planet-laboratory.md](planet-laboratory.md).
-The standard GameTest run includes Sable and requires nineteen scenarios: ten cubic-player regressions, five native cube/Sable scenarios and four retained
+The standard GameTest run includes Sable and requires twenty-eight scenarios: twenty-four cube/player/Sable/fluid scenarios and four retained
 flight/orbit/transfer scenarios. CI retains the resulting `results.xml` report. See [sable-laboratory.md](sable-laboratory.md), [flight gravity](flight-gravity.md) and [ship transfer](ship-transfer.md).
 For player movement iterations, select `-PorbitalisGameTestSuite=cube` with the same `runGameTestServer`
-task. This runs fifteen required cube scenarios and validates their fresh XML report; it does not establish
+task. This runs twenty-four required cube scenarios and validates their fresh XML report; it does not establish
 flight-space orbit or transfer coverage. The default `all` suite retains all scenarios and required-name checks.
 A successful client launch cannot prove visual or interactive correctness. Record manual observations,
 initial state, actions and expected outcome; mark unavailable evidence explicitly pending.
@@ -98,3 +98,25 @@ consume holding-chunk ready entries; calling the lower-level loader directly lef
 a duplicate load on the following tick. The final run has no duplicate-plot loading failures. This is
 same-process native save/unload/load evidence, not a full server restart, client placement/rendering or
 planet-size performance claim.
+
+The native world-fluid scenarios run in the root `cube` suite, separately from Create pipe networks.
+They use scheduled water/lava ticks, foreign-stored sources on all six faces, an edge, a three-face corner,
+a turning tunnel, source creation/removal, rotated slab faces and native waterlogging, obsidian/cobblestone
+contact and downward lava-to-water stone across a gravity seam. A cold projected candidate column must
+remain unloaded while ticks defer; native retry and chart-group save/unload/load preserve liquid states
+and resume source-free decay. Fixture preparation alone materializes bounded columns. Each physical
+liquid cell has one native authority; normal Minecraft source rules do not conserve fluid volume.
+
+The consumer `faces` suite additionally calls the real Aeronautics/Simulated Physics Assembler on all
+six planet charts, checking a new ordinary ship, cargo, physical position/orientation and unchanged fixed
+faces. This covers assembling a new ship from terrain, as confirmed by the reported gameplay scenario.
+Client lever animation/hover text, ship-to-terrain disassembly and gameplay liquid rendering/swimming
+remain outside these headless observations.
+
+Observed on 2026-10-16: `gradle-20261016T204020Z-62719.log` passed all 24 root cube GameTests;
+`gradle-20261016T204106Z-65702.log` passed final `verifyLocalFull`. `consumer-final-faces.log` passed
+all 10 consumer face scenarios against the same final production behavior. The assembler reproducer
+failed before the adapter, then passed on all six faces with native cargo and physical pose retained.
+The root fluid scenarios additionally verify native stone formation when incoming down and target-cell
+gravity disagree at a seam. These are headless server observations; client liquid rendering, forces and
+interactive lever presentation remain unverified.

@@ -50,6 +50,7 @@ object PlanetLabGameTests {
         if (ModList.get().isLoaded("sable")) {
             event.register(CubeSableGameTests::class.java)
             event.register(PlanetSeamGameTests::class.java)
+            event.register(PlanetFluidGameTests::class.java)
         }
         if (suite == "cube") return
         if (ModList.get().isLoaded("sable")) {
