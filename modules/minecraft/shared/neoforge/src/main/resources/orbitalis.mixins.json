@@ -40,7 +40,10 @@
     "CreatePlanetFluidPropagatorMixin",
     "CreatePlanetPumpMixin",
     "CreatePlanetPipeBlockMixin",
-    "CreatePlanetFluidLifecycleMixin"
+    "CreatePlanetFluidLifecycleMixin",
+    "CreatePlanetPipeRimDataMixin",
+    "CreatePlanetStraightPipeRimMixin",
+    "CreatePlanetStandardPipeRimMixin"
   ],
   "injectors": {
     "defaultRequire": 1

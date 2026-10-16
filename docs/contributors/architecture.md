@@ -99,13 +99,27 @@ NeoForge's shared hopper/dropper/crafter inventory lookup. Native blocks, capabi
 remain authoritative; the hooks introduce no transfer buffers or mirrored block entities. The switch
 is server-side; explicit overrides are transient. Other dimensions remain disabled by default.
 Item rays and Create shaft placement use the adapters described below.
-Client connection rendering remains separately unvalidated.
+Client presentation uses the bounded pipe-attachment projection below; interactive visual acceptance remains separate.
 
 Optional Create 6.0.10 adapters also convert native preferred shaft-axis probes, kinetic adjacency/source
 directions and pipe pressure, flow traversal and sided endpoint addresses. Create retains its actual block-entity addresses, network
 membership, stress, pressure and fluid inventories. No transfer buffer, mirrored entity or replacement
 simulation is introduced. The typed hooks live in shared/neoforge; the target leaf pins Create and Ponder
 as compile-only dependencies and never bundles their implementation. Missing Create skips its pseudo mixins.
+Pipe attachments use a disposable server-to-client projection on Create's existing behaviour update
+NBT, including native initial chunk tags. `OrbitalisPlanetRims` version 1 contains integer `Version=1`
+and `Modes` in 0..4095: two bits per native `Direction.get3DDataValue()` (0 native fallback, 1 no
+attachment, 2 connection, 3 detailed connection). No new packet channel or world-save fields are added.
+Missing, wrongly typed, unknown-version and out-of-range projections reset to native rendering.
+The producer uses actual reciprocal resident chart ports; it introduces no client fluid graph or second
+block authority. Confirmed glass-to-glass/glass-to-ordinary joins suppress the extra glass rim;
+ordinary-to-ordinary joins retain Create's straight or elbow connector style. Ordinary-to-glass collars,
+unsupported attachments, cold/ambiguous ports and open ends keep native decisions. Native pressure
+invalidation and pipe initialization already send behaviour updates. Client packet reads publish a
+volatile render snapshot and invalidate model data plus chunk rendering when it changes. Native
+updates carry disconnects as an absent projection, clearing stale modes. A seam-toggle command does
+not itself rescan all pipes; presentation follows subsequent native updates or initial chunk tags.
+
 Removed pipe owners invalidate retained endpoint providers before another network queries their disabled
 NeoForge cache. Restored fluid behaviours invoke native pressure discovery after initialization; native
 block loading does not call pipe placement logic.

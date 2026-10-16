@@ -149,3 +149,18 @@ A separate read-only replay of the six actual saved pose fields through pinned J
 (`live-chart-transform-probe.log`) accepts all six grids with centre errors of 0.00011–0.00034 blocks.
 The initial immediate-reload fixture failed before placement; its log is not connectivity evidence.
 These are headless observations plus read-only save inspection, not an observed interactive client retest.
+
+Pipe presentation correction (2026-10-17): `pipe-rims-red.log` reproduced an extra end rim in
+Create's actual `getRenderedRimAttachment` method for a foreign glass neighbour while the same-chart
+baseline and the previous 12 scenarios passed. `pipe-rims-green-2.log` passes all 13 face scenarios.
+The new scenario covers both foreign glass ends, ordinary straight/elbow connectors, mixed collars,
+closed ports, removal/reconnection, native update packet fields, behaviour-reader cache reset,
+missing/invalid/version-mismatched fields and absence from saved world NBT. The first green attempt
+stopped at Kotlin compilation because the test treated a nullable update packet as non-null; no
+runtime result is attributed to that attempt. These are headless model-selection/serialization
+observations; live chunk invalidation and the final rendered image still require client observation.
+
+`gradle-20261016T212358Z-143431.log` passes `verifyLocalFull` and all 25 root cube scenarios
+without Create installed. Pinned Sable `SubLevelPlayerChunkSender.sendChunk` uses the native
+`ClientboundLevelChunkWithLightPacket`, whose block-entity tags use Create's same update-tag producer.
+No custom Sable chunk serialization path or client chart-identity registry was introduced.

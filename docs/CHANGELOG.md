@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Project confirmed cross-chart ordinary/glass pipe attachments through Create's native client update tags, hiding extra glass end rims while retaining native connectors, mixed collars and disconnected ends. Keep the projection out of world saves and invalidate client model data when it changes.
+
 - Recognize existing fixed cube charts with centre-of-mass pivots and float-rounded native poses by their actual block-grid transform. Preserve saved blocks and poses while allowing cross-chart Create connections; reject genuinely moved, rotated or scaled charts.
 
 - Fix actual bucket use on all cube faces by using the gravity-aware item ray. Distinguish never-created native empty plot columns from explicitly cold chunks so normal gameplay does not require test-prepared foreign air columns.

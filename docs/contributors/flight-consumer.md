@@ -419,3 +419,12 @@ centre-of-mass pivots and float-rounded positions/orientations before machine pl
 rotation and pipe transfer must still work; genuinely translated, rotated or scaled grids must be
 rejected. This covers existing-world grid recognition without migrating blocks or resetting poses.
 Native group reload is covered separately by the closed-network scenarios above.
+
+The `nativeGlassPipeRimsJoinAcrossCharts` scenario calls Create's actual attachment-selection methods:
+a same-chart glass baseline, both ends of a foreign glass join, ordinary straight/elbow connectors,
+mixed ordinary/glass collars and closed/removed neighbours. It inspects native block-entity update tags,
+round-trips them through Create's behaviour reader into a detached replica, rejects malformed/unknown
+projection fields, clears stale modes and checks that presentation fields are absent from world NBT.
+These are headless attachment/serialization observations; they do not establish the appearance of
+baked quads or live client chunk invalidation in an observed rendered scene. The face suite now has
+13 scenarios.

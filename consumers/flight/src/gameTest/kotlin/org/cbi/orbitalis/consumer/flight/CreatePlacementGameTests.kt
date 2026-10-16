@@ -19,9 +19,12 @@
 package org.cbi.orbitalis.consumer.flight
 
 import com.mojang.authlib.GameProfile
+import com.simibubi.create.content.fluids.FluidTransportBehaviour
 import com.simibubi.create.content.fluids.pipes.FluidPipeBlock
 import com.simibubi.create.content.kinetics.base.KineticBlockEntity
 import com.simibubi.create.content.kinetics.motor.CreativeMotorBlockEntity
+import com.simibubi.create.foundation.blockEntity.SmartBlockEntity
+import com.simibubi.create.foundation.blockEntity.behaviour.BlockEntityBehaviour
 import dev.ryanhcode.sable.companion.math.Pose3d
 import net.minecraft.core.BlockPos
 import net.minecraft.core.Direction
@@ -50,6 +53,7 @@ import org.cbi.orbitalis.minecraft.lab.CubePlayerMode
 import org.cbi.orbitalis.minecraft.lab.CubePlayerPhysics
 import org.cbi.orbitalis.minecraft.lab.PlanetLabCoordinates
 import org.cbi.orbitalis.minecraft.planet.PlanetNeighbours
+import org.cbi.orbitalis.neoforge.integration.CreatePlanetPipeRims
 import org.joml.Vector3d
 import java.util.UUID
 
@@ -219,6 +223,150 @@ object CreatePlacementGameTests {
                 )
                 helper.succeed()
             }
+        }
+    }
+
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "create_pipe_rims", timeoutTicks = 100)
+    fun nativeGlassPipeRimsJoinAcrossCharts(helper: GameTestHelper) {
+        val s = scene(helper)
+        val first = native(s, Direction.UP, 15, 12)
+        val second = native(s, Direction.EAST, 16, 12)
+
+        fun put(
+            p: BlockPos,
+            axis: Direction.Axis,
+        ) {
+            s.level.setBlock(p, block("glass_fluid_pipe").setValue(BlockStateProperties.AXIS, axis), 3)
+        }
+
+        fun rim(
+            p: BlockPos,
+            side: Direction,
+        ): FluidTransportBehaviour.AttachmentTypes {
+            val behaviour = checkNotNull(BlockEntityBehaviour.get(s.level, p, FluidTransportBehaviour.TYPE))
+            return behaviour.getRenderedRimAttachment(s.level, p, s.level.getBlockState(p), side)
+        }
+        val ordinary = native(s, Direction.UP, 10, 12)
+        put(ordinary, Direction.Axis.X)
+        put(ordinary.east(), Direction.Axis.X)
+        helper.assertTrue(
+            rim(ordinary, Direction.EAST) == FluidTransportBehaviour.AttachmentTypes.NONE,
+            "Same-chart glass baseline has a rim",
+        )
+        put(first, Direction.Axis.X)
+        put(second, Direction.Axis.Y)
+        helper.runAfterDelay(2) {
+            helper.assertTrue(
+                rim(first, Direction.EAST) == FluidTransportBehaviour.AttachmentTypes.NONE,
+                "Source glass pipe still draws a cross-chart end rim",
+            )
+            helper.assertTrue(
+                rim(second, Direction.DOWN) == FluidTransportBehaviour.AttachmentTypes.NONE,
+                "Target glass pipe still draws a cross-chart end rim",
+            )
+            val body = s.level.getBlockEntity(first) as SmartBlockEntity
+            val registries = s.level.registryAccess()
+            val packet = checkNotNull(body.updatePacket).tag
+            val modes = CreatePlanetPipeRims.read(packet)
+            helper.assertTrue(
+                CreatePlanetPipeRims.decode(modes, Direction.EAST) == FluidTransportBehaviour.AttachmentTypes.NONE,
+                "Native BE packet omitted joined rim",
+            )
+            helper.assertTrue(
+                !body.saveWithFullMetadata(registries).contains(CreatePlanetPipeRims.KEY),
+                "Presentation projection leaked into world save",
+            )
+            val replica = checkNotNull(body.type.create(first, body.blockState)) as SmartBlockEntity
+            replica.setLevel(s.level)
+            replica.readClient(packet, registries)
+            val cache = replica.getBehaviour(FluidTransportBehaviour.TYPE) as CreatePlanetPipeRims.Data
+            helper.assertTrue(cache.`orbitalis$getPipeRims`() == modes, "Native client update read lost render modes")
+            for (malformed in listOf(2 to modes, 1 to -1, 1 to 4096)) {
+                val invalid = packet.copy()
+                invalid.getCompound(CreatePlanetPipeRims.KEY).putInt("Version", malformed.first)
+                invalid.getCompound(CreatePlanetPipeRims.KEY).putInt("Modes", malformed.second)
+                replica.readClient(invalid, registries)
+                helper.assertTrue(cache.`orbitalis$getPipeRims`() == 0, "Malformed/unknown render projection was accepted")
+            }
+            replica.readClient(packet, registries)
+            val missing = packet.copy().also { it.remove(CreatePlanetPipeRims.KEY) }
+            replica.readClient(missing, registries)
+            helper.assertTrue(cache.`orbitalis$getPipeRims`() == 0, "Absent projection retained stale render modes")
+            val regularA = native(s, Direction.UP, 15, 6)
+            val regularB = native(s, Direction.EAST, 16, 6)
+
+            fun regular(
+                p: BlockPos,
+                a: Direction,
+                b: Direction,
+            ) {
+                s.level.setBlock(
+                    p,
+                    block(
+                        "fluid_pipe",
+                    ).setValue(FluidPipeBlock.PROPERTY_BY_DIRECTION[a], true).setValue(FluidPipeBlock.PROPERTY_BY_DIRECTION[b], true),
+                    3,
+                )
+            }
+            regular(regularA, Direction.EAST, Direction.WEST)
+            regular(regularB, Direction.UP, Direction.DOWN)
+            helper.assertTrue(
+                rim(regularA, Direction.EAST) == FluidTransportBehaviour.AttachmentTypes.CONNECTION,
+                "Ordinary straight seam lost native connector",
+            )
+            helper.assertTrue(
+                rim(regularB, Direction.DOWN) == FluidTransportBehaviour.AttachmentTypes.CONNECTION,
+                "Ordinary foreign seam lost native connector",
+            )
+            val corner =
+                s.level
+                    .getBlockState(
+                        regularA,
+                    ).setValue(
+                        FluidPipeBlock.PROPERTY_BY_DIRECTION[Direction.WEST],
+                        false,
+                    ).setValue(FluidPipeBlock.PROPERTY_BY_DIRECTION[Direction.NORTH], true)
+            s.level.setBlock(regularA, corner, 3)
+            helper.assertTrue(
+                rim(regularA, Direction.EAST) == FluidTransportBehaviour.AttachmentTypes.DETAILED_CONNECTION,
+                "Elbow seam lost native detailed connector",
+            )
+            put(regularB, Direction.Axis.Y)
+            helper.assertTrue(
+                rim(regularA, Direction.EAST) == FluidTransportBehaviour.AttachmentTypes.RIM,
+                "Mixed ordinary/glass collar disappeared",
+            )
+            helper.assertTrue(
+                rim(regularB, Direction.DOWN) == FluidTransportBehaviour.AttachmentTypes.NONE,
+                "Mixed glass side retained an extra rim",
+            )
+            put(second, Direction.Axis.Z)
+            helper.assertTrue(
+                rim(first, Direction.EAST) == FluidTransportBehaviour.AttachmentTypes.PARTIAL_RIM,
+                "Closed foreign port hid an open end",
+            )
+            put(second, Direction.Axis.Y)
+            helper.assertTrue(
+                rim(first, Direction.EAST) == FluidTransportBehaviour.AttachmentTypes.NONE,
+                "Reconnected pipe retained an end",
+            )
+            s.level.removeBlock(second, false)
+            helper.assertTrue(
+                rim(first, Direction.EAST) == FluidTransportBehaviour.AttachmentTypes.PARTIAL_RIM,
+                "Removed neighbour left a false visual connection",
+            )
+            val cleared = checkNotNull(body.updatePacket).tag
+            helper.assertTrue(CreatePlanetPipeRims.read(cleared) == 0, "Native update packet retained removed neighbour")
+            replica.readClient(packet, registries)
+            replica.readClient(cleared, registries)
+            helper.assertTrue(cache.`orbitalis$getPipeRims`() == 0, "Disconnect update failed to clear cached presentation")
+            PlanetNeighbours.enable(s.level, false)
+            helper.assertTrue(CreatePlanetPipeRims.read(checkNotNull(body.updatePacket).tag) == 0, "Disabled seam wrote render override")
+            println(
+                "ORBITALIS_PIPE_RIMS glassSeam=true ordinarySeam=true elbow=true mixedCollar=true closedPorts=true removal=true nativeUpdateTag=true cacheCleared=true invalidRejected=true savedDataAbsent=true",
+            )
+            helper.succeed()
         }
     }
 }
