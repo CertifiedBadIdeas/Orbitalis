@@ -202,5 +202,6 @@ object PlanetLabServices {
 
     fun forget(server: MinecraftServer) {
         servers.remove(server)
+        CubePlanetLab.forget(server)
     }
 }

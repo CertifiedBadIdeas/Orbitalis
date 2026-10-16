@@ -107,9 +107,13 @@ The exploration-first direction, Sable source investigation and proposed seamles
 experiments are recorded in [orbital-flight-feasibility.md](orbital-flight-feasibility.md).
 That note distinguishes desired behavior and proposals from implemented or runtime-verified support.
 The [finite cubic planet design](cubic-planet-design.md) records the accepted connected cube volume,
-sharp face-region gravity direction changes near the surface, eased player orientation, candidate edge
-terrain cuts and adaptive surface/orbit preparation. Planet storage, player collision handling and
-seamless client presentation remain undecided; the current gravity diagnostic still smooths edges.
+sharp face-region gravity direction changes near the surface, eased player orientation, convex edge
+terrain and adaptive surface/orbit preparation. Planet storage, player collision handling and
+seamless client presentation remain undecided; the existing ship gravity diagnostic still smooths edges.
+The [player proof of concept](cubic-planet-poc.md) adds a bounded solid cube in the existing planet lab,
+zero-width gravity, discrete standing-player collider frames and client camera/model easing. Common owns
+geometry placement and locomotion; loader mixins adapt movement, eye queries, camera and rendering.
+Its temporary centre marker prevents refilling excavations, without introducing a planetary save schema.
 
 The target leaf compiles shared sources directly. When a second target is implemented, the selected
 orbitalisActiveMinecraftVersion owns canonical IDE roots; inactive targets compile generated mirrors.

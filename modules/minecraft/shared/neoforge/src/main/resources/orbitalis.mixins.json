@@ -3,6 +3,20 @@
   "minVersion": "0.8",
   "package": "org.cbi.orbitalis.neoforge.mixin",
   "compatibilityLevel": "JAVA_21",
-  "mixins": ["LevelBlockEntityTickMixin", "ServerGamePacketListenerTeleportMixin"],
-  "injectors": {"defaultRequire": 1}
+  "mixins": [
+    "LevelBlockEntityTickMixin",
+    "ServerGamePacketListenerTeleportMixin",
+    "CubePlayerEntityMixin",
+    "CubePlayerTravelMixin",
+    "CubePlayerLocomotionMixin",
+    "CubePlayerPacketMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "client": [
+    "CubePlayerCameraMixin",
+    "CubePlayerFlightMixin",
+    "CubePlayerRendererMixin"
+  ]
 }

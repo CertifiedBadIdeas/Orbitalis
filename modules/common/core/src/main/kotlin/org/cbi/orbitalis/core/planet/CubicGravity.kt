@@ -23,7 +23,8 @@ import kotlin.math.max
 
 /**
  * Conservative gameplay field for a cube, not Newtonian gravity of a homogeneous cuboid.
- * Face interiors have exactly normal gravity; rounded edge bands join adjacent directions.
+ * Face interiors have exactly normal gravity; positive edge widths round adjacent directions.
+ * Zero edge width selects a sharp cube with symmetric subgradients at exact ties.
  * Height is measured in cube shells, not as shortest Euclidean distance to the solid.
  */
 class CubicGravity(
@@ -36,7 +37,7 @@ class CubicGravity(
     init {
         require(halfExtent.isFinite() && halfExtent > 0.0)
         require(surfaceAcceleration.isFinite() && surfaceAcceleration > 0.0)
-        require(edgeBlendWidth.isFinite() && edgeBlendWidth > 0.0 && edgeBlendWidth < halfExtent)
+        require(edgeBlendWidth.isFinite() && edgeBlendWidth >= 0.0 && edgeBlendWidth < halfExtent)
         require(transitionStartAltitude.isFinite() && transitionStartAltitude >= 0.0)
         require(transitionEndAltitude.isFinite() && transitionEndAltitude > transitionStartAltitude)
         require((halfExtent + transitionEndAltitude).isFinite())
@@ -55,7 +56,7 @@ class CubicGravity(
     fun acceleration(position: Vector3): Vector3 = sample(position).acceleration
 
     fun sample(position: Vector3): Sample {
-        val cube = roundedCube(position)
+        val cube = if (edgeBlendWidth == 0.0) sharpCube(position) else roundedCube(position)
         val height = cube.value - halfExtent
         val radius: Double
         val gradient: Vector3
@@ -97,6 +98,14 @@ class CubicGravity(
         val value: Double,
         val gradient: Vector3,
     )
+
+    private fun sharpCube(position: Vector3): Radius {
+        val coordinates = doubleArrayOf(position.x, -position.x, position.y, -position.y, position.z, -position.z)
+        val largest = coordinates.max()
+        val count = coordinates.count { it == largest }
+        val weights = coordinates.map { if (it == largest) 1.0 / count else 0.0 }
+        return Radius(largest, Vector3(weights[0] - weights[1], weights[2] - weights[3], weights[4] - weights[5]))
+    }
 
     /**
      * Quadratically regularized max over (+x,-x,+y,-y,+z,-z).

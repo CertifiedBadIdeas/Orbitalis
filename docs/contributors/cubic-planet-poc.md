@@ -1,0 +1,112 @@
+<!--
+The Orbitalis Developers
+
+Copyright 2026 Vsevolod Petrov (lazyhat)
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+# Cubic planet player proof of concept
+
+This is a bounded player/terrain experiment for the [accepted design](cubic-planet-design.md), not
+production planetary generation or a chosen large-world storage architecture. It shares the existing
+`orbitalis:planet_lab` dimension without changing that saved-world ID. Existing chart pads and flight
+diagnostics remain separate. Use an isolated disposable client world in this task checkout.
+
+## Scene and controls
+
+Run `./gradlew-sandbox-dev-parallel runClient` after `./worktree-task doctor`. Do not run a build while
+the managed client holds the workspace slot. As an operator use:
+
+```mcfunction
+/orbitalis lab cube enter
+/orbitalis lab cube sample
+/orbitalis lab cube leave
+```
+
+Entry explicitly builds a solid 32-block reference cube centred at (2048,96,2048), with three blocks
+of +Y relief and two blocks of +X relief around the demonstrated edge. Six face colours distinguish
+surfaces; stone fills the interior. The reference cube remains solid through edges and corners.
+Unequal relief tapers down before each convex edge, avoiding a trench on the gravity boundary. The fixture is a global block-occupancy function, not six independent maps.
+Walk forward from the initial view to leave the raised green face and fall towards the orange +X face.
+WASD and mouse look use the current collider frame; jump acts along local up. Creative flight remains available with normal double-jump activation; jump/shift lift follows
+local up/down, with no gravity while flying. Game mode is not changed. Fall damage is suppressed in the bounded experiment.
+
+Only non-spectator players within 64 metres of this centre in planet_lab use custom locomotion.
+Outside this region, ordinary Minecraft movement remains in effect. Loose entities, fluids, Sable ships,
+beds, ladders, swimming, riding, elytra, crouching/crawling, stepping up blocks and production survival
+rules are not supported by this standing-player experiment. Use a disposable scene without these features.
+The demonstration does not validate full-block interaction/reach or multiplayer combat while the view
+is turning; camera easing and the instantaneous physical eye can differ during that interval.
+
+The exit restores the transient entry position and view; after a runtime restart it falls back to the
+Overworld spawn. Repeated entry does not refill excavations. A lodestone at the centre marks an initialized
+fixture across restarts; removing it makes a populated site reject regeneration rather than overwrite edits.
+To replace an older cut fixture, run `cube leave`, then `/orbitalis lab cube rebuild`, then `cube enter`.
+The operator-only rebuild erases all blocks/edits in the 40×40×40 fixture volume and rejects the request
+while a non-spectator player is in the scene. Ordinary entry still preserves edits.
+This marker is a diagnostic convention, not a versioned planet save format. The scene is never built at startup.
+
+## Physics and presentation boundaries
+
+The adapter uses one block per metre and 20 game ticks per second. CubicGravity accepts an explicit zero edge width. In this mode the effective near-surface radius is
+max(abs(x),abs(y),abs(z)); at exact ties it uses a symmetric subgradient, including zero at the centre.
+The same potential and differentiated altitude blend preserve central inverse-square gravity far away.
+Positive widths retain the existing smoothed flight diagnostic behavior and constants.
+
+The prototype stores the usual player network position as a fixed vertical anchor 0.9 metres below the
+physical centre, regardless of orientation. A standing 0.6 by 1.8 metre AABB aligns to one of six axes.
+The collider changes axis only if the new box is clear. Standing frames remain six-axis in this
+prototype; continuous orientation for players flying in the altitude blend is not established. Gravity does not wait for that turn, and neither
+centre nor velocity is rotated. Collision clips each movement in world axes, with support tested along
+local up. Custom locomotion predicts on the controlling client; the server retains Minecraft movement
+packet/collision validation. Vanilla's global-Y floating counter is disabled only inside the bounded scene.
+This is not a hardened production multiplayer movement protocol.
+
+Camera and visible player orientation approach the collider frame at up to 180 degrees per second.
+The camera offset is clipped against terrain, and third-person zoom uses native obstruction checks.
+Physical eye/view queries use the collider frame. Dedicated servers do not load camera/renderer classes.
+All physics, view and network mixins guard the explicit scene region before changing vanilla behavior.
+
+## Verification and manual observations
+
+Core tests cover the sharp force/potential, far field, connected interior and solid convex edges. Native
+GameTests cover block placement/edit preservation, walking off an edge and landing on another face,
+velocity/centre preservation, an obstructed collider turn, a local-axis jump and creative escape along a side-face normal. An inert server pilot
+is not an interactive client; these tests do not prove camera appearance or packet continuity.
+
+Observed on 2026-10-16 in an isolated client world copied from this task's GameTest world:
+
+- Explicit leave/rebuild/enter replaced the old cut fixture with 34,562 solid blocks.
+- Ordinary forward input crossed +Y to +X; server sampling after landing reported `up=east`,
+  zero velocity and `grounded=true`, with centre offset approximately (18.90, 0.29, 0.50).
+  First-person images showed the orange face after the turn.
+- Double-jump input enabled creative flight. Holding jump moved the player outward from the +X face;
+  the client retained `flying=true` and server sampling reported `grounded=false`. A third-person
+  image showed the model aligned with that face. No movement-validation correction was logged.
+- Rebuild was refused while the player occupied the scene. Leaving restored the entry position;
+  ordinary creative movement remained available outside the bounded adapter.
+- Evidence is retained locally in `build/agent-logs/cube-client/`. The original flight-input redirect
+  conflicted with Sable; the final adapter modifies the resulting velocity argument instead.
+
+These observations establish one route and creative escape. They do not establish subjective camera
+comfort, all edge directions or multiplayer behavior. Remaining manual scenarios:
+
+1. Repeat the edge route in reverse and at different speeds; assess camera comfort while turning.
+2. Repeat in both third-person modes and watch the model/collider (F3+B).
+3. Jump from the orange face, reverse near the seam and approach a three-face corner.
+4. Add a bridge or a narrow tunnel; inspect blocked turns and camera clipping.
+5. Leave, verify ordinary movement, then re-enter and confirm excavations remain.
+
+Camera comfort, full interaction/reach, arbitrary edited terrain and remote multiplayer remain unverified.
+The native client observations above complement the GameTests; a successful client launch alone is insufficient.
