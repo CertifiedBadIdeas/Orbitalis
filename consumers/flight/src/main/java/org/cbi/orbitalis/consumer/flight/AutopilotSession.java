@@ -64,12 +64,16 @@ public final class AutopilotSession implements AutoCloseable {
     }
 
     public AutopilotSession(ServerSubLevel body, Vector3 target) {
+        this(body, target, new Quaterniond(body.logicalPose().orientation()), false);
+    }
+
+    AutopilotSession(ServerSubLevel body, Vector3 target, Quaterniond desiredAttitude, boolean mission) {
         this.body = body;
         this.target = target;
         require(FlightTestSpace.INSTANCE.contains(body.getLevel()), "Use the flight/orbit test spaces");
         require(body.getMassTracker().getMass() > 0 && body.getMassTracker().getCenterOfMass() != null, "Wait for native mass initialization");
         require(body.getPlot().getLoadedChunks().size() <= 4, "Autopilot supports at most four native plot chunks");
-        attitude = new Quaterniond(body.logicalPose().orientation());
+        attitude = new Quaterniond(desiredAttitude);
         for (var holder : body.getPlot().getLoadedChunks()) {
             for (BlockEntity block : holder.getChunk().getBlockEntities().values()) {
                 if (!(block instanceof AbstractThrusterBlockEntity thruster)) continue;
@@ -92,6 +96,17 @@ public final class AutopilotSession implements AutoCloseable {
             String.format(Locale.ROOT, "Installed engines cannot balance gravity at this attitude (mass=%.2f; total capacity=%.2f; residual=%.2f m/s²); add/reorient engines or increase their configured thrust",
                 body.getMassTracker().getMass(), engines.stream().mapToDouble(e -> e.capacity).sum(),
                 hover.forceResidual().length() / body.getMassTracker().getMass()));
+        if (mission) {
+            for (var axis : List.of(new Vector3(1, 0, 0), new Vector3(0, 1, 0), new Vector3(0, 0, 1))) {
+                for (double sign : new double[]{-1, 1}) {
+                    var force = attitude.transformInverse(joml(axis.times(sign * OrbitalGuidance.MAX_ACCELERATION).minus(gravity))
+                        .mul(body.getMassTracker().getMass()));
+                    var margin = ThrusterAllocation.solve(actuators(), vector(force), Vector3.Companion.getZERO(), lever());
+                    require(margin.forceResidual().length() / body.getMassTracker().getMass() < 0.25,
+                        "Mission needs balanced thrust authority for 3 m/s² in all six directions in addition to gravity");
+                }
+            }
+        }
         allocation = hover;
         // No engine is touched until every preflight check succeeds.
         for (Engine e : engines) {
@@ -132,13 +147,21 @@ public final class AutopilotSession implements AutoCloseable {
         var global = FlightTestSpace.INSTANCE.globalPosition(body.getLevel(), position(body));
         var goal = FlightTestSpace.INSTANCE.globalPosition(body.getLevel(), target);
         for (Vector3 p : List.of(global, goal)) {
+            if (body.getLevel().dimension().equals(FlightTestSpace.INSTANCE.getSPACE())) {
+                double radius = p.minus(FlightTestSpace.INSTANCE.getCENTRE()).length();
+                require(radius >= 6500 && radius <= 24000, "Outside the full-space autopilot envelope");
+                continue;
+            }
             require(Math.abs(p.getX()) <= 2048 && Math.abs(p.getZ()) <= 2048 && p.getY() >= 64 && p.getY() <= 16000,
                 "Autopilot left the diagnostic top-face patch or height bounds");
         }
     }
 
     /** Call once per server tick before native block-entity ticking. */
-    public void update() {
+    public void update() { update(null); }
+
+    /** A mission supplies net inertial acceleration; gravity compensation remains measured here. */
+    void update(Vector3 netAcceleration) {
         require(!closed && !body.isRemoved(), "Ship/controller is no longer available");
         validateBounds();
         for (Engine e : engines) {
@@ -157,19 +180,27 @@ public final class AutopilotSession implements AutoCloseable {
         var pose = body.logicalPose();
         var velocity = handle.getLinearVelocity(new Vector3d());
         var omega = pose.orientation().transformInverse(handle.getAngularVelocity(new Vector3d()), new Vector3d());
-        require(velocity.length() <= 120 && omega.length() <= 2.0, "Speed/rotation exceeded test autopilot limits");
+        require(velocity.length() <= (body.getLevel().dimension().equals(FlightTestSpace.INSTANCE.getSPACE()) ? 220 : 120) && omega.length() <= 2.0, "Speed/rotation exceeded test autopilot limits");
         var error = new Quaterniond(pose.orientation()).conjugate().mul(attitude).normalize();
         if (error.w < 0) error.mul(-1);
         double sine = Math.sqrt(error.x * error.x + error.y * error.y + error.z * error.z);
         double factor = sine > 1e-8 ? 2 * Math.atan2(sine, error.w) / sine : 2.0;
         var demand = FlightHoldGuidance.command(new CartesianState(position(body), vector(velocity)), target,
             gravity(), new Vector3(error.x * factor, error.y * factor, error.z * factor), vector(omega));
-        var force = pose.orientation().transformInverse(joml(demand.thrustAcceleration()).mul(body.getMassTracker().getMass()));
+        var acceleration = netAcceleration == null ? demand.thrustAcceleration() : netAcceleration.minus(gravity());
+        var force = pose.orientation().transformInverse(joml(acceleration).mul(body.getMassTracker().getMass()));
         var inertia = body.getMassTracker().getInertiaTensor();
         var torque = inertia.transform(joml(demand.angularAcceleration()), new Vector3d());
         torque.add(new Vector3d(omega).cross(inertia.transform(omega, new Vector3d())));
         allocation = ThrusterAllocation.solve(actuators(), vector(force), vector(torque), lever());
         for (int i = 0; i < engines.size(); i++) engines.get(i).block.setDigitalInput(allocation.throttle().get(i).floatValue());
+    }
+
+    static boolean enginesFaded(ServerSubLevel body) {
+        for (var holder : body.getPlot().getLoadedChunks()) for (var block : holder.getChunk().getBlockEntities().values()) {
+            if (block instanceof AbstractThrusterBlockEntity engine && engine.isController() && (engine.getPower() != 0.0f || engine.getCurrentThrust() != 0.0)) return false;
+        }
+        return true;
     }
 
     public String status() {

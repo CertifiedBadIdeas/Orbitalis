@@ -189,8 +189,8 @@ in creative mode with flying disabled, and toggle the Linked Controller off. Wai
 replaces the target centre-of-mass height above the cube's top face, preserving the current global
 X/Z and attitude. Height is a cube-shell height, not Minecraft Y or distance from the centre. A target
 of 400 corresponds to surface-frame Y=464, or orbit-frame Y=208. Commands retarget the same pilot's
-session; only one session is allowed per server. There is no landing, obstacle avoidance, path planning,
-orbital insertion or automatic handoff in this controller.
+session; only one session or mission is allowed per server. These two hold commands do not plan travel;
+use the orbital mission commands below for insertion and return.
 
 Consumer guidance requests gravity compensation, bounded translation and attitude correction. A bounded
 nonnegative force/torque allocator uses each native engine's direction, force point and configured
@@ -200,11 +200,12 @@ startup, fade, atmospheric multipliers and collision behavior still apply. Pinne
 bypass exhaust obstruction checks in Propulsion; the adapter preserves that native behavior. Measured native output
 updates the capacity estimate once an engine produces thrust.
 
-Start airborne with clearance for startup and braking. The target-speed cap is 12 m/s and requested
+For `hold` and `altitude`, start airborne with clearance for startup and braking. The target-speed cap is 12 m/s and requested
 net acceleration is limited to 4 m/s²; these are guidance requests, not guaranteed physical bounds.
 The adapter rejects active manual inputs, unsupported non-creative thrusters and
 layouts that cannot approximately balance gravity. It supports up to 64 creative engine controllers
-across at most four plot chunks, within the existing ±2048 X/Z diagnostic patch and global Y=64..16000.
+across at most four plot chunks. Surface/legacy-orbit control uses the existing ±2048 X/Z diagnostic
+patch and global Y=64..16000; full-space control uses a planet-centred radius envelope of 6500..24000 m.
 Targets from `altitude` are limited to shell heights 32..15000. Current and target COM must also
 remain above local Y=64; in the orbit dimension this requires a shell height of at least 256. A single lift engine cannot provide every
 attitude correction: add spaced lift engines and opposing translation engines for more control.
@@ -217,7 +218,8 @@ disengage before their snapshots/travel run; engage again after arrival. Stop cl
 redstone inputs and restores NORMAL control, allowing the native thrust envelope to fade. Keep manual
 controllers off: normal redstone can command engines again afterwards. The pinned Propulsion server
 load resets peripheral mode to NORMAL, so a saved session cannot resume itself after reconstruction
-or restart. The autopilot does not persist a new world-data or transfer-journal schema.
+or restart. Hold sessions do not persist controller state. Orbital missions save a separate launch
+bookmark and use the shared version-2 transfer journal described below.
 
 The native consumer tests retain a symmetric engine rig for controller isolation and also execute the
 actual built-in shuttle blueprint, including glue, through Simulated's native Physics Assembler. The
@@ -226,6 +228,75 @@ then verifies powered ascent and settled translation/attitude after an initial d
 checks cover native output cutoff, manual-input/missing-lift rejection and native reload behavior.
 The user reported that both hold and target-height commands worked in the earlier interactive trial;
 that predates the shuttle replacement and does not establish its appearance, boarding or landing.
+
+## Orbital insertion and return (consumer only)
+
+Launch the stand from `consumers/flight` with `./gradlew runClient`. Assemble the built-in shuttle on
+a flat clear pad in `orbitalis:flight_test`, turn manual inputs off, disable creative flight and remain
+on deck. Let the ship settle before running:
+
+```mcfunction
+/orbitalis flight autopilot orbit
+/orbitalis flight autopilot status
+```
+
+`orbit` records this pilot's launch COM, ship UUID and attitude, climbs to a physical Y=1000 handoff,
+waits for engine fade and transfers through the existing journal/client-readiness barrier to
+`orbitalis:space_test`. It climbs above the launch X/Z toward a planet-centred radius of 18000 m,
+begins insertion within 100 m at less than 10 m/s, accelerates east along the launch orbital plane
+and cuts engine inputs after insertion settles. `COAST` means
+free flight under gravity with engine inputs off; the reference speed is about 140.07 m/s and the
+period about 807 s. The far region is central around the cube, including the diagonal parts of this
+circle. Phase changes and `status` expose radius, actual speed/radial speed, far-field specific energy,
+eccentricity and distance from the remembered launch COM. Energy/eccentricity are Kepler diagnostics
+for the central far field, not conserved quantities for the near-surface blended field.
+
+Once the mission reports `COAST`, use:
+
+```mcfunction
+/orbitalis flight autopilot land
+```
+
+The return controller follows the orbital plane, brakes along the arc to the point above the launch
+site, descends vertically above its saved X/Z, transfers to the surface near Y=1000 and approaches
+the saved COM/attitude slowly. It cuts engine inputs near touchdown and requires the native terrain
+to hold the craft for 60 ticks before reporting `LANDED`. It never corrects the ship by teleport,
+velocity assignment or virtual impulse. This conservative test path spends thrust to hold the orbital
+radius during braking; it is not an efficient ballistic reentry planner. A return can take most of a
+revolution. There is no obstacle avoidance, arbitrary landing-site selection, terrain-clearing operation
+or automatic safe path around another construction. Keep the launch pad and vertical approach clear.
+
+The launch bookmark is consumer-owned version-1 SavedData in the Overworld's
+`data/orbitalis_flight_launch_sites.dat`, bounded to 64 pilot/ship entries. It contains the saved pose,
+not a running mission or engine inputs. After restarting in space, stay on the same ship and issue
+`land` explicitly; automatic thrust never resumes. Return requires that ship near the 18 km launch
+orbital plane. A stop leaves the bookmark available. Starting a new `orbit` replaces that pilot's
+bookmark only after surface/ship preflight. Missing/unknown versions, malformed poses and another
+pilot/ship identity are rejected.
+
+Mission guidance requests up to 3 m/s² of corrective acceleration, with up to 80 m/s for long vertical
+legs and 220 m/s as the full-space safety limit. Preflight requires balanced additional acceleration
+authority in all six directions alongside gravity compensation. Actual native engine limits and fade
+still govern the flight. All propulsion, guidance, phase scheduling and launch bookmarks remain in this
+consumer; the production mod only supplies frames, gravity, rendering and journaled handoff. Manual
+`flight transfer`/`leave`, loss of deck contact or shutdown disengages a mission as it does hold.
+
+The full-space native coast test is server evidence for a complete unpowered revolution. The consumer
+mission scenario exercises real Propulsion insertion, coast, restored-bookmark return, both journaled
+handoffs, preserved cargo/UUID and touchdown supported by native terrain with thrust off. On
+2026-10-16 all eight consumer GameTests and eight unit tests passed. The mission landed at tick 27201
+with a displayed launch error of 0.2 m (asserted below 0.5 m), speed 0.05 m/s and no engine output;
+the native terrain supported it for 60 ticks before success. The 200-tick coast measurement starts
+only after native engine power and actual thrust both reach zero. Evidence is retained in
+`build/agent-logs/consumer-orbit-return-descent.log`. Its inert pilot
+models client acknowledgments/contact; real cockpit continuity and interaction still require a client
+trial. Sable also requests ordinary world chunks along a full orbit, which can make initial world
+saving expensive. This fixed-origin stand does not establish the eventual space chunk-loading policy,
+finite terrain topology or seamless rendering. At local Y around 44000 the pinned native integrator
+can report small velocity while the Y pose remains quantized; the climb therefore transitions into
+insertion while moving rather than demanding a precise high-altitude hover. After orbital braking,
+the descent starts within 10 m of the launch radial at less than 2 m/s. The return handoff
+accepts a 5 m corridor at less than 2 m/s and preserves the measured motion.
 
 ## Repeatable gravity trials
 

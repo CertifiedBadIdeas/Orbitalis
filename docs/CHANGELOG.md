@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Add consumer-only orbital insertion and return-to-launch guidance using real Propulsion engines, persisted launch bookmarks and the journaled full-space handoff, with a native insertion/coast/return/landing scenario.
+
 - Extend the journaled ship handoff to the full-space frame with an explicit version-2 route, legacy version-1 reading and recovery coverage for both orbital representations.
 
 - Add a separate positive-height space frame, shared gravity/reference rendering and a native full-revolution coast test without changing legacy orbital world coordinates.

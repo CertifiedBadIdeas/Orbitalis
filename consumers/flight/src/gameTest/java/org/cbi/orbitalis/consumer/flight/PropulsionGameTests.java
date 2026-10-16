@@ -54,6 +54,7 @@ public final class PropulsionGameTests {
         GlobalTestReporter.replaceWith(new JUnitLikeTestReporter(new File(System.getProperty("orbitalis.consumerGameTestReport"))));
         event.register(PropulsionGameTests.class);
         event.register(ShuttleGameTests.class);
+        event.register(OrbitalMissionGameTests.class);
     }
 
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis")
@@ -67,13 +68,49 @@ public final class PropulsionGameTests {
         var flight = root.getChild("orbitalis").getChild("flight");
         var autopilot = flight.getChild("autopilot");
         helper.assertTrue(autopilot != null, "Consumer autopilot commands missing");
-        for (var name : List.of("hold", "altitude", "status", "stop")) {
+        for (var name : List.of("hold", "altitude", "orbit", "land", "status", "stop")) {
             helper.assertTrue(autopilot.getChild(name) != null, "Consumer autopilot command missing: " + name);
         }
         helper.succeed();
     }
 
-    private static final class Rig implements AutoCloseable {
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis")
+    public static void launchBookmarkRoundTripAndValidation(GameTestHelper helper) {
+        var registries = helper.getLevel().registryAccess();
+        var pilot = java.util.UUID.randomUUID();
+        var ship = java.util.UUID.randomUUID();
+        var data = new LaunchSites();
+        var site = new LaunchSites.Site(ship, new Vector3(15, 70, -10), new Quaterniond().rotateY(0.2));
+        data.put(pilot, site);
+        var tag = data.save(new net.minecraft.nbt.CompoundTag(), registries);
+        var restored = LaunchSites.load(tag, registries).require(pilot, ship);
+        helper.assertTrue(restored.position().minus(site.position()).length() < 1e-12 &&
+            Math.abs(restored.attitude().dot(site.attitude())) > 0.999999, "Launch bookmark did not round-trip");
+        try {
+            LaunchSites.load(tag, registries).require(pilot, java.util.UUID.randomUUID());
+            helper.fail("Bookmark authorized a different ship");
+        } catch (IllegalArgumentException expected) {}
+        for (int version : new int[]{0, 99}) {
+            var corrupt = tag.copy(); corrupt.putInt("version", version);
+            try { LaunchSites.load(corrupt, registries); helper.fail("Unsupported bookmark version accepted"); }
+            catch (IllegalArgumentException expected) {}
+        }
+        for (var field : List.of("x", "y", "qw")) {
+            var corrupt = tag.copy();
+            corrupt.getList("sites", 10).getCompound(0).putDouble(field, Double.NaN);
+            try { LaunchSites.load(corrupt, registries); helper.fail("Malformed launch bookmark accepted"); }
+            catch (IllegalArgumentException expected) {}
+        }
+        var missing = tag.copy(); missing.getList("sites", 10).getCompound(0).remove("qy");
+        try { LaunchSites.load(missing, registries); helper.fail("Incomplete bookmark accepted"); }
+        catch (IllegalArgumentException expected) {}
+        var duplicate = tag.copy(); var entries = duplicate.getList("sites", 10); entries.add(entries.getCompound(0).copy());
+        try { LaunchSites.load(duplicate, registries); helper.fail("Duplicate launch bookmark accepted"); }
+        catch (IllegalArgumentException expected) {}
+        helper.succeed();
+    }
+
+    static final class Rig implements AutoCloseable {
         final ServerLevel level;
         final ServerSubLevel body;
         final List<CreativeThrusterBlockEntity> engines = new ArrayList<>();

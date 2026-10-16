@@ -36,7 +36,8 @@ import net.neoforged.neoforge.event.CommandEvent;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
-import org.cbi.orbitalis.core.planet.OrbitalTestFrame;
+import org.cbi.orbitalis.neoforge.integration.SableFlightIntegration;
+import org.joml.Quaterniond;
 import org.cbi.orbitalis.core.planet.Vector3;
 import org.cbi.orbitalis.minecraft.flight.FlightTestSpace;
 import java.util.HashMap;
@@ -47,13 +48,18 @@ import java.util.UUID;
 @EventBusSubscriber(modid = FlightConsumerMod.ID)
 public final class FlightConsumerMod {
     public static final String ID = "orbitalis_flight_consumer";
-    private record Control(UUID owner, AutopilotSession session) {}
+    private record Control(UUID owner, AutopilotSession session, OrbitalMission mission) {
+        String status() { return mission == null ? session.status() : mission.status(); }
+        void close() { if (mission == null) session.close(); else mission.close(); }
+    }
     private static final Map<MinecraftServer, Control> controls = new HashMap<>();
 
     private static ServerSubLevel ship(ServerPlayer player) {
         if (!(Sable.HELPER.getTrackingSubLevel(player) instanceof ServerSubLevel body)) {
             throw new IllegalArgumentException("Stand on the ship with creative flight disabled");
         }
+        if (body.getMassTracker().getCenterOfMass() == null || body.getMassTracker().getMass() <= 0)
+            throw new IllegalStateException("Wait for native ship mass initialization");
         return body;
     }
 
@@ -71,11 +77,43 @@ public final class FlightConsumerMod {
             if (altitude != null) {
                 var global = FlightTestSpace.INSTANCE.globalPosition(body.getLevel(), target);
                 var goal = new Vector3(global.getX(), FlightTestSpace.INSTANCE.getCENTRE().getY() + FlightTestSpace.INSTANCE.getGravity().getHalfExtent() + altitude, global.getZ());
-                target = body.getLevel().dimension().equals(FlightTestSpace.INSTANCE.getORBIT()) ? OrbitalTestFrame.INSTANCE.toOrbit(goal) : goal;
+                target = FlightTestSpace.INSTANCE.localPosition(body.getLevel().dimension(), goal);
             }
             var session = new AutopilotSession(body, target);
-            controls.put(source.getServer(), new Control(player.getUUID(), session));
+            controls.put(source.getServer(), new Control(player.getUUID(), session, null));
             source.sendSuccess(() -> Component.literal("Propulsion autopilot engaged. Leave manual controls off. " + session.status()), false);
+            return 1;
+        } catch (IllegalArgumentException | IllegalStateException error) {
+            throw new SimpleCommandExceptionType(Component.literal(error.getMessage())).create();
+        }
+    }
+
+    private static int mission(CommandSourceStack source, boolean land) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        try {
+            var player = source.getPlayerOrException();
+            if (!player.isCreative()) throw new IllegalArgumentException("Test autopilot requires creative mode");
+            var current = controls.get(source.getServer());
+            if (current != null && !current.owner.equals(player.getUUID())) throw new IllegalArgumentException("Another pilot owns the test autopilot");
+            if (land && current != null && current.mission != null) {
+                current.mission.requestLanding();
+                source.sendSuccess(() -> Component.literal(current.status()), false);
+                return 1;
+            }
+            var body = ship(player);
+            stop(source.getServer(), null);
+            var sites = LaunchSites.get(source.getServer());
+            var site = land ? sites.require(player.getUUID(), body.getUniqueId()) :
+                new LaunchSites.Site(body.getUniqueId(), AutopilotSession.position(body), new Quaterniond(body.logicalPose().orientation()));
+            var manager = SableFlightIntegration.INSTANCE.transferService(source.getServer());
+            var mission = new OrbitalMission(player, body, site, manager, land);
+            try {
+                if (!land) {
+                    sites.put(player.getUUID(), site);
+                    source.getServer().overworld().getDataStorage().save();
+                }
+            } catch (RuntimeException failure) { mission.close(); throw failure; }
+            controls.put(source.getServer(), new Control(player.getUUID(), null, mission));
+            source.sendSuccess(() -> Component.literal(mission.status()), false);
             return 1;
         } catch (IllegalArgumentException | IllegalStateException error) {
             throw new SimpleCommandExceptionType(Component.literal(error.getMessage())).create();
@@ -85,13 +123,15 @@ public final class FlightConsumerMod {
     private static void stop(MinecraftServer server, String reason) {
         Control control = controls.remove(server);
         if (control == null) return;
-        control.session.close();
+        control.close();
         var player = server.getPlayerList().getPlayer(control.owner);
         if (player != null && reason != null) player.sendSystemMessage(Component.literal("Autopilot disengaged: " + reason + ". Native engine fade still applies."));
     }
 
     @SubscribeEvent public static void register(RegisterCommandsEvent event) {
         var command = Commands.literal("autopilot")
+            .then(Commands.literal("orbit").executes(c -> mission(c.getSource(), false)))
+            .then(Commands.literal("land").executes(c -> mission(c.getSource(), true)))
             .then(Commands.literal("hold").executes(c -> engage(c.getSource(), null)))
             .then(Commands.literal("altitude").then(Commands.argument("height", DoubleArgumentType.doubleArg(32, 15000))
                 .executes(c -> engage(c.getSource(), DoubleArgumentType.getDouble(c, "height")))))
@@ -104,7 +144,7 @@ public final class FlightConsumerMod {
             }))
             .then(Commands.literal("status").executes(c -> {
                 var active = controls.get(c.getSource().getServer());
-                c.getSource().sendSuccess(() -> Component.literal(active == null ? "Autopilot is off" : active.session.status()), false);
+                c.getSource().sendSuccess(() -> Component.literal(active == null ? "Autopilot is off" : active.status()), false);
                 return 1;
             }));
         event.getDispatcher().register(Commands.literal("orbitalis").requires(s -> s.hasPermission(2))
@@ -115,8 +155,15 @@ public final class FlightConsumerMod {
         var active = controls.get(event.getServer());
         if (active == null) return;
         try {
-            var body = active.session.body;
             var player = event.getServer().getPlayerList().getPlayer(active.owner);
+            if (active.mission != null) {
+                var previous = active.mission.phase();
+                boolean landed = active.mission.tick(player);
+                if (player != null && active.mission.phase() != previous) player.sendSystemMessage(Component.literal(active.status()));
+                if (landed) stop(event.getServer(), "landed at the saved launch site");
+                return;
+            }
+            var body = active.session.body;
             if (player == null || !player.isAlive() || player.level() != body.getLevel() ||
                 Sable.HELPER.getTrackingSubLevel(player) != body || body.isRemoved() ||
                 SubLevelPhysicsSystem.require(body.getLevel()).getPaused()) {
