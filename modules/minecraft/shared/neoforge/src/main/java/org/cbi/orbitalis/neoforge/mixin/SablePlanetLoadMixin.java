@@ -39,7 +39,11 @@ public abstract class SablePlanetLoadMixin {
         boolean frame = level.dimension().equals(PlanetLabCoordinates.INSTANCE.getDIMENSION()) && tag.getInt("orbitalis_cube_frame_version") == 1
             && net.minecraft.core.Direction.byName(tag.getString("orbitalis_cube_face")) != null;
         if (frame) SablePlanetCollisionPipeline.constructing(true);
-        try { return original.call(level, data); }
+        try {
+            ServerSubLevel body = original.call(level, data);
+            if (frame && body != null) org.cbi.orbitalis.minecraft.integration.sable.SablePlanetChunks.loaded(body);
+            return body;
+        }
         finally { SablePlanetCollisionPipeline.constructing(previous); }
     }
 }

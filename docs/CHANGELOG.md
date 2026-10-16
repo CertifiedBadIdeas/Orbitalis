@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Add an opt-in native planet chunk unload/restore adapter with compressed cold chunks in the same Sable checkpoint, preserving inventories and scheduled ticks. Add solid 512-block volume ownership and conservative chunk-interest geometry; automatic 512-block scene streaming is not enabled yet.
+
 - Treat cube face plots as static block-coordinate charts rather than dynamic ships. Keep native Sable presentation and player contacts; register resident terrain through the kinematic collision path for ordinary ships.
 
 - Restore vanilla creative flight acceleration, horizontal drag and sprint speed on all cube faces.

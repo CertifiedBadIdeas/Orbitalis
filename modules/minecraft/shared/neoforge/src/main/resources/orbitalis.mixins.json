@@ -16,7 +16,9 @@
     "SablePlanetPhysicsMixin",
     "SablePlanetBodyMixin",
     "SablePlanetLoadMixin",
-    "SablePlanetRapierMixin"
+    "SablePlanetRapierMixin",
+    "SablePlanetPlotMixin",
+    "SablePlanetServerPlotMixin"
   ],
   "injectors": {
     "defaultRequire": 1

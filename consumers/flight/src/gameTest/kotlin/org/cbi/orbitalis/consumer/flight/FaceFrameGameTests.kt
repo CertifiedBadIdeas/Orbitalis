@@ -53,6 +53,90 @@ object FaceFrameGameTests {
     }
 
     @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "face_frames_cold", timeoutTicks = 180)
+    fun localFaceVaultSurvivesChunkEviction(helper: GameTestHelper) {
+        val scene = scene(helper)
+        val vault =
+            net.minecraft.core.registries.BuiltInRegistries.BLOCK
+                .get(
+                    net.minecraft.resources.ResourceLocation
+                        .parse("create:item_vault"),
+                ).defaultBlockState()
+                .setValue(ItemVaultBlock.HORIZONTAL_AXIS, Direction.Axis.X)
+        for (body in scene.bodies) {
+            for (x in 7..9) {
+                body.plot.embeddedLevelAccessor.setBlock(BlockPos(x, 0, -10), vault, 3)
+            }
+        }
+        helper.runAfterDelay(40) {
+            for (body in scene.bodies) {
+                val first = body.plot.embeddedLevelAccessor.getBlockEntity(BlockPos(7, 0, -10)) as ItemVaultBlockEntity
+                val last = body.plot.embeddedLevelAccessor.getBlockEntity(BlockPos(9, 0, -10)) as ItemVaultBlockEntity
+                helper.assertTrue(
+                    first.controllerBE === last.controllerBE && first.controllerBE!!.height == 3,
+                    "Cross-chunk vault did not form",
+                )
+                val handler = checkNotNull(scene.level.getCapability(Capabilities.ItemHandler.BLOCK, first.blockPos, Direction.UP))
+                helper.assertTrue(handler.insertItem(0, ItemStack(Items.EMERALD, 51), false).isEmpty, "Vault fill failed")
+                val keys =
+                    listOf(first, last)
+                        .map {
+                            body.plot.toLocal(
+                                net.minecraft.world.level
+                                    .ChunkPos(it.blockPos),
+                            )
+                        }.distinct()
+                helper.assertTrue(keys.size == 2, "Vault does not span a native chunk boundary")
+                for (key in keys) {
+                    helper.assertTrue(
+                        org.cbi.orbitalis.minecraft.integration.sable.SablePlanetChunks
+                            .evict(body, key),
+                        "Vault chunk eviction failed",
+                    )
+                }
+                helper.assertTrue(first.isRemoved && last.isRemoved, "Cold vaults remain active")
+            }
+            helper.runAfterDelay(10) {
+                for (body in scene.bodies) {
+                    val origin = body.plot.centerBlock
+                    val keys =
+                        listOf(
+                            6,
+                            9,
+                        ).map {
+                            body.plot.toLocal(
+                                net.minecraft.world.level
+                                    .ChunkPos(origin.offset(it, 0, -10)),
+                            )
+                        }.distinct()
+                    for (key in keys) {
+                        helper.assertTrue(
+                            org.cbi.orbitalis.minecraft.integration.sable.SablePlanetChunks
+                                .restore(body, key),
+                            "Vault chunk restore failed",
+                        )
+                    }
+                }
+                helper.runAfterDelay(30) {
+                    for (body in scene.bodies) {
+                        val first = body.plot.embeddedLevelAccessor.getBlockEntity(BlockPos(7, 0, -10)) as ItemVaultBlockEntity
+                        val last = body.plot.embeddedLevelAccessor.getBlockEntity(BlockPos(9, 0, -10)) as ItemVaultBlockEntity
+                        helper.assertTrue(
+                            first.controllerBE === last.controllerBE && first.controllerBE!!.height == 3,
+                            "Cold restore broke cross-chunk controller",
+                        )
+                        val handler = checkNotNull(scene.level.getCapability(Capabilities.ItemHandler.BLOCK, last.blockPos, Direction.DOWN))
+                        val stack = handler.extractItem(0, 64, false)
+                        helper.assertTrue(stack.`is`(Items.EMERALD) && stack.count == 51, "Cold restore duplicated or lost vault inventory")
+                    }
+                    println("ORBITALIS_FACE_COLD faces=6 nativeChunkBoundary=true vaultInventory=51")
+                    helper.succeed()
+                }
+            }
+        }
+    }
+
+    @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "face_frames", timeoutTicks = 120)
     fun localFaceVaultsKeepNativeInventory(helper: GameTestHelper) {
         val scene = scene(helper)

@@ -138,6 +138,140 @@ object CubeSableGameTests {
     }
 
     @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "cube_streaming", timeoutTicks = 180)
+    fun cubeColdChunkPreservesNativeState(helper: GameTestHelper) {
+        val scene = Scene(helper)
+        val pipeline =
+            SubLevelPhysicsSystem
+                .require(
+                    scene.level,
+                ).pipeline as org.cbi.orbitalis.minecraft.integration.sable.SablePlanetCollisionPipeline
+        val collisionBefore = pipeline.residentColliderCount()
+        val wasConstructing =
+            org.cbi.orbitalis.minecraft.integration.sable.SablePlanetCollisionPipeline
+                .constructing()
+        var body =
+            try {
+                org.cbi.orbitalis.minecraft.integration.sable.SablePlanetCollisionPipeline
+                    .constructing(true)
+                scene.container.allocateNewSubLevel(Pose3d().also { it.position().set(4096.0, 100.0, 4096.0) }) as ServerSubLevel
+            } finally {
+                org.cbi.orbitalis.minecraft.integration.sable.SablePlanetCollisionPipeline
+                    .constructing(wasConstructing)
+            }
+        scene.bodies.add(body)
+        body.userDataTag =
+            net.minecraft.nbt.CompoundTag().also {
+                it.putInt("orbitalis_cube_frame_version", 1)
+                it.putString("orbitalis_cube_face", "up")
+            }
+        val origin = body.plot.centerBlock
+        body.logicalPose().rotationPoint().set(origin.x.toDouble(), origin.y.toDouble(), origin.z.toDouble())
+        body.plot.newEmptyChunk(body.plot.centerChunk)
+        val global =
+            net.minecraft.world.level
+                .ChunkPos(body.plot.centerChunk.x + 1, body.plot.centerChunk.z)
+        body.plot.newEmptyChunk(global)
+        val local = body.plot.toLocal(global)
+        (body.plot as org.cbi.orbitalis.minecraft.integration.sable.PlanetPlotAccess).orbitalisDisableExpansion()
+        val accessor = body.plot.embeddedLevelAccessor
+        accessor.setBlock(BlockPos(0, -1, 0), Blocks.IRON_BLOCK.defaultBlockState(), 3)
+        accessor.setBlock(BlockPos(10, -1, 0), Blocks.IRON_BLOCK.defaultBlockState(), 3)
+        accessor.setBlock(BlockPos(10, 0, 0), Blocks.CHEST.defaultBlockState(), 3)
+        val chestPos = origin.offset(10, 0, 0)
+        val chest = scene.level.getBlockEntity(chestPos) as net.minecraft.world.level.block.entity.ChestBlockEntity
+        chest.setItem(
+            4,
+            net.minecraft.world.item
+                .ItemStack(net.minecraft.world.item.Items.DIAMOND, 37),
+        )
+        scene.level.scheduleTick(chestPos.below(), Blocks.IRON_BLOCK, 100)
+        body.updateLastPose()
+        body.forceUpdateGlobalBounds()
+        scene.container.addForceLoadTicket(body, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
+        val chunks = org.cbi.orbitalis.minecraft.integration.sable.SablePlanetChunks
+        helper.runAfterDelay(5) {
+            helper.assertTrue(pipeline.residentColliderCount() == collisionBefore + 2, "Static chunk colliders were not registered")
+            val oldHolder = body.plot.getChunkHolder(local)
+            helper.assertTrue(chunks.evict(body, local), "Chunk did not become cold")
+            helper.assertTrue(body.plot.getChunkHolder(local) == null && chunks.isCold(body, local), "Chunk has two resident owners")
+            helper.assertTrue(chest.isRemoved, "Cold chest still ticks")
+            helper.runAfterDelay(5) {
+                helper.assertTrue(pipeline.residentColliderCount() == collisionBefore + 1, "Cold chunk collider remains in physics")
+                // Save with the chunk cold, then use Sable's actual unload/full-load lifecycle.
+                val id = body.uniqueId
+                scene.container.holdingChunkMap.saveAll()
+                scene.container.removeForceLoadTicket(body, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
+                scene.container.holdingChunkMap.moveToUnloaded(
+                    body,
+                    net.minecraft.world.level
+                        .ChunkPos(256, 256),
+                )
+                helper.assertTrue(scene.container.allSubLevels.none { it.uniqueId == id }, "Native unload did not remove the body")
+                val unloadedBody = body
+                helper.runAfterDelay(5) {
+                    // Sable may already have reloaded it from a ready parent-world chunk.
+                    if (scene.container.allSubLevels.none { it.uniqueId == id }) {
+                        scene.container.holdingChunkMap
+                            .getHoldingSubLevel(id)
+                            ?.let { scene.container.holdingChunkMap.loadHoldingSubLevel(it) }
+                    }
+                    body = scene.container.allSubLevels.single { it.uniqueId == id }
+                    helper.assertTrue(body !== unloadedBody, "Native reload reused the previous body")
+                    scene.bodies.clear()
+                    scene.bodies.add(body)
+                    scene.container.addForceLoadTicket(body, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
+                    helper.assertTrue(chunks.isCold(body, local) && body.plot.getChunkHolder(local) == null, "Reload lost cold ownership")
+                    body.plot.expandIfNecessary(origin.offset(7, 0, 0))
+                    helper.assertTrue(body.plot.getChunkHolder(local) == null, "Native expansion replaced a cold chunk with air")
+                    helper.assertTrue(chunks.restore(body, local), "Cold restore failed")
+                    helper.assertTrue(body.plot.getChunkHolder(local) !== oldHolder, "Restoration retained the unloaded LevelChunk")
+                    val restored = scene.level.getBlockEntity(chestPos) as net.minecraft.world.level.block.entity.ChestBlockEntity
+                    helper.assertTrue(
+                        restored.getItem(4).count == 37 && restored.getItem(4).`is`(net.minecraft.world.item.Items.DIAMOND),
+                        "Cold checkpoint lost inventory",
+                    )
+                    helper.assertTrue(
+                        scene.level.blockTicks.hasScheduledTick(chestPos.below(), Blocks.IRON_BLOCK),
+                        "Cold checkpoint lost scheduled block tick",
+                    )
+                    helper.assertTrue(chunks.coldCount(body) == 0 && !chunks.restore(body, local), "Cold checkpoint restored twice")
+                    helper.assertTrue(chunks.evict(body, local), "Second unload failed")
+                    val valid = checkNotNull(body.userDataTag).copy()
+                    body.userDataTag =
+                        valid.copy().also {
+                            it.getCompound("orbitalis_planet_cold_chunks").putInt("version", 999)
+                        }
+                    helper.assertTrue(runCatching { chunks.restore(body, local) }.isFailure, "Unknown cold version was accepted")
+                    helper.assertTrue(body.plot.getChunkHolder(local) == null, "Invalid version created a resident chunk")
+                    body.userDataTag =
+                        valid.copy().also {
+                            it
+                                .getCompound("orbitalis_planet_cold_chunks")
+                                .getCompound("chunks")
+                                .putByteArray(local.toLong().toString(), byteArrayOf(1, 2, 3))
+                        }
+                    helper.assertTrue(runCatching { chunks.restore(body, local) }.isFailure, "Corrupt snapshot was accepted")
+                    helper.assertTrue(
+                        body.plot.getChunkHolder(local) == null && chunks.isCold(body, local),
+                        "Corruption discarded cold authority",
+                    )
+                    body.userDataTag = valid
+                    helper.assertTrue(chunks.restore(body, local), "Recovery from rejected snapshot failed")
+                    helper.runAfterDelay(5) {
+                        helper.assertTrue(
+                            pipeline.residentColliderCount() == collisionBefore + 2,
+                            "Restored chunk has missing or duplicate collider",
+                        )
+                        println("ORBITALIS_PLANET_COLD nativeReload=true inventory=37 pendingTick=true colliders=2")
+                        helper.succeed()
+                    }
+                }
+            }
+        }
+    }
+
+    @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "cube_sable", timeoutTicks = 100)
     fun cubeShipsFallTowardAllFaces(helper: GameTestHelper) {
         val scene = Scene(helper)

@@ -69,6 +69,24 @@ an incomplete set refuses reconstruction. Legacy parent-world terrain is not sil
 explicit `/orbitalis lab cube rebuild` removes disposable fixture contents and builds the replacement.
 Ordinary shutdown does not delete chart contents.
 
+`SablePlanetChunks` provides an opt-in server-thread chunk lifecycle for fixed charts. A cold chunk
+is one compressed native plot fragment in version-1 `orbitalis_planet_cold_chunks` body user data;
+resident chunks and these cold fragments are persisted by the same native body checkpoint. There
+is no separately committed chunk journal. Snapshot creation and bounded decoding finish before
+resident detachment. Native plot unloading handles ticking, entity registration and light; the
+adapter also clears native holder indexes, actor/lift/reaction-wheel callbacks and physical terrain.
+Restoration validates plot/chunk/section/entry bounds and retains the cold record on failure. Published
+user data is replaced rather than mutated. Native expansion remains disabled across full reloads,
+so a neighbour query cannot fill a cold chunk with authoritative air. One nonempty chunk remains
+resident because native full loading requires valid plot bounds. Currently eviction refuses tracked
+observers: client chunk delivery and readiness are not installed, and ordinary cube play does not
+activate this lifecycle. Cold bytes remain in the body checkpoint and memory; this is not external
+region storage or evidence of bounded total save size.
+
+`CubicPlanetVolume` in core owns the solid cubic volume partition and conservative world-box interest.
+It includes tie planes, all twelve edges, eight corners and the centre, with native plot origin offsets
+(including Sable's eight-block chunk-centre offset). It does not generate or load a 512-block game scene.
+
 Charts are distinct neighbour spaces. A multiblock, pipe or redstone network crossing a chart boundary
 is not connected automatically. This architecture does not claim arbitrary mod compatibility, shared
 neighbour semantics through the centre, general world generation or a production-size planet.
