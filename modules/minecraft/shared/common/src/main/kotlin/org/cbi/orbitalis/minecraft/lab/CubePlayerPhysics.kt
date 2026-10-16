@@ -292,10 +292,16 @@ object CubePlayerPhysics {
     fun view(
         entity: Entity,
         partialTick: Float,
+    ): Vec3 = view(entity, partialTick, rotation(entity))
+
+    fun view(
+        entity: Entity,
+        partialTick: Float,
+        orientation: Quaternionf,
     ): Vec3 {
         val yaw = Math.toRadians(entity.getViewYRot(partialTick).toDouble())
         val pitch = Math.toRadians(entity.getViewXRot(partialTick).toDouble())
-        return rotate(Vec3(-sin(yaw) * cos(pitch), -sin(pitch), cos(yaw) * cos(pitch)), entity)
+        return transform(Vec3(-sin(yaw) * cos(pitch), -sin(pitch), cos(yaw) * cos(pitch)), orientation)
     }
 
     @JvmStatic

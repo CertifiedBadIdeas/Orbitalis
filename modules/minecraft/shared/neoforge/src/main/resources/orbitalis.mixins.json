@@ -18,6 +18,8 @@
   },
   "client": [
     "CubePlayerCameraMixin",
+    "CubePlayerPickingMixin",
+    "SableCubePickingMixin",
     "CubePlayerTeleportMixin",
     "CubePlayerFlightMixin",
     "CubePlayerRendererMixin"

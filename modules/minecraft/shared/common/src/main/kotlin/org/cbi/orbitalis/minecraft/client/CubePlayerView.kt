@@ -19,12 +19,14 @@
 package org.cbi.orbitalis.minecraft.client
 
 import net.minecraft.world.entity.Entity
+import net.minecraft.world.level.ClipContext
 import net.minecraft.world.level.Level
 import net.minecraft.world.phys.Vec3
 import org.cbi.orbitalis.minecraft.lab.CubePlayerFrame
 import org.cbi.orbitalis.minecraft.lab.CubePlayerPhysics
 import org.cbi.orbitalis.minecraft.lab.CubePlayerVisualFrame
 import org.joml.Quaternionf
+import org.joml.Vector3f
 import java.util.UUID
 
 /** Visual frame only. Physics never reads interpolated camera state. */
@@ -39,6 +41,24 @@ object CubePlayerView {
     ): Vec3 =
         movingCentre?.invoke(entity, partialTick)
             ?: entity.getPosition(partialTick).add(0.0, CubePlayerPhysics.HALF_HEIGHT, 0.0)
+
+    /** Shared by camera setup and client picking, including eased turns and native deck motion. */
+    @JvmStatic
+    fun eye(
+        entity: Entity,
+        partialTick: Float,
+    ): Vec3 {
+        val centre = centre(entity, partialTick)
+        val offset = rotation(entity, partialTick).transform(Vector3f(0f, CubePlayerPhysics.eyeOffset(entity).toFloat(), 0f))
+        val eye = centre.add(offset.x.toDouble(), offset.y.toDouble(), offset.z.toDouble())
+        return entity.level().clip(ClipContext(centre, eye, ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, entity)).location
+    }
+
+    @JvmStatic
+    fun view(
+        entity: Entity,
+        partialTick: Float,
+    ): Vec3 = CubePlayerPhysics.view(entity, partialTick, rotation(entity, partialTick))
 
     private data class Frame(
         val visual: CubePlayerVisualFrame,

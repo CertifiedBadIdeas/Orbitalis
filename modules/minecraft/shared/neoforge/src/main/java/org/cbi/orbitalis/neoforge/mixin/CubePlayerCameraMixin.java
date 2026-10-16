@@ -21,7 +21,6 @@ package org.cbi.orbitalis.neoforge.mixin;
 import net.minecraft.client.Camera;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.BlockGetter;
-import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.Vec3;
 import org.cbi.orbitalis.minecraft.client.CubePlayerView;
 import org.cbi.orbitalis.minecraft.lab.CubePlayerPhysics;
@@ -52,12 +51,7 @@ public abstract class CubePlayerCameraMixin {
         rotation.transform(new Vector3f(0f, 0f, -1f), forwards);
         rotation.transform(new Vector3f(0f, 1f, 0f), up);
         rotation.transform(new Vector3f(-1f, 0f, 0f), left);
-        Vec3 centre = CubePlayerView.centre(entity, partialTick);
-        Vector3f offset = frame.transform(new Vector3f(0f, (float) CubePlayerPhysics.eyeOffset(entity), 0f));
-        Vec3 eye = centre.add(offset.x, offset.y, offset.z);
-        // Clip the eased eye displacement so a face turn cannot put the camera through terrain.
-        eye = entity.level().clip(new ClipContext(centre, eye, ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, entity)).getLocation();
-        setPosition(eye);
+        setPosition(CubePlayerView.eye(entity, partialTick));
         if (detached) move(-getMaxZoom(4f), 0f, 0f);
     }
 }

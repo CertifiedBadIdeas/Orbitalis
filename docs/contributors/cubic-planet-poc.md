@@ -93,8 +93,18 @@ vanilla's global-Y void damage because Y is not planetary altitude; other damage
 world's block build-height bounds remain unchanged, and this does not add terrain below them. Loose entities, fluids,
 beds, ladders, swimming, riding, crouching/crawling, stepping up blocks and production survival
 rules are not supported by this player experiment. Use a disposable scene without these features.
-The demonstration does not validate full-block interaction/reach or multiplayer combat while the view
-is turning; camera easing and the instantaneous physical eye can differ during that interval.
+First-person client picking uses the same clipped, interpolated eye and eased orientation as the
+camera, including native deck motion. The optional Sable adapter also replaces its interpolated-eye
+helper for the active camera entity; that helper otherwise reconstructs a vanilla global-Y eye on
+tracked plots. Physical/server eye and look queries retain the accepted gravity frame. Third-person
+picking retains the usual player-eye origin. This does not establish multiplayer combat or server
+reach acceptance for every intermediate eased view during a turn.
+
+For a client picking regression, enter each of the six faces in a disposable flight-consumer world,
+look down at the surface, and check that the outlined block contains the crosshair. Transform the
+native hit location through the chart render pose before comparing it with the first-person camera
+ray; native plot coordinates cannot be compared directly with parent-world camera coordinates.
+Repeat while walking across an edge to exercise orientation easing.
 
 The exit restores the transient entry position and view; after a runtime restart it falls back to the
 Overworld spawn. Repeated entry does not refill excavations. Six native chart identities and versioned
