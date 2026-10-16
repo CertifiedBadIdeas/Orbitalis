@@ -42,7 +42,11 @@ Walk forward from the initial view to leave the raised green face and fall towar
 WASD and mouse look use the accepted gravity frame; jump acts along local up. Creative flight remains available with normal double-jump activation; jump/shift lift follows
 local up/down, with no gravity while flying. Above the face-normal zone, up follows the sampled gravity
 continuously instead of choosing a face axis. Elytra retain native activation, equipment and durability;
-planing lift, pitch steering and drag are integrated in the local gravity frame. Native fireworks use
+planing lift, pitch steering and drag are integrated in the local gravity frame. Unpowered aerodynamic
+steering is bounded by the kinetic energy after gravity and before dissipative drag: lifting the nose
+while already moving upward cannot create energy as the gravity frame turns. This is an energy budget,
+not a speed or distance ceiling; a falling player can gain speed and native rockets can add energy.
+Native fireworks use
 the same physical look direction. This is game-style gliding without an atmosphere/density model;
 fireworks can escape this small reference planet. Use `cube leave` to exit the scene at any distance. Game mode is not changed. Fall damage is suppressed in the bounded experiment.
 
@@ -105,7 +109,13 @@ Near the surface an adjacent-face turn is the 90-degree rotation around the shar
 previous/head/body yaw, while pitch is unchanged. The server receives this yaw through ordinary
 Minecraft movement packets and never rebases it again. A transient client counter in radians, modulo 2 pi, lets
 the visual frame compensate the chart change before easing; no new packet or saved state is added.
-Camera and visible player orientation approach the collider frame at up to 180 degrees per second.
+Camera and visible player orientation approach the collider frame at up to 180 degrees per game second.
+The client advances visual endpoints once per game tick and samples their quaternion interpolation
+with native render partial ticks. Camera and model sample the same endpoints without advancing them;
+both endpoints are compensated when vanilla yaw is rebased into the next chart. This follows the
+one-tick interpolation used for entity position and prevents arrival-and-wait holds between ticks.
+Small angles use a relative quaternion and atan2 rather than float dot/acos, whose rounding previously
+discarded tiny far-field turns.
 For an isolated adjacent-face turn the visual rotation follows the shared edge, without the extra
 yaw twist from interpolating independent global-Y face orientations. Looking along that edge keeps
 the world view direction fixed as the image rolls. Overlapping turns may redirect unfinished easing;
@@ -126,8 +136,8 @@ and no failed/skipped cases; an unknown suite is rejected. The slow-edge regress
 directed face transitions at zero, 0.005 and 0.03 blocks/tick, checking terrain clearance, adjacent-face
 support and stability after landing. These are isolated near-edge releases, without a running start.
 The heading regression covers all 24 directed adjacent-face turns at six yaws and three pitches
-(432 combinations), checks forward control, and samples all three visual basis vectors throughout
-an isolated 0.5-second turn. It also checks that server players do not rebase incoming yaw. Flight regressions cover 201 altitude
+(432 combinations), checks forward control, and samples all three visual basis vectors at five render
+substeps per game tick throughout an isolated 0.5-second turn. It also checks that server players do not rebase incoming yaw. Flight regressions cover 201 altitude
 samples, a 361-sample full central-field circuit, stationary heading stability, obstructed body resizing,
 native elytra activation and 180 glider steps from each of six sides, native rocket thrust direction,
 mode save/load, cutoff crossing, six-direction weak-gravity accumulation through full entity AI ticks,
@@ -193,6 +203,25 @@ traces with unconstrained input are retained as diagnostics, not camera-continui
 elytra activation while already gliding was rejected by vanilla; the successful activation is the first
 `glide` trace. The initial client launch also exposed an inherited-field Mixin shadow failure; the
 teleport adapter now obtains the native client instance directly and the final client loaded successfully.
+
+Elytra-energy and camera follow-up on 2026-10-16 reproduced unpowered energy creation in the old
+pitch-steering step and a discarded 0.0001-radian turn in native tests. Core regressions now cover
+zero-gravity steering at varied climb/descent velocities and a 500-step bound glide under turning
+gravity, checking mechanical energy. Native tests also check small-angle interpolation, repeated
+camera/model sampling, consecutive tick continuity and chart rebase continuity.
+
+An isolated copied-world client recorded one sample per actual rendered frame, with diagnostic data
+buffered until the end of each measurement. An eight-second creative transverse flight near radius
+308 produced 479 frames. After the initial 30 frames, all 298 consecutive frame pairs within the same
+game tick showed changing camera up (vector difference above 1e-8), with no angular holds. A separate
+12-second native elytra flight without rockets produced 720 frames, retaining gliding and membership.
+Specific mechanical energy (blocks squared per tick squared) began at -0.04870, never exceeded that
+initial value, and ended at -0.09625. Radius rose from 59.56 to a maximum of 69.56, then fell to 64.54;
+this was a bound climb, not an escape. No moved-wrongly or moved-too-quickly warning was logged.
+Evidence is retained locally in `build/agent-logs/glider-camera-client/`. These measurements establish
+the listed routes and rendered orientation continuity, not general frame-time performance or arbitrary
+multiplayer behavior. Escape with enough initial or rocket-supplied energy remains possible because
+this small planet has finite gravitational potential; no artificial confinement was added.
 
 These observations establish the listed routes and creative escape. They do not establish subjective camera
 comfort, all edge directions or multiplayer behavior. Remaining manual scenarios:

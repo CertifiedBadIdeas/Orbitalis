@@ -34,7 +34,9 @@ import org.cbi.orbitalis.minecraft.lab.CubePlanetLab
 import org.cbi.orbitalis.minecraft.lab.CubePlayerFrame
 import org.cbi.orbitalis.minecraft.lab.CubePlayerMode
 import org.cbi.orbitalis.minecraft.lab.CubePlayerModeData
+import org.cbi.orbitalis.minecraft.lab.CubePlayerOrientation
 import org.cbi.orbitalis.minecraft.lab.CubePlayerPhysics
+import org.cbi.orbitalis.minecraft.lab.CubePlayerVisualFrame
 import org.joml.Quaternionf
 import org.joml.Vector3f
 import kotlin.math.abs
@@ -110,6 +112,40 @@ object CubePlayerFlightGameTest {
     @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis")
     fun cubeContinuousFrameFollowsGravity(helper: GameTestHelper) {
+        val interpolated = CubePlayerVisualFrame(Quaternionf())
+        val firstTarget = Quaternionf().rotationZ(0.0001f)
+        interpolated.tick(firstTarget, 0.0)
+        for (sample in 0..10) {
+            val partial = sample / 10f
+            val actual = interpolated.sample(partial).transform(Vector3f(0f, 1f, 0f))
+            val expected = Quaternionf().rotationZ(0.0001f * partial).transform(Vector3f(0f, 1f, 0f))
+            helper.assertTrue(actual.distance(expected) < 1e-7, "Render frame held or jumped between tick endpoints at $partial")
+            helper.assertTrue(
+                actual.distance(interpolated.sample(partial).transform(Vector3f(0f, 1f, 0f))) < 1e-8,
+                "Camera/model sampling advanced the shared visual frame",
+            )
+        }
+        interpolated.tick(Quaternionf().rotationZ(0.0002f), 0.0)
+        helper.assertTrue(
+            interpolated.sample(0f).transform(Vector3f(0f, 1f, 0f)).distance(firstTarget.transform(Vector3f(0f, 1f, 0f))) < 1e-7,
+            "Consecutive flight ticks had a render discontinuity",
+        )
+        val from = CubePlayerPhysics.rotation(Direction.EAST)
+        val to = CubePlayerPhysics.rotation(Direction.SOUTH)
+        val rebase = CubePlayerOrientation.yawShift(from, to)
+        val chartTurn = CubePlayerVisualFrame(from)
+        chartTurn.tick(to, rebase)
+        val rebasedForward = Quaternionf().rotationY(-rebase.toFloat()).transform(Vector3f(0f, 0f, 1f))
+        helper.assertTrue(
+            chartTurn.sample(0f).transform(rebasedForward).distance(from.transform(Vector3f(0f, 0f, 1f))) < 1e-6,
+            "Interpolation lost heading continuity when rebasing the chart",
+        )
+        val tinyTurn = Quaternionf().rotationZ(0.0001f)
+        val eased = CubePlayerOrientation.ease(Quaternionf(), tinyTurn, 0.0, 0.05)
+        helper.assertTrue(
+            eased.transform(Vector3f(0f, 1f, 0f)).distance(tinyTurn.transform(Vector3f(0f, 1f, 0f))) < 1e-6,
+            "Sub-degree flight orientation was discarded by float dot-product rounding",
+        )
         val player = GameTestPlayers.create(helper, locallyControlled = true)
         val lab = CubePlanetLab.forServer(helper.level.server)
         helper.assertTrue(lab.enter(player), "Cube entry failed")

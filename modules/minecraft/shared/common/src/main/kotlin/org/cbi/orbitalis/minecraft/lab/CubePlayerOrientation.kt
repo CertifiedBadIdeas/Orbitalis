@@ -19,11 +19,12 @@
 package org.cbi.orbitalis.minecraft.lab
 
 import net.minecraft.core.Direction
+import org.joml.Quaterniond
 import org.joml.Quaternionf
 import org.joml.Vector3f
 import kotlin.math.abs
-import kotlin.math.acos
 import kotlin.math.atan2
+import kotlin.math.hypot
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -62,8 +63,14 @@ object CubePlayerOrientation {
         elapsed: Double,
     ): Quaternionf {
         visual.rotateY(rebaseRadians.toFloat())
-        val angle = 2.0 * acos(abs(visual.dot(target)).coerceIn(0f, 1f).toDouble())
-        if (angle > 1e-6) visual.slerp(target, min(1.0, Math.PI * elapsed.coerceIn(0.0, 0.1) / angle).toFloat())
+        val relative = Quaterniond(visual).normalize().conjugate().mul(Quaterniond(target).normalize())
+        // Float dot/acos rounds small flight turns to zero, producing visible angular holds.
+        val angle = 2.0 * atan2(hypot(hypot(relative.x, relative.y), relative.z), abs(relative.w))
+        if (angle > 1e-10) {
+            visual.slerp(target, min(1.0, Math.PI * elapsed.coerceIn(0.0, 0.1) / angle).toFloat()).normalize()
+        } else {
+            visual.set(target)
+        }
         return visual
     }
 }

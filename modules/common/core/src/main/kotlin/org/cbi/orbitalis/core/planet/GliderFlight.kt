@@ -38,7 +38,8 @@ object GliderFlight {
         val forwardZ = cos(yaw)
         val horizontal = hypot(velocity.x, velocity.z)
         val lift = cos(pitch) * cos(pitch)
-        var next = velocity + gravity + Vector3(0.0, max(0.0, -gravity.y) * 0.75 * lift, 0.0)
+        val ballistic = velocity + gravity
+        var next = ballistic + Vector3(0.0, max(0.0, -gravity.y) * 0.75 * lift, 0.0)
         if (next.y < 0.0) {
             val recovery = -next.y * 0.1 * lift
             next += Vector3(forwardX * recovery, recovery, forwardZ * recovery)
@@ -48,6 +49,11 @@ object GliderFlight {
             next += Vector3(-forwardX * climb, climb * 3.2, -forwardZ * climb)
         }
         next += Vector3((forwardX * horizontal - next.x) * 0.1, 0.0, (forwardZ * horizontal - next.z) * 0.1)
+        // Unpowered lift/steering can redirect motion, but cannot add kinetic energy.
+        // Local vertical speed can already be positive as the gravity frame turns in flight.
+        val availableSpeed = ballistic.length()
+        val steeredSpeed = next.length()
+        if (steeredSpeed > availableSpeed) next *= availableSpeed / steeredSpeed
         return Vector3(next.x * 0.99, next.y * 0.98, next.z * 0.99)
     }
 }

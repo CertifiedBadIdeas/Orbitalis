@@ -47,7 +47,7 @@ public abstract class CubePlayerCameraMixin {
     @Inject(method = "setup", at = @At("RETURN"))
     private void orbitalis$orient(BlockGetter level, Entity entity, boolean detached, boolean mirrored, float partialTick, CallbackInfo callback) {
         if (!CubePlayerPhysics.active(entity)) return;
-        Quaternionf frame = CubePlayerView.rotation(entity);
+        Quaternionf frame = CubePlayerView.rotation(entity, partialTick);
         rotation.set(new Quaternionf(frame).mul(rotation));
         rotation.transform(new Vector3f(0f, 0f, -1f), forwards);
         rotation.transform(new Vector3f(0f, 1f, 0f), up);

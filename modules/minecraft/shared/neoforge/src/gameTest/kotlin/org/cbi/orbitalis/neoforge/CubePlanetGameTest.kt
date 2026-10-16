@@ -27,8 +27,8 @@ import net.minecraft.world.phys.Vec3
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
 import org.cbi.orbitalis.minecraft.lab.CubePlanetLab
 import org.cbi.orbitalis.minecraft.lab.CubePlayerFrame
-import org.cbi.orbitalis.minecraft.lab.CubePlayerOrientation
 import org.cbi.orbitalis.minecraft.lab.CubePlayerPhysics
+import org.cbi.orbitalis.minecraft.lab.CubePlayerVisualFrame
 import org.cbi.orbitalis.minecraft.lab.PlanetLabCoordinates
 import org.joml.Quaternionf
 import org.joml.Vector3f
@@ -214,20 +214,23 @@ object CubePlanetGameTest {
                                 player.xRot == pitch && player.yRotO == player.yRot,
                                 "Chart rebase changed pitch or added yaw interpolation",
                             )
-                            // Exercise the same easing used by the camera/model, including every intermediate basis.
-                            val visual = CubePlayerPhysics.rotation(from)
+                            // Exercise the tick-owned frame and every rendered substep used by camera/model.
+                            val visual = CubePlayerVisualFrame(CubePlayerPhysics.rotation(from))
                             val oldLook = CubePlayerPhysics.rotation(from).rotateY(Math.toRadians(-yaw.toDouble()).toFloat())
-                            CubePlayerOrientation.ease(visual, CubePlayerPhysics.rotation(to), player.orbitalisGetYawRebase() - rebase, 0.0)
-                            for (step in 0..10) {
-                                val expectedLook = Quaternionf().rotationAxis((Math.PI * step / 20).toFloat(), edge).mul(oldLook)
-                                val actualLook = Quaternionf(visual).rotateY(Math.toRadians(-player.yRot.toDouble()).toFloat())
-                                for (basis in listOf(Vector3f(1f, 0f, 0f), Vector3f(0f, 1f, 0f), Vector3f(0f, 0f, 1f))) {
-                                    helper.assertTrue(
-                                        actualLook.transform(Vector3f(basis)).distance(expectedLook.transform(Vector3f(basis))) < 2e-4,
-                                        "Visual turn used an axis other than the shared edge: $label step=$step",
-                                    )
+                            for (step in 0 until 10) {
+                                visual.tick(CubePlayerPhysics.rotation(to), if (step == 0) player.orbitalisGetYawRebase() - rebase else 0.0)
+                                for (substep in 0..4) {
+                                    val partial = substep / 4f
+                                    val expectedLook =
+                                        Quaternionf().rotationAxis((Math.PI * (step + partial) / 20).toFloat(), edge).mul(oldLook)
+                                    val actualLook = visual.sample(partial).rotateY(Math.toRadians(-player.yRot.toDouble()).toFloat())
+                                    for (basis in listOf(Vector3f(1f, 0f, 0f), Vector3f(0f, 1f, 0f), Vector3f(0f, 0f, 1f))) {
+                                        helper.assertTrue(
+                                            actualLook.transform(Vector3f(basis)).distance(expectedLook.transform(Vector3f(basis))) < 2e-4,
+                                            "Visual turn used an axis other than the shared edge: $label step=$step partial=$partial",
+                                        )
+                                    }
                                 }
-                                CubePlayerOrientation.ease(visual, CubePlayerPhysics.rotation(to), 0.0, 0.05)
                             }
                             player.abilities.flying = true
                             player.deltaMovement = Vec3.ZERO

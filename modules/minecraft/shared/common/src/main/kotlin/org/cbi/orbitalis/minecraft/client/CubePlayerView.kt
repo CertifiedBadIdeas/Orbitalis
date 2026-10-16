@@ -21,16 +21,15 @@ package org.cbi.orbitalis.minecraft.client
 import net.minecraft.world.entity.Entity
 import net.minecraft.world.level.Level
 import org.cbi.orbitalis.minecraft.lab.CubePlayerFrame
-import org.cbi.orbitalis.minecraft.lab.CubePlayerOrientation
 import org.cbi.orbitalis.minecraft.lab.CubePlayerPhysics
+import org.cbi.orbitalis.minecraft.lab.CubePlayerVisualFrame
 import org.joml.Quaternionf
 import java.util.UUID
 
 /** Visual frame only. Physics never reads interpolated camera state. */
 object CubePlayerView {
     private data class Frame(
-        val rotation: Quaternionf,
-        var nanos: Long,
+        val visual: CubePlayerVisualFrame,
         var yawRebase: Double,
     )
 
@@ -46,20 +45,26 @@ object CubePlayerView {
         frames.remove(uuid)
     }
 
-    @JvmStatic
-    fun rotation(entity: Entity): Quaternionf {
+    private fun frame(entity: Entity): Frame {
         if (world !== entity.level()) {
             frames.clear()
             world = entity.level()
         }
-        val target = CubePlayerPhysics.rotation(entity)
-        val yawRebase = (entity as CubePlayerFrame).orbitalisGetYawRebase()
-        val now = System.nanoTime()
-        val frame = frames.getOrPut(entity.uuid) { Frame(Quaternionf(target), now, yawRebase) }
-        val elapsed = ((now - frame.nanos) / 1e9).coerceIn(0.0, 0.1)
-        frame.nanos = now
-        CubePlayerOrientation.ease(frame.rotation, target, yawRebase - frame.yawRebase, elapsed)
-        frame.yawRebase = yawRebase
-        return Quaternionf(frame.rotation)
+        return frames.getOrPut(entity.uuid) {
+            Frame(CubePlayerVisualFrame(CubePlayerPhysics.rotation(entity)), (entity as CubePlayerFrame).orbitalisGetYawRebase())
+        }
     }
+
+    fun tick(entity: Entity) {
+        val frame = frame(entity)
+        val yawRebase = (entity as CubePlayerFrame).orbitalisGetYawRebase()
+        frame.visual.tick(CubePlayerPhysics.rotation(entity), yawRebase - frame.yawRebase)
+        frame.yawRebase = yawRebase
+    }
+
+    @JvmStatic
+    fun rotation(
+        entity: Entity,
+        partialTick: Float,
+    ): Quaternionf = frame(entity).visual.sample(partialTick)
 }

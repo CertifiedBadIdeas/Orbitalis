@@ -34,8 +34,10 @@ object CubePlayerViewEvents {
     @JvmStatic
     @SubscribeEvent
     fun tick(event: ClientTickEvent.Post) {
-        val player = Minecraft.getInstance().player ?: return
-        if (!CubePlayerPhysics.active(player)) CubePlayerView.forget(player.uuid)
+        val level = Minecraft.getInstance().level ?: return
+        for (player in level.players()) {
+            if (CubePlayerPhysics.active(player)) CubePlayerView.tick(player) else CubePlayerView.forget(player.uuid)
+        }
     }
 
     @JvmStatic

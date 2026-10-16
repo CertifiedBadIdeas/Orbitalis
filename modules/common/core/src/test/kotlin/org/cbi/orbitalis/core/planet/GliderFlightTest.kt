@@ -38,6 +38,38 @@ class GliderFlightTest {
     }
 
     @Test
+    fun steeringCannotCreateKineticEnergyWithoutGravityOrRockets() {
+        for (vertical in listOf(-2.0, -0.4, 0.0, 0.4, 1.0, 2.0)) {
+            for (pitch in listOf(-80.0, -45.0, -10.0, 0.0, 45.0)) {
+                val velocity = Vector3(0.0, vertical, 1.0)
+                val next = GliderFlight.step(velocity, 0.0, pitch, Vector3.ZERO)
+                assertTrue(next.dot(next) <= velocity.dot(velocity), "Steering created energy at vertical=$vertical pitch=$pitch")
+            }
+        }
+    }
+
+    @Test
+    fun turningGravityCannotPumpABoundGlideIntoEscape() {
+        val field = CubicGravity(16.0, 9.81, 0.0, 4.0, 20.0)
+        var position = Vector3(60.0, 0.0, 0.0)
+        var velocity = Vector3(0.0, 0.35, 0.0)
+        val initialEnergy = velocity.dot(velocity) / 2 + field.sample(position).potential / 400
+        assertTrue(initialEnergy < 0.0)
+        repeat(500) {
+            val force = field.acceleration(position) * (1.0 / 400)
+            val up = force.normalized() * -1.0
+            val right = Vector3(up.y, -up.x, 0.0)
+            val local = Vector3(velocity.dot(right), velocity.dot(up), velocity.z)
+            val next = GliderFlight.step(local, 90.0, -80.0, Vector3(0.0, -force.length(), 0.0))
+            velocity = right * next.x + up * next.y + Vector3(0.0, 0.0, next.z)
+            position += velocity
+            val energy = velocity.dot(velocity) / 2 + field.sample(position).potential / 400
+            assertTrue(energy <= initialEnergy + 1e-6, "Changing gravity created escape energy at step $it: $energy")
+        }
+        assertTrue(position.length() < 60.0, "An unpowered bound glide escaped")
+    }
+
+    @Test
     fun verticalAndInvalidViewsAreBounded() {
         for (pitch in listOf(-90.0, 90.0)) {
             val step = GliderFlight.step(Vector3(0.0, -1.0, 0.0), 0.0, pitch, Vector3(0.0, -0.02, 0.0))

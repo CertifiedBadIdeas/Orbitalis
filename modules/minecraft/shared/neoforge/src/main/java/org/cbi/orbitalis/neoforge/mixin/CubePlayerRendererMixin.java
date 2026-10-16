@@ -54,7 +54,7 @@ public abstract class CubePlayerRendererMixin {
         if (!CubePlayerPhysics.active(player)) return;
         poses.pushPose();
         poses.translate(0.0, CubePlayerPhysics.HALF_HEIGHT, 0.0);
-        poses.mulPose(CubePlayerView.rotation(player));
+        poses.mulPose(CubePlayerView.rotation(player, partialTick));
         poses.translate(0.0, -CubePlayerPhysics.halfHeight(player), 0.0);
     }
 

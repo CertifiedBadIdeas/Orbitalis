@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Prevent unpowered elytra steering from creating kinetic energy as planetary gravity turns; interpolate camera/model orientation between game ticks and retain tiny far-field turns.
+
 - Preserve weak planetary free-fall velocity across native ticks so high-altitude gravity can accumulate instead of being erased by vanilla resting thresholds.
 
 - Extend the cubic player experiment with continuous gravity-aligned flight, transported heading, local elytra lift/steering and native rocket direction, conservative tilted colliders and safe glider-to-standing resizing.
