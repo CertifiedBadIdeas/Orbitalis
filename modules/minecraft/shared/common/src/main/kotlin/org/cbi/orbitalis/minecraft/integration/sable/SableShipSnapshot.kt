@@ -88,9 +88,9 @@ object SableShipSnapshot {
 
     fun preflight(
         body: ServerSubLevel,
-        pilot: ServerPlayer,
+        pilot: ServerPlayer?,
+        travellers: Set<java.util.UUID> = emptySet(),
     ) {
-        require(pilot.isCreative && !pilot.isPassenger && !pilot.isVehicle) { "Use an unmounted creative pilot" }
         require(body.massTracker.centerOfMass != null && body.massTracker.mass > 0.0) { "Wait for native ship initialization" }
         require(SubLevelHelper.getLoadingDependencyChain(body).size == 1 && SubLevelHelper.getConnectedChain(body).size == 1) {
             "Connected or overlapping constructions are not supported by this diagnostic"
@@ -101,15 +101,19 @@ object SableShipSnapshot {
         }
         val bounds = body.boundingBox()
         val area = AABB(bounds.minX(), bounds.minY(), bounds.minZ(), bounds.maxX(), bounds.maxY() + 3.0, bounds.maxZ()).inflate(1.0)
-        require(area.contains(pilot.position())) { "The pilot must stand on the selected ship" }
+        require(
+            pilot == null || area.contains(pilot.position()) || body.plot.contains(pilot.position()) || pilot.vehicle?.uuid in travellers,
+        ) {
+            "The pilot must be on the selected ship"
+        }
         // Sable's spatial query also projects plot-space entities into the ship's world bounds.
         // Its own glue is transferred with the plot; nearby world-space glue is still an obstruction.
-        val obstruction = body.level.getEntities(pilot, area).firstOrNull { !isSupportedAttachment(body, it) }
+        val obstruction = body.level.getEntities(pilot, area).firstOrNull { it.uuid !in travellers && !isSupportedAttachment(body, it) }
         require(obstruction == null) {
             "Remove other players, mobs and loose entities from the ship: ${BuiltInRegistries.ENTITY_TYPE.getKey(obstruction!!.type)}"
         }
         require(
-            body.level.getAllEntities().filter { it !== pilot && body.plot.contains(it.position()) }.all {
+            body.level.getAllEntities().filter { it !== pilot && it.uuid !in travellers && body.plot.contains(it.position()) }.all {
                 isSupportedAttachment(body, it)
             },
         ) { "Only Create Super Glue and Simulated Honey Glue metadata entities are supported inside the plot" }
@@ -128,7 +132,10 @@ object SableShipSnapshot {
         }
     }
 
-    fun capture(body: ServerSubLevel): CompoundTag {
+    fun capture(
+        body: ServerSubLevel,
+        travellers: Set<java.util.UUID> = emptySet(),
+    ): CompoundTag {
         val tag = SubLevelSerializer.toData(body, emptyList()).fullTag().copy()
         val handle = SubLevelPhysicsSystem.require(body.level).getPhysicsHandle(body)
         tag.put("exact_linear", SableNBTUtils.writeVector3d(handle.getLinearVelocity(Vector3d())))
@@ -137,7 +144,7 @@ object SableShipSnapshot {
         val entities =
             body.level
                 .getAllEntities()
-                .filter { body.plot.contains(it.position()) }
+                .filter { it.uuid !in travellers && body.plot.contains(it.position()) }
                 .sortedBy { it.uuid.toString() }
         require(entities.size <= 64) { "Too many attached metadata entities" }
         for (entity in entities) {
@@ -306,7 +313,7 @@ object SableShipSnapshot {
 
     fun entitiesReady(body: ServerSubLevel): Boolean = body.plot.loadedChunks.all { body.level.areEntitiesLoaded(it.chunk.pos.toLong()) }
 
-    private fun isSupportedAttachment(
+    fun isSupportedAttachment(
         body: ServerSubLevel,
         entity: Entity,
     ): Boolean =

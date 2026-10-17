@@ -62,14 +62,18 @@ players, block/fluid logic and native Sable settings are unchanged. The cube ref
 orbit/space frames use the separate flat-body [space presentation](space-visuals.md), without altering
 their retained force field.
 
-The `SableShipTransfer` coordinator reconstructs one independent ship and pilot on explicitly paired
+The `SableShipTransfer` coordinator reconstructs one independent ship and an optional pilot on explicitly paired
 surface/orbital routes, including ordinary Overworld/`orbitalis:space` and the retained diagnostics.
-Journal version 3 names both dimensions; readers preserve version-1/2 diagnostic source semantics. Core frame objects own their distinct fixed translations. Common owns native snapshots, exact-motion restoration and the versioned asynchronous
+Journal version 4 names both dimensions and includes entity/mount manifests with an optional pilot;
+readers preserve version-1/2 diagnostic source semantics and version-3 explicit routes. Core frame objects own their distinct fixed translations. Common owns native snapshots, exact-motion restoration and the versioned asynchronous
 journal and plot-chunk block-entity tick leases; NeoForge owns startup/tick/interaction wiring and
 a narrow Minecraft ticker hook that honors those leases without loading optional Sable classes.
 A second loader hook exposes vanilla's pending teleport acknowledgment without a custom network protocol.
-Common orders source tracking removal before dimension travel, then waits for the destination ship bundle,
-a subsequent teleport acknowledgment and native deck contact before releasing physics.
+Common owns automatic height triggers, guidance reservations and independent native player travel.
+Source entity chunks are loaded before participant selection. The transfer orders source tracking removal before dimension travel, then waits for the destination ship bundle,
+a subsequent teleport acknowledgment and native deck contact (or available vehicle plus restored
+passenger seat) before releasing physics. Travelling entities use a native entity-only checkpoint
+hook before DONE, and dimension-change removal preserves container contents without dropping them.
 PREPARED selects source authority, COMMITTED
 selects destination authority, and DONE follows a verified native checkpoint. Completed records contain
 receipts rather than stale ship payloads. Recovery does not make the journal a permanent ship store.

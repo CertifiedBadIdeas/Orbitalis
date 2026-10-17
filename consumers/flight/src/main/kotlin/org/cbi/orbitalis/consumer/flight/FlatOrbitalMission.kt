@@ -31,6 +31,7 @@ import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
 import org.cbi.orbitalis.minecraft.flight.ShipDestinationPreload
+import org.cbi.orbitalis.minecraft.flight.SpaceTravelReservations
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipSnapshot
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipTransfer
@@ -99,6 +100,8 @@ internal class FlatOrbitalMission(
         val clearance = maxOf(32.0, radius + 8.0)
         val model = field
         planning = CompletableFuture.supplyAsync { BallisticOrbit.plan(model, FlatPlanetSpace.ORBIT_HEIGHT, clearance) }
+        SpaceTravelReservations
+            .reserve(body.uniqueId, this)
     }
 
     private fun state(): CartesianState =
@@ -297,6 +300,8 @@ internal class FlatOrbitalMission(
         if (!closed) {
             closed = true
             cut()
+            SpaceTravelReservations
+                .release(body.uniqueId, this)
             planning.cancel(false)
             preload.close()
         }

@@ -20,6 +20,9 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Automatically transfer supported loaded ships and independent players between Overworld and low space, including survival. Preserve a seated passenger's minecart and mount relationship; unmanned ships transfer and recover without a pilot. Preload source entities before selection and reserve guidance-controlled handoffs.
+- Extend the transfer journal to version 4 with optional pilots and bounded native entity/mount manifests, while reading versions 1–3.
+
 - Add finite rectangular-body potential and gravity, a conservative native-gravity surface layer, and numerical low-orbit shooting with collision/clearance and energy checks.
 
 - Add low free orbital flight around a finite 2000×2000×128 mass model, with a conservative transition from native surface construction gravity through Y=320. Keep Minecraft players, fluids and block logic unchanged; use native Sable motion with symmetric gravity impulses.

@@ -20,6 +20,7 @@ package org.cbi.orbitalis.minecraft.integration.sable
 
 import dev.ryanhcode.sable.util.SableNBTUtils
 import net.minecraft.nbt.CompoundTag
+import net.minecraft.nbt.ListTag
 import net.minecraft.nbt.NbtAccounter
 import net.minecraft.nbt.NbtIo
 import net.minecraft.resources.ResourceKey
@@ -34,6 +35,7 @@ import java.nio.file.StandardOpenOption
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executors
+import kotlin.math.abs
 
 /** Shared by live snapshot handling and every persisted-manifest reader. */
 internal object ShipTransferAttachments {
@@ -46,7 +48,7 @@ enum class ShipTransferPhase { PREPARED, COMMITTED, DONE }
 data class ShipTransferRecord(
     val transaction: UUID,
     val ship: UUID,
-    val pilot: UUID,
+    val pilot: UUID?,
     val sourceIsOrbit: Boolean,
     val source: CompoundTag,
     val destination: CompoundTag,
@@ -58,15 +60,19 @@ data class ShipTransferRecord(
     val recoveredSource: Boolean = false,
     val orbitalDimension: ResourceKey<Level> = FlightTestSpace.ORBIT,
     val surfaceDimension: ResourceKey<Level> = FlightTestSpace.SURFACE,
+    val sourcePassengers: ListTag = ListTag(),
+    val destinationPassengers: ListTag = ListTag(),
 ) {
     fun encode(): CompoundTag =
         CompoundTag().also {
-            it.putInt("version", 3)
+            it.putInt("version", 4)
             it.putString("surface_dimension", surfaceDimension.location().toString())
             it.putString("orbital_dimension", orbitalDimension.location().toString())
             it.putUUID("transaction", transaction)
             it.putUUID("ship", ship)
-            it.putUUID("pilot", pilot)
+            pilot?.let { id -> it.putUUID("pilot", id) }
+            it.put("source_passengers", passengerPayload(sourcePassengers))
+            it.put("destination_passengers", passengerPayload(destinationPassengers))
             it.putBoolean("source_is_orbit", sourceIsOrbit)
             // A completed checkpoint needs only a receipt; never retain stale cargo as a backup.
             it.put(
@@ -103,16 +109,21 @@ data class ShipTransferRecord(
             it.putBoolean("recovered_source", recoveredSource)
         }
 
+    private fun passengerPayload(list: ListTag): ListTag =
+        list.copy().also { copy ->
+            if (phase == ShipTransferPhase.DONE) copy.forEach { (it as CompoundTag).remove("data") }
+        }
+
     companion object {
         fun decode(tag: CompoundTag): ShipTransferRecord {
             val version = tag.getInt("version")
-            require(version in 1..3) { "Unsupported ship transfer journal version" }
+            require(version in 1..4) { "Unsupported ship transfer journal version" }
             val orbitalDimension =
                 if (version == 1) {
                     FlightTestSpace.ORBIT
                 } else {
                     (
-                        if (version ==
+                        if (version >=
                             3
                         ) {
                             listOf(FlightTestSpace.ORBIT, FlightTestSpace.SPACE, FlatPlanetSpace.SPACE)
@@ -210,12 +221,46 @@ data class ShipTransferRecord(
                         else -> 64.0..16256.0
                     }
                 require(
-                    kotlin.math.abs(decoded.position().x) <= 2048 && kotlin.math.abs(decoded.position().z) <= 2048 &&
+                    abs(decoded.position().x) <= 2048 && abs(decoded.position().z) <= 2048 &&
                         decoded.position().y in heights,
                 ) { "Pose outside diagnostic bounds" }
-                require(kotlin.math.abs(decoded.orientation().lengthSquared() - 1.0) < 1e-6) { "Invalid rotation magnitude" }
+                require(abs(decoded.orientation().lengthSquared() - 1.0) < 1e-6) { "Invalid rotation magnitude" }
             }
-            for (key in listOf("source_pilot", "destination_pilot")) {
+            val pilotId = if (tag.hasUUID("pilot")) tag.getUUID("pilot") else null
+            require(version >= 4 || pilotId != null) { "Missing legacy pilot" }
+            require(pilotId != null || !tag.getBoolean("pilot_pending")) { "Empty craft has no pending pilot" }
+            val sourcePassengers =
+                if (version >= 4) {
+                    tag.get("source_passengers") as? ListTag
+                        ?: throw IllegalArgumentException("Missing source travellers")
+                } else {
+                    ListTag()
+                }
+            val destinationPassengers =
+                if (version >= 4) {
+                    tag.get("destination_passengers") as? ListTag
+                        ?: throw IllegalArgumentException("Missing destination travellers")
+                } else {
+                    ListTag()
+                }
+            if (version >= 4) {
+                require(tag.contains("source_passengers", 9) && tag.contains("destination_passengers", 9)) { "Missing travellers" }
+                ShipTransferPassengers.validate(sourcePassengers, phase == ShipTransferPhase.DONE)
+                ShipTransferPassengers.validate(destinationPassengers, phase == ShipTransferPhase.DONE)
+                require(ShipTransferPassengers.ids(sourcePassengers) == ShipTransferPassengers.ids(destinationPassengers)) {
+                    "Traveller identities changed"
+                }
+                if (phase != ShipTransferPhase.DONE) {
+                    require(ShipTransferPassengers.translated(sourcePassengers, source, destination) == destinationPassengers) {
+                        "Travelling entity state changed across frames"
+                    }
+                }
+                for (entry in sourcePassengers) {
+                    val e = entry as CompoundTag
+                    require(!e.getBoolean("player") || e.getUUID("uuid") == pilotId) { "Traveller pilot mismatch" }
+                }
+            }
+            for (key in if (pilotId == null) emptyList() else listOf("source_pilot", "destination_pilot")) {
                 require(tag.contains(key, 10)) { "Missing pilot snapshot" }
                 val pilot = tag.getCompound(key)
                 for (axis in listOf("x", "y", "z", "vx", "vy", "vz", "yaw", "pitch")) {
@@ -225,7 +270,7 @@ data class ShipTransferRecord(
             return ShipTransferRecord(
                 tag.getUUID("transaction"),
                 ship,
-                tag.getUUID("pilot"),
+                pilotId,
                 tag.getBoolean("source_is_orbit"),
                 source.copy(),
                 destination.copy(),
@@ -237,6 +282,8 @@ data class ShipTransferRecord(
                 tag.getBoolean("recovered_source"),
                 orbitalDimension,
                 surfaceDimension,
+                sourcePassengers.copy(),
+                destinationPassengers.copy(),
             )
         }
     }

@@ -37,17 +37,23 @@ import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent
 import net.neoforged.neoforge.event.level.BlockEvent
 import net.neoforged.neoforge.event.server.ServerStartedEvent
 import net.neoforged.neoforge.event.server.ServerStoppedEvent
+import net.neoforged.neoforge.event.tick.EntityTickEvent
 import net.neoforged.neoforge.event.tick.ServerTickEvent
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
+import org.cbi.orbitalis.minecraft.flight.PlayerSpaceTravel
+import org.cbi.orbitalis.minecraft.integration.sable.AutomaticShipTravel
 import org.cbi.orbitalis.minecraft.integration.sable.FlightTestTravel
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipTransfer
+import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferTickGate
 import java.util.Locale
 
 /** Registered only with Sable present. No Create or Propulsion classes cross this boundary. */
 object SableFlightIntegration {
     private val travel = mutableMapOf<MinecraftServer, FlightTestTravel>()
+
+    private val automatic = mutableMapOf<MinecraftServer, AutomaticShipTravel>()
 
     private val transfers = mutableMapOf<MinecraftServer, SableShipTransfer>()
 
@@ -55,12 +61,24 @@ object SableFlightIntegration {
     fun transferService(server: MinecraftServer): SableShipTransfer = checkNotNull(transfers[server]) { "Transfer service is not ready" }
 
     fun install() {
+        NeoForge.EVENT_BUS.addListener { event: EntityTickEvent.Pre ->
+            if (ShipTransferTickGate
+                    .blocksEntity(event.entity)
+            ) {
+                event.isCanceled = true
+            }
+        }
         NeoForge.EVENT_BUS.addListener { event: ServerStartedEvent ->
             transfers[event.server] =
                 SableShipTransfer(
                     event.server,
                     event.server.getWorldPath(LevelResource.ROOT).resolve("data/orbitalis-transfers"),
-                ).also { it.tick() }
+                ).also {
+                    it.tick()
+                    automatic[event.server] =
+                        org.cbi.orbitalis.minecraft.integration.sable
+                            .AutomaticShipTravel(event.server, it)
+                }
         }
         NeoForge.EVENT_BUS.addListener { event: ServerTickEvent.Post ->
             transfers[event.server]?.let { manager ->
@@ -68,6 +86,13 @@ object SableFlightIntegration {
                 if (!manager.busy) {
                     event.server.playerList.players
                         .forEach(manager::loggedIn)
+                    automatic[event.server]?.tick()
+                    if (!manager.busy) {
+                        event.server.playerList.players.filter { automatic[event.server]?.attached(it) != true }.forEach {
+                            PlayerSpaceTravel
+                                .transfer(it)
+                        }
+                    }
                 }
             }
         }
@@ -109,6 +134,7 @@ object SableFlightIntegration {
             SableFlightGravity.afterPhysics(event.physicsSystem.level, event.timeStep)
         }
         NeoForge.EVENT_BUS.addListener { event: ServerStoppedEvent ->
+            automatic.remove(event.server)?.close()
             travel.remove(event.server)
             transfers.remove(event.server)?.close()
         }

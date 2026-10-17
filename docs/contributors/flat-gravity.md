@@ -100,11 +100,13 @@ turn manual inputs off, disable creative flight and stand on board. Run:
 ```
 
 After insertion the status reports engines-off free flight. For return, including from a reloaded
-launch bookmark, run `/orbitalis flight autopilot land`. These commands still require an unmounted
-creative pilot and the bounded transfer allowlist. The consumer owns guidance, not production Orbitalis.
+launch bookmark, run `/orbitalis flight autopilot land`. These guidance commands still require an unmounted
+creative pilot; ship transfer itself also supports survival and an optional seated pilot, within its bounded allowlist. The consumer owns guidance, not production Orbitalis.
 Manual `/orbitalis flight transfer` selects the matching surface/space route but supplies no thrust.
-Automatic altitude handoff currently belongs to this mission; arbitrary manually flown ships do not
-transfer just by crossing a height.
+Automatic altitude handoff also runs independently of this mission for loaded supported ships and
+individual players, including survival. Guidance reserves its own ship so both controllers cannot
+start the same transfer. An independent player needs no ship or command; passengers on a ship are
+transferred with their vehicle instead of being teleported separately.
 
 On ascent a bounded vanilla terrain ticket starts at physical Y=464 (400 above sea), and transfer
 starts after crossing Y=664 while moving. On descent transfer starts at Y=464, after destination
@@ -115,12 +117,15 @@ The orbital sky shows the existing illustrative flat body; it is not a live Over
 space terrain. The predictor/guidance keeps this route clear of that body; general underside landing
 and arbitrary collision with the distant illustration are not implemented.
 
-Transfer journal version 3 explicitly stores `surface_dimension` and `orbital_dimension`, accepting
-only Overworld/space or the existing diagnostic pairs. Version 1/2 retain implicit `flight_test`
+Transfer journal version 4 explicitly stores `surface_dimension` and `orbital_dimension`, accepting
+only Overworld/space or the existing diagnostic pairs. Version 4 adds an optional pilot and bounded
+entity/mount manifests; version 3 retains explicit routes and a required pilot. Version 1/2 retain implicit `flight_test`
 surface semantics and migrate explicitly on write. Launch bookmarks are version 2 with a surface
 identifier; version 1 still means diagnostic terrain. Unknown or inconsistent routes fail closed.
-The transaction remains single-pilot, with other players excluded from participating levels and
-native physics paused across supported flight levels (including Overworld) during reconciliation.
+The transaction remains limited to one onboard player, with native physics temporarily paused across
+supported flight levels (including Overworld) during reconciliation. Other players may stay in ordinary
+Overworld/space; legacy diagnostic transfers retain their exclusion rule. Empty ships do not wait for
+a pilot during transfer or recovery. See [ship transfer](ship-transfer.md) for entity limits.
 
 ## Evidence
 
@@ -131,3 +136,19 @@ unsafe bound trajectories and axial/diagonal shooting solutions. Native tests se
 an unpowered Sable body and the complete engine-driven Overworld mission, cargo and recovery.
 Use the fresh logs/reports for measured results; client camera/deck contact and frame stalls require
 an interactive run and are not established by the inert server pilot.
+
+## Automatic travel
+
+The server examines loaded constructions first, then independent players. Surface exit starts at
+Y=664 while rising; return starts at physical Y<=464 while descending, above the initial footprint
+and above sea level. The represented space frame adds 4096. Distinct thresholds prevent immediate
+bounce-back. Orbit arcs outside the surface footprint do not become surface entry. Travelling
+entities keep native motion and orientation; dimension travel resets accumulated fall distance.
+
+For approaching ships, bounded timeout tickets preload both source entity chunks and destination
+terrain from Y=464 on ascent / physical Y=664 on descent. Selection waits for source entity chunks
+to load, so an unloaded cart is not omitted. At most 16 approaches retain paired tickets; tickets are
+released after the approach ends or on server shutdown. Unsupported craft remain at source, with a
+logged reason and a retry delay. This still uses the existing reconstruction journal and pauses:
+it is not a seamless renderer or full ship pre-staging implementation. Independent player travel
+uses native teleport/save behavior rather than creating a ship journal or duplicating player data.

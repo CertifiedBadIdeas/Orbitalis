@@ -18,17 +18,38 @@
 
 package org.cbi.orbitalis.neoforge
 
+import net.minecraft.server.level.ServerPlayer
 import net.neoforged.fml.ModList
 import net.neoforged.fml.common.Mod
+import net.neoforged.neoforge.common.NeoForge
+import net.neoforged.neoforge.event.entity.player.PlayerEvent
+import net.neoforged.neoforge.event.server.ServerStoppedEvent
+import net.neoforged.neoforge.event.tick.ServerTickEvent
 import org.cbi.orbitalis.core.Orbitalis
+import org.cbi.orbitalis.minecraft.flight.PlayerSpaceTravel
 import org.cbi.orbitalis.neoforge.integration.SableFlightIntegration
 
 /** Loader entry point. Gameplay belongs in shared/common or the independent core. */
 @Mod(Orbitalis.MOD_ID)
 class OrbitalisMod {
     init {
+        NeoForge.EVENT_BUS.addListener { event: PlayerEvent.PlayerLoggedOutEvent ->
+            (event.entity as? ServerPlayer)?.let { PlayerSpaceTravel.close(it) }
+        }
+        NeoForge.EVENT_BUS.addListener { event: ServerStoppedEvent ->
+            PlayerSpaceTravel.close(event.server)
+        }
+
         if (ModList.get().isLoaded("sable")) {
             SableFlightIntegration.install()
+        } else {
+            NeoForge.EVENT_BUS.addListener { event: ServerTickEvent.Post ->
+                event.server.playerList.players
+                    .forEach {
+                        PlayerSpaceTravel
+                            .transfer(it)
+                    }
+            }
         }
     }
 }

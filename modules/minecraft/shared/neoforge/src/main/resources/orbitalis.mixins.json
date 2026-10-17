@@ -5,6 +5,7 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "LevelBlockEntityTickMixin",
+    "ServerLevelEntityCheckpointMixin",
     "ServerGamePacketListenerTeleportMixin",
     "DiagnosticBorderMixin",
     "DiagnosticBorderPacketsMixin"

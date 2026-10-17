@@ -202,7 +202,7 @@ val generateGameTestResources = tasks.register("generateGameTestResources") {
 gameTest.resources.srcDir(generateGameTestResources.map { generatedGameTestResources.get() })
 
 val gameTestSuite = providers.gradleProperty("orbitalisGameTestSuite").orElse("all").get()
-require(gameTestSuite in setOf("all", "surface", "transfer", "flat")) { "Unknown GameTest suite: $gameTestSuite" }
+require(gameTestSuite in setOf("all", "surface", "transfer", "flat", "travel")) { "Unknown GameTest suite: $gameTestSuite" }
 val gameTestReport = layout.buildDirectory.file("test-results/gameTestServer/results.xml")
 loom.runs.register("gameTestServer") {
     server()
@@ -249,11 +249,13 @@ tasks.configureEach {
             val names = (0 until cases.length).map { (cases.item(it) as org.w3c.dom.Element).getAttribute("name") }.toSet()
             val surfaceNames = setOf("nativeoverworldborder", "borderinitializationpreservescustomization", "diagnosticbordersareindependent")
             val transferNames = setOf("shiptransferroundtripandrecovery", "spacetransferroundtripandrecovery", "overworldtransferroundtripandrecovery")
+            val travelNames = setOf("automaticemptyshiproundtrip", "automaticmountedsurvivalpassenger", "independentsurvivalplayerroundtrip")
             val requiredNames = when (gameTestSuite) {
+                "travel" -> travelNames
                 "flat" -> setOf("nativefinitebodyfreeorbit")
                 "surface" -> surfaceNames
-                "transfer" -> transferNames
-                else -> surfaceNames + transferNames + setOf("ordinaryshipsreceivediagnosticgravity", "fullspaceorbitpreservesnativeenergy", "nativefinitebodyfreeorbit")
+                "transfer" -> transferNames + travelNames
+                else -> surfaceNames + transferNames + travelNames + setOf("ordinaryshipsreceivediagnosticgravity", "fullspaceorbitpreservesnativeenergy", "nativefinitebodyfreeorbit")
             }
             check(names.containsAll(requiredNames)) {
                 "GameTest run did not execute its required $gameTestSuite scenarios: $names"
