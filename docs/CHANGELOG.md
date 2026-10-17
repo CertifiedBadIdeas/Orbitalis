@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Add finite rectangular-body potential and gravity, a conservative native-gravity surface layer, and numerical low-orbit shooting with collision/clearance and energy checks.
+
 - Choose a free native Sable plot when a ship transfer's original address is occupied, including by an unloaded ship. Relocate supported block entities and glue while preserving physical pose, motion, cargo and foreign ships; retain journal compatibility and per-snapshot recovery addresses.
 
 - Continue consumer orbital ascent/return across the dimension handoff without braking to a boundary waypoint. Preserve moving journal snapshots and automatically resume the next leg; retain braking for insertion and actual touchdown. Finish landing within 0.5 m only after native terrain supports the ship with engines off.
@@ -28,7 +30,7 @@ limitations under the License.
 
 - Replace the cube surface experiment with a native flat Overworld border, initially 2000×2000 centred at zero; preserve administrator border edits and isolate diagnostic space borders and client updates.
 - Retire the cube dimension, six Sable charts, player gravity/camera, seam/fluid/Create compatibility hooks and fixtures. Remove production Create/Ponder dependencies. Old save files are untouched; start a new world.
-- Preserve ship-transfer journals and diagnostic dimension IDs; replace their retired cube field with the existing spherical diagnostic field. Overworld-to-space travel and flat-body gravity remain future work.
+- Preserve ship-transfer journals and diagnostic dimension IDs; replace their retired cube field with the existing spherical diagnostic field. Retain those spherical diagnostics separately from the later finite-body route.
 
 - Project confirmed cross-chart ordinary/glass pipe attachments through Create's native client update tags, hiding extra glass end rims while retaining native connectors, mixed collars and disconnected ends. Keep the projection out of world saves and invalidate client model data when it changes.
 
