@@ -19,11 +19,7 @@ limitations under the License.
 # Flight consumer provenance
 
 These are external development dependencies of the independent `consumers/flight` build.
-Create 6.0.10-280 slim and Ponder 1.0.82+mc1.21.1 are additionally compile-only dependencies of the
-Orbitalis NeoForge leaf for optional seam address adapters. Those original mixins call native algorithms;
-they do not copy upstream implementations, distribute the libraries or import their assets. Their pinned
-source JARs were inspected to identify coordinate and port query boundaries. The runtime inventory and
-separately retained upstream license texts below apply to these API references too.
+Production Orbitalis no longer compiles against Create or Ponder; the former cube seam adapters are retired.
 No upstream implementation, models, textures, sounds or branding are copied into Orbitalis sources
 or production archives. Gradle resolves the original artifacts and Loom prepares the local development
 classpath. Embedded notices remain in the extracted libraries. This is not a redistributed modpack

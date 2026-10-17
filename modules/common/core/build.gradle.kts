@@ -17,15 +17,3 @@
  */
 
 plugins { id("orbitalis-jvm") }
-
-tasks.register<JavaExec>("runPlanetExperiment") {
-    group = "verification"
-    description = "Run the finite-planet mathematics experiment; no Minecraft or Sable runtime claim."
-    dependsOn(tasks.named("testClasses"))
-    classpath = sourceSets.test.get().runtimeClasspath
-    mainClass.set("org.cbi.orbitalis.core.planet.PlanetExperimentKt")
-    javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(21)) })
-    val outputDirectory = layout.buildDirectory.dir("experiments/planet")
-    outputs.dir(outputDirectory)
-    doFirst { setArgs(listOf(outputDirectory.get().asFile.absolutePath)) }
-}

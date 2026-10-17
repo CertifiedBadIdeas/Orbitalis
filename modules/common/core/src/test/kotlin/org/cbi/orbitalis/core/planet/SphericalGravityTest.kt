@@ -45,6 +45,19 @@ class SphericalGravityTest {
     }
 
     @Test
+    fun `potential is finite and its gradient matches acceleration across the surface`() {
+        val gravity = SphericalGravity(6000.0, 9.81)
+        assertEquals(-1.5 * 9.81 * 6000.0, gravity.potential(Vector3.ZERO), 1e-8)
+        for (radius in listOf(3000.0, 5999.0, 6000.0, 6001.0, 18000.0)) {
+            val epsilon = 0.01
+            val derivative =
+                (gravity.potential(Vector3(radius + epsilon, 0.0, 0.0)) - gravity.potential(Vector3(radius - epsilon, 0.0, 0.0))) /
+                    (2 * epsilon)
+            assertEquals(-gravity.acceleration(Vector3(radius, 0.0, 0.0)).x, derivative, 2e-5)
+        }
+    }
+
+    @Test
     fun `invalid body parameters are rejected`() {
         for (value in listOf(0.0, -1.0, Double.NaN, Double.POSITIVE_INFINITY)) {
             assertFailsWith<IllegalArgumentException> { SphericalGravity(value, 9.81) }

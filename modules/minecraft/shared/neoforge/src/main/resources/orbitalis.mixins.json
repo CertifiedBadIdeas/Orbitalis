@@ -1,59 +1,16 @@
 {
   "required": true,
-  "plugin": "org.cbi.orbitalis.neoforge.integration.OrbitalisMixinPlugin",
   "minVersion": "0.8",
   "package": "org.cbi.orbitalis.neoforge.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "LevelBlockEntityTickMixin",
     "ServerGamePacketListenerTeleportMixin",
-    "CubePlayerEntityMixin",
-    "CubePlayerSupportMixin",
-    "CubePlayerModeMixin",
-    "CubePlayerTravelMixin",
-    "CubePlayerLocomotionMixin",
-    "CubePlayerPacketMixin",
-    "SableCubeCollisionMixin",
-    "SablePlanetPhysicsMixin",
-    "SablePlanetBodyMixin",
-    "SablePlanetLoadMixin",
-    "SablePlanetRapierMixin",
-    "SablePlanetPlotMixin",
-    "SablePlanetServerPlotMixin",
-    "PlanetItemRayMixin",
-    "PlanetSignalMixin",
-    "PlanetNeighbourMixin",
-    "PlanetInventoryMixin",
-    "PlanetFlowingFluidMixin",
-    "SablePlanetFluidContainmentMixin",
-    "PlanetPhysicsAssemblerMixin",
-    "PlanetWaterFluidMixin",
-    "PlanetLavaFluidMixin",
-    "PlanetFluidInteractionMixin",
-    "CreatePlanetShaftPlacementMixin",
-    "CreatePlanetRotationMixin",
-    "CreatePlanetSourceFacingMixin",
-    "CreatePlanetFluidNetworkMixin",
-    "CreatePlanetPipeConnectionMixin",
-    "CreatePlanetFlowPipeMixin",
-    "CreatePlanetFlowHandlerMixin",
-    "CreatePlanetFluidPropagatorMixin",
-    "CreatePlanetPumpMixin",
-    "CreatePlanetPipeBlockMixin",
-    "CreatePlanetFluidLifecycleMixin",
-    "CreatePlanetPipeRimDataMixin",
-    "CreatePlanetStraightPipeRimMixin",
-    "CreatePlanetStandardPipeRimMixin"
+    "DiagnosticBorderMixin",
+    "DiagnosticBorderPacketsMixin"
   ],
   "injectors": {
     "defaultRequire": 1
   },
-  "client": [
-    "CubePlayerCameraMixin",
-    "CubePlayerPickingMixin",
-    "SableCubePickingMixin",
-    "CubePlayerTeleportMixin",
-    "CubePlayerFlightMixin",
-    "CubePlayerRendererMixin"
-  ]
+  "client": []
 }

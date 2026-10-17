@@ -20,6 +20,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest import mock
 import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -44,10 +45,6 @@ versionRange="[1.21.1,1.21.2)"
             'META-INF/NOTICE': b'upstream fixture',
             'org/cbi/orbitalis/core/Orbitalis.class': self.bytecode(65),
             'org/cbi/orbitalis/neoforge/OrbitalisMod.class': self.bytecode(65),
-            'data/orbitalis/dimension/planet_lab.json': b'{}',
-            'data/orbitalis/dimension/planet_lab.json.license': b'Apache-2.0 fixture',
-            'data/orbitalis/dimension_physics/planet_lab.json': b'{}',
-            'data/orbitalis/dimension_physics/planet_lab.json.license': b'Apache-2.0 fixture',
             'data/orbitalis/dimension/flight_test.json': b'{}',
             'data/orbitalis/dimension/flight_test.json.license': b'Apache-2.0 fixture',
             'data/orbitalis/dimension_physics/flight_test.json': b'{}',
@@ -131,19 +128,6 @@ versionRange="[1.21.1,1.21.2)"
                     self.run_verifier()
                 self.files['META-INF/neoforge.mods.toml'] = original
 
-    def test_only_pinned_optional_create_dependency_is_allowed(self):
-        original = self.files['META-INF/neoforge.mods.toml']
-        contract = ('\n[[dependencies.orbitalis]]\nmodId="create"\ntype="optional"\n'
-                    'versionRange="[6.0.10]"\nordering="AFTER"\nside="BOTH"\n')
-        self.files['META-INF/neoforge.mods.toml'] = original + contract.encode()
-        self.run_verifier()
-        for key, wrong in (('optional', 'required'), ('6.0.10', '6.0.11'), ('AFTER', 'NONE'), ('BOTH', 'CLIENT')):
-            with self.subTest(key=key):
-                self.files['META-INF/neoforge.mods.toml'] = original + contract.replace(key, wrong).encode()
-                with self.assertRaisesRegex(ValueError, 'pinned optional Create'):
-                    self.run_verifier()
-        self.files['META-INF/neoforge.mods.toml'] = original
-
     def test_consumer_implementations_are_rejected_directly_and_nested(self):
         for prefix in verify.EXTERNAL_CLASS_PREFIXES:
             for nested in (False, True):
@@ -162,8 +146,8 @@ versionRange="[1.21.1,1.21.2)"
                     del self.files[name]
 
     def test_missing_laboratory_resource_is_rejected(self):
-        del self.files['data/orbitalis/dimension/planet_lab.json']
-        with self.assertRaisesRegex(ValueError, 'planet_lab.json'):
+        del self.files['data/orbitalis/dimension/flight_test.json']
+        with self.assertRaisesRegex(ValueError, 'flight_test.json'):
             self.run_verifier()
 
     def test_consumer_resources_are_rejected(self):
@@ -175,6 +159,28 @@ versionRange="[1.21.1,1.21.2)"
         self.files['data/minecraft/worldgen/world_preset/flat.json'] = b'{}'
         with self.assertRaisesRegex(ValueError, 'GameTest world resources leaked'):
             self.run_verifier()
+
+
+class ArchitectureBoundaryTest(unittest.TestCase):
+    def test_production_rejects_consumer_imports_and_fully_qualified_mixin_targets(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ('LICENSE.md', 'NOTICE', 'licenses/README.md'):
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('fixture')
+            path = root / 'modules/minecraft/shared/neoforge/src/main/java/example/Adapter.java'
+            path.parent.mkdir(parents=True)
+            with mock.patch.object(verify, 'ROOT', root):
+                for source in ('import com.simibubi.create.Example;',
+                               '@Mixin(targets="com.simibubi.create.Example")',
+                               'net.createmod.ponder.Example field;'):
+                    with self.subTest(source=source):
+                        path.write_text(source)
+                        with self.assertRaisesRegex(ValueError, 'consumer-only mod API'):
+                            verify.architecture()
+                path.write_text('String supportedEntity = "create:super_glue";')
+                verify.architecture()
 
 
 if __name__ == '__main__':

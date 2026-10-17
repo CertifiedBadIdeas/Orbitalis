@@ -314,7 +314,7 @@ internal class OrbitalMission(
         private val SPACE = FlightTestSpace
         private val CENTRE = SPACE.CENTRE
         private const val RADIUS = OrbitalGuidance.RADIUS
-        private val MU = SPACE.gravity.surfaceAcceleration * SPACE.gravity.halfExtent.pow(2)
+        private val MU = SPACE.gravity.surfaceAcceleration * SPACE.gravity.radius.pow(2)
         private val CIRCULAR_SPEED = sqrt(MU / RADIUS)
         private const val HANDOFF_Y = 1000.0
     }

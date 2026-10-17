@@ -189,8 +189,8 @@ in creative mode with flying disabled, and toggle the Linked Controller off. Wai
 ```
 
 `hold` captures the current centre of mass and attitude and brakes toward that point. `altitude`
-replaces the target centre-of-mass height above the cube's top face, preserving the current global
-X/Z and attitude. Height is a cube-shell height, not Minecraft Y or distance from the centre. A target
+sets target centre-of-mass Y relative to the diagnostic surface datum Y=64, preserving global
+X/Z and attitude. This command uses vertical height, while `flight sample` reports radial altitude. A target
 of 400 corresponds to surface-frame Y=464, or orbit-frame Y=208. Commands retarget the same pilot's
 session; only one session or mission is allowed per server. These two hold commands do not plan travel;
 use the orbital mission commands below for insertion and return.
@@ -249,10 +249,9 @@ waits for engine fade and transfers through the existing journal/client-readines
 begins insertion within 100 m at less than 10 m/s, accelerates east along the launch orbital plane
 and cuts engine inputs after insertion settles. `COAST` means
 free flight under gravity with engine inputs off; the reference speed is about 140.07 m/s and the
-period about 807 s. The far region is central around the cube, including the diagonal parts of this
-circle. Phase changes and `status` expose radius, actual speed/radial speed, far-field specific energy,
+period about 807 s. The exterior field is central throughout this circle. Phase changes and `status` expose radius, actual speed/radial speed, far-field specific energy,
 eccentricity and distance from the remembered launch COM. Energy/eccentricity are Kepler diagnostics
-for the central far field, not conserved quantities for the near-surface blended field.
+for the exterior inverse-square field, not for the nonsingular interior.
 
 Once the mission reports `COAST`, use:
 
@@ -301,130 +300,15 @@ insertion while moving rather than demanding a precise high-altitude hover. Afte
 the descent starts within 10 m of the launch radial at less than 2 m/s. The return handoff
 accepts a 5 m corridor at less than 2 m/s and preserves the measured motion.
 
-## Repeatable gravity trials
+## Gravity trials
 
-The consumer gravity GameTest uses native-assembled shuttles with engines off. It arranges independent
-initial positions, waits for the native pose to settle, and measures the velocity delta over twenty
-server ticks. No position/velocity correction occurs during each measurement. Cases cover the top-face
-centre and x=1600 near the surface, x=1600 at shell heights 2000 and 6000, and the equivalent high point
-in the orbital frame. The test compares actual acceleration against the field, checks negligible
-near-surface sideways acceleration and gravitational torque, a centreward component in the transition,
-weaker high gravity, and agreement across the translated frames. Initial test teleports do not establish
-powered travel, cross-dimension transfer or orbital insertion.
+The native shuttle test compares measured one-second free-fall against the spherical diagnostic field
+at several positions and heights, checks centreward lateral acceleration, absence of spurious torque,
+weakening at altitude and agreement across translated frames. These checks do not define flat-body
+physics or prove powered travel. A new native Overworld assembly scenario verifies the bounded surface can assemble a complete ship,
+retain cargo/engines and use ordinary Sable gravity. The eight retained consumer scenarios cover native propulsion,
+assembly/hold, gravity, preflight rejection, launch-bookmark validation and orbital insertion/return.
 
-On 2026-10-16 all six consumer GameTests passed. The shuttle retained 24 independent engines and four
-cargo sentinels after powered ascent and three-axis disturbance recovery; final position error was
-about 0.01 m. Representative free-fall results (m/s², twenty-tick velocity delta) were:
-
-| Frame | Global X | Approximate shell height | Measured X acceleration | Measured Y acceleration |
-| --- | ---: | ---: | ---: | ---: |
-| Surface | 0 | 175 | 0.000 | -9.271 |
-| Surface | 1600 | 175 | 0.000 | -9.271 |
-| Surface | 1600 | 2000 | -0.136 | -5.666 |
-| Surface | 1600 | 6000 | -0.319 | -2.389 |
-| Orbit | 1600 | 6000 | -0.319 | -2.389 |
-
-The largest field-versus-measured vector difference in this run was about 0.011 m/s², below the
-0.05 m/s² acceptance threshold. Native positions drift slightly during the initial settling interval
-and during each fall. Local evidence: `build/agent-logs/flight-shuttle-07.log` and
-`consumers/flight/build/test-results/gameTestServer/results.xml` (ignored development artifacts).
-
-For an interactive trial, start a disposable creative world from the consumer's own `./gradlew runClient`:
-
-1. Enter with `/orbitalis flight enter`, stand on clear terrain and run
-   `/function orbitalis_flight_test:setup`. Assemble once and disable creative flight.
-2. With the Linked Controller off, use `/orbitalis flight autopilot altitude 400`. Check that the ship
-   lifts, stabilizes and retains all four cargo chests. `status` should settle to small position and
-   force/torque residuals. A ceiling/floor collision invalidates a free-flight observation.
-3. Repeat with target heights 2000 and 6000. Use `/orbitalis flight sample` at each settled height to
-   inspect the field. Sampling a hovering ship reports gravity, not measured total acceleration;
-   the engine compensation is intentional. The 12 m/s guidance cap makes high ascents take minutes.
-4. For a short unpowered fall, run `autopilot stop`, wait for native engine fade and sample again.
-   Re-engage `hold` before speed reaches the controller's 120 m/s limit and well clear of terrain.
-   Engine fade and braking make this a qualitative check; the automated velocity-delta trial provides
-   the controlled acceleration measurement.
-5. Stop and leave the old ship in place. For the offset trial, use creative flight to reach clear
-   terrain near x=1600, z=0 in `orbitalis:flight_test`, then build a fresh shuttle at ground height.
-   Repeat the same heights. Near the surface gravity should be vertical; higher up its vector should
-   gain a component toward x=0. Hold deliberately counters that sideways acceleration.
-
-`setup` replaces only the launch area; it does not delete old native ships. Keep each trial away from
-previous constructions. Test surface/orbit transfer separately and engage the autopilot again after
-arrival. Shuttle appearance, manual handling, landing and long powered high/offset ascents remain
-interactive acceptance checks.
-
-
-## Native planet chart acceptance
-
-The `faces` GameTest suite exercises the same six-chart cube used by `/orbitalis lab cube enter`:
-`runGameTestServer -PorbitalisConsumerGameTestSuite=faces`. It checks native Create vault formation,
-shared inventories and both placement axes on every face, all 24 directed edge crossings with native
-player contact, and native chart unload/reload with inventory, excavation and anchor retention.
-The ordinary default `all` consumer suite also includes these scenarios. Create fixture blocks and
-acceptance tests belong only to this stand; canonical shared/common planet code does not depend on Create.
-For a manual trial, use the standard cube commands in a disposable consumer world, take vaults from
-the ordinary creative inventory and place them along both local horizontal directions on each face.
-Do not expect a vault or inventory network to continue automatically across a chart seam.
-
-
-The opt-in seam scenario adds two native hoppers feeding actual Create vault block capabilities across
-the UP/EAST chart boundary in both directions. This proves endpoint inventory interaction only; it does
-not join vault controllers. The `faces` suite now requires twelve scenarios, adding actual motor/shaft
-and motor-driven pump/pipe/tank networks. Typed optional NeoForge adapters translate graph addresses
-and destination-local ports while native Create owns rotation, network membership, pressure and fluids.
-The tests include same-chart controls, all 24 directed shaft transitions, sign changes, motor reversal,
-removal/reconnection, fluid conservation and reversed/blocked/reconnected pipes. They also connect an
-UP-authored shaft five blocks inside the EAST geometric sector and connect authored networks above
-both faces, away from the cube edge. One native pipe/tank column is also evicted and restored while the source continues ticking, checking
-conservation and resumed flow. Large/diagonal cog, encased chain and custom network contracts remain
-outside the validated set.
-
-Two closed-network scenarios add a 168-cell nonplanar ring visiting all six native charts, a branch and
-five cells retained in the UP chart inside the EAST geometric sector. Reciprocal neighbour checks and
-the composed address/direction transform must return to the original point and axes after the loop.
-The kinetic graph checks signed shaft speeds, one native network without removed members, reversal,
-an alternate route after a cut, source removal and reconnection. The ordinary-pipe graph uses a real
-motor-driven pump and two native tanks, checks 4000 mB conservation on every tick, transfers through
-each separately isolated route, rejects an isolated sink and resumes after reconnection. Native Create
-pressure discovery chooses endpoint paths; the two alternate routes together must cover all six faces.
-The test temporarily raises Create's own pump range from its configured value to 512 for this long
-circuit, then restores it. Production pump range is unchanged.
-
-Both rings invoke native Sable save/unload/load of the complete chart group without rebuilding their
-blocks, then check topology and resumed native network operation. The reload helpers use Sable's native
-ready-queue dispatch so restored entries cannot be loaded twice. This is same-process native restoration,
-not a two-process server restart test. Pipe connection states are authored by the fixture and checked before flow; interactive
-placement, cross-chart shape updates and client connection rendering remain unvalidated. The scenarios
-are small-cube correctness evidence, not a large-planet performance measurement.
-
-The Physics Assembler scenario uses the native Aeronautics/Simulated assembler to build a new ship
-on each face. Fixed planet charts are terrain for the assembly/disassembly mode decision; native Sable
-assembly still receives the real parent chart and preserves the new ship's physical pose and cargo.
-The new ship remains dynamic and all six planet identities remain unchanged. This does not validate
-ship-to-chart disassembly or client lever animation/hover text.
-
-The small cube dimension enables the server-side hooks by default. For manual investigation,
-`/orbitalis planet seams false` disables them for the current server session; `true` restores them. Toggling does not rescan existing machines or
-synchronize client connection shapes. This default does not establish world lifecycle or client presentation correctness.
-
-Additional player-placement scenarios use ordinary `BlockItem.place` contexts without authored foreign
-shaft axes or pipe ports and without preparing empty columns in the other charts. A shaft must choose
-its native preferred axis from a foreign motor and join its live kinetic network. An elbow pipe must
-recompute both native seam ports and transfer 4000 mB through a real motor-driven pump without loss.
-These checks exercise server placement/shape dispatch; they do not validate interactive client prediction
-or connection rendering.
-
-The player-placement scenarios also reproduce saved native pose fields: all six charts use equivalent
-centre-of-mass pivots and float-rounded positions/orientations before machine placement. Actual shaft
-rotation and pipe transfer must still work; genuinely translated, rotated or scaled grids must be
-rejected. This covers existing-world grid recognition without migrating blocks or resetting poses.
-Native group reload is covered separately by the closed-network scenarios above.
-
-The `nativeGlassPipeRimsJoinAcrossCharts` scenario calls Create's actual attachment-selection methods:
-a same-chart glass baseline, both ends of a foreign glass join, ordinary straight/elbow connectors,
-mixed ordinary/glass collars and closed/removed neighbours. It inspects native block-entity update tags,
-round-trips them through Create's behaviour reader into a detached replica, rejects malformed/unknown
-projection fields, clears stale modes and checks that presentation fields are absent from world NBT.
-These are headless attachment/serialization observations; they do not establish the appearance of
-baked quads or live client chunk invalidation in an observed rendered scene. The face suite now has
-13 scenarios.
+Former six-chart Create/vault/pipe/shaft/assembler fixtures and `faces` suite are removed with the cube.
+Create remains an external consumer dependency for its normal native behavior; production Orbitalis
+has no Create seam integration. Old measured cube-field values are no longer current acceptance data.

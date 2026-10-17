@@ -44,8 +44,8 @@ y = 64. `/orbitalis flight leave` remains player-only and leaves the ship in its
 
 The orbit representation subtracts (0, 256, 0) metres from surface positions. Axes are identical,
 the frame does not rotate or move, and linear/angular velocities and player view direction are unchanged.
-The same [cubic gravity](cubic-planet-gravity.md) evaluates the reconstructed surface/global position
-in both levels. Cube-shell altitude in `sample` therefore remains continuous even though Minecraft Y changes by 256. This offset
+The same [spherical diagnostic field](flight-gravity.md) evaluates the reconstructed surface/global position
+in both levels. Radial altitude in `sample` therefore remains continuous even though Minecraft Y changes by 256. This offset
 is an experimental diagnostic constant, not an automatic ascent altitude or an orbital insertion.
 The patch is limited to |x|, |z| <= 2048 m; distant locations are rejected rather than wrapped.
 

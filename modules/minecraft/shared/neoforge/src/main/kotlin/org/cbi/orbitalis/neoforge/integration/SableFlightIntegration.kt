@@ -38,12 +38,8 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent
 import net.neoforged.neoforge.event.tick.ServerTickEvent
 import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
 import org.cbi.orbitalis.minecraft.integration.sable.FlightTestTravel
-import org.cbi.orbitalis.minecraft.integration.sable.SableCubePlanet
-import org.cbi.orbitalis.minecraft.integration.sable.SableCubePlayerContacts
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipTransfer
-import org.cbi.orbitalis.minecraft.lab.CubePlanetTerrain
-import org.cbi.orbitalis.minecraft.lab.CubePlayerContacts
 import java.util.Locale
 
 /** Registered only with Sable present. No Create or Propulsion classes cross this boundary. */
@@ -56,10 +52,6 @@ object SableFlightIntegration {
     fun transferService(server: MinecraftServer): SableShipTransfer = checkNotNull(transfers[server]) { "Transfer service is not ready" }
 
     fun install() {
-        CubePlanetTerrain.factory = ::SableCubePlanet
-        CubePlayerContacts.adapter = SableCubePlayerContacts
-        org.cbi.orbitalis.minecraft.planet.PlanetNeighbours.adapter = org.cbi.orbitalis.minecraft.integration.sable.SablePlanetNeighbours
-        org.cbi.orbitalis.minecraft.planet.PlanetFluids.adapter = org.cbi.orbitalis.minecraft.integration.sable.SablePlanetNeighbours
         NeoForge.EVENT_BUS.addListener { event: ServerStartedEvent ->
             transfers[event.server] =
                 SableShipTransfer(
@@ -106,8 +98,6 @@ object SableFlightIntegration {
         }
         NeoForge.EVENT_BUS.addListener { event: RegisterCommandsEvent ->
             register(event.dispatcher)
-            org.cbi.orbitalis.minecraft.integration.sable.SablePlanetSeamCommands
-                .register(event.dispatcher)
         }
         NeoForge.EVENT_BUS.addListener { event: ForgeSablePrePhysicsTickEvent ->
             SableFlightGravity.beforePhysics(event.physicsSystem.level, event.timeStep)
@@ -161,7 +151,7 @@ object SableFlightIntegration {
                                     val sample = SableFlightGravity.reading(body)
                                     String.format(
                                         Locale.ROOT,
-                                        "Ship %s; mass=%.3f Sable units; centre-of-mass=(%.2f,%.2f,%.2f) m; cube-shell altitude=%.2f m; speed=%.3f m/s; gravity=(%.4f,%.4f,%.4f) m/s²; |g|=%.4f m/s²",
+                                        "Ship %s; mass=%.3f Sable units; centre-of-mass=(%.2f,%.2f,%.2f) m; radial altitude=%.2f m; speed=%.3f m/s; gravity=(%.4f,%.4f,%.4f) m/s²; |g|=%.4f m/s²",
                                         body.uniqueId,
                                         sample.mass,
                                         sample.position.x,

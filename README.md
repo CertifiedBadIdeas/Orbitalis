@@ -19,9 +19,10 @@ limitations under the License.
 # Orbitalis
 
 A space exploration mod for Minecraft, written in Kotlin. The current target is **1.21.1 / NeoForge**.
-The repository contains an independent finite-planet mathematics experiment and an opt-in Minecraft
-planet laboratory with Sable physics diagnostics. Seamless flight, cross-dimension ship
-transfer and 26.1 support are not implemented yet.
+New worlds use an ordinary flat Overworld bounded by a 2000×2000-block square centred at (0,0).
+Minecraft and other mods keep native block coordinates and physics. Cube-planet experiments have
+been retired. Separate Sable flight/space and journaled ship-transfer diagnostics remain available;
+seamless Overworld-to-space travel and 26.1 support are future work.
 
 The development workflow and module boundaries are adapted from Compukters.
 
@@ -40,23 +41,10 @@ export JAVA_HOME=/path/to/jdk-25
 Before the first dedicated development server launch, read and accept the Minecraft EULA in its
 separate run/server/eula.txt. The scripts do not accept it on your behalf.
 
-To run the independent finite-planet experiment:
-
-```sh
-./gradlew :core:test :core:runPlanetExperiment
-```
-
-The task writes a trajectory CSV and measured report under modules/common/core/build/experiments/planet.
-See [orbital flight feasibility](docs/contributors/orbital-flight-feasibility.md) for assumptions,
-limitations and the remaining Minecraft/Sable experiments.
-
-In a disposable world with cheats enabled, use `/orbitalis lab cube enter`,
-`/orbitalis lab cube sample` and `/orbitalis lab cube leave` to try the
-[cubic planet PoC](docs/contributors/cubic-planet-poc.md). Sable constructions in its world receive
-planetary gravity, and active players use native ship contacts and moving decks. Earlier surface
-charts, particle orbits and Sable probe/orbit/flight/platform scenes have been retired. Existing
-saved content is preserved. The separate [flight dimensions](docs/contributors/flight-gravity.md)
-and [ship transfers](docs/contributors/ship-transfer.md) remain available.
+Start a **new world** for the [finite flat surface](docs/contributors/flat-surface.md). The border is
+initialized once; later `/worldborder` changes remain authoritative. Old cube save files are preserved,
+but their runtime and commands have been removed. See [flight diagnostics](docs/contributors/flight-gravity.md)
+and [ship transfers](docs/contributors/ship-transfer.md) for retained experiments.
 The standard `./gradlew :v1_21_1-neoforge:runClient` command automatically installs the pinned
 external Sable release in the client development run directory.
 

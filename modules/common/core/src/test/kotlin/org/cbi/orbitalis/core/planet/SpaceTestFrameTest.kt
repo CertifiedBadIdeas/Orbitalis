@@ -29,7 +29,7 @@ class SpaceTestFrameTest {
     @Test
     fun `full orbit stays above Minecraft floor without changing the physical field`() {
         val centre = Vector3(0.0, -5936.0, 0.0)
-        val gravity = CubicGravity(6000.0, 9.81, 64.0, 512.0, 6000.0)
+        val gravity = SphericalGravity(6000.0, 9.81)
         val radius = 18000.0
         for (step in 0..360) {
             val angle = step * PI / 180.0

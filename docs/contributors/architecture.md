@@ -36,187 +36,26 @@ Gradle runs on JDK 25, while shared/domain and 1.21.1 code compiles to Java 21.
 | build-scripts | JVM conventions and canonical shared source wiring | Gradle plugins |
 | tools | Isolated builds, cache publication, worktree lifecycle and verification | Python, Git and GNU tools |
 
-The Minecraft common layer owns the cubic planet proof of concept and its operator commands;
-NeoForge registers those commands and shutdown cleanup. The existing dimension ID
-`orbitalis:planet_lab` remains stable. Earlier surface charts, particle orbits and Sable
-coasting/orbit/flight/platform laboratory scenes have been retired: their commands and runtime
-controllers are removed. Existing world blocks and ships are not deleted. Independent core
-coordinate/orbit math remains available, and `flight_test`, `orbit_test`, `space_test` and the
-journaled ship-transfer system remain supported experiments.
+The surface is an ordinary finite flat Overworld with a native square world border, initially
+2000 by 2000 blocks centred at (0,0). Minecraft and other mods retain normal coordinates, vertical
+gravity, block storage, fluids and neighbour logic. No projection, rotated player frame or Sable
+planet chart is installed. The cube experiment, its dimension `orbitalis:planet_lab`, commands,
+resources and compatibility mixins have been retired. Old save directories are never deleted or
+converted. Start a new world; opening an old cube save with this version is unsupported.
+See [flat surface](flat-surface.md) for border initialization and persistence.
 
-The default cube uses six Sable plots as native block-coordinate charts. Each chart has local
-`+Y` pointing outwards and native `XZ` terrain, so horizontal-only mod blocks can use ordinary
-placement and neighbour queries within a face. `SableCubePlanet` in the optional common integration
-owns construction and fixed chart transforms; `CubePlanetTerrain` keeps the command layer independent of
-Sable classes. Sable is required to prepare this cube. Create is an optional, pinned compile-only dependency of the loader compatibility layer; core and shared/common do not import its APIs.
-The existing finite voxel fixture is partitioned by the greatest signed cell-centre component,
-with deterministic face order resolving ties: every occupied world cell belongs to exactly one chart.
-This preserves the full interior, tapered relief and solid convex edges.
+`FlatOverworld` in shared/common initializes the native border once per save. NeoForge invokes it
+after levels are ready. The native world border remains the only authority for centre, size and lerp;
+a small SavedData marker prevents startup from overriding administrator changes. Two narrow loader
+hooks omit vanilla border delegation into Orbitalis diagnostic dimensions and stop surface-border
+broadcasts reaching their players. Vanilla Nether/End delegation and recipients remain unchanged.
 
-Native force-load tickets and per-body user data persist the charts. Version 1 uses
-`orbitalis_cube_frame_version=1` and `orbitalis_cube_face` with Minecraft direction names. Blocks,
-block entities and inventories remain native Sable save data, not copied orbital data. `SablePlanetCollisionPipeline` decorates the native pipeline only in `planet_lab`: tagged planet
-charts have fixed poses and no dynamic rigid bodies, mass integration or anchoring joints. Resident
-plot chunks provide world-space kinematic collision geometry for ordinary ships. Native plot blocks,
-player voxel contacts and presentation remain in Sable. Create contraptions attached to those charts
-have their physical poses transformed to the parent world before native kinematic registration.
-The static mass descriptor is explicitly valid without mass, preventing native invalid-ship teardown.
-Scoped native load handling preserves chart identities and poses without rebuilding dynamic mass.
-The Rapier scene accessor unwraps this adapter for native integrations. Charts cannot be ordinary
-rigid-body constraint endpoints; dedicated mooring is outside this experiment. Planet charts do not receive free-body gravity
-and cannot enter ship transfer. Normal entry reuses the six identities and never fills excavations;
-an incomplete set refuses reconstruction. Legacy parent-world terrain is not silently converted:
-explicit `/orbitalis lab cube rebuild` removes disposable fixture contents and builds the replacement.
-Ordinary shutdown does not delete chart contents.
-
-`SablePlanetChunks` provides an opt-in server-thread chunk lifecycle for fixed charts. A cold chunk
-is one compressed native plot fragment in version-1 `orbitalis_planet_cold_chunks` body user data;
-resident chunks and these cold fragments are persisted by the same native body checkpoint. There
-is no separately committed chunk journal. Snapshot creation and bounded decoding finish before
-resident detachment. Native plot unloading handles ticking, entity registration and light; the
-adapter also clears native holder indexes, actor/lift/reaction-wheel callbacks and physical terrain.
-Restoration validates plot/chunk/section/entry bounds and retains the cold record on failure. Published
-user data is replaced rather than mutated. Native expansion remains disabled across full reloads,
-so a neighbour query cannot fill a cold chunk with authoritative air. One nonempty chunk remains
-resident because native full loading requires valid plot bounds. Currently eviction refuses tracked
-observers: client chunk delivery and readiness are not installed, and ordinary cube play does not
-activate this lifecycle. Cold bytes remain in the body checkpoint and memory; this is not external
-region storage or evidence of bounded total save size.
-
-`CubicPlanetVolume` in core owns the solid cubic volume partition and conservative world-box interest.
-It includes tie planes, all twelve edges, eight corners and the centre, with native plot origin offsets
-(including Sable's eight-block chunk-centre offset). It does not generate or load a 512-block game scene.
-
-The accepted [planet connectivity criterion](cubic-planet-design.md#logical-connectivity-across-face-coordinates)
-requires ordinary block interactions across face boundaries; pipes are one example, not the complete scope.
-The following limitation of the current experiment does not satisfy that criterion, and the production
-storage/coordinate boundary remains under investigation.
-
-Charts remain distinct native neighbour spaces. The small-cube experiment, enabled by default in
-the planet dimension and controlled with `/orbitalis planet seams true|false`, resolves physical adjacent cells to an actual native
-plot position and direction. MixinExtras hooks adapt queued neighbour and shape dispatch, native signal queries and
-NeoForge's shared hopper/dropper/crafter inventory lookup. Native blocks, capabilities and inventories
-remain authoritative; the hooks introduce no transfer buffers or mirrored block entities. The switch
-is server-side; explicit overrides are transient. Other dimensions remain disabled by default.
-Item rays and Create shaft placement use the adapters described below.
-Client presentation uses the bounded pipe-attachment projection below; interactive visual acceptance remains separate.
-
-Optional Create 6.0.10 adapters also convert native preferred shaft-axis probes, kinetic adjacency/source
-directions and pipe pressure, flow traversal and sided endpoint addresses. Create retains its actual block-entity addresses, network
-membership, stress, pressure and fluid inventories. No transfer buffer, mirrored entity or replacement
-simulation is introduced. The typed hooks live in shared/neoforge; the target leaf pins Create and Ponder
-as compile-only dependencies and never bundles their implementation. Missing Create skips its pseudo mixins.
-Pipe attachments use a disposable server-to-client projection on Create's existing behaviour update
-NBT, including native initial chunk tags. `OrbitalisPlanetRims` version 1 contains integer `Version=1`
-and `Modes` in 0..4095: two bits per native `Direction.get3DDataValue()` (0 native fallback, 1 no
-attachment, 2 connection, 3 detailed connection). No new packet channel or world-save fields are added.
-Missing, wrongly typed, unknown-version and out-of-range projections reset to native rendering.
-The producer uses actual reciprocal resident chart ports; it introduces no client fluid graph or second
-block authority. Confirmed glass-to-glass/glass-to-ordinary joins suppress the extra glass rim;
-ordinary-to-ordinary joins retain Create's straight or elbow connector style. Ordinary-to-glass collars,
-unsupported attachments, cold/ambiguous ports and open ends keep native decisions. Native pressure
-invalidation and pipe initialization already send behaviour updates. Client packet reads publish a
-volatile render snapshot and invalidate model data plus chunk rendering when it changes. Native
-updates carry disconnects as an absent projection, clearing stale modes. A seam-toggle command does
-not itself rescan all pipes; presentation follows subsequent native updates or initial chunk tags.
-
-Removed pipe owners invalidate retained endpoint providers before another network queries their disabled
-NeoForge cache. Restored fluid behaviours invoke native pressure discovery after initialization; native
-block loading does not call pipe placement logic.
-
-Consumer-only closed-network fixtures exercise a nonplanar 168-cell ring across all six charts,
-including a five-block continuation in a foreign geometric sector. They compose the native address and
-axis transforms around the loop and exercise actual Create kinetic membership, signed speeds and pipe
-transfer through alternate routes. Native chart-group restoration preserves the same identities and
-blocks; the test does not rebuild networks or introduce another logical authority. See
-[consumer acceptance](flight-consumer.md#native-planet-chart-acceptance) for exact scope and limits,
-including authored pipe states, a temporary native test pump-range setting and same-process reload.
-
-The same default and override switch adapt native Minecraft water/lava scheduled ticks. Bucket POV rays
-use the player's gravity-aware view instead of rebuilding a global-Y look vector from local yaw/pitch.
-Fluid offsets resolve actual occupied cells before canonical air, including air outside the finite reference cube. Gravity follows the
-physical cell's dominant face, independently of the chart storing its blocks. Native source conversion,
-spread/decay delays, liquid-container rules and NeoForge contact reactions remain authoritative. Scoped
-incoming directions preserve the falling source cell's downward axis through a gravity seam, including
-native water replacement and lava-to-water stone. Cross-chart
-collision queries rotate the target shape into the source basis; recursive slope caches key bounded physical
-XYZ offsets rather than aliased plot XZ coordinates. A cold projected lookahead defers the native tick and
-never loads a column. Standard native water/lava slope ranges are covered; custom extended-range algorithms
-are not. Only Sable's storage-column containment veto is skipped on participating planet charts: a bounded
-Mixin selector verifies the upstream handler's provenance without relying on its generated name prefix.
-Native block/fluid vetoes and ordinary ship containment remain intact. Client liquid height/flow rendering,
-fluid forces/swimming, lava fire spread and arbitrary fluid overrides require separate work and evidence.
-
-The native Simulated Physics Assembler (bundled with Aeronautics) treats a fixed planet chart as terrain
-when choosing assembly versus disassembly. Native Sable assembly still sees its real parent plot and
-preserves the physical position/orientation when detaching a new ordinary ship. This server adaptation does
-not establish reverse disassembly onto planet charts or interactive lever presentation.
-
-This remains a bounded connectivity experiment, not automatic support for a multiblock or arbitrary mod
-coordinate algorithm. Cardinal shafts, small cogs and ordinary pipe graphs are addressed; diagonal/large
-cog transmissions, encased chain connections and custom propagation contracts need separate adaptation.
-Native queued shape updates convert the actual destination and incoming side while preserving the native
-queue, flags and recursion limit. Arbitrary block-specific interpretation of rotated neighbour states,
-redstone dust topology and general replay of missed cold notifications remain separate boundaries.
-Geometric face ownership is only the fallback address for empty cells inside the reference cube.
-An actual uniquely occupied voxel takes precedence, regardless of its storage chart: a shaft or pipe may
-extend from one chart several blocks inside another geometric sector before connecting. All six native plots must be loaded to establish uniqueness. Within a fully loaded
-native plot, a
-never-created column is known empty space; only explicit cold records contain unresolved stored blocks.
-Read-only queries skip absent holders and never allocate foreign empty columns. Explicitly cold projected
-columns and overlapping occupied voxels reject the lookup without loading chunks.
-This resolver is deliberately bounded to six small charts;
-it is not a measured solution for arbitrary large-planet neighbour queries. Only the expected six fixed
-laboratory grids participate. The guard compares the transformed plot centre to the expected face
-origin (within 1/1024 block for native float-rounded laboratory saves), normalized orientation and unit
-scale. A native centre-of-mass pivot may differ from the plot centre without moving the grid; raw pose
-position and pivot are therefore not identity checks. This does not rewrite saved poses or blocks.
-Genuinely moved, rotated or scaled charts, normal ships and unrelated levels retain native behaviour. Keep the six-chart model while testing this path; a custom replacement
-is a fallback if required connectivity cannot be achieved. This does not establish general world
-generation or a production-size planet.
-
-An isolated NeoForge GameTest source set exercises native adapters in a real headless server.
-Its generated empty structure and flat world preset are excluded from normal runs and production
-archives. The test preset incorporates canonical dimension JSON because Minecraft 1.21.1 otherwise
-bakes it against an empty dimension registry.
-
-All loaded ordinary Sable constructions in `planet_lab` receive the same conservative gravity
-field and centre as cube players (owned by `PlanetLabCoordinates`), without enrollment tags, distance cutoffs, or imposed attitude.
-`SableFlightGravity` applies a mass-scaled impulse at each native pre-physics substep in body axes;
-Sable owns rigid-body integration, terrain contact, loading and persistence. Native base gravity,
-drag and pressure remain zero there. Only explicit cube preparation/rebuild creates or removes planet charts; ordinary ships are not auto-created or destroyed.
-
-`CubePlayerContacts` is the optional moving-world boundary used by planetary locomotion.
-Its optional `supportPosition(entity, worldProbe)` resolves support into native block coordinates;
-null keeps parent-world lookup. Sable produces this transient mapping from the tracked body's logical
-pose, and planetary `getOnPos` queries consume it. No save/network schema is added. The internal
-`CubePlayerLocomotion` bridge calls Minecraft's native acceleration and NeoForge block-friction hooks,
-so shared locomotion does not copy loader-specific attribute/block logic.
-`SableCubePlayerContacts` invokes Sable's native oriented contact solver and native tracking
-protocol, applies deck motion once, and retains inherited inertial velocity on departure.
-Narrow loader mixins adapt only active cube players inside that solver: unrotated dimensions,
-accepted physical quaternion, centre and temporary network-anchor conversion. The native solver
-itself is not forked. Terrain retains the conservative world-axis envelope and tangent/normal
-clipping. Gravity is planetary even aboard a rotating construction; no ship-defined down is added.
-Server players retain Sable's client-authoritative contact path. Dedicated servers never load
-client camera code. See [cubic planet PoC](cubic-planet-poc.md) for verification limits.
-
-Ordinary Sable constructions in the experimental `orbitalis:flight_test` dimension receive a separate
-server pre-physics cube-to-central gravity impulse. Core `CubicGravity` supplies the conservative field; common
-`SableFlightGravity` transforms each loaded body's centre of mass and converts world force into body axes.
-`FlightTestSpace` owns shared geometry/field constants and dimension keys without optional Sable types.
-A client-only orbit reference renderer uses that same geometry for a coloured gridded cube and centre
-marker in the sky pass; the NeoForge physical-client event adapter owns render event/state restoration.
-It adds no collision terrain, chunk loading, saved data or surface/orbit rendering continuity.
-This adapter has no ship ownership tags, persistent registry, loading tickets, cleanup of player ships or
-Propulsion API dependency. Native Sable owns integration, collisions and ship persistence. Its base gravity,
-drag and pressure are zero in the flight frames and cube dimension; the Overworld retains its own behavior. The dimension uses ordinary terrain as a local surface stand-in, not finite cubic worldgen.
-The accepted planet shape is a cube with face-normal near-surface gravity and a central far field;
-see [cubic planet gravity](cubic-planet-gravity.md). Earlier `CubeSphere` charts remain a spherical
-mathematical reference, not the selected production surface geometry.
-Operator enter/leave travel transfers players only, with transient return points and an Overworld spawn fallback after
-restart. The dimension ID is stable for saved worlds; geometry and field parameters remain experimental.
-See [flight gravity](flight-gravity.md) for constants, commands and the limits of this test space.
+The retained `flight_test`, `orbit_test` and `space_test` IDs are diagnostic frames, separate from
+the Overworld surface. `FlightTestSpace` uses the existing spherical field (radius 6000 m, surface
+acceleration 9.81 m/s²), replacing the retired cube field. `SableFlightGravity` applies it at native
+server physics substeps. Native Sable owns ships, integration and collision. The adapter is inactive
+in the Overworld, whose normal Sable gravity is untouched. These diagnostics do not define future
+flat-body gravity, surface-to-space travel or rendering. The cube reference sky renderer is removed.
 
 The diagnostic `SableShipTransfer` coordinator reconstructs one independent ship and pilot between
 `orbitalis:flight_test` and stable `orbitalis:orbit_test`. Core `OrbitalTestFrame` owns the fixed
@@ -234,9 +73,7 @@ See [ship transfer](ship-transfer.md) for limits, failure handling and the serve
 The [flight consumer](flight-consumer.md) is an independent Gradle composite build, included only when
 explicitly selected with `-p consumers/flight`. The dependency points from consumer to Orbitalis through
 `developmentModJar`; production projects never include or depend on the consumer. Aeronautics and
-Propulsion APIs remain confined to the consumer adapter and its isolated GameTests. Create APIs also
-appear in the optional NeoForge seam adapters, with compile-only dependencies owned by the target leaf;
-no Create types enter core or canonical shared/common gameplay. Hold guidance, bounded thrust allocation, commands and their tests
+Propulsion APIs remain confined to the consumer adapter and its isolated GameTests. Create APIs remain confined to this consumer; production has no Create or Ponder compile dependency or adapters. Hold guidance, bounded thrust allocation, commands and their tests
 all belong to the disposable consumer. It reuses existing Orbitalis vector/gravity/frame types but adds
 no autopilot API to production. The consumer assembles no release and does not alter the ordinary
 Sable-only laboratory runs.
@@ -246,20 +83,6 @@ of production orbital physics, rendering engine, rocket mechanics or external sp
 The exploration-first direction, Sable source investigation and proposed seamless surface/orbit
 experiments are recorded in [orbital-flight-feasibility.md](orbital-flight-feasibility.md).
 That note distinguishes desired behavior and proposals from implemented or runtime-verified support.
-The [finite cubic planet design](cubic-planet-design.md) records the accepted connected cube volume,
-sharp face-region gravity direction changes near the surface, eased player orientation, convex edge
-terrain and adaptive surface/orbit preparation. Planet storage, player collision handling and
-seamless client presentation remain undecided; the existing ship gravity diagnostic still smooths edges.
-The [player proof of concept](cubic-planet-poc.md) adds a bounded solid cube in the existing planet lab,
-zero-width near-surface gravity, gravity-aligned player/glider frames and client camera/model easing.
-Opted-in player membership uses native synced entity data and an optional version-1 player NBT record;
-there is no radius cutoff. Common owns gravity-frame heading transport and native-collision AABB
-envelopes; core owns local glider integration. Scene members bypass global-Y void damage, not other
-damage or world build limits. This remains a player flight experiment rather than production orbital
-storage, exact oriented collision or atmospheric simulation. Common owns
-geometry placement and locomotion; loader mixins adapt movement, eye queries, camera and rendering.
-Its temporary centre marker prevents refilling excavations, without introducing a planetary save schema.
-
 The target leaf compiles shared sources directly. When a second target is implemented, the selected
 orbitalisActiveMinecraftVersion owns canonical IDE roots; inactive targets compile generated mirrors.
 Do not edit mirrors or configure a leaf to consume another version's source roots. Version differences
@@ -301,5 +124,5 @@ The reference planet centre is consequently at local Y=26064. A radius-18000-m c
 Y=8064 and wholly in the current field's central far region, including diagonal portions of the orbit.
 The existing `orbitalis:orbit_test` retains its (0,256,0) origin; existing saves and version-1 transfer
 journals must never be reinterpreted as this new frame. New frame resources carry a distinct stable ID.
-Gravity and reference rendering select the same frame by dimension. This is a bounded diagnostic,
+Diagnostic gravity selects its frame by dimension. This is a bounded diagnostic,
 not a chosen finite-planet storage topology, floating origin or seamless rendering implementation.

@@ -171,7 +171,7 @@ object SableShipSnapshot {
                 pose.position().y >= 64.0 &&
                     (if (dimension == FlightTestSpace.SPACE) physical.y in 64.0..16000.0 else pose.position().y <= 16000.0),
             ) {
-                "Transfer outside the diagnostic top-face altitude range; legacy orbit requires surface y>=320"
+                "Transfer outside the diagnostic surface altitude range; legacy orbit requires surface y>=320"
             }
             tag.put("pose", SableNBTUtils.writePose3d(pose))
             val b = SableNBTUtils.readBoundingBox(tag.getCompound("world_bounds"))

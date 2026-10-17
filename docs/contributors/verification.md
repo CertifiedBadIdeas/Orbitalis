@@ -33,18 +33,14 @@ limitations under the License.
 
 Use ./gradlew-sandbox-dev-parallel-summary for noninteractive Gradle commands. verifyLocalFast runs
 verifyTooling, verifyArchitecture and :core:check. verifyLocalFull adds common/check, loader/check and
-production archive inspection. Core tests cover the experimental finite-planet coordinates and two-body
-trajectories; `:core:runPlanetExperiment` writes a measured reference flight CSV/report. This is mathematical
-coverage, not evidence of a Minecraft/Sable flight. NO-SOURCE is not domain coverage.
-Run `:v1_21_1-neoforge:runGameTestServer` separately for real laboratory GameTests. `verifyLocalFull`
-compiles the isolated tests and checks run visibility, but does not start the server. The GameTest run
-requires a fresh XML report containing all laboratory scenarios without failed, skipped or error results;
-missing/empty reports fail even when the launcher exits successfully. See [planet-laboratory.md](planet-laboratory.md).
-The standard GameTest run includes Sable and requires twenty-nine scenarios: twenty-five cube/player/Sable/fluid scenarios and four retained
-flight/orbit/transfer scenarios. CI retains the resulting `results.xml` report. See [sable-laboratory.md](sable-laboratory.md), [flight gravity](flight-gravity.md) and [ship transfer](ship-transfer.md).
-For player movement iterations, select `-PorbitalisGameTestSuite=cube` with the same `runGameTestServer`
-task. This runs twenty-five required cube scenarios and validates their fresh XML report; it does not establish
-flight-space orbit or transfer coverage. The default `all` suite retains all scenarios and required-name checks.
+production archive inspection. Core tests cover spherical/two-body fields and retained flight/frame
+math. This is mathematical coverage, not evidence of Minecraft/Sable gameplay. NO-SOURCE is not coverage.
+Run `:v1_21_1-neoforge:runGameTestServer` separately. The default `all` suite requires three surface
+border/persistence/packet scenarios and four retained flight/orbit/ship-transfer scenarios, with no
+failed, skipped or error results in a fresh XML report. `-PorbitalisGameTestSuite=surface` runs the three
+surface cases alone. See [flat surface](flat-surface.md), [flight gravity](flight-gravity.md) and
+[ship transfer](ship-transfer.md). The consumer separately requires its nine native flight scenarios.
+
 A successful client launch cannot prove visual or interactive correctness. Record manual observations,
 initial state, actions and expected outcome; mark unavailable evidence explicitly pending.
 
@@ -57,110 +53,8 @@ an early architecture guardrail; compilation and review remain necessary for tra
 
 Retain real command output in build/agent-logs. Never equate focused checks with complete release readiness.
 
-## Experimental planet neighbour hooks
-
-The opt-in seam GameTest uses all 24 directed adjacent-face pairs, reciprocal native addresses and
-centre/corner/interior samples. It verifies ordinary placement/removal powering a native lamp, actual
-hopper/dropper transfers, item conservation through native chunk eviction/restoration and native furnace
-sides above the reference cube. The consumer additionally exercises native hoppers feeding foreign
-Create vault capabilities. Separate native motor and pump scenarios exercise shafts across all 24 directed
-face pairs, small cog and gearbox transmission, reversal, break/reconnection, fluid conservation and a
-native pipe/tank column's cold restoration. Both graphs include authored blocks continuing inside another
-face's geometric sector and connections above the cube away from its edges. The empty test dimension
-must be kept awake on every tick for scenarios exceeding Minecraft's idle timeout. These are server checks;
-they do not prove cross-chart multiblocks, arbitrary/custom transmissions or client shape/rendering. The seam switch
-must remain explicit until those boundaries are separately validated.
-
-Observed on 2026-10-16: `gradle-20261016T162315Z-653065.log` passed `verifyLocalFull` and all fifteen
-cube GameTests. The seam scenario reported 24 directed face pairs, 62 additional interior/corner
-address checks, lamp notifications, native inventory transfers, cold reconnection and sided furnace
-acceptance/rejection. The independent `seam-create-consumer.log` run passed its five face scenarios,
-including two native hoppers feeding foreign Create vaults with conserved item counts. These observations
-do not establish interactive/client correctness or a general performance budget.
-
-Observed for the Create extension on 2026-10-16: `create-seam-live-init.log` passed consumer `check` and
-all seven `faces` GameTests. Earlier bounded iterations exposed an invalid retained capability provider
-on pipe removal and a missing native pressure discovery after restoration; the final scenario exercises
-both with continuous dimension ticking. Shaft checks include 24 directed transitions plus controls,
-five blocks of continuation inside another geometric face, small cogs and a gearbox. Fluid checks use
-four real motor-driven circuits; no test-written pump speed or substitute transfer buffer is involved.
-Client presentation and large-planet performance remain unmeasured.
-
-Observed for closed networks on 2026-10-16: `network-loops-native-dispatch.log` passed consumer `check`
-and all nine `faces` scenarios. The two new 168-cell rings verify reciprocal physical adjacency and
-coordinate/axis closure through all six native charts, five-block foreign continuation, branches,
-alternate paths, reconnection and native chart-group restoration. The kinetic ring also checks signed
-speed, reversal, source cutoff and exact native membership without removed entities. The fluid ring
-checks a total of 4000 mB every tick and rejects a sink isolated by two solid plugs. Its long circuit uses
-a temporary native Create pump range of 512; default gameplay configuration is unchanged. Fixture setup
-explicitly closes unused pipe ports before flow. The reload harness uses native `processChanges` to
-consume holding-chunk ready entries; calling the lower-level loader directly left entries scheduled for
-a duplicate load on the following tick. The final run has no duplicate-plot loading failures. This is
-same-process native save/unload/load evidence, not a full server restart, client placement/rendering or
-planet-size performance claim.
-
-The native world-fluid scenarios run in the root `cube` suite, separately from Create pipe networks.
-They use scheduled water/lava ticks, foreign-stored sources on all six faces, an edge, a three-face corner,
-a turning tunnel, source creation/removal, rotated slab faces and native waterlogging, obsidian/cobblestone
-contact and downward lava-to-water stone across a gravity seam. A cold projected candidate column must
-remain unloaded while ticks defer; native retry and chart-group save/unload/load preserve liquid states
-and resume source-free decay. Fixture preparation alone materializes bounded columns. Each physical
-liquid cell has one native authority; normal Minecraft source rules do not conserve fluid volume.
-
-The consumer `faces` suite additionally calls the real Aeronautics/Simulated Physics Assembler on all
-six planet charts, checking a new ordinary ship, cargo, physical position/orientation and unchanged fixed
-faces. This covers assembling a new ship from terrain, as confirmed by the reported gameplay scenario.
-Client lever animation/hover text, ship-to-terrain disassembly and gameplay liquid rendering/swimming
-remain outside these headless observations.
-
-Observed on 2026-10-16: `gradle-20261016T204020Z-62719.log` passed all 24 root cube GameTests;
-`gradle-20261016T204106Z-65702.log` passed final `verifyLocalFull`. `consumer-final-faces.log` passed
-all 10 consumer face scenarios against the same final production behavior. The assembler reproducer
-failed before the adapter, then passed on all six faces with native cargo and physical pose retained.
-The root fluid scenarios additionally verify native stone formation when incoming down and target-cell
-gravity disagree at a seam. These are headless server observations; client liquid rendering, forces and
-interactive lever presentation remain unverified.
-
-Gameplay-path correction: `gradle-20261016T205323Z-86763.log` reproduced the reported bucket failure:
-ordinary use consumed the bucket on UP and missed all five other faces; all six had false readiness.
-The native POV helper rebuilt a global-Y ray, and readiness confused absent native air columns with cold
-stored chunks. `gradle-20261016T205912Z-101703.log` passed all 25 root cube scenarios, including actual
-bucket sources and subsequent native spreading on all six unprepared faces without query allocation.
-The cold-column defer/restore scenarios still pass. The default-on scenario also executes the real seam
-false/true commands and checks that the ordinary test dimension remains disabled.
-
-`player-create-green.log` passed consumer checks and all 12 face scenarios, including actual player
-shaft placement following a foreign motor, live native rotation and automatic elbow-pipe connections
-with conserved native pump transfer. The shaft reproducer failed before its placement adapter. The
-initial pump fixture used a motor on the wrong rotation axis; that fixture was corrected to native cog
-transmission before using its result as evidence. The previous prepared-state network tests did not
-establish these player-placement paths. Client prediction/rendering remain separately unverified.
-
-Existing-world recognition correction (2026-10-17): read-only inspection of the gameplay save found
-six marked fixed charts with centre-of-mass pivots and float-rounded poses. Their transformed plot
-centres were aligned with the canonical grids, but the old guard compared raw pose position/pivot.
-`rebased-seams-red-clean.log` reproduced both failures on a clean test world: native shaft placement
-chose the wrong axis and native pipe shape updates did not open the seam; the other ten face scenarios
-passed. `rebased-seams-green.log` passes all 12 after checking the affine grid rather than the pivot.
-The strengthened placement scenarios reproduce saved pose fields before ordinary machine placement,
-then assert actual motor rotation and conserved pump transfer. They also reject a genuinely translated,
-rotated or scaled grid. Existing closed-network tests continue to cover native group reload separately.
-A separate read-only replay of the six actual saved pose fields through pinned JOML transforms
-(`live-chart-transform-probe.log`) accepts all six grids with centre errors of 0.00011–0.00034 blocks.
-The initial immediate-reload fixture failed before placement; its log is not connectivity evidence.
-These are headless observations plus read-only save inspection, not an observed interactive client retest.
-
-Pipe presentation correction (2026-10-17): `pipe-rims-red.log` reproduced an extra end rim in
-Create's actual `getRenderedRimAttachment` method for a foreign glass neighbour while the same-chart
-baseline and the previous 12 scenarios passed. `pipe-rims-green-2.log` passes all 13 face scenarios.
-The new scenario covers both foreign glass ends, ordinary straight/elbow connectors, mixed collars,
-closed ports, removal/reconnection, native update packet fields, behaviour-reader cache reset,
-missing/invalid/version-mismatched fields and absence from saved world NBT. The first green attempt
-stopped at Kotlin compilation because the test treated a nullable update packet as non-null; no
-runtime result is attributed to that attempt. These are headless model-selection/serialization
-observations; live chunk invalidation and the final rendered image still require client observation.
-
-`gradle-20261016T212358Z-143431.log` passes `verifyLocalFull` and all 25 root cube scenarios
-without Create installed. Pinned Sable `SubLevelPlayerChunkSender.sendChunk` uses the native
-`ClientboundLevelChunkWithLightPacket`, whose block-entity tags use Create's same update-tag producer.
-No custom Sable chunk serialization path or client chart-identity registry was introduced.
+The native GameTestServer always constructs fresh PrimaryLevelData, even when its run directory has
+old chunks and SavedData. Both harnesses archive the disposable surface initialization marker before
+each launch; this permits a fresh startup without deleting terrain caches. The persistence scenario
+uses a new DimensionDataStorage reader to verify that a saved marker preserves customized settings.
+Normal dedicated/integrated servers load their native border settings and do not run this fixture reset.

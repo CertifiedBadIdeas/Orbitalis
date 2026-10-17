@@ -16,108 +16,32 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-# Cubic planet gravity on ordinary Sable ships
+# Isolated Sable flight diagnostics
 
-`orbitalis:flight_test` is an experimental terrain dimension for testing Orbitalis gravity with
-player-built Sable ships and externally supplied propulsion. It does not use the laboratory's owned
-probes, automatic flight controller or boarding teleports. No command registers a ship with Orbitalis:
-every loaded native Sable construction in this dimension receives the field automatically.
+The normal Overworld has native Minecraft/player and Sable gravity. Orbitalis does not add a force
+there. See [flat surface](flat-surface.md) for the accepted surface model.
 
-## Enter and build
+The retained `orbitalis:flight_test`, `orbitalis:orbit_test` and `orbitalis:space_test` are diagnostic
+spaces with native Sable gravity, pressure and drag disabled. Ordinary loaded ships receive an impulse
+at each server physics substep from `SableFlightGravity`: mass times sampled acceleration times dt,
+converted into body axes. Other force producers retain their own impulses. Sable owns integration,
+collisions, assembly and saves; no enrollment tags or replacement ships are introduced.
 
-In a disposable creative world with operator permissions and Sable installed:
+The test field is `SphericalGravity(radius=6000, surfaceAcceleration=9.81)` around physical centre
+(0,-5936,0). Outside the reference radius it is inverse-square; inside, acceleration is linear and
+finite at the centre. The potential is continuous with zero at infinity. The former cube field and
+cube sky renderer are removed. This mathematical reference does not select a spherical surface or
+define future flat-body orbital physics.
 
-```mcfunction
-/orbitalis flight enter
-/orbitalis flight sample
-/orbitalis flight leave
-```
+With cheats, `/orbitalis flight enter` enters ordinary diagnostic terrain. Build and assemble a ship,
+disable creative flight and stand on deck. `/orbitalis flight sample` reports mass, position, speed,
+radial altitude and gravity. `/orbitalis flight leave` returns the player; ships remain in the test
+space. Return points are transient; after restart use the Overworld spawn fallback.
 
-`enter` places the player near the top of the terrain at x/z = 0. It transfers the player only; ships
-remain in their original dimension. Build and assemble the new ship in the test dimension. Repeating
-`enter` inside the dimension is rejected. `leave` returns to the transient entry position; after a
-server restart, its fallback is the Overworld spawn. Neither command changes creative flight mode.
+`/orbitalis flight transfer` and `transfer space` retain the [journaled ship handoff](ship-transfer.md).
+Their frames and records remain unchanged. This is not an Overworld-to-space ascent implementation.
+All three diagnostic borders are independent of the 2000-block Overworld border.
 
-`sample` requires native Sable contact with a ship. It reports the ship UUID, centre-of-mass position,
-mass in Sable units, cube-shell altitude, speed in m/s and the current gravity vector/magnitude in m/s².
-This is field telemetry, not a measurement of total acceleration while engines or collisions act.
-The dimension and assembled ships persist through the ordinary Minecraft/Sable save mechanism.
-Orbitalis maintains no custom ship save schema or force-loading tickets.
-
-For the external flight stack, launch the consumer through its own wrapper:
-
-```sh
-cd consumers/flight
-./gradlew runClient
-```
-
-Use the consumer [terrain ship fixture](flight-consumer.md#repeatable-terrain-ship-fixture) if desired.
-It is available by default in consumer runs; it is not bundled in the Orbitalis production mod.
-No Create, Aeronautics or Propulsion implementation is a mandatory Orbitalis dependency.
-
-## Field and force ownership
-
-The reference cube has half-extent 6000 m, centre (0, -5936, 0) in Minecraft coordinates, and
-face-centre surface acceleration 9.81 m/s². Its top reference face is y = 64. Gravity is exactly
-normal to face interiors near the surface, blends continuously at edges, and becomes central far away.
-The height transition runs from 512 to 6000 m with a 64 m edge blend width. At x/z = 0 and y = 6064,
-gravity is still 2.4525 m/s². Terrain height is independent of the reference face height.
-See [cubic planet gravity](cubic-planet-gravity.md) for the conservative potential and accepted geometry.
-
-At each server physics substep, the adapter transforms the current native centre of mass to world
-coordinates, computes `impulse = mass * acceleration * dt`, converts it to body axes and applies a
-linear impulse at the centre of mass. It never resets position, orientation, linear or angular velocity.
-Native Sable remains the only integrator. Other force producers, including Propulsion, add their own
-forces normally. No attitude stabilization, thrust assistance or trajectory correction is supplied.
-Uninitialized or zero-mass bodies are skipped until native mass data becomes available.
-
-The dimension's Sable `base_gravity`, universal drag and air pressure are zero. This prevents constant
-native downward gravity or atmospheric drag from masking the cubic-field experiment. It is a vacuum
-force test over normal terrain, not an atmosphere simulation. The Overworld and original planet
-laboratory are unaffected. A datapack overriding this dimension's physics must preserve that force
-ownership or it can reintroduce double gravity/drag.
-
-## Limits
-
-This is ordinary Minecraft terrain used as a local patch, not a finite cubic planet.
-The separate [ship transfer diagnostic](ship-transfer.md) now tests an explicit cross-Level handoff. Flying far
-sideways does not wrap terrain. There is no automatic surface/orbit handoff, floating origin, planet
-renderer, custom player gravity or survival progression. Players and loose entities retain vanilla
-gravity; a tilted ship does not rotate the player's gravity direction. This step validates ship forces.
-Existing laboratory frame-shift and small-planet orbit tests remain separate experiments.
-
-## Evidence
-
-The native-physics GameTest creates untagged ordinary constructions without the lab service. At one
-and four substeps per tick it verifies equal gravitational acceleration for unequal masses and rotated
-bodies, negligible gravitational torque, zero lateral gravity on an off-centre face, weaker high-altitude gravity, composition with an independent
-impulse, and unchanged Overworld gravity. Core tests cover the cubic potential gradient, face/edge/corner continuity, far field,
-energy convergence, centre and invalid parameters. These tests do not prove Propulsion visuals, interactive handling,
-ship transfer between dimensions or production planetary geography.
-
-During the 2026-10-15 consumer trial the user assembled/flew an ordinary Propulsion-powered ship.
-Two samples of the same ship 2.58 seconds apart showed Y decreasing from 313.81 to 236.21, speed
-increasing from 18.813 to 42.075 m/s, and gravity increasing from 9.0389 to 9.2679 m/s². The user
-reported releasing lift; the observed motion is consistent with falling under the then-spherical field.
-These observations precede the cubic-field revision and do not validate its interactive behavior.
-
-## Orbit reference rendering
-
-In `orbitalis:orbit_test` the client draws an unlit cube with coloured faces and a grid. It uses
-`FlightTestSpace` for exactly the same centre, half-extent and translated frame as server gravity.
-The orange cross marks the gravitational centre through the reference faces. On the top face a white
-cross marks the surface origin, and a gold square outlines the existing x/z +/-2048 transfer patch.
-These references are visible without loading distant chunks and rotate/parallax with the camera.
-
-This is diagnostic sky geometry, not a texture of generated terrain and not solid collision blocks.
-It is drawn after the sky and before local terrain/ships, without writing to their depth buffer.
-Uniform camera-relative scaling preserves angular geometry inside the normal projection range.
-The renderer restores shader/model-view state; the NeoForge event adapter restores GL state and only
-subscribes on the physical client. Other dimensions receive no reference rendering. There are no
-imported textures/assets and no new saved/network state or optional Sable dependency in the renderer.
-
-Build and dedicated-server checks do not establish appearance. For manual acceptance, transfer a ship
-to orbit, look down, then rotate the camera and compare first/third-person views. Check the grid, orange
-centre cross, white origin cross and gold patch boundary from low/high altitude, and confirm the ship
-occludes the reference. Return to the surface and Overworld to check the reference disappears. Visual
-acceptance of this first implementation is pending a client observation.
+Real GameTests cover ordinary native acceleration and timestep/force coexistence, translated field
+agreement, full-space energy and angular-momentum preservation, and ship/pilot recovery. A successful
+server test does not prove camera/rendering continuity or interactive piloting.

@@ -30,7 +30,7 @@ import java.io.File
 
 @PrefixGameTestTemplate(false)
 @EventBusSubscriber(modid = Orbitalis.MOD_ID, bus = EventBusSubscriber.Bus.MOD)
-object PlanetLabGameTests {
+object OrbitalisGameTests {
     @JvmStatic
     @SubscribeEvent
     fun register(event: RegisterGameTestsEvent) {
@@ -38,21 +38,9 @@ object PlanetLabGameTests {
             GlobalTestReporter.replaceWith(JUnitLikeTestReporter(File(path)))
         }
         val suite = System.getProperty("orbitalis.gameTestSuite", "all")
-        require(suite == "all" || suite == "cube") { "Unknown GameTest suite: $suite" }
-        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener { started: net.neoforged.neoforge.event.server.ServerStartedEvent ->
-            // This run directory is a disposable fixture, including older global-coordinate cubes.
-            org.cbi.orbitalis.minecraft.lab.CubePlanetLab
-                .forServer(started.server)
-                .rebuild()
-        }
-        event.register(CubePlanetGameTest::class.java)
-        event.register(CubePlayerFlightGameTest::class.java)
-        if (ModList.get().isLoaded("sable")) {
-            event.register(CubeSableGameTests::class.java)
-            event.register(PlanetSeamGameTests::class.java)
-            event.register(PlanetFluidGameTests::class.java)
-        }
-        if (suite == "cube") return
+        require(suite == "all" || suite == "surface") { "Unknown GameTest suite: $suite" }
+        event.register(SurfaceGameTests::class.java)
+        if (suite == "surface") return
         if (ModList.get().isLoaded("sable")) {
             event.register(SableFlightGameTests::class.java)
             event.register(SableTransferGameTests::class.java)

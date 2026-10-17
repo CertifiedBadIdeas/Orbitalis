@@ -47,7 +47,7 @@ import kotlin.math.abs
 object SableFlightGameTests {
     @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "flight_gravity", timeoutTicks = 150)
-    fun ordinaryShipsReceiveCubicGravity(helper: GameTestHelper) {
+    fun ordinaryShipsReceiveDiagnosticGravity(helper: GameTestHelper) {
         val level = checkNotNull(helper.level.server.getLevel(SableFlightGravity.DIMENSION))
         helper.assertTrue(!level.hasChunk(0, 0), "Entry regression requires an initially unloaded destination chunk")
         val player = GameTestPlayers.create(helper)
@@ -140,15 +140,15 @@ object SableFlightGameTests {
 
         fun run(substeps: Int) {
             config.substepsPerTick = substeps
-            val light = ship(level, 0.0, 200.0)
-            val heavy = ship(level, 1600.0, 200.0, true)
+            val light = ship(level, -16.0, 200.0)
+            val heavy = ship(level, 16.0, 200.0, true)
             val high = ship(level, 0.0, 6064.0)
             val outside = ship(helper.level, 0.0, 1000.0)
             helper.runAfterDelay(5) {
                 val before = listOf(light, heavy, high).map(SableFlightGravity::reading)
                 helper.assertTrue(
-                    abs(before[1].acceleration.x) < 1e-12 && abs(before[1].acceleration.z) < 1e-12,
-                    "Off-centre face gravity has a lateral component",
+                    before[1].acceleration.x < 0.0 && abs(before[1].acceleration.z) < 1e-3,
+                    "Off-centre diagnostic gravity does not point toward its centre",
                 )
                 val relative = Vector3(1600.0, 600.0, 1000.0)
                 val orbit = checkNotNull(level.server.getLevel(SableFlightGravity.ORBIT))
@@ -170,18 +170,21 @@ object SableFlightGameTests {
                     val highDelta = after[2].velocity.y - before[2].velocity.y
                     helper.assertTrue(
                         abs(lowDelta - before[0].acceleration.y) < 0.04,
-                        "Cubic acceleration or timestep is wrong: $lowDelta",
+                        "Diagnostic acceleration or timestep is wrong: $lowDelta",
                     )
                     helper.assertTrue(abs(lowDelta - heavyDelta) < 0.015, "Mass or body rotation changed gravitational acceleration")
                     helper.assertTrue(
                         abs(highDelta - before[2].acceleration.y) < 0.015 && abs(highDelta) < abs(lowDelta) * 0.3,
                         "Gravity did not weaken with altitude",
                     )
-                    helper.assertTrue(abs(after[0].velocity.x - before[0].velocity.x - 3.0) < 0.01, "Another producer's impulse was erased")
                     helper.assertTrue(
-                        abs(after[1].velocity.x - before[1].velocity.x) < 1e-6 &&
-                            abs(after[1].velocity.z - before[1].velocity.z) < 1e-6,
-                        "Off-centre ship acquired lateral velocity under face gravity",
+                        abs(after[0].velocity.x - before[0].velocity.x - 3.0 - before[0].acceleration.x) < 0.01,
+                        "Another producer's impulse was erased",
+                    )
+                    helper.assertTrue(
+                        abs(after[1].velocity.x - before[1].velocity.x - before[1].acceleration.x) < 0.005 &&
+                            abs(after[1].velocity.z - before[1].velocity.z - before[1].acceleration.z) < 0.005,
+                        "Off-centre ship did not follow the diagnostic radial field",
                     )
                     helper.assertTrue(
                         physics.getPhysicsHandle(heavy).getAngularVelocity(Vector3d()).length() < 1e-5,
@@ -218,7 +221,7 @@ object SableFlightGameTests {
         val physics = SubLevelPhysicsSystem.require(level)
         val centre = FlightTestSpace.localPosition(FlightTestSpace.SPACE, FlightTestSpace.CENTRE)
         val radius = 18000.0
-        val mu = FlightTestSpace.gravity.surfaceAcceleration * FlightTestSpace.gravity.halfExtent * FlightTestSpace.gravity.halfExtent
+        val mu = FlightTestSpace.gravity.surfaceAcceleration * FlightTestSpace.gravity.radius * FlightTestSpace.gravity.radius
         val speed = kotlin.math.sqrt(mu / radius)
         val pose = Pose3d()
         pose.position().set(0.0, centre.y + radius, 0.0)
@@ -279,7 +282,7 @@ object SableFlightGameTests {
                 if (advance > kotlin.math.PI) advance -= 2 * kotlin.math.PI
                 sweptAngle += advance
                 previousAngle = angle
-                val energy = reading.velocity.lengthSquared() / 2 + FlightTestSpace.gravity.sample(relative).potential
+                val energy = reading.velocity.lengthSquared() / 2 + FlightTestSpace.gravity.potential(relative)
                 maximumRadiusError = maxOf(maximumRadiusError, abs(relative.length() - radius))
                 maximumEnergyError = maxOf(maximumEnergyError, abs((energy - referenceEnergy) / referenceEnergy))
                 helper.assertTrue(reading.position.y >= 4000, "Full orbit crossed the safe Minecraft height")

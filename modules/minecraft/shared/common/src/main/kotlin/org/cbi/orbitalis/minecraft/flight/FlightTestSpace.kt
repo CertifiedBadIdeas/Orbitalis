@@ -22,9 +22,9 @@ import net.minecraft.core.registries.Registries
 import net.minecraft.resources.ResourceKey
 import net.minecraft.resources.ResourceLocation
 import net.minecraft.world.level.Level
-import org.cbi.orbitalis.core.planet.CubicGravity
 import org.cbi.orbitalis.core.planet.OrbitalTestFrame
 import org.cbi.orbitalis.core.planet.SpaceTestFrame
+import org.cbi.orbitalis.core.planet.SphericalGravity
 import org.cbi.orbitalis.core.planet.Vector3
 
 /** Shared diagnostic geometry for server forces and client reference rendering; no optional mod types. */
@@ -34,12 +34,9 @@ object FlightTestSpace {
     val SPACE: ResourceKey<Level> = key("space_test")
     val CENTRE = Vector3(0.0, -5936.0, 0.0)
     val gravity =
-        CubicGravity(
-            halfExtent = 6000.0,
+        SphericalGravity(
+            radius = 6000.0,
             surfaceAcceleration = 9.81,
-            edgeBlendWidth = 64.0,
-            transitionStartAltitude = 512.0,
-            transitionEndAltitude = 6000.0,
         )
 
     fun contains(level: Level): Boolean = level.dimension() in setOf(SURFACE, ORBIT, SPACE)

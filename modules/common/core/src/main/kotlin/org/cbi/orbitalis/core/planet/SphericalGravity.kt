@@ -28,6 +28,18 @@ class SphericalGravity(
         require(surfaceAcceleration.isFinite() && surfaceAcceleration > 0.0) { "Surface gravity must be finite and positive" }
     }
 
+    fun altitude(position: Vector3): Double = position.length() - radius
+
+    /** Specific potential, zero at infinity; continuous through the surface and centre. */
+    fun potential(position: Vector3): Double {
+        val distance = position.length()
+        return if (distance < radius) {
+            surfaceAcceleration * radius * ((distance / radius) * (distance / radius) - 3.0) / 2.0
+        } else {
+            -surfaceAcceleration * radius * (radius / distance)
+        }
+    }
+
     private val exterior = TwoBodyGravity(surfaceAcceleration * radius * radius)
 
     /** Position relative to the centre [m]; acceleration in the same inertial axes [m/s²]. */

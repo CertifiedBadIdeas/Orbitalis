@@ -54,8 +54,8 @@ object ShuttleGameTests {
     private class Shuttle(
         helper: GameTestHelper,
         val level: ServerLevel,
+        val origin: BlockPos = BlockPos(1400, 180, 8),
     ) : AutoCloseable {
-        val origin = BlockPos(1400, 180, 8)
         val previous = mutableSetOf<UUID>()
         val owned = mutableSetOf<UUID>()
         val forcedChunks = mutableListOf<Long>()
@@ -148,6 +148,37 @@ object ShuttleGameTests {
             for (key in forcedChunks) level.setChunkForced(ChunkPos.getX(key), ChunkPos.getZ(key), false)
             forcedChunks.clear()
         }
+    }
+
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 300, batch = "overworld_assembly")
+    fun nativeOverworldAssembly(helper: GameTestHelper) {
+        val level = helper.level.server.overworld()
+        helper.assertTrue(level.worldBorder.size == 2000.0, "Overworld border was not initialized")
+        val shuttle = Shuttle(helper, level, BlockPos(600, 180, 8))
+        var attempts = 0
+
+        fun assembleWhenReady() {
+            helper.assertTrue(++attempts < 200, "Overworld assembly chunks did not become ready")
+            if (!shuttle.ready()) {
+                helper.runAfterDelay(1) { assembleWhenReady() }
+                return
+            }
+            shuttle.assemble(helper)
+            helper.runAfterDelay(8) {
+                shuttle.checkLayout(helper)
+                val handle = SubLevelPhysicsSystem.require(level).getPhysicsHandle(shuttle.body)
+                val before = handle.getLinearVelocity(Vector3d())
+                helper.runAfterDelay(20) {
+                    shuttle.checkLayout(helper)
+                    val delta = handle.getLinearVelocity(Vector3d()).sub(before)
+                    helper.assertTrue(delta.y < -8.0 && delta.y > -12.0, "Normal Overworld gravity changed: $delta")
+                    helper.assertTrue(abs(delta.x) < 0.01 && abs(delta.z) < 0.01, "Overworld acquired planetary lateral gravity")
+                    helper.succeed()
+                }
+            }
+        }
+        helper.runAfterDelay(1) { assembleWhenReady() }
     }
 
     @JvmStatic
@@ -268,8 +299,8 @@ object ShuttleGameTests {
                         if (++index < points.size) {
                             helper.runAfterDelay(1) { run() }
                         } else {
-                            helper.assertTrue(abs(measured[1].x) < 0.02, "Near-surface offset produced lateral gravity")
-                            helper.assertTrue(measured[2].x < -0.01, "Transition field lacks centreward lateral force")
+                            helper.assertTrue(measured[1].x < -0.1, "Offset diagnostic field did not point centreward")
+                            helper.assertTrue(measured[2].x < -0.01, "Diagnostic field lacks centreward lateral force")
                             helper.assertTrue(measured[3].length() < measured[1].length() * 0.5, "High field did not weaken")
                             helper.assertTrue((measured[3] - measured[4]).length() < 0.03, "Frame translation changed gravity")
                             helper.succeed()

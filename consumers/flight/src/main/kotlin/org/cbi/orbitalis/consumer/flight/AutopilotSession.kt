@@ -145,7 +145,7 @@ internal class AutopilotSession(
                 continue
             }
             require(abs(p.x) <= 2048 && abs(p.z) <= 2048 && p.y in 64.0..16000.0) {
-                "Autopilot left the diagnostic top-face patch or height bounds"
+                "Autopilot left the diagnostic surface patch or height bounds"
             }
         }
     }

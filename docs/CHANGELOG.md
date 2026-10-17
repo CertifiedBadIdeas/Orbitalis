@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Replace the cube surface experiment with a native flat Overworld border, initially 2000×2000 centred at zero; preserve administrator border edits and isolate diagnostic space borders and client updates.
+- Retire the cube dimension, six Sable charts, player gravity/camera, seam/fluid/Create compatibility hooks and fixtures. Remove production Create/Ponder dependencies. Old save files are untouched; start a new world.
+- Preserve ship-transfer journals and diagnostic dimension IDs; replace their retired cube field with the existing spherical diagnostic field. Overworld-to-space travel and flat-body gravity remain future work.
+
 - Project confirmed cross-chart ordinary/glass pipe attachments through Create's native client update tags, hiding extra glass end rims while retaining native connectors, mixed collars and disconnected ends. Keep the projection out of world saves and invalidate client model data when it changes.
 
 - Recognize existing fixed cube charts with centre-of-mass pivots and float-rounded native poses by their actual block-grid transform. Preserve saved blocks and poses while allowing cross-chart Create connections; reject genuinely moved, rotated or scaled charts.

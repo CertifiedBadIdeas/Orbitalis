@@ -18,6 +18,7 @@
 
 import net.fabricmc.loom.task.RemapJarTask
 import java.io.DataOutputStream
+import java.nio.file.Files
 import java.security.MessageDigest
 import java.util.zip.GZIPOutputStream
 import javax.xml.parsers.DocumentBuilderFactory
@@ -30,13 +31,10 @@ extra["orbitalisMinecraftVersion"] = libs.versions.minecraft.v1211.get()
 apply(plugin = "orbitalis-minecraft-shared")
 base.archivesName.set("orbitalis-neoforge-${libs.versions.minecraft.v1211.get()}")
 repositories {
-    maven("https://maven.createmod.net")
     maven("https://api.modrinth.com/maven") { content { includeGroup("maven.modrinth") } }
     maven("https://maven.ryanhcode.dev/releases") { content { includeGroup("dev.ryanhcode.sable-companion") } }
 }
 dependencies {
-    "modCompileOnly"(libs.ponder.v1211) { isTransitive = false }
-    "modCompileOnly"(variantOf(libs.create.v1211) { classifier("slim") }) { isTransitive = false }
     "modCompileOnly"(libs.sable.v1211) { isTransitive = false }
     compileOnly(libs.sable.companion) { isTransitive = false }
     minecraft(libs.minecraft.v1211)
@@ -146,15 +144,14 @@ val generatedGameTestResources = layout.buildDirectory.dir("generated/gameTestRe
 val generateGameTestResources = tasks.register("generateGameTestResources") {
     val template = generatedGameTestResources.map { it.file("data/orbitalis/structure/lab_empty.nbt") }
     val preset = generatedGameTestResources.map { it.file("data/minecraft/worldgen/world_preset/flat.json") }
-    val laboratory = rootProject.file("modules/minecraft/shared/common/src/main/resources/data/orbitalis/dimension/planet_lab.json")
     val flightTest = rootProject.file("modules/minecraft/shared/common/src/main/resources/data/orbitalis/dimension/flight_test.json")
     val orbitTest = rootProject.file("modules/minecraft/shared/common/src/main/resources/data/orbitalis/dimension/orbit_test.json")
     val spaceTest = rootProject.file("modules/minecraft/shared/common/src/main/resources/data/orbitalis/dimension/space_test.json")
-    inputs.files(laboratory, flightTest, orbitTest, spaceTest)
+    inputs.files(flightTest, orbitTest, spaceTest)
     outputs.files(template, preset)
     doLast {
         // GameTestServer bakes the flat preset against an empty dimension registry in 1.21.1.
-        // Include the canonical laboratory definition in this test-only preset.
+        // Include the retained diagnostic dimensions in this test-only preset.
         val presetFile = preset.get().asFile
         presetFile.parentFile.mkdirs()
         presetFile.writeText("""
@@ -165,7 +162,8 @@ val generateGameTestResources = tasks.register("generateGameTestResources") {
                     {"height": 1, "block": "minecraft:bedrock"},
                     {"height": 2, "block": "minecraft:dirt"},
                     {"height": 1, "block": "minecraft:grass_block"}]}}},
-              "orbitalis:planet_lab": ${laboratory.readText()},
+              "minecraft:the_nether": ${orbitTest.readText().replace("minecraft:overworld", "minecraft:the_nether")},
+              "minecraft:the_end": ${orbitTest.readText().replace("minecraft:overworld", "minecraft:the_end")},
               "orbitalis:flight_test": ${flightTest.readText()},
               "orbitalis:orbit_test": ${orbitTest.readText()},
               "orbitalis:space_test": ${spaceTest.readText()}
@@ -202,7 +200,7 @@ val generateGameTestResources = tasks.register("generateGameTestResources") {
 gameTest.resources.srcDir(generateGameTestResources.map { generatedGameTestResources.get() })
 
 val gameTestSuite = providers.gradleProperty("orbitalisGameTestSuite").orElse("all").get()
-require(gameTestSuite in setOf("all", "cube")) { "Unknown GameTest suite: $gameTestSuite" }
+require(gameTestSuite in setOf("all", "surface")) { "Unknown GameTest suite: $gameTestSuite" }
 val gameTestReport = layout.buildDirectory.file("test-results/gameTestServer/results.xml")
 loom.runs.register("gameTestServer") {
     server()
@@ -227,6 +225,14 @@ tasks.configureEach {
     if (name == "runGameTestServer") {
         dependsOn(gameTest.classesTaskName)
         doFirst {
+            // GameTestServer creates fresh PrimaryLevelData on every launch but reuses its chunk directory.
+            // Archive only this disposable fixture marker so production startup installs fresh defaults.
+            val surfaceMarker = layout.projectDirectory.file("run/gameTestServer/world/data/orbitalis_flat_surface.dat").asFile
+            if (surfaceMarker.isFile) {
+                val previous = layout.buildDirectory.file("agent-logs/gametest-markers/surface-${System.currentTimeMillis()}.dat").get().asFile
+                previous.parentFile.mkdirs()
+                Files.move(surfaceMarker.toPath(), previous.toPath())
+            }
             val report = gameTestReport.get().asFile
             report.parentFile.mkdirs()
             report.delete()
@@ -238,11 +244,9 @@ tasks.configureEach {
             factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
             val document = factory.newDocumentBuilder().parse(report)
             val cases = document.getElementsByTagName("testcase")
-            val minimumCases = if (gameTestSuite == "cube") 25 else 29
-            check(cases.length >= minimumCases) { "Expected at least $minimumCases laboratory GameTests, received ${cases.length}." }
             val names = (0 until cases.length).map { (cases.item(it) as org.w3c.dom.Element).getAttribute("name") }.toSet()
-            val cubeNames = setOf("playerpoursbucketonordinarycubefaces", "fallinglavamakesstoneacrossgravityseam", "foreignstoredwaterfallstowardallfaces", "lavafallsacrossphysicalfaceedge", "waterturnsatthreefacecorner", "waterusesphysicalgravityinforeigntunnel", "nativefluidsourcesandcontactscrosscharts", "waterrespectsrotatedslabfaces", "coldfluidticksresumeandsurvivenativereload", "waterfallsacrossphysicalfaceedge", "planetseamneighboursandinventories", "cubecoldchunkpreservesnativestate", "cubejumpmatchesvanillaonallfaces", "cubeshipslandonallfaces", "cubeshipsfalltowardallfaces", "cubeplayercontactsmovingdeckonallfaces", "cubecontinuousframefollowsgravity", "cubeelytrauseslocalgravity", "cubemodesurvivesaltitudeandreload", "cubeheadingturnsaroundsharededge", "cubeslowedgelandswithoutsliding", "cubecreativeflightescapesalonglocalup", "cubefixturepreservesexcavation", "cubeplayercrossesedge", "cubeframepreservesmotionandblocksunsafeturns")
-            val requiredNames = if (gameTestSuite == "cube") cubeNames else cubeNames + setOf("ordinaryshipsreceivecubicgravity", "fullspaceorbitpreservesnativeenergy", "shiptransferroundtripandrecovery", "spacetransferroundtripandrecovery")
+            val surfaceNames = setOf("nativeoverworldborder", "borderinitializationpreservescustomization", "diagnosticbordersareindependent")
+            val requiredNames = if (gameTestSuite == "surface") surfaceNames else surfaceNames + setOf("ordinaryshipsreceivediagnosticgravity", "fullspaceorbitpreservesnativeenergy", "shiptransferroundtripandrecovery", "spacetransferroundtripandrecovery")
             check(names.containsAll(requiredNames)) {
                 "GameTest run did not execute its required $gameTestSuite scenarios: $names"
             }

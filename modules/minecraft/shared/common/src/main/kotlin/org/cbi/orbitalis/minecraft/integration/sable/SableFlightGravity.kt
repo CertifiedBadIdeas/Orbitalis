@@ -24,7 +24,6 @@ import net.minecraft.server.level.ServerLevel
 import net.minecraft.world.level.Level
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
-import org.cbi.orbitalis.minecraft.lab.PlanetLabCoordinates
 import org.joml.Vector3d
 
 /** Dimension-scoped force adapter. It neither owns ships nor integrates their motion. */
@@ -66,30 +65,25 @@ object SableFlightGravity {
         )
     }
 
-    /** Same field and centre as the player, with no altitude cutoff or body enrollment. */
+    /** Isolated diagnostic field; ordinary Overworld players and ships use native gravity. */
     fun acceleration(
         level: Level,
         position: Vector3,
-    ): Vector3 =
-        if (level.dimension() == PlanetLabCoordinates.DIMENSION) {
-            val centre = PlanetLabCoordinates.CENTRE
-            PlanetLabCoordinates.GRAVITY.acceleration(position - Vector3(centre.x, centre.y, centre.z))
-        } else {
-            require(isFlightSpace(level)) { "No Orbitalis construction gravity in this dimension" }
-            field.acceleration(globalPosition(level, position) - CENTRE)
-        }
+    ): Vector3 {
+        require(isFlightSpace(level)) { "No Orbitalis construction gravity in this dimension" }
+        return field.acceleration(globalPosition(level, position) - CENTRE)
+    }
 
     /** Called on the server at each native physics substep, also for newly assembled/reloaded ships. */
     fun beforePhysics(
         level: ServerLevel,
         seconds: Double,
     ) {
-        if (!isFlightSpace(level) && level.dimension() != PlanetLabCoordinates.DIMENSION) return
+        if (!isFlightSpace(level)) return
         require(seconds.isFinite() && seconds > 0.0)
         val container = SubLevelContainer.getContainer(level) ?: return
         val physics = container.physicsSystem() ?: return
         for (body in container.allSubLevels.filterIsInstance<ServerSubLevel>()) {
-            if (SableCubePlanet.isFrame(body)) continue
             val mass = body.massTracker.mass
             val localCom = body.massTracker.centerOfMass ?: continue
             if (!mass.isFinite() || mass <= 0.0) continue

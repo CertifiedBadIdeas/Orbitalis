@@ -43,31 +43,9 @@ object GameTestPlayers {
         checkNotNull(teleportAcks[player]) { "Not an inert GameTest pilot" }.invoke()
     }
 
-    /** Native Sable intentionally bypasses collision for ServerPlayer; use a real controlling Player
-     * for client-owned locomotion, with the inert pilot reserved for command/teleport assertions. */
-    fun controller(pilot: ServerPlayer): net.minecraft.world.entity.player.Player {
-        val player =
-            object : net.minecraft.world.entity.player.Player(pilot.level(), pilot.blockPosition(), pilot.yRot, pilot.gameProfile) {
-                override fun isSpectator(): Boolean = false
-
-                override fun isCreative(): Boolean = true
-
-                override fun isLocalPlayer(): Boolean = true
-            }
-        (player as org.cbi.orbitalis.minecraft.lab.CubePlayerMode).orbitalisSetCubeEnrolled(true)
-        player.setPos(pilot.position())
-        // Match Player.aiStep's attribute-to-speed refresh for fixtures which call travel directly.
-        player.speed = player.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED).toFloat()
-        player.yRot = pilot.yRot
-        player.yHeadRot = pilot.yRot
-        org.cbi.orbitalis.minecraft.lab.CubePlayerPhysics
-            .refresh(player)
-        return player
-    }
-
     fun create(
         helper: GameTestHelper,
-        locallyControlled: Boolean = false,
+        packets: (Packet<*>) -> Unit = {},
     ): ServerPlayer {
         val profile = GameProfile(UUID.randomUUID(), "orbitalis-test")
         val connection = Connection(PacketFlow.SERVERBOUND)
@@ -76,10 +54,6 @@ object GameTestPlayers {
         var teleportId: Int? = null
         val player =
             object : ServerPlayer(helper.level.server, helper.level, profile, ClientInformation.createDefault()) {
-                override fun isControlledByLocalInstance(): Boolean = locallyControlled || super.isControlledByLocalInstance()
-
-                override fun isLocalPlayer(): Boolean = locallyControlled
-
                 override fun remove(reason: RemovalReason) {
                     super.remove(reason)
                     if (reason.shouldDestroy()) {
@@ -96,6 +70,7 @@ object GameTestPlayers {
                 CommonListenerCookie.createInitial(profile, false),
             ) {
                 override fun send(packet: Packet<*>) {
+                    packets(packet)
                     if (packet is ClientboundPlayerPositionPacket) teleportId = packet.id
                 }
 

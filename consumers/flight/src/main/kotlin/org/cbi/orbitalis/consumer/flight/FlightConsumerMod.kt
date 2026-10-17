@@ -96,7 +96,7 @@ class FlightConsumerMod {
                     val goal =
                         Vector3(
                             global.x,
-                            FlightTestSpace.CENTRE.y + FlightTestSpace.gravity.halfExtent + altitude,
+                            FlightTestSpace.CENTRE.y + FlightTestSpace.gravity.radius + altitude,
                             global.z,
                         )
                     target = FlightTestSpace.localPosition(body.level.dimension(), goal)

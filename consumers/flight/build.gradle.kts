@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+import java.nio.file.Files
 import java.security.MessageDigest
 import java.util.zip.ZipFile
 import javax.xml.parsers.DocumentBuilderFactory
@@ -191,7 +192,7 @@ val testResources = files(layout.projectDirectory.dir(
 )).builtBy(gradle.includedBuild("Orbitalis").task(":v1_21_1-neoforge:generateGameTestResources"))
 gameTest.resources.srcDir(testResources)
 val consumerGameTestSuite = providers.gradleProperty("orbitalisConsumerGameTestSuite").getOrElse("all")
-require(consumerGameTestSuite in setOf("all", "faces")) { "Unknown consumer GameTest suite: $consumerGameTestSuite" }
+require(consumerGameTestSuite in setOf("all")) { "Unknown consumer GameTest suite: $consumerGameTestSuite" }
 val gameTestReport = layout.buildDirectory.file("test-results/gameTestServer/results.xml")
 loom.runs.register("gameTestServer") {
     server()
@@ -209,6 +210,14 @@ tasks.named("check") { dependsOn(gameTest.classesTaskName) }
 tasks.matching { it.name == "runGameTestServer" }.configureEach {
     dependsOn(verifyConsumer, gameTest.classesTaskName)
     doFirst {
+        // GameTestServer creates fresh PrimaryLevelData on every launch but reuses its chunk directory.
+        // Archive only this disposable fixture marker so production startup installs fresh defaults.
+        val surfaceMarker = layout.projectDirectory.file("run/gameTestServer/world/data/orbitalis_flat_surface.dat").asFile
+        if (surfaceMarker.isFile) {
+            val previous = layout.buildDirectory.file("agent-logs/gametest-markers/surface-${System.currentTimeMillis()}.dat").get().asFile
+            previous.parentFile.mkdirs()
+            Files.move(surfaceMarker.toPath(), previous.toPath())
+        }
         gameTestReport.get().asFile.apply { parentFile.mkdirs(); delete() }
     }
     doLast {
@@ -219,8 +228,7 @@ tasks.matching { it.name == "runGameTestServer" }.configureEach {
         val document = factory.newDocumentBuilder().parse(report)
         val cases = document.getElementsByTagName("testcase")
         val names = (0 until cases.length).map { (cases.item(it) as org.w3c.dom.Element).getAttribute("name") }.toSet()
-        val faceTests = setOf("nativeglasspiperimsjoinacrosscharts", "nativeplayershaftjoinsforeignmotor", "nativeplayerpipesformworkingseam", "nativeassemblerbuildsshipsonallfaces", "nativefluidloopclosesthroughsixfaces", "nativerotationclosesthroughsixfaces", "nativerotationcrossesfaceseam", "nativepumpmovesfluidacrossfaceseam", "nativehoppersfeedcreatevaultsacrossfaces", "localfacevaultsurviveschunkeviction", "localfacevaultskeepnativeinventory", "localfaceframessurvivenativereload", "playerwalksbetweenlocalfaceframes")
-        val required = if (consumerGameTestSuite == "faces") faceTests else faceTests + setOf("shuttleassemblyandhold", "shuttlegravityprofile", "flighttoolsavailablebydefault", "nativepropulsionholdandcutoff", "preflightrejectsunsafeengines", "rejectsmissingliftauthority", "launchbookmarkroundtripandvalidation", "nativeorbitalinsertionandreturn")
+        val required = setOf("nativeoverworldassembly", "shuttleassemblyandhold", "shuttlegravityprofile", "flighttoolsavailablebydefault", "nativepropulsionholdandcutoff", "preflightrejectsunsafeengines", "rejectsmissingliftauthority", "launchbookmarkroundtripandvalidation", "nativeorbitalinsertionandreturn")
         check(names == required) {
             "Missing native propulsion scenarios: $names"
         }

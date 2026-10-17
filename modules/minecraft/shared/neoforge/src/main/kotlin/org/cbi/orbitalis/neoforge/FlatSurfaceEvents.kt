@@ -16,10 +16,19 @@
  * limitations under the License.
  */
 
-package org.cbi.orbitalis.minecraft.integration.sable
+package org.cbi.orbitalis.neoforge
 
-import net.minecraft.world.level.ChunkPos
+import net.neoforged.bus.api.SubscribeEvent
+import net.neoforged.fml.common.EventBusSubscriber
+import net.neoforged.neoforge.event.server.ServerStartedEvent
+import org.cbi.orbitalis.core.Orbitalis
+import org.cbi.orbitalis.minecraft.surface.FlatOverworld
 
-interface PlanetServerPlotAccess {
-    fun orbitalisRemoveLiftProviders(global: ChunkPos)
+@EventBusSubscriber(modid = Orbitalis.MOD_ID)
+object FlatSurfaceEvents {
+    @JvmStatic
+    @SubscribeEvent
+    fun started(event: ServerStartedEvent) {
+        FlatOverworld.initialize(event.server.overworld())
+    }
 }

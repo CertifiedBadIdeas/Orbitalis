@@ -56,6 +56,8 @@ def architecture():
         if relative.startswith('modules/minecraft/shared/common/') and any(
                 item.startswith('net.neoforged.') for item in imports):
             errors.append(f'{relative}: NeoForge imports in shared/common')
+        if re.search(r'\b(?:com\.simibubi|net\.createmod|dev\.propulsionteam|dev\.createpropulsionsimulated)\.', text):
+            errors.append(f'{relative}: consumer-only mod API referenced by production modules')
         if re.search(r'^package\s+net\.(?:minecraft|neoforged)(?:\.|\s|;)', text, re.M):
             errors.append(f'{relative}: project code in an upstream package')
         if '/shared/' in relative and re.search(r'^import\s+org\.cbi\.orbitalis\.compat\.v[\w.]+', text, re.M):
@@ -76,10 +78,6 @@ def jar(path, version):
         required = ('META-INF/neoforge.mods.toml', 'META-INF/LICENSE.md', 'META-INF/NOTICE',
                     'org/cbi/orbitalis/core/Orbitalis.class',
                     'org/cbi/orbitalis/neoforge/OrbitalisMod.class',
-                    'data/orbitalis/dimension/planet_lab.json',
-                    'data/orbitalis/dimension/planet_lab.json.license',
-                    'data/orbitalis/dimension_physics/planet_lab.json',
-                    'data/orbitalis/dimension_physics/planet_lab.json.license',
                     'data/orbitalis/dimension/flight_test.json',
                     'data/orbitalis/dimension/flight_test.json.license',
                     'data/orbitalis/dimension_physics/flight_test.json',
@@ -107,12 +105,8 @@ def jar(path, version):
         if mod['modId'] != 'orbitalis' or mod['version'] != version or parsed['license'] != 'Apache-2.0':
             raise ValueError('Wrong mod identity, version or license')
         dependencies = {item['modId']: item for item in parsed['dependencies']['orbitalis']}
-        if (CONSUMER_MOD_IDS - {'create'}).intersection(dependencies):
+        if CONSUMER_MOD_IDS.intersection(dependencies):
             raise ValueError('Consumer-only dependency leaked into production metadata')
-        if 'create' in dependencies and any(
-                dependencies['create'].get(key) != value for key, value in
-                {'type': 'optional', 'versionRange': '[6.0.10]', 'ordering': 'AFTER', 'side': 'BOTH'}.items()):
-            raise ValueError('Consumer-only dependency requires the pinned optional Create contract')
         if dependencies['minecraft']['versionRange'] != '[1.21.1,1.21.2)':
             raise ValueError('Wrong Minecraft compatibility range')
         if any(name.startswith(EXTERNAL_CLASS_PREFIXES) or
