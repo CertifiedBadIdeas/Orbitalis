@@ -47,11 +47,11 @@ import kotlin.math.abs
 @PrefixGameTestTemplate(false)
 object RocketGameTests {
     @JvmStatic
-    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 24000, batch = "rocket_mission")
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 40000, batch = "rocket_mission")
     fun nativeRocketRoundTrip(helper: GameTestHelper) = roundTrip(helper, BlockPos(0, 21, 0), false)
 
     @JvmStatic
-    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 24000, batch = "rocket_offaxis")
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 40000, batch = "rocket_offaxis")
     fun nativeRocketOffAxisRoundTrip(helper: GameTestHelper) = roundTrip(helper, BlockPos(800, 81, 500), true)
 
     private fun roundTrip(
@@ -215,7 +215,7 @@ object RocketGameTests {
                             .CartesianState(p, v)
                     trace.append("$tick,${active.phase},${p.x},${p.y},${p.z},${v.x},${v.y},${v.z}\n")
                     maximumHeight = maxOf(maximumHeight, p.y - 64.0)
-                    if (p.y < 464.0 &&
+                    if (p.y < FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.DESCENT_HEIGHT &&
                         active.phase == RocketMission.Phase.ASCENT
                     ) {
                         earlyHorizontal = maxOf(earlyHorizontal, kotlin.math.hypot(v.x, v.z))
@@ -235,9 +235,9 @@ object RocketGameTests {
                     if (active.phase in listOf(RocketMission.Phase.COAST, RocketMission.Phase.RETURN, RocketMission.Phase.FLIP)) {
                         val clearance =
                             Vector3(
-                                maxOf(0.0, abs(p.x) - 1000.0),
+                                maxOf(0.0, abs(p.x) - FlatPlanetSpace.HALF_SIZE),
                                 maxOf(0.0, abs(p.y) - 64.0),
-                                maxOf(0.0, abs(p.z) - 1000.0),
+                                maxOf(0.0, abs(p.z) - FlatPlanetSpace.HALF_SIZE),
                             ).length()
                         minimumClearance = minOf(minimumClearance, clearance)
                         helper.assertTrue(clearance > 32.0, "Rocket's free coast passes too close to the planet: $clearance")
@@ -299,7 +299,10 @@ object RocketGameTests {
                     helper.assertTrue(AutopilotSession.enginesFaded(active.body), "Rocket landed with thrust")
                     helper.assertTrue(freeTicks > 1000, "No complete native engine-off revolution")
                     helper.assertTrue(earlyHorizontal > 2.0, "No horizontal acceleration before ascent handoff")
-                    helper.assertTrue(maximumHeight < 1200.0, "Rocket repeated the high-climb route: $maximumHeight")
+                    helper.assertTrue(
+                        maximumHeight < FlatPlanetSpace.ORBIT_HEIGHT * 1.2,
+                        "Rocket repeated the high-climb route: $maximumHeight",
+                    )
                     helper.assertTrue(maximumStepAcceleration < 180.0, "Rocket motion has an acceleration spike: $maximumStepAcceleration")
                     val tracePath =
                         java.nio.file.Path
@@ -547,7 +550,27 @@ object RocketGameTests {
                 body = created.single() as ServerSubLevel
                 container.addForceLoadTicket(body!!, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
                 helper.runAfterDelay(10) {
+                    val main =
+                        body!!
+                            .plot.loadedChunks
+                            .flatMap { it.chunk.blockEntities.values }
+                            .filterIsInstance<CreativeVectorThrusterBlockEntity>()
+                    for (block in main) {
+                        // Native deadband can hide a residual digital command while in NORMAL mode.
+                        block.setControlMode(
+                            dev.propulsionteam.propulsionsimulated.content.thruster.AbstractThrusterBlockEntity.ControlMode.PERIPHERAL,
+                        )
+                        block.setDigitalInput(0.001f)
+                        block.setDigitalInput(0.00005f)
+                        block.setDigitalInput(0.0f)
+                        helper.assertTrue(block.power > 0.0f, "Native input deadband fixture did not reproduce")
+                        block.setControlMode(
+                            dev.propulsionteam.propulsionsimulated.content.thruster.AbstractThrusterBlockEntity.ControlMode.NORMAL,
+                        )
+                        block.setRedstoneInput(0)
+                    }
                     drive = RocketDrive(body!!, true)
+                    helper.assertTrue(main.all { it.power == 0.0f }, "Reacquiring control restored a residual main-engine command")
                     expectedVelocity =
                         AutopilotSession.vector(SubLevelPhysicsSystem.require(level).getPhysicsHandle(body!!).getLinearVelocity(Vector3d()))
                     run()

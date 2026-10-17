@@ -136,7 +136,8 @@ internal class FlatOrbitalMission(
         state: CartesianState,
         target: Vector3,
         tolerance: Double = 0.5,
-    ) = (state.position - target).length() < tolerance && state.velocity.length() < 0.25
+        speedTolerance: Double = 0.25,
+    ) = (state.position - target).length() < tolerance && state.velocity.length() < speedTolerance
 
     override fun requestLanding() {
         require(phase == Phase.COAST) { "Wait for free coast before requesting return" }
@@ -146,7 +147,9 @@ internal class FlatOrbitalMission(
 
     override fun tick(pilot: ServerPlayer?): Boolean {
         require(!closed && pilot != null && pilot.isAlive) { "Pilot unavailable" }
-        check(++ticks < 16000) { "Finite-body mission timed out: $phase" }
+        check(++ticks < (16000 * kotlin.math.sqrt(org.cbi.orbitalis.core.planet.FlatPlanetDefinition.SCALE)).toInt()) {
+            "Finite-body mission timed out: $phase"
+        }
         check(transfer.error == null) { "Transfer stopped: ${transfer.error}" }
         if (phase == Phase.TRANSFER) {
             if (transfer.busy) {
@@ -169,7 +172,10 @@ internal class FlatOrbitalMission(
         require(!SubLevelPhysicsSystem.require(body.level).paused) { "Native physics paused outside handoff" }
         body.level.resetEmptyTime()
         val s = state()
-        require(s.velocity.length() < 220.0 && s.position.length() < 10000.0) { "Outside tested mission envelope" }
+        require(
+            s.velocity.length() < 220.0 * kotlin.math.sqrt(org.cbi.orbitalis.core.planet.FlatPlanetDefinition.SCALE) &&
+                s.position.length() < maxOf(10000.0, FlatPlanetSpace.HALF_SIZE * 4.0),
+        ) { "Outside tested mission envelope" }
         when (phase) {
             Phase.PLANNING -> {
                 if (!planning.isDone) return false
@@ -182,12 +188,7 @@ internal class FlatOrbitalMission(
             }
 
             Phase.ASCENT -> {
-                if (s.position.y >= FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.PRELOAD_HEIGHT) {
-                    preload.update(
-                        checkNotNull(pilot.server.getLevel(FlatPlanetSpace.SPACE)),
-                        FlightSpaceCoordinates.localPosition(FlatPlanetSpace.SPACE, s.position),
-                    )
-                }
+                preload.approach(body.level, s.position, s.velocity)
                 drive(OrbitalGuidance.point(s, aboveHome, 60.0))
                 if (s.position.y >= FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ASCENT_HEIGHT) prepare(Phase.CLIMB)
             }
@@ -236,15 +237,21 @@ internal class FlatOrbitalMission(
             }
 
             Phase.RETURN -> {
-                if (!braking && s.position.y > 850.0 && abs(s.position.x) < 350.0 && abs(s.position.z) < 100.0) braking = true
+                if (!braking && s.position.y > FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ORBIT_HEIGHT * 0.85 &&
+                    abs(s.position.x) < FlatPlanetSpace.HALF_SIZE * 0.35 &&
+                    abs(s.position.z) < FlatPlanetSpace.HALF_SIZE * 0.1
+                ) {
+                    braking = true
+                }
                 if (braking) {
                     drive(OrbitalGuidance.point(s, aboveHome, 60.0))
-                    if (near(s, aboveHome, 1.0)) enter(Phase.DESCENT)
+                    // This is a high-altitude approach corridor, not the final landing target.
+                    if (near(s, aboveHome, 5.0, 1.0)) enter(Phase.DESCENT)
                 }
             }
 
             Phase.DESCENT -> {
-                preload.update(pilot.server.overworld(), s.position)
+                preload.approach(body.level, s.position, s.velocity)
                 drive(OrbitalGuidance.descent(s, site.position))
                 if (s.position.y <= FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.DESCENT_HEIGHT) prepare(Phase.APPROACH)
             }

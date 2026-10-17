@@ -107,7 +107,7 @@ internal class AutopilotSession(
         allocation = hover
         // No engine is touched until every preflight check succeeds.
         for (e in engines) {
-            e.block.setDigitalInput(0.0f)
+            NativeThrusterInput.clear(e.block)
             e.block.setControlMode(AbstractThrusterBlockEntity.ControlMode.PERIPHERAL)
         }
     }
@@ -147,7 +147,7 @@ internal class AutopilotSession(
         val goal = FlightSpaceCoordinates.globalPosition(body.level, target)
         for (p in listOf(global, goal)) {
             require(
-                FlatPlanetSpace.contains(body.level) && p.length() < 10000 &&
+                FlatPlanetSpace.contains(body.level) && p.length() < maxOf(10000.0, FlatPlanetSpace.HALF_SIZE * 4.0) &&
                     (body.level.dimension() == FlatPlanetSpace.SPACE || p.y >= minimum),
             ) { "Outside finite-body flight envelope" }
         }
@@ -194,7 +194,7 @@ internal class AutopilotSession(
         val torque = inertia.transform(joml(demand.angularAcceleration), Vector3d())
         torque.add(Vector3d(omega).cross(inertia.transform(omega, Vector3d())))
         allocation = ThrusterAllocation.solve(actuators(), vector(force), vector(torque), lever())
-        for (i in engines.indices) engines[i].block.setDigitalInput(allocation.throttle[i].toFloat())
+        for (i in engines.indices) NativeThrusterInput.set(engines[i].block, allocation.throttle[i].toFloat())
     }
 
     fun status(): String =
@@ -215,7 +215,7 @@ internal class AutopilotSession(
         closed = true
         for (e in engines) {
             if (e.block.isRemoved) continue
-            e.block.setDigitalInput(0.0f)
+            NativeThrusterInput.clear(e.block)
             e.block.setRedstoneInput(0)
             e.block.setControlMode(AbstractThrusterBlockEntity.ControlMode.NORMAL)
             e.block.dirtyThrust()

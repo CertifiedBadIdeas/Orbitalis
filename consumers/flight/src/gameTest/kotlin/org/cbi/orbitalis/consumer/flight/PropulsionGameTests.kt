@@ -73,7 +73,10 @@ internal fun onFinished(
             override fun testFailed(
                 test: GameTestInfo,
                 runner: GameTestRunner,
-            ) = cleanup()
+            ) {
+                test.error?.printStackTrace()
+                cleanup()
+            }
 
             override fun testAddedForRerun(
                 test: GameTestInfo,

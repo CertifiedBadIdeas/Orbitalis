@@ -29,6 +29,7 @@ import dev.ryanhcode.sable.sublevel.ServerSubLevel
 import dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem
 import net.minecraft.core.Direction
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
 import org.joml.Quaterniond
@@ -59,7 +60,7 @@ internal class RocketDrive(
 
     private val engines = mutableListOf<Engine>()
     private var closed = false
-    private var nose = Vector3(0.0, 1.0, 0.0)
+    private var nose = AutopilotSession.vector(body.logicalPose().orientation().transform(Vector3d(0.0, 1.0, 0.0)))
     private var allocation: RocketGimbalAllocation.Result? = null
     private var ticks = 0
     private var previousTurn: Vector3? = null
@@ -113,7 +114,7 @@ internal class RocketDrive(
         }
         // Ownership changes only after the entire layout and every manual input passed preflight.
         for (engine in engines) {
-            engine.block.setDigitalInput(0.0f)
+            NativeThrusterInput.clear(engine.block)
             engine.block.setControlMode(AbstractThrusterBlockEntity.ControlMode.PERIPHERAL)
         }
     }
@@ -138,9 +139,9 @@ internal class RocketDrive(
         val gravity = SableFlightGravity.acceleration(body.level, AutopilotSession.position(body))
         val thrust = netAcceleration - gravity
         if (desiredNose != null) {
-            nose = desiredNose.normalized()
+            nose = RocketAttitude.advance(nose, desiredNose, 0.25 * 0.05)
         } else if (thrust.length() >= 0.3) {
-            nose = thrust.normalized()
+            nose = RocketAttitude.advance(nose, thrust, 0.25 * 0.05)
         }
         val rate = if (trackDirection) directionRate(nose) else Vector3.ZERO
         apply(thrust, nose, targetRate = rate)
@@ -172,7 +173,12 @@ internal class RocketDrive(
         val pose = body.logicalPose()
         val omega = pose.orientation().transformInverse(handle.getAngularVelocity(Vector3d()), Vector3d())
         val global = FlightSpaceCoordinates.globalPosition(body.level, AutopilotSession.position(body))
-        require(global.length() < 10000.0 && handle.getLinearVelocity(Vector3d()).length() < 220.0 && omega.length() < 2.0) {
+        require(
+            global.length() < maxOf(10000.0, FlatPlanetSpace.HALF_SIZE * 4.0) &&
+                handle.getLinearVelocity(Vector3d()).length() <
+                220.0 * kotlin.math.sqrt(org.cbi.orbitalis.core.planet.FlatPlanetDefinition.SCALE) &&
+                omega.length() < 2.0,
+        ) {
             "Rocket left the tested flight envelope: position=$global velocity=${handle.getLinearVelocity(Vector3d())} angular=$omega"
         }
         for (engine in engines) {
@@ -183,7 +189,7 @@ internal class RocketDrive(
                 engine.capacity = block.currentThrust / effective / PropulsionConfig.getThrustUnitsPerKnOrDefault()
             }
         }
-        val desired = Quaterniond().rotationTo(Vector3d(0.0, 1.0, 0.0), Vector3d(direction.x, direction.y, direction.z))
+        val desired = RocketAttitude.target(pose.orientation(), direction)
         val error = Quaterniond(pose.orientation()).conjugate().mul(desired).normalize()
         if (error.w < 0.0) error.mul(-1.0)
         val sine = sqrt(error.x * error.x + error.y * error.y + error.z * error.z)
@@ -203,11 +209,11 @@ internal class RocketDrive(
         val result = RocketGimbalAllocation.solve(layout(selected), AutopilotSession.vector(localForce), AutopilotSession.vector(torque))
         allocation = result
         ticks++
-        if (orientationOnly) engines.filter { it.main }.forEach { it.block.setDigitalInput(0.0f) }
+        if (orientationOnly) engines.filter { it.main }.forEach { NativeThrusterInput.set(it.block, 0.0f) }
         selected.forEachIndexed { i, engine ->
             val input = result.inputs[i]
             if (engine.main) (engine.block as RocketSteering).setRocketVector(input.vectorX.toFloat(), input.vectorY.toFloat())
-            engine.block.setDigitalInput(input.throttle.toFloat())
+            NativeThrusterInput.set(engine.block, input.throttle.toFloat())
             if (ticks % 5 == 0) engine.block.notifyUpdate()
         }
     }
@@ -229,7 +235,7 @@ internal class RocketDrive(
         for (engine in engines) {
             val block = engine.block
             if (block.isRemoved) continue
-            block.setDigitalInput(0.0f)
+            NativeThrusterInput.clear(block)
             if (engine.main) (block as RocketSteering).clearRocketVector()
             block.setControlMode(AbstractThrusterBlockEntity.ControlMode.NORMAL)
             block.dirtyThrust()

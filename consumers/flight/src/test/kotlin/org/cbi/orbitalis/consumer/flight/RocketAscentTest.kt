@@ -73,6 +73,47 @@ class RocketAscentTest {
             assertTrue((before.state.velocity - after.state.velocity).length() < 1e-7)
             assertTrue((before.acceleration - after.acceleration).length() < 1e-7)
             assertTrue(after.state.velocity.y < -5.0, "Approach must not stop at a waypoint")
+            var previous: Vector3? = null
+            var time = 0.0
+            while (time <= path.duration) {
+                val sample = path.at(time)
+                val thrust = sample.acceleration - field.acceleration(sample.state.position)
+                assertTrue(thrust.length() <= 25.0)
+                val old = previous
+                if (old != null && old.length() > 1.0 && thrust.length() > 1.0) {
+                    val rate = kotlin.math.acos(old.normalized().dot(thrust.normalized()).coerceIn(-1.0, 1.0)) / 0.25
+                    assertTrue(rate < 0.15, "Return exceeds the reserved attitude rate at $time for $home")
+                }
+                previous = thrust
+                time += 0.25
+            }
+        }
+    }
+
+    @Test fun tenKilometreAscentAndUpperReturnRemainWithinEngineAuthority() {
+        val scaled =
+            org.cbi.orbitalis.core.planet.FlatPlanetDefinition
+                .gravity(11.0)
+        val orbit = BallisticOrbit.plan(scaled, 5000.0)
+        for (home in listOf(Vector3(0.5, 29.0, 0.5), Vector3(800.5, 89.0, 500.5))) {
+            val course = RocketCourse(orbit, RocketCourse.launchAxis(home))
+            val ascent = RocketAscent.plan(scaled, course, CartesianState(home + Vector3(0.0, 10.0, 0.0), Vector3(0.0, 6.0, 0.0)), 60.0)
+            assertTrue(
+                ascent.path
+                    .at(ascent.path.duration)
+                    .state.position.y >= 4064.0,
+                "Ascent joined the low descending orbit arc",
+            )
+            val upper =
+                (80..98)
+                    .map { course.stateAt(orbit.period * it / 100.0) }
+                    .first { it.position.y > 4000.0 && it.velocity.y > 0.0 }
+            val returning = RocketReturn.plan(scaled, upper, home, 60.0)
+            assertTrue(
+                returning.braking
+                    .at(returning.braking.duration)
+                    .state.position.y > 3064.0,
+            )
         }
     }
 }

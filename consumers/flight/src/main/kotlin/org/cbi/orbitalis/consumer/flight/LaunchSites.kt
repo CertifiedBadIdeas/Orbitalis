@@ -26,6 +26,7 @@ import net.minecraft.server.MinecraftServer
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.saveddata.SavedData
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.joml.Quaterniond
 import java.util.UUID
 import kotlin.math.abs
@@ -46,7 +47,8 @@ internal class LaunchSites : SavedData() {
             val heights = -64.0..384.0
             require(
                 savedAttitude.isFinite && position.x.isFinite() && position.y.isFinite() && position.z.isFinite() &&
-                    abs(savedAttitude.lengthSquared() - 1) <= 1e-6 && abs(position.x) <= 1800 && abs(position.z) <= 1800 &&
+                    abs(savedAttitude.lengthSquared() - 1) <= 1e-6 && abs(position.x) <= FlatPlanetSpace.LAUNCH_LIMIT &&
+                    abs(position.z) <= FlatPlanetSpace.LAUNCH_LIMIT &&
                     position.y in heights,
             ) { "Launch site outside the supported surface bounds" }
         }

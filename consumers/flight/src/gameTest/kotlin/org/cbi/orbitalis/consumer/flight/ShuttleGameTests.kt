@@ -165,7 +165,7 @@ object ShuttleGameTests {
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 300, batch = "overworld_assembly")
     fun nativeOverworldAssembly(helper: GameTestHelper) {
         val level = helper.level.server.overworld()
-        helper.assertTrue(level.worldBorder.size == 2000.0, "Overworld border was not initialized")
+        helper.assertTrue(level.worldBorder.size == FlatPlanetSpace.HALF_SIZE * 2.0, "Overworld border was not initialized")
         val shuttle = Shuttle(helper, level, BlockPos(600, 180, 8))
         var attempts = 0
 
@@ -260,10 +260,10 @@ object ShuttleGameTests {
         val points =
             listOf(
                 Vector3(0.0, 240.0, 0.0),
-                Vector3(500.0, 240.0, 0.0),
-                Vector3(500.0, 500.0, 0.0),
-                Vector3(500.0, 1064.0, 0.0),
-                Vector3(500.0, 5160.0, 0.0),
+                Vector3(FlatPlanetSpace.HALF_SIZE * 0.5, 240.0, 0.0),
+                Vector3(FlatPlanetSpace.HALF_SIZE * 0.5, (320.0 + FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ASCENT_HEIGHT) * 0.5, 0.0),
+                Vector3(FlatPlanetSpace.HALF_SIZE * 0.5, FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ORBIT_HEIGHT, 0.0),
+                Vector3(FlatPlanetSpace.HALF_SIZE * 0.5, 4096.0 + FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ORBIT_HEIGHT, 0.0),
             )
         val measured = mutableListOf<Vector3>()
 

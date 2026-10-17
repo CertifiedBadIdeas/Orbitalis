@@ -73,7 +73,7 @@ internal class RocketMission(
     override val stage get() = phase.name
     private val field = SableFlightGravity.flatField(body.level)
     private val preload = ShipDestinationPreload()
-    private val planning = CompletableFuture.supplyAsync { BallisticOrbit.plan(field, 900.0, 32.0) }
+    private val planning = CompletableFuture.supplyAsync { BallisticOrbit.plan(field, FlatPlanetSpace.ORBIT_HEIGHT, 32.0) }
     private var connectionPlanning: CompletableFuture<*>? = null
     private lateinit var course: RocketCourse
     private lateinit var ascent: RocketAscent
@@ -151,7 +151,9 @@ internal class RocketMission(
         if (referenceThrust.length() > 1.5) {
             engine().update(sample.acceleration + feedback, referenceThrust, true)
         } else {
-            engine().update(sample.acceleration + feedback)
+            val corrective = sample.acceleration + feedback - field.acceleration(s.position)
+            val direction = if (corrective.length() > 1.0) corrective else sample.state.velocity
+            engine().update(sample.acceleration + feedback, direction, true)
         }
     }
 
@@ -162,7 +164,9 @@ internal class RocketMission(
 
     override fun tick(pilot: ServerPlayer?): Boolean {
         require(!closed && pilot != null && pilot.isAlive) { "Pilot unavailable" }
-        check(++ticks < 16000) { "Rocket mission timed out: $phase" }
+        check(++ticks < (16000 * kotlin.math.sqrt(org.cbi.orbitalis.core.planet.FlatPlanetDefinition.SCALE)).toInt()) {
+            "Rocket mission timed out: $phase"
+        }
         check(transfer.error == null) { "Transfer stopped: ${transfer.error}" }
         if (phase == Phase.TRANSFER) {
             if (transfer.busy) {
@@ -186,7 +190,10 @@ internal class RocketMission(
         require(!SubLevelPhysicsSystem.require(body.level).paused) { "Native physics paused outside handoff" }
         body.level.resetEmptyTime()
         val s = state()
-        require(s.velocity.length() < 220.0 && s.position.length() < 10000.0) { "Rocket left the tested envelope" }
+        require(
+            s.velocity.length() < 220.0 * kotlin.math.sqrt(org.cbi.orbitalis.core.planet.FlatPlanetDefinition.SCALE) &&
+                s.position.length() < maxOf(10000.0, FlatPlanetSpace.HALF_SIZE * 4.0),
+        ) { "Rocket left the tested envelope" }
         when (phase) {
             Phase.PLANNING -> {
                 if (!planning.isDone) return false
@@ -215,16 +222,13 @@ internal class RocketMission(
 
             Phase.ASCENT -> {
                 clock += 0.05
-                if (s.position.y >=
-                    464.0
-                ) {
-                    preload.update(
-                        checkNotNull(pilot.server.getLevel(FlatPlanetSpace.SPACE)),
-                        FlightSpaceCoordinates.localPosition(FlatPlanetSpace.SPACE, s.position),
-                    )
-                }
+                preload.approach(body.level, s.position, s.velocity)
                 if (clock <= ascent.path.duration) follow(ascent.path.at(clock)) else enter(Phase.CAPTURE)
-                if (body.level.dimension() == Level.OVERWORLD && s.position.y >= 664.0) prepare(Phase.ASCENT)
+                if (body.level.dimension() == Level.OVERWORLD &&
+                    s.position.y >= FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ASCENT_HEIGHT
+                ) {
+                    prepare(Phase.ASCENT)
+                }
             }
 
             Phase.CAPTURE -> {
@@ -232,6 +236,11 @@ internal class RocketMission(
                 val ref = course.stateAt(ascent.orbitPhase + clock - ascent.path.duration)
                 val error = (ref.position - s.position).length()
                 val velocityError = (ref.velocity - s.velocity).length()
+                if (ticks % 200 ==
+                    0
+                ) {
+                    println("ORBITALIS_ROCKET_CAPTURE positionError=$error velocityError=$velocityError ${engine().status()}")
+                }
                 follow(RocketConnection.Sample(ref, field.acceleration(ref.position)))
                 if (error < 1.5 && velocityError < 0.4) settled++ else settled = 0
                 if (settled >= 10) {
@@ -266,7 +275,9 @@ internal class RocketMission(
                 coastAngle += OrbitalGuidance.angleStep(angle, current)
                 angle = current
                 if (phase == Phase.COAST && coastAngle >= 2 * PI) enter(Phase.RETURN)
-                if (phase == Phase.RETURN && coastAngle >= 2 * PI && s.position.y > 700.0 && s.position.dot(course.axis) < 0.0 &&
+                if (phase == Phase.RETURN && coastAngle >= 2 * PI &&
+                    s.position.y > FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ORBIT_HEIGHT * 0.7 &&
+                    s.position.dot(course.axis) < 0.0 &&
                     s.velocity.dot(course.axis) > 0.0
                 ) {
                     enter(Phase.FLIP)
@@ -292,8 +303,10 @@ internal class RocketMission(
                     returning = connectionPlanning!!.join() as RocketReturn.Path
                 }
                 follow(checkNotNull(returning).at(clock))
-                if (s.position.y <= 664.0) preload.update(pilot.server.overworld(), s.position)
-                if (body.level.dimension() == FlatPlanetSpace.SPACE && s.position.y <= 464.0) {
+                preload.approach(body.level, s.position, s.velocity)
+                if (body.level.dimension() == FlatPlanetSpace.SPACE &&
+                    s.position.y <= FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.DESCENT_HEIGHT
+                ) {
                     prepare(Phase.BRAKE)
                 } else if (clock >= checkNotNull(returning).duration) {
                     enter(Phase.APPROACH)
