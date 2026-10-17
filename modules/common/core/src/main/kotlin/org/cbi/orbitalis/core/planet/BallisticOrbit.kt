@@ -46,11 +46,14 @@ class BallisticOrbit private constructor(
         /** Bounded pure computation. Call off the game thread and cache for an unchanged field. */
         fun plan(
             field: SurfaceGravityLayer,
-            altitude: Double = 1000.0,
+            altitude: Double = field.body.halfWidth,
             clearance: Double = 32.0,
             diagonal: Boolean = false,
         ): BallisticOrbit {
-            require(altitude.isFinite() && altitude in 800.0..1200.0 && clearance.isFinite() && clearance >= 0.0)
+            require(
+                altitude.isFinite() && altitude in (field.body.halfWidth * 0.8)..(field.body.halfWidth * 1.2) && clearance.isFinite() &&
+                    clearance >= 0.0,
+            )
             require(!diagonal || field.body.halfWidth == field.body.halfDepth) { "Diagonal meridian requires a square body" }
             val start = Vector3(0.0, field.body.halfHeight + altitude, 0.0)
             val direction = if (diagonal) Vector3(1.0, 0.0, 1.0).normalized() else Vector3(1.0, 0.0, 0.0)
@@ -65,10 +68,19 @@ class BallisticOrbit private constructor(
 
             fun shoot(speed: Double): Shot? {
                 var state = CartesianState(start, direction * speed)
-                repeat(15000) { index ->
+                repeat(
+                    kotlin.math
+                        .ceil(15000.0 * sqrt(field.body.halfWidth / 1000.0))
+                        .toInt()
+                        .coerceIn(15000, 75000),
+                ) { index ->
                     val previous = state
                     state = advance(field, state, dt)
-                    if (clearance(field.body, state.position) < clearance || state.position.length() > 40000.0) return null
+                    if (clearance(field.body, state.position) < clearance ||
+                        state.position.length() > maxOf(40000.0, field.body.halfWidth * 40.0)
+                    ) {
+                        return null
+                    }
                     val before = previous.position.dot(direction)
                     val after = state.position.dot(direction)
                     if (after <= 0.0) {

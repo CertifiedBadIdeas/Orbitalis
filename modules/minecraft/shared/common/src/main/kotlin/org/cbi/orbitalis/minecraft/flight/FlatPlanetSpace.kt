@@ -22,8 +22,8 @@ import net.minecraft.core.registries.Registries
 import net.minecraft.resources.ResourceKey
 import net.minecraft.resources.ResourceLocation
 import net.minecraft.world.level.Level
+import org.cbi.orbitalis.core.planet.FlatPlanetDefinition
 import org.cbi.orbitalis.core.planet.FlatPlanetFrame
-import org.cbi.orbitalis.core.planet.RectangularGravity
 import org.cbi.orbitalis.core.planet.SurfaceGravityLayer
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.surface.FlatOverworld
@@ -31,16 +31,14 @@ import org.cbi.orbitalis.minecraft.surface.FlatOverworld
 /** Ordinary surface and the sole orbital frame. */
 object FlatPlanetSpace {
     val SPACE: ResourceKey<Level> = ResourceKey.create(Registries.DIMENSION, ResourceLocation.fromNamespaceAndPath("orbitalis", "space"))
-    const val SEA_LEVEL = 64.0
+    const val SEA_LEVEL = FlatPlanetDefinition.SEA_LEVEL
     const val HALF_SIZE = FlatOverworld.SIZE / 2.0
     const val LAUNCH_LIMIT = HALF_SIZE - 40.0
-    const val PRELOAD_HEIGHT = 400.0
-    const val ASCENT_HEIGHT = 600.0
-    const val DESCENT_HEIGHT = 400.0
-    const val ORBIT_HEIGHT = 1000.0
+    const val ASCENT_HEIGHT = FlatPlanetDefinition.ASCENT_HEIGHT
+    const val DESCENT_HEIGHT = FlatPlanetDefinition.DESCENT_HEIGHT
+    const val ORBIT_HEIGHT = FlatPlanetDefinition.ORBIT_HEIGHT
 
-    fun gravityField(surfaceGravity: Double): SurfaceGravityLayer =
-        SurfaceGravityLayer(RectangularGravity(HALF_SIZE, SEA_LEVEL, HALF_SIZE, surfaceGravity), surfaceGravity)
+    fun gravityField(surfaceGravity: Double): SurfaceGravityLayer = FlatPlanetDefinition.gravity(surfaceGravity)
 
     fun contains(level: Level): Boolean = level.dimension() == Level.OVERWORLD || level.dimension() == SPACE
 }

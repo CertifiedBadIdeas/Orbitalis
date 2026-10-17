@@ -18,9 +18,9 @@ limitations under the License.
 
 # Finite flat surface
 
-The first playable surface is the normal Overworld. Its default square border is 2000 blocks wide,
-centred at X=0/Z=0: planes at -1000 and +1000. Native Minecraft terrain generation, height limits,
-gravity, placement, fluids, block entities and mod connections apply. This avoids face seams and
+The first playable surface is the normal Overworld. Its default square border is 10,000 blocks wide,
+centred at X=0/Z=0: planes at -5000 and +5000. Native Minecraft terrain generation, height limits,
+placement, fluids, block entities and mod connections apply. This avoids face seams and
 per-mod coordinate adapters. No Sable construction represents the ground.
 
 Create a new world. The previous cube and `planet_lab` are retired; no cube commands, chart code,
@@ -29,12 +29,13 @@ but this version does not migrate or support playing old cube saves. Git retains
 
 ## Border authority and persistence
 
-After server startup, `FlatOverworld.initialize` installs centre (0,0) and size 2000 only when the
+After server startup, `FlatOverworld.initialize` installs centre (0,0) and size 10,000 only when the
 Overworld's `data/orbitalis_flat_surface.dat` initialization marker is absent. Its payload is a
-compound with integer `Version=1`. The marker contains no copy of border size or centre. Native
+compound with integer `Version=2`. The marker contains no copy of border size or centre. Native
 world data saves the actual settings. Administrator `/worldborder` edits survive subsequent starts.
-Any readable existing marker, including an unknown version or malformed fields, means initialization
-already happened: leave native settings unchanged and do not rewrite that marker. Deleting the marker
+A version-one marker with the exact stationary default border (2000 wide, centred at zero)
+upgrades to 10,000 and version two. Customized version-one borders keep their native settings and
+upgrade only the marker. Unknown versions or malformed fields mean initialization already happened: leave native settings unchanged and do not rewrite that marker. Deleting the marker
 explicitly opts back into default initialization. A completely corrupt/unreadable SavedData file follows
 Minecraft's native missing-data handling. This is not a migration scheme for old experimental saves.
 
@@ -51,13 +52,12 @@ world-data authority in this stage; their default is Minecraft's large border on
 
 ## Flight and next work
 
-The Overworld now has its own low [finite-body orbital route](flat-gravity.md). Ordinary player,
-block and fluid behavior stays native; construction gravity stays native through Y=320 and transitions
+The Overworld now has its own low [finite-body orbital route](flat-gravity.md). Block and fluid behavior stays native; player and construction gravity stay vertical through Y=320 and transition
 to the finite-body field above it. The former diagnostic flight dimensions and their commands are removed; old save directories
 are preserved. Live terrain imaging, seamless ship preloading and general edge/underside travel
 remain future work.
 
 Run `:v1_21_1-neoforge:runGameTestServer` for surface boundary, marker persistence, border delegation,
 packet recipient isolation, ordinary ship forces, full-space orbit and durable transfer recovery.
-Use `-PorbitalisGameTestSuite=surface` for the three surface scenarios alone. A headless test does
+Use `-PorbitalisGameTestSuite=surface` for the nine border, preload, void-floor and player-motion scenarios. A headless test does
 not establish visual correctness; inspect a new world and `/worldborder get` in an interactive client.

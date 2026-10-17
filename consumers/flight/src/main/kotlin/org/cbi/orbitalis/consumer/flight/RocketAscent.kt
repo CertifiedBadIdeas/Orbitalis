@@ -109,10 +109,13 @@ internal data class RocketAscent(
             maximumThrust: Double,
         ): RocketAscent {
             require(maximumThrust.isFinite() && maximumThrust >= 25.0)
-            for (duration in 24..64 step 4) {
+            for (duration in 24..(96.0 * kotlin.math.sqrt(field.body.halfWidth / 1000.0)).toInt() step 4) {
                 for (phaseFraction in listOf(0.08, 0.10, 0.12, 0.14, 0.16, 0.18, 0.20)) {
                     val phase = course.orbit.period * phaseFraction
                     val target = course.stateAt(phase)
+                    val crown = course.orbit.initial.position.y - field.body.halfHeight
+                    // Join in the weak exterior field, not on a steep low-altitude descending arc.
+                    if (target.position.y < field.body.halfHeight + maxOf(field.fullHeight + 100.0, crown * 0.8)) continue
                     val path =
                         RocketConnection(
                             initial,
@@ -122,20 +125,21 @@ internal data class RocketAscent(
                             duration.toDouble(),
                         )
                     var safe = true
-                    var space = initial.position.y >= 664.0
+                    var space = initial.position.y >= field.body.halfHeight + field.fullHeight
                     var previous: Vector3? = null
                     var t = 0.0
                     while (t <= duration && safe) {
                         val sample = path.at(t)
                         val p = sample.state.position
                         val thrust = sample.acceleration - field.acceleration(p)
-                        if (p.y >= 664.0) space = true
+                        if (p.y >= field.body.halfHeight + field.fullHeight) space = true
                         safe = p.y >= initial.position.y - 0.1 && p.y <= course.orbit.initial.position.y + 150.0 &&
-                            sample.state.velocity.length() < 180.0 && thrust.length() <= maximumThrust * 0.8 &&
-                            (space || (abs(p.x) < 980.0 && abs(p.z) < 980.0))
+                            sample.state.velocity.length() < 180.0 * kotlin.math.sqrt(field.body.halfWidth / 1000.0) &&
+                            thrust.length() <= minOf(maximumThrust * 0.6, 25.0) &&
+                            (space || (abs(p.x) < field.body.halfWidth - 20.0 && abs(p.z) < field.body.halfDepth - 20.0))
                         val old = previous
                         if (old != null && old.length() > 1.0 && thrust.length() > 1.0) {
-                            safe = safe && acos(old.normalized().dot(thrust.normalized()).coerceIn(-1.0, 1.0)) / 0.25 < 0.45
+                            safe = safe && acos(old.normalized().dot(thrust.normalized()).coerceIn(-1.0, 1.0)) / 0.25 < 0.12
                         }
                         if (thrust.length() > 1.0) previous = thrust else previous = null
                         t += 0.25

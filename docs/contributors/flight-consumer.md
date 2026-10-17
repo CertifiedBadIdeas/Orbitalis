@@ -207,7 +207,7 @@ net acceleration is limited to 4 m/s²; these are guidance requests, not guarant
 The adapter rejects active manual inputs, unsupported non-creative thrusters and
 layouts that cannot approximately balance gravity. It supports up to 64 creative engine controllers
 across at most four plot chunks. Control is limited to the Overworld/space pair, positions within
-10000 m of the physical origin and represented COM above local Y=64. `altitude` accepts heights
+20,000 m of the physical origin and represented COM above local Y=64. `altitude` accepts heights
 32..15000, subject to the same position bounds. A single lift engine cannot provide every
 attitude correction: add spaced lift engines and opposing translation engines for more control.
 `status` reports position error and predicted unachievable force/torque. A large residual identifies
@@ -234,13 +234,13 @@ that predates the shuttle replacement and does not establish its appearance, boa
 
 `/orbitalis flight autopilot orbit` starts the [finite-body mission](flat-gravity.md) from Overworld.
 `/orbitalis flight autopilot land` returns to the saved launch site. Assemble on a clear Overworld pad inside the
-first 2000-block footprint, leave manual inputs off and stay on deck with creative flight disabled.
-The target is about 1000 m above sea level; the trajectory circles the finite body and coasts with
+first 10,000-block footprint, leave manual inputs off and stay on deck with creative flight disabled.
+The target is about 5000 m above sea level; the trajectory circles the finite body and coasts with
 engines fully off. Surface gravity remains native through the build ceiling; a conservative
 compatibility layer connects it to the exterior field. The diagnostic 18 km mission and its dimensions have been removed.
 
-The new mission uses pure numerical prediction on a worker, real engine capture, ascent terrain
-preloading from 400 m, an upward handoff at 600 m and downward handoff at 400 m. Its separate space
+The new mission uses pure numerical prediction on a worker, real engine capture, ETA-based destination
+terrain preloading, an upward handoff at 3000 m and downward handoff at 2000 m. Its separate space
 frame uses a 4096-m Y translation for native float precision. Journal staging still pauses physics.
 The launch bookmark codec writes version 2 with an explicit Overworld surface ID. Retired diagnostic
 bookmarks (all version 1, or version 2 naming `flight_test`) are skipped rather than converted; valid
@@ -283,12 +283,13 @@ Then use:
 
 `orbit` detects the vector-engine layout and selects the consumer rocket controller. After a short
 vertical clearance leg it pitches over and accelerates horizontally during ascent, joining a numerically
-predicted finite-body orbit with a 900-metre crown altitude above sea level. The reference crown speed
-is about 72 m/s and the period about 65 seconds; speed and height vary around this nonspherical body.
+predicted finite-body orbit with a 5000-metre crown altitude above sea level. The reference crown speed
+is about 152 m/s and the period about 229 seconds; speed and height vary around this nonspherical body.
 Square-body symmetries select the orbital plane from the launch site. No spherical Kepler formula or
 arbitrary rotation of the near-field gravity model is used.
 
-After capture, the main engines fade and remain off for a full ballistic revolution. Balanced native
+After capture, the main engines fade and remain off for a full ballistic revolution. Native ownership changes clear
+residual Propulsion inputs exactly. Balanced native
 RCS keeps the nose prograde and damps residual roll throughout that coast. The attitude target
 transports the current roll instead of rebuilding an absolute world-UP quaternion, avoiding a roll
 singularity below the planet. Return searches future ballistic states over the next revolution,
@@ -297,7 +298,8 @@ curves by the integral of required thrust acceleration (delta-v); this is a fini
 not proof of a globally optimal fuel solution. Candidates reject crossing past the pad along the orbital
 approach axis and respect thrust, speed and surface-border limits. An attitude rollout shares the live
 nose controller and reserves five degrees inside the engines’ 30-degree gimbal cone; native torque
-and engine interpolation remain authoritative. Off-plane pads can use a separate
+and engine interpolation remain authoritative. Powered nose requests retain the 0.25 rad/s limit
+from the scaled-flight controller. Off-plane pads can use a separate
 moving lateral approach after braking. Every join preserves position, velocity and acceleration;
 there is no stop at an intermediate waypoint. Descent handoff occurs only while descending inside
 the surface footprint. The real vector engines and RCS execute the selected path. Engine slew, gimbal
@@ -330,7 +332,7 @@ at an orbital corner is not mistaken for flying past the landing pad.
 Return trials additionally measure native translational delta-v (velocity changes minus gravity),
 require braking before passing the saved pad and bound along-track overshoot. This translation metric
 is not FE, propellant mass or the summed impulse of balanced RCS couples.
-The 2026-10-17 native comparison measured 527, 530 and 542 m/s for the centre and two off-axis
+Before the 10-kilometre scaling change, the 2026-10-17 native comparison measured 527, 530 and 542 m/s for the centre and two off-axis
 returns, versus 662, 737 and 738 m/s before burn-window planning (20–28% lower). Maximum measured
 along-track overshoot was 5.9 metres. These are three fixture missions, not an arbitrary-terrain or
 global fuel-efficiency guarantee.
@@ -344,3 +346,10 @@ The client log records liftoff, ascent, both dimension handoffs, capture, a full
 retrograde turn, braking and supported landing at the saved pad. The controller disengaged after
 landing. Cabin visibility was insufficient for watching the flight; an external ship camera is a
 separate follow-up. This observation does not establish seated Create passenger support.
+
+The consumer owns digital commands while guidance is active. Propulsion 1.1.5 ignores changes of
+1e-4 or less, so a small positive digital command can survive a zero request, hide under NORMAL
+control and reactivate when PERIPHERAL control returns. `NativeThrusterInput` forces an exact zero
+through two synchronous public setter calls; those calls only dirty native state and run no physics
+between them. The native RCS test reproduces that residual before reacquiring control and requires
+all main engines to remain exactly off throughout the flip. No Propulsion field mixin is added.

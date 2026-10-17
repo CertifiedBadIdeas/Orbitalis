@@ -30,7 +30,7 @@ A single client-only `ClientLevel.effects()` selector supplies NeoForge's native
 extension for this dimension ID. NeoForge owns the hook and effects adapter; shared/common owns the actual sky and body mesh. No Sable
 or Create APIs participate in rendering, and the selector never loads on a dedicated server.
 
-The reference body is a 2000-by-2000-block flat slab, centred at surface X/Z zero, with its top at
+The reference body is a 10,000-by-10,000-block flat slab, centred at surface X/Z zero, with its top at
 surface Y=64 and bottom at Y=-64. Surface Y=64 is the diagnostic reference altitude, not sampled
 Overworld terrain. A deterministic coloured mosaic suggests water, coast and land; side strata and
 the underside make the slab visible from every external direction. This is an illustrative model,
@@ -60,11 +60,11 @@ client world; compilation alone does not demonstrate appearance. Suggested manua
 
 - `/gamemode spectator`, then `/execute in orbitalis:space run tp @s 0 6160 0 0 90`
   shows the surface from physical Y=2064.
-- `/execute in orbitalis:space run tp @s 2400 4512 2400 135 15`
+- `/execute in orbitalis:space run tp @s 6500 10160 6500 135 15`
   shows the top and two sides.
 - `/execute in orbitalis:space run tp @s 0 2032 0 0 -90`
   shows the underside from physical Y=-2064.
 - Compare `/time set noon` and `/time set midnight`: vacuum sky, Sun, body and skylight stay fixed.
-- `/execute in orbitalis:space run tp @s 0 5160 0 0 90` shows the body from 1000 m above sea level
+- `/execute in orbitalis:space run tp @s 0 9160 0 0 90` shows the body from 5000 m above sea level
   through the new low frame.
 - Return to `minecraft:overworld` to confirm the ordinary sky still follows time and weather.

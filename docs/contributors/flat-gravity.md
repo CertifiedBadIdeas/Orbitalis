@@ -18,7 +18,7 @@ limitations under the License.
 
 # Finite-body gravity and low free flight
 
-The first orbital mass model is a stationary homogeneous rectangular body, 2000 x 2000 x 128 m,
+The first orbital mass model is a stationary homogeneous rectangular body, 10,000 x 10,000 x 128 m,
 centred at physical (0,0,0), with its top at sea level Y=64. This is a coarse fixed body, independent
 of terrain edits, ship masses and administrator border changes. It matches the initial surface and
 reference image, not every generated mountain. One block is one metre; velocities use m/s.
@@ -43,7 +43,7 @@ subtraction. Both evaluations represent the same mass integral, not a switch to 
 A finite slab pulls sideways near its edges. `SurfaceGravityLayer` supplies the explicitly artificial
 Minecraft compatibility region: vertical native construction gravity throughout the initial surface
 footprint, from Y=-64 through the full build ceiling Y=320. Above it the field transitions to the
-finite-body field by Y=664 (600 m above sea level). A compact side taper extends 256 m beyond each
+finite-body field by Y=3064 (3000 m above sea level). A compact side taper extends 256 m beyond each
 horizontal boundary; a lower taper ends at Y=-320. Outside that finite region, including distant
 points at sea level, gravity belongs entirely to the finite body. The native region is not an
 infinite gravitating sheet.
@@ -57,8 +57,10 @@ than at the surface, especially outside the lateral wall. Do not independently n
 them: that would change the potential/energy contract. This layer is a gameplay approximation,
 not the gravity of a homogeneous slab in that region.
 
-Players, fluids, block neighbours and other mods' ordinary world coordinates stay native Minecraft.
-Only Sable construction impulses are adapted. `SableFlightGravity` subtracts native base gravity
+Fluids, block neighbours and other mods' ordinary world coordinates stay native Minecraft.
+Sable constructions and players share the exterior mass model. Players retain 32 m/s² near
+the ground for native Minecraft jumps, independently of native construction strength; their
+conservative compatibility layer joins the same exterior field by ascent altitude. `SableFlightGravity` subtracts native base gravity
 rather than counting it twice; an exactly zero correction is skipped to avoid waking resting ships.
 The new force correction is split before/after each native substep. In vacuum this gives the external
 field symmetric kicks around Sable's own drift; Sable still owns positions, collisions, mass, sleeping
@@ -71,7 +73,7 @@ Near-field trajectories are not Kepler ellipses. Angular momentum need not be co
 field is not central; energy is `v^2/2 + Phi`. Negative energy alone does not establish a safe orbit:
 a bound trajectory can intersect the body or its intended clearance envelope.
 
-`BallisticOrbit` numerically shoots a periodic meridian from a point 1000 m above sea level,
+`BallisticOrbit` numerically shoots a periodic meridian from a point 5000 m above sea level,
 using velocity Verlet in the predictor. It rejects collisions, insufficient clearance, failure to
 close and excessive prediction energy error. Axial and square-diagonal meridians are covered;
 this is not a general arbitrary-inclination orbit planner or a guarantee of long-term stability.
@@ -86,10 +88,10 @@ and descends. The final metre is an engines-off settling phase; native terrain m
 
 Ordinary Overworld uses a separate `orbitalis:space` frame. `FlatPlanetFrame` adds 4096 to represented
 Y; axes and velocity are unchanged. The smaller offset preserves more native float precision for
-low orbits. It is a bounded first-body frame, not a floating origin: physical Y below -4032 is outside
-the safe represented Y>=64 region. The former diagnostic frames are removed; old journals are never reinterpreted.
+low orbits. It is a bounded first-body frame, not a floating origin: space has no native terrain void floor, so below-body orbital arcs may have negative represented Y.
+Only orbital below-world removal is suppressed; ordinary damage and surface void rules remain. The former diagnostic frames are removed; old journals are never reinterpreted.
 
-In the flight consumer, assemble a supported ship on a flat clear Overworld pad inside |x|,|z|<=960,
+In the flight consumer, assemble a supported ship on a flat clear Overworld pad inside |x|,|z|<=4960,
 turn manual inputs off, disable creative flight and stand on board. Run:
 
 ```mcfunction
@@ -106,11 +108,15 @@ individual players, including survival. Guidance reserves its own ship so both c
 start the same transfer. An independent player needs no ship or command; passengers on a ship are
 transferred with their vehicle instead of being teleported separately.
 
-On ascent a bounded vanilla terrain ticket starts at physical Y=464 (400 above sea), and transfer
-starts after crossing Y=664 while moving. On descent transfer starts at Y=464, after destination
-terrain preloading. Separate thresholds provide hysteresis. The ticket is released on completion,
-cancellation or failure and has a native timeout. It preloads terrain only: journal staging still
-loads native plot content and temporarily pauses physics. This is not seamless ship preloading.
+Ascent handoff starts at physical Y=3064, return at Y=2064, providing 1000 m hysteresis.
+Heights scale with the shared default footprint. A bounded native destination ticket starts when
+the earliest directed crossing is within a measured load-time budget (initially 5 s, twice the
+observed load duration plus 1 s, bounded to 2–21 s). Successive server samples estimate net vertical
+acceleration, including braking and a possible apex; the horizontal crossing predicts the target
+chunk. Unreachable/out-of-footprint approaches release their tickets. Tickets expire natively and
+are released after travel/cancellation/shutdown. This prepares terrain only: ship reconstruction,
+client bundle readiness and durable native checkpoints still temporarily pause physics. Transfer
+stage timings are logged as `ORBITALIS_TRANSFER_TIMING`; renderer continuity still needs client evidence.
 The orbital sky shows the existing illustrative flat body; it is not a live Overworld map or solid
 space terrain. The predictor/guidance keeps this route clear of that body; general underside landing
 and arbitrary collision with the distant illustration are not implemented.
@@ -138,15 +144,42 @@ an interactive run and are not established by the inert server pilot.
 ## Automatic travel
 
 The server examines loaded constructions first, then independent players. Surface exit starts at
-Y=664 while rising; return starts at physical Y<=464 while descending, above the initial footprint
+Y=3064 while rising; return starts at physical Y<=2064 while descending, above the initial footprint
 and above sea level. The represented space frame adds 4096. Distinct thresholds prevent immediate
 bounce-back. Orbit arcs outside the surface footprint do not become surface entry. Travelling
 entities keep native motion and orientation; dimension travel resets accumulated fall distance.
 
 For approaching ships, bounded timeout tickets preload both source entity chunks and destination
-terrain from Y=464 on ascent / physical Y=664 on descent. Selection waits for source entity chunks
+terrain according to the same ETA policy in both directions. Selection waits for source entity chunks
 to load, so an unloaded cart is not omitted. At most 16 approaches retain paired tickets; tickets are
 released after the approach ends or on server shutdown. Unsupported craft remain at source, with a
 logged reason and a retry delay. This still uses the existing reconstruction journal and pauses:
 it is not a seamless renderer or full ship pre-staging implementation. Independent player travel
 uses native teleport/save behavior rather than creating a ship journal or duplicating player data.
+
+## Player motion and atmosphere
+
+`PlayerGravity` samples the server-selected surface strength, synchronized through the bounded
+`orbitalis:player_gravity` clientbound payload. Movement stays in world coordinates with native
+Minecraft/Sable collisions. Native move-before-gravity integration remains exact at the surface. As the atmosphere fades,
+the player integrator continuously transfers acceleration to symmetric half kicks around native
+travel, becoming velocity Verlet in vacuum. This permits different jump heights/durations as the field changes. Camera orientation
+is independent and unchanged. Water, lava, climbing, levitation and mounted-player movement retain
+their native controllers; the ship/vehicle owns mounted displacement.
+
+The current atmosphere is a compact gameplay approximation: full through Y=320, fading smoothly
+to zero at Y=3064, with 256 m horizontal and lower tapers. Air drag, elytra lift/steering and survival
+air control fade with it. In vacuum an elytra grants no lift or thrust. Creative flight retains its
+controls and gravity exemption, while both horizontal and vertical damping vanish. Tiny vacuum
+velocities are retained rather than rounded to rest every native tick. Ground friction remains.
+This is not a pressure, oxygen or heating simulation.
+
+`orbitalis:flight_motion` orders a tokened capture of the controlling client's velocity before
+native dimension travel and restores it afterward; durable recovery uses the recorded server
+fallback rather than a new login's stationary velocity. Vectors are bounded to 10 km/s. The existing
++4096 coordinate frame and version-four transfer journal schema are unchanged.
+
+Native server movement validation uses its already accepted client movement as a vacuum momentum
+reference (bounded to 10 km/s), retaining speed/collision rejection. Weak-gravity vacuum coast is
+not treated as illegal hovering by the native flight timer. This does not grant survival controls
+or alter the global server flight setting.

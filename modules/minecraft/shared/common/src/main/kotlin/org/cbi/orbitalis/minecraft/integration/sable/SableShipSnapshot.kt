@@ -176,7 +176,11 @@ object SableShipSnapshot {
                     dimension,
                     Vector3(pose.position().x, pose.position().y, pose.position().z),
                 )
-            require(kotlin.math.abs(physical.x) <= 2048 && kotlin.math.abs(physical.z) <= 2048 && physical.y in 64.0..16000.0) {
+            require(
+                kotlin.math.abs(physical.x) <= FlatPlanetSpace.HALF_SIZE + 32.0 &&
+                    kotlin.math.abs(physical.z) <= FlatPlanetSpace.HALF_SIZE + 32.0 &&
+                    physical.y in 64.0..16000.0,
+            ) {
                 "Transfer outside the supported surface patch or altitude range"
             }
             require(pose.position().y >= 64.0) { "Transfer below the safe represented world height" }

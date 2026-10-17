@@ -47,11 +47,11 @@ import kotlin.math.abs
 @PrefixGameTestTemplate(false)
 object RocketGameTests {
     @JvmStatic
-    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 24000, batch = "rocket_mission")
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 40000, batch = "rocket_mission")
     fun nativeRocketRoundTrip(helper: GameTestHelper) = roundTrip(helper, BlockPos(0, 21, 0), false)
 
     @JvmStatic
-    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 24000, batch = "rocket_offaxis")
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 40000, batch = "rocket_offaxis")
     fun nativeRocketOffAxisRoundTrip(helper: GameTestHelper) = roundTrip(helper, BlockPos(800, 81, 500), true)
 
     @JvmStatic
@@ -110,10 +110,14 @@ object RocketGameTests {
         var maximumCoastRateError = 0.0
         var initialEnergy: Double? = null
         var maximumEnergyDrift = 0.0
+        var mainImpulse = 0.0
+        var rcsImpulse = 0.0
+        var angularTravel = 0.0
+        var previousOrientation: org.joml.Quaterniond? = null
         var returnDeltaV = 0.0
         var returnDirection: Vector3? = null
         var maximumPadOvershoot = 0.0
-        val trace = StringBuilder("tick,phase,x,y,z,vx,vy,vz\n")
+        val trace = StringBuilder("tick,phase,x,y,z,vx,vy,vz,nx,ny,nz,mainImpulse,rcsImpulse,angularTravel\n")
         val forced = mutableListOf<Long>()
         for (x in ((origin.x - 7) shr 4)..((origin.x + 7) shr 4)) {
             for (z in ((origin.z - 7) shr 4)..((origin.z + 7) shr 4)) {
@@ -261,9 +265,31 @@ object RocketGameTests {
                     val current =
                         org.cbi.orbitalis.core.planet
                             .CartesianState(p, v)
-                    trace.append("$tick,${active.phase},${p.x},${p.y},${p.z},${v.x},${v.y},${v.z}\n")
+                    val orientation = org.joml.Quaterniond(b.logicalPose().orientation())
+                    val nose = AutopilotSession.vector(orientation.transform(Vector3d(0.0, 1.0, 0.0)))
+                    if (previousWorld == b.level.dimension()) {
+                        previousOrientation?.let {
+                            angularTravel += 2.0 * kotlin.math.acos(kotlin.math.abs(it.dot(orientation)).coerceIn(0.0, 1.0))
+                        }
+                    }
+                    previousOrientation = orientation
+                    // Sum scalar native engine impulse: opposing RCS couples must not cancel.
+                    for (engine in b.plot.loadedChunks
+                        .flatMap { it.chunk.blockEntities.values }
+                        .filterIsInstance<AbstractThrusterBlockEntity>()) {
+                        val impulse =
+                            engine.currentThrust.toDouble() /
+                                dev.propulsionteam.propulsionsimulated.PropulsionConfig
+                                    .getThrustUnitsPerKnOrDefault() *
+                                0.05 /
+                                b.massTracker.mass
+                        if (engine is CreativeVectorThrusterBlockEntity) mainImpulse += impulse else rcsImpulse += impulse
+                    }
+                    trace.append(
+                        "$tick,${active.phase},${p.x},${p.y},${p.z},${v.x},${v.y},${v.z},${nose.x},${nose.y},${nose.z},$mainImpulse,$rcsImpulse,$angularTravel\n",
+                    )
                     maximumHeight = maxOf(maximumHeight, p.y - 64.0)
-                    if (p.y < 464.0 &&
+                    if (p.y < FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.DESCENT_HEIGHT &&
                         active.phase == RocketMission.Phase.ASCENT
                     ) {
                         earlyHorizontal = maxOf(earlyHorizontal, kotlin.math.hypot(v.x, v.z))
@@ -297,9 +323,9 @@ object RocketGameTests {
                     if (active.phase in listOf(RocketMission.Phase.COAST, RocketMission.Phase.RETURN, RocketMission.Phase.FLIP)) {
                         val clearance =
                             Vector3(
-                                maxOf(0.0, abs(p.x) - 1000.0),
+                                maxOf(0.0, abs(p.x) - FlatPlanetSpace.HALF_SIZE),
                                 maxOf(0.0, abs(p.y) - 64.0),
-                                maxOf(0.0, abs(p.z) - 1000.0),
+                                maxOf(0.0, abs(p.z) - FlatPlanetSpace.HALF_SIZE),
                             ).length()
                         minimumClearance = minOf(minimumClearance, clearance)
                         helper.assertTrue(clearance > 32.0, "Rocket's free coast passes too close to the planet: $clearance")
@@ -413,10 +439,16 @@ object RocketGameTests {
                     }
                     helper.assertTrue(freeTicks > 1000, "No complete native engine-off revolution")
                     helper.assertTrue(earlyHorizontal > 2.0, "No horizontal acceleration before ascent handoff")
-                    helper.assertTrue(maximumHeight < 1200.0, "Rocket repeated the high-climb route: $maximumHeight")
+                    helper.assertTrue(
+                        maximumHeight < FlatPlanetSpace.ORBIT_HEIGHT * 1.2,
+                        "Rocket repeated the high-climb route: $maximumHeight",
+                    )
                     helper.assertTrue(maximumStepAcceleration < 180.0, "Rocket motion has an acceleration spike: $maximumStepAcceleration")
                     helper.assertTrue(maximumPadOvershoot < 10.0, "Return flew past the pad by $maximumPadOvershoot metres")
-                    helper.assertTrue(returnDeltaV < 600.0, "Return wasted excessive native delta-v: $returnDeltaV")
+                    helper.assertTrue(
+                        returnDeltaV < 600.0 * org.cbi.orbitalis.core.planet.FlatPlanetDefinition.SCALE,
+                        "Return wasted excessive native delta-v: $returnDeltaV",
+                    )
                     val tracePath =
                         java.nio.file.Path
                             .of("build/agent-logs/rocket-trace-${origin.x}-${origin.z}.csv")
@@ -427,7 +459,8 @@ object RocketGameTests {
                     println(
                         "ORBITALIS_ROCKET_RESULT pad=$origin clearance=$minimumClearance maxHeight=$maximumHeight " +
                             "maxAcceleration=$maximumStepAcceleration earlyHorizontal=$earlyHorizontal " +
-                            "returnDeltaV=$returnDeltaV padOvershoot=$maximumPadOvershoot",
+                            "returnDeltaV=$returnDeltaV padOvershoot=$maximumPadOvershoot " +
+                            "mainImpulse=$mainImpulse rcsImpulse=$rcsImpulse angularTravel=$angularTravel",
                     )
                     helper.succeed()
                     return
@@ -669,7 +702,27 @@ object RocketGameTests {
                 body = created.single() as ServerSubLevel
                 container.addForceLoadTicket(body!!, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
                 helper.runAfterDelay(10) {
+                    val main =
+                        body!!
+                            .plot.loadedChunks
+                            .flatMap { it.chunk.blockEntities.values }
+                            .filterIsInstance<CreativeVectorThrusterBlockEntity>()
+                    for (block in main) {
+                        // Native deadband can hide a residual digital command while in NORMAL mode.
+                        block.setControlMode(
+                            dev.propulsionteam.propulsionsimulated.content.thruster.AbstractThrusterBlockEntity.ControlMode.PERIPHERAL,
+                        )
+                        block.setDigitalInput(0.001f)
+                        block.setDigitalInput(0.00005f)
+                        block.setDigitalInput(0.0f)
+                        helper.assertTrue(block.power > 0.0f, "Native input deadband fixture did not reproduce")
+                        block.setControlMode(
+                            dev.propulsionteam.propulsionsimulated.content.thruster.AbstractThrusterBlockEntity.ControlMode.NORMAL,
+                        )
+                        block.setRedstoneInput(0)
+                    }
                     drive = RocketDrive(body!!, true)
+                    helper.assertTrue(main.all { it.power == 0.0f }, "Reacquiring control restored a residual main-engine command")
                     expectedVelocity =
                         AutopilotSession.vector(SubLevelPhysicsSystem.require(level).getPhysicsHandle(body!!).getLinearVelocity(Vector3d()))
                     run()

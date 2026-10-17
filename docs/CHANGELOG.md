@@ -40,6 +40,12 @@ limitations under the License.
   registry identity and exact staged reconstruction to validate vanilla and modded payloads.
 - Use the same passenger preflight for guidance and transfer, and resolve plot-owned seats as ship
   contact for pilot commands, autopilot continuity and handoff readiness.
+- Scale consumer flight planning and return windows to the new footprint, reserve thrust/steering authority and keep powered attitude changes continuous. Clear residual native Propulsion commands across control ownership changes so RCS-only manoeuvres keep main engines fully off.
+
+- Expand the default flat Overworld and reference mass model to 10,000×10,000 blocks; migrate only the exact old default border and preserve administrator edits. Scale ascent/return altitudes to 3000/2000 m above sea level and nominal orbit altitude to 5000 m.
+- Prepare destination terrain from predicted time to the handoff altitude, using observed loading time plus margin and bounded native tickets. Preserve exact player velocity across dimension teleports and log transfer stage durations.
+- Apply finite-body attraction to players, preserving Minecraft jumps at the surface and weaker attraction far away. Fade player air drag, elytra lift and airborne survival steering out with the atmosphere; preserve creative momentum in vacuum. Remove the artificial terrain void floor only in orbital space.
+
 - Add independent, bounded coast-trajectory prediction using the live finite-body field, a world-space
   path overlay with surface-entry/body markers, operator navigation commands and personal persistent
   surface markers. Keep navball, propulsion and consumer autopilot ownership independent. Add pure

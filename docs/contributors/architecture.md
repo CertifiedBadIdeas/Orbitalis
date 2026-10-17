@@ -37,8 +37,8 @@ Gradle runs on JDK 25, while shared/domain and 1.21.1 code compiles to Java 21.
 | tools | Isolated builds, cache publication, worktree lifecycle and verification | Python, Git and GNU tools |
 
 The surface is an ordinary finite flat Overworld with a native square world border, initially
-2000 by 2000 blocks centred at (0,0). Minecraft and other mods retain normal coordinates, vertical
-gravity, block storage, fluids and neighbour logic. No projection, rotated player frame or Sable
+10,000 by 10,000 blocks centred at (0,0). Minecraft and other mods retain normal coordinates,
+block storage, fluids and neighbour logic. No projection, rotated player frame or Sable
 planet chart is installed. The cube experiment, its dimension `orbitalis:planet_lab`, commands,
 resources and compatibility mixins have been retired. Old save directories are never deleted or
 converted. Start a new world; opening an old cube save with this version is unsupported.
@@ -52,9 +52,12 @@ broadcasts reaching their players. Vanilla Nether/End delegation and recipients 
 
 The sole surface/orbital pair is ordinary Overworld and `orbitalis:space`. `FlatPlanetFrame` adds
 4096 to physical Y, preserving axes and inertial velocity. `SableFlightGravity` applies core
-rectangular-body gravity and a conservative surface compatibility layer to constructions only.
-Ordinary construction gravity remains exact through Y=320 within the initial footprint; players,
-block/fluid logic and native Sable settings are unchanged. The space frame uses the illustrative
+rectangular-body gravity and a conservative surface compatibility layer to constructions and players.
+Gravity is vertical through Y=320 within the initial footprint and finite-body gravity above Y=3064.
+Players retain native jumps with 32 m/s² at the surface; the exterior field shares the ship mass
+model. Native collisions remain, with split field impulses and vacuum inertia above the atmosphere.
+Atmospheric drag and elytra lift fade to zero at ascent altitude; creative flight coasts in vacuum.
+Block/fluid logic and native Sable settings are unchanged. The space frame uses the illustrative
 flat-body [space presentation](space-visuals.md). The former `flight_test`, `orbit_test` and
 `space_test` IDs, their resources and spherical mission have been retired; save directories remain
 untouched. Completed old receipts are ignored; unfinished old transfers require previous-version
@@ -66,7 +69,10 @@ active version-3 records remain readable. `FlatPlanetFrame` owns
 the fixed translation. Common owns native snapshots, exact-motion restoration and the versioned asynchronous
 journal and plot-chunk block-entity tick leases; NeoForge owns startup/tick/interaction wiring and
 a narrow Minecraft ticker hook that honors those leases without loading optional Sable classes.
-A second loader hook exposes vanilla's pending teleport acknowledgment without a custom network protocol.
+A second loader hook exposes vanilla's pending teleport acknowledgment without replacing its
+acknowledgment protocol. Separate clientbound payloads synchronize surface gravity and
+preserve exact local-player velocity across the native respawn/teleport reset. The native short motion
+packet alone clamps each component to about 78 m/s.
 Common owns automatic height triggers, guidance reservations and independent native player travel.
 Source entity chunks are loaded before participant selection. The transfer orders source tracking removal before dimension travel, then waits for the destination ship bundle,
 a subsequent teleport acknowledgment and native deck contact (or available vehicle plus restored

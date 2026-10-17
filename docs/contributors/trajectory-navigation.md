@@ -35,7 +35,7 @@ Use the existing operator command root (permission level 2):
 /orbitalis navigation unmark
 ```
 
-`mark` stores your current Overworld location inside the initial 2000×2000 footprint and Y=-64..320.
+`mark` stores your current Overworld location inside the initial 10,000×10,000 footprint and Y=-64..320.
 Mark your pad before departure. This personal navigation marker is independent of the development
 consumer's autopilot launch bookmark and does not retarget its controller. The marker survives restart;
 the trajectory subscription does not. One marker per player, at most 1024 markers per save.
@@ -51,7 +51,7 @@ trail. Distant vertices preserve viewing direction inside the native far plane.
 
 The forecast omits working engines, native drag, collisions, terrain, hull extent, attitude and other
 constructions. Engine fade can still exert force after cutoff. The reference body is the illustrative
-2000×2000×128 slab, not sampled Overworld terrain or an actual collision surface in space. A dimension handoff preserves the physical position and velocity and does not end the forecast.
+10,000×10,000×128 slab, not sampled Overworld terrain or an actual collision surface in space. A dimension handoff preserves the physical position and velocity and does not end the forecast.
 The optional pure entry diagnostic predicts a height-trigger region, not atmospheric drag, safe
 landing or autopilot transfer reservation behavior. Near the surface,
 the line can therefore extend into terrain before the reference-body warning.

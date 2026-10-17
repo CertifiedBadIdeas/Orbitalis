@@ -64,3 +64,15 @@ and menu input. Fly a complete orbit and return: the camera must reacquire the s
 handoffs, the horizon must follow the hull through the RCS turn, and velocity markers must reverse
 relative to the nose when retrograde. Repeat without Sable to check optional client loading.
 Automated native transfer tests do not establish appearance or real-client passenger handshakes.
+
+## Observed client check (2026-10-17)
+
+In a disposable flight-consumer world, the 13-by-18-block rocket fit in the external view in both
+landscape and portrait windows. F6, F5 exit, mouse orbit, wheel zoom, inventory input and F1 suppression
+were observed. The graduated navball showed readable pitch labels and bank ticks both on the fully
+blue +Y view and the blue/brown +Z horizon. During a real full revolution and landing, the camera
+reacquired the same ship after both dimension handoffs; velocity markers and the hull-relative
+horizon remained visible during the retrograde turn. A separate main-module client reached the title
+screen with only Minecraft, NeoForge and Orbitalis installed, confirming loading without optional Sable.
+Both test clients saved or exited through their normal menus. These observations establish the
+interface behaviour, not the efficiency or smoothness of the consumer's flight guidance.

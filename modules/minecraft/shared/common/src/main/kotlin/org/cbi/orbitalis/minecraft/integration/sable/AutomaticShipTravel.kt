@@ -33,7 +33,6 @@ import org.cbi.orbitalis.minecraft.flight.ShipDestinationPreload
 import org.cbi.orbitalis.minecraft.flight.SpaceTravelReservations
 import org.slf4j.LoggerFactory
 import java.util.UUID
-import kotlin.math.abs
 import kotlin.math.floor
 
 /** One server coordinator owns all native ship transfers; guidance may reserve its own handoff. */
@@ -77,38 +76,28 @@ class AutomaticShipTravel(
                 val global =
                     FlightSpaceCoordinates
                         .globalPosition(world, reading.position)
-                val near =
-                    abs(global.x) < FlatPlanetSpace.HALF_SIZE && abs(global.z) < FlatPlanetSpace.HALF_SIZE &&
-                        (
-                            if (key ==
-                                Level.OVERWORLD
-                            ) {
-                                global.y >= FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.PRELOAD_HEIGHT && reading.velocity.y >= 0
-                            } else {
-                                global.y in FlatPlanetSpace.SEA_LEVEL..(FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ASCENT_HEIGHT) &&
-                                    reading.velocity.y <= 0
-                            }
-                        )
-                if (!near) continue
                 seen.add(body.uniqueId)
-                if (body.uniqueId !in loading && loading.size >= 16) continue
-                val tickets =
-                    loading.getOrPut(body.uniqueId) {
-                        Loading(
-                            org.cbi.orbitalis.minecraft.flight
-                                .ShipDestinationPreload(),
-                            org.cbi.orbitalis.minecraft.flight
-                                .ShipDestinationPreload(),
-                        )
-                    }
-                val other = if (key == Level.OVERWORLD) FlatPlanetSpace.SPACE else Level.OVERWORLD
+                if (body.uniqueId !in loading && loading.size >= 256) {
+                    // Resting ships must not permanently occupy all motion-history slots.
+                    val oldest = loading.entries.firstOrNull { !it.value.destination.active } ?: continue
+                    oldest.value.close()
+                    loading.remove(oldest.key)
+                }
+                val tickets = loading.getOrPut(body.uniqueId) { Loading(ShipDestinationPreload(), ShipDestinationPreload()) }
+                val mayLoad = tickets.destination.active || loading.values.count { it.destination.active } < 16
+                if (!tickets.destination.approach(
+                        world,
+                        global,
+                        Vector3(reading.velocity.x, reading.velocity.y, reading.velocity.z),
+                        mayLoad,
+                    )
+                ) {
+                    tickets.source.close()
+                    continue
+                }
                 tickets.source.update(world, reading.position)
-                tickets.destination.update(
-                    checkNotNull(server.getLevel(other)),
-                    FlightSpaceCoordinates
-                        .localPosition(other, global),
-                )
                 val destination = PlayerSpaceTravel.destination(world, reading.position, reading.velocity.y) ?: continue
+                if (!tickets.destination.ready) continue
                 val b = body.boundingBox()
                 if (b.maxX() - b.minX() > 32 || b.maxZ() - b.minZ() > 32) continue
                 val chunks = (floor(b.minX() - 1).toInt() shr 4)..(floor(b.maxX() + 1).toInt() shr 4)

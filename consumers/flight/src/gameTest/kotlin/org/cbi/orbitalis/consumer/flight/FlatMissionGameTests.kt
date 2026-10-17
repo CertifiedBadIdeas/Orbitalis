@@ -51,7 +51,7 @@ import kotlin.math.atan2
 @PrefixGameTestTemplate(false)
 object FlatMissionGameTests {
     @JvmStatic
-    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 18000, batch = "flat_mission")
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 40000, batch = "flat_mission")
     fun overworldLaunchFreeOrbitAndReturn(helper: GameTestHelper) {
         val rig = PropulsionGameTests.Rig(helper, 500.0, dimension = Level.OVERWORLD, y = 30.0)
         val pilot = InertPilot(helper)
@@ -202,7 +202,15 @@ object FlatMissionGameTests {
                     previousAngle = angle
                     maximumEnergyError = maxOf(maximumEnergyError, abs((energy - firstEnergy) / firstEnergy))
                     helper.assertTrue(energy < 0.0 && maximumEnergyError < 0.01, "Unpowered finite-body energy drift: $maximumEnergyError")
-                    val clearance = Vector3(maxOf(0.0, abs(p.x) - 1000), maxOf(0.0, abs(p.y) - 64), maxOf(0.0, abs(p.z) - 1000)).length()
+                    val clearance =
+                        Vector3(
+                            maxOf(0.0, abs(p.x) - FlatPlanetSpace.HALF_SIZE),
+                            maxOf(0.0, abs(p.y) - 64),
+                            maxOf(
+                                0.0,
+                                abs(p.z) - FlatPlanetSpace.HALF_SIZE,
+                            ),
+                        ).length()
                     helper.assertTrue(clearance > 24.0, "Free trajectory approached planet too closely: $clearance")
                     if (coastAngle >= 2 * PI) {
                         helper.assertTrue(coastTicks > 1000, "No complete native free revolution")

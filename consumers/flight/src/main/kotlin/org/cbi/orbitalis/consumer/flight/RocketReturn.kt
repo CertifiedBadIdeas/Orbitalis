@@ -22,6 +22,7 @@ import org.cbi.orbitalis.core.planet.CartesianState
 import org.cbi.orbitalis.core.planet.SurfaceGravityLayer
 import org.cbi.orbitalis.core.planet.Vector3
 import kotlin.math.abs
+import kotlin.math.sqrt
 
 /** Bounded search over burn epochs and continuous return curves; no fixed longitude trigger. */
 internal object RocketReturn {
@@ -57,7 +58,7 @@ internal object RocketReturn {
         direction: Vector3,
         horizon: Double,
     ): Departure {
-        require(horizon.isFinite() && horizon in TURN_LEAD..180.0)
+        require(horizon.isFinite() && horizon in TURN_LEAD..(180.0 * sqrt(field.body.halfWidth / 1000.0)))
         var state = initial
         var time = 0.0
         var next = TURN_LEAD
@@ -93,10 +94,12 @@ internal object RocketReturn {
         // The approach axis is fixed by the orbit, not by instantaneous velocity at a corner.
         // Reject a pad that has already been passed, while allowing natural orbital curvature.
         if (remaining < 20.0) return null
+        val scale = field.body.halfWidth / 1000.0
+        val timeScale = sqrt(scale)
         var best: Path? = null
         for (height in listOf(80.0, 160.0, 300.0)) {
-            val approach = CartesianState(home + Vector3(0.0, height, 0.0), Vector3(0.0, -10.0, 0.0))
-            for (landingDuration in listOf(maxOf(8.0, height / 25.0), maxOf(12.0, height / 18.0))) {
+            val approach = CartesianState(home + Vector3(0.0, height * scale, 0.0), Vector3(0.0, -10.0, 0.0))
+            for (landingDuration in listOf(maxOf(8.0, height * scale / 25.0), maxOf(12.0, height * scale / 18.0))) {
                 val landing =
                     RocketConnection(
                         approach,
@@ -105,7 +108,7 @@ internal object RocketReturn {
                         Vector3.ZERO,
                         landingDuration,
                     )
-                for (duration in 8..80 step 2) {
+                for (duration in 8..(80 * timeScale).toInt() step 2) {
                     for (initialThrust in listOf(2.0, 6.0, 10.0)) {
                         val braking =
                             RocketConnection(
@@ -132,21 +135,21 @@ internal object RocketReturn {
                     val joinPosition = initial.position + direction * remaining + cross * fraction
                     val join =
                         CartesianState(
-                            Vector3(joinPosition.x, maxOf(home.y + height, initial.position.y), joinPosition.z),
-                            cross.normalized() * minOf(30.0, cross.length() / 12.0) + Vector3(0.0, -10.0, 0.0),
+                            Vector3(joinPosition.x, maxOf(home.y + height * scale, initial.position.y), joinPosition.z),
+                            cross.normalized() * minOf(30.0 * timeScale, cross.length() / 12.0) + Vector3(0.0, -10.0, 0.0),
                         )
-                    val approach = CartesianState(home + Vector3(0.0, 80.0, 0.0), Vector3(0.0, -10.0, 0.0))
+                    val approach = CartesianState(home + Vector3(0.0, 80.0 * scale, 0.0), Vector3(0.0, -10.0, 0.0))
                     val landing =
                         RocketConnection(
                             approach,
                             CartesianState(home + Vector3(0.0, 0.6, 0.0), Vector3(0.0, -0.2, 0.0)),
                             Vector3.ZERO,
                             Vector3.ZERO,
-                            8.0,
+                            maxOf(8.0, 80.0 * scale / 25.0),
                         )
                     for (crossDuration in listOf(16.0, 24.0, 32.0)) {
-                        val crossing = RocketConnection(join, approach, Vector3.ZERO, Vector3.ZERO, crossDuration)
-                        for (duration in 8..40 step 2) {
+                        val crossing = RocketConnection(join, approach, Vector3.ZERO, Vector3.ZERO, crossDuration * timeScale)
+                        for (duration in 8..(40 * timeScale).toInt() step 2) {
                             for (initialThrust in listOf(2.0, 6.0, 10.0)) {
                                 val braking =
                                     RocketConnection(
@@ -194,11 +197,18 @@ internal object RocketReturn {
                     maxOf(0.0, abs(p.y) - field.body.halfHeight),
                     maxOf(0.0, abs(p.z) - field.body.halfDepth),
                 ).length()
-            if (p.y <= 464.0 && sample.state.velocity.y < 0.0 && abs(p.x) < 960.0 && abs(p.z) < 960.0) surface = true
+            if (p.y <= field.body.halfHeight + field.fullHeight * (2.0 / 3.0) && sample.state.velocity.y < 0.0 &&
+                abs(p.x) < field.body.halfWidth - 40.0 &&
+                abs(p.z) < field.body.halfDepth - 40.0
+            ) {
+                surface = true
+            }
             val inside = abs(p.x) < field.body.halfWidth && abs(p.z) < field.body.halfDepth
-            if ((horizontal >= 30.0 && clearance < 32.0) || (inside && p.y < home.y) || p.y >= maxOf(1064.0, initial.position.y) + 200.0 ||
-                sample.state.velocity.length() >= 180.0 || thrust.length() > authority * 0.8 ||
-                (surface && (abs(p.x) >= 980.0 || abs(p.z) >= 980.0)) ||
+            if ((horizontal >= 30.0 && clearance < 32.0) || (inside && p.y < home.y) ||
+                p.y >= maxOf(field.body.halfHeight + field.body.halfWidth, initial.position.y) + 200.0 ||
+                sample.state.velocity.length() >= 180.0 * sqrt(field.body.halfWidth / 1000.0) ||
+                thrust.length() > minOf(authority * 0.6, 25.0) ||
+                (surface && (abs(p.x) >= field.body.halfWidth - 20.0 || abs(p.z) >= field.body.halfDepth - 20.0)) ||
                 (inside && p.y < maxOf(field.body.halfHeight + 32.0, home.y + 120.0) && horizontal >= 30.0) ||
                 progress > remaining + 0.5
             ) {

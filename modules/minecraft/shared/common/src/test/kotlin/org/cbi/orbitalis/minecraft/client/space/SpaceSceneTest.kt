@@ -58,10 +58,10 @@ class SpaceSceneTest {
                 .toSet()
         assertEquals(setOf(Vector3(0.0, 1.0, 0.0)), normals(Vector3(0.0, 1064.0, 0.0)))
         assertEquals(setOf(Vector3(0.0, -1.0, 0.0)), normals(Vector3(0.0, -1064.0, 0.0)))
-        assertEquals(setOf(Vector3(1.0, 0.0, 0.0)), normals(Vector3(2000.0, 0.0, 0.0)))
+        assertEquals(setOf(Vector3(1.0, 0.0, 0.0)), normals(Vector3(10000.0, 0.0, 0.0)))
         assertEquals(
             setOf(Vector3(0.0, 1.0, 0.0), Vector3(1.0, 0.0, 0.0), Vector3(0.0, 0.0, -1.0)),
-            normals(Vector3(2000.0, 2000.0, -2000.0)),
+            normals(Vector3(10000.0, 10000.0, -10000.0)),
         )
     }
 
@@ -71,6 +71,6 @@ class SpaceSceneTest {
         val near = vertex - Vector3(0.0, SpaceScene.TOP + 1000.0, 0.0)
         val far = vertex - Vector3(0.0, SpaceScene.TOP + 10000.0, 0.0)
         assertTrue(atan2(near.x, -near.y) > atan2(far.x, -far.y))
-        assertEquals(2000.0, SpaceScene.HALF_SIZE * 2.0)
+        assertEquals(10000.0, SpaceScene.HALF_SIZE * 2.0)
     }
 }

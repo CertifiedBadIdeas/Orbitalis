@@ -35,14 +35,16 @@ Use ./gradlew-sandbox-dev-parallel-summary for noninteractive Gradle commands. v
 verifyTooling, verifyArchitecture and :core:check. verifyLocalFull adds common/check, loader/check and
 production archive inspection. Core tests cover finite rectangular-body potential, the conservative surface layer, numerical low
 orbits, spherical/two-body fields and flight/frame math. This is mathematical coverage, not evidence of Minecraft/Sable gameplay. NO-SOURCE is not coverage.
-Run `:v1_21_1-neoforge:runGameTestServer` separately. The default `all` suite requires three surface
-border/persistence/packet scenarios, six finite-orbit/ship-transfer/retirement/travel scenarios and two navigation scenarios, with no
-failed, skipped or error results in a fresh XML report. `-PorbitalisGameTestSuite=surface` runs the three
+Run `:v1_21_1-neoforge:runGameTestServer` separately. The default `all` suite requires nine surface
+border/persistence/preload/void-floor/player-motion scenarios, six finite-orbit/ship-transfer/retirement/travel scenarios and two navigation scenarios, with no
+failed, skipped or error results in a fresh XML report. `-PorbitalisGameTestSuite=surface` runs the nine
 surface cases alone; `-PorbitalisGameTestSuite=transfer` runs the five native transfer/recovery/retirement/travel cases
 without the full-orbit performance cost. See [flat surface](flat-surface.md), [flight gravity](flight-gravity.md) and
 [ship transfer](ship-transfer.md). Use `-PorbitalisGameTestSuite=flat` for the inert finite-body native orbit alone. The consumer separately
-requires nine native flight scenarios; `-PorbitalisConsumerGameTestSuite=flat` runs its low-orbit
-Overworld mission and bookmark migration cases. See [finite-body flight](flat-gravity.md) for the new field and route.
+requires thirteen native flight scenarios; `-PorbitalisConsumerGameTestSuite=flat` runs its low-orbit
+Overworld mission and bookmark migration cases; `rocket` runs both rocket round trips and native
+steering/hold/RCS cases. Player tests execute native travel with a locally controlled server fixture,
+including a vanilla jump comparison and vacuum momentum; they do not prove a real client handoff. See [finite-body flight](flat-gravity.md) for the new field and route.
 
 A successful client launch cannot prove visual or interactive correctness. Record manual observations,
 initial state, actions and expected outcome; mark unavailable evidence explicitly pending.

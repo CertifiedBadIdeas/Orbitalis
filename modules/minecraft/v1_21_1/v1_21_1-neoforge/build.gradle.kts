@@ -241,7 +241,7 @@ tasks.configureEach {
             val document = factory.newDocumentBuilder().parse(report)
             val cases = document.getElementsByTagName("testcase")
             val names = (0 until cases.length).map { (cases.item(it) as org.w3c.dom.Element).getAttribute("name") }.toSet()
-            val surfaceNames = setOf("nativeoverworldborder", "borderinitializationpreservescustomization", "spaceborderisindependent")
+            val surfaceNames = setOf("nativeoverworldborder", "borderinitializationpreservescustomization", "spaceborderisindependent", "legacydefaultborderexpansion", "timeddestinationpreparation", "orbitalspacehasnovoidfloor", "playervacuuminertia", "playersurfaceanddistantgravity", "vacuummovementpackets")
             val transferNames = setOf("overworldtransferroundtripandrecovery", "retireddiagnosticjournalhandling")
             val travelNames = setOf("automaticemptyshiproundtrip", "automaticmountedsurvivalpassenger", "independentsurvivalplayerroundtrip")
             val navigationNames = setOf("nativecoastforecastandpacket", "navigationbookmarkpersistence")

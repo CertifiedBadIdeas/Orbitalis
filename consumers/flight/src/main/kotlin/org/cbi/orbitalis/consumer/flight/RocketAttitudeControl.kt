@@ -66,6 +66,7 @@ internal object RocketAttitudeControl {
         private var nose = initial.normalized()
         private var omega = Vector3.ZERO
         private var desired = nose
+        private var requested = nose
         private var previous: Vector3? = null
 
         fun step(
@@ -73,10 +74,11 @@ internal object RocketAttitudeControl {
             seconds: Double,
         ): Boolean {
             val magnitude = thrust.length()
-            if (magnitude >= 0.3) desired = thrust * (1.0 / magnitude)
+            if (magnitude >= 0.3) requested = thrust * (1.0 / magnitude)
+            desired = RocketAttitude.advance(desired, requested, 0.25 * seconds)
             // Native engines gimbal 30 degrees per axis. Use the conservative inscribed cone,
             // with five degrees reserved for interpolation, tracking error and torque allocation.
-            val supported = magnitude <= 1.5 || nose.dot(desired) >= cos(Math.toRadians(25.0))
+            val supported = magnitude <= 1.5 || nose.dot(requested) >= cos(Math.toRadians(25.0))
             val targetRate = if (magnitude > 1.5) rate(previous, desired, seconds) else Vector3.ZERO
             if (magnitude > 1.5) previous = desired
             val angular = acceleration(nose, desired, omega, targetRate)

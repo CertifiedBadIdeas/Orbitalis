@@ -75,7 +75,7 @@ object SableFlightGravity {
         )
     }
 
-    /** Construction-only field. Players and ordinary block/fluid behavior remain native Minecraft. */
+    /** Ship adapter for the finite field; player exterior gravity shares its mass model. */
     fun acceleration(
         level: Level,
         position: Vector3,

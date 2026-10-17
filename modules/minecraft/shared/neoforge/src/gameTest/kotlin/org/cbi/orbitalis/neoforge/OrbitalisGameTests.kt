@@ -51,7 +51,11 @@ object OrbitalisGameTests {
             event.register(FlatGravityGameTests::class.java)
             return
         }
-        if (suite != "transfer") event.register(SurfaceGameTests::class.java)
+        if (suite != "transfer") {
+            event.register(SurfaceGameTests::class.java)
+            event.register(ScaledTravelGameTests::class.java)
+            event.register(PlayerGravityGameTests::class.java)
+        }
         if (suite == "surface") return
         if (ModList.get().isLoaded("sable")) {
             if (suite == "all") {

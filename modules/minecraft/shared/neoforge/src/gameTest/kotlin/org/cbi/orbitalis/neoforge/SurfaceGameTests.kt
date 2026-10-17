@@ -36,15 +36,15 @@ object SurfaceGameTests {
             helper.level.server
                 .overworld()
                 .worldBorder
-        helper.assertTrue(border.centerX == 0.0 && border.centerZ == 0.0 && border.size == 2000.0, "Missing surface border")
+        helper.assertTrue(border.centerX == 0.0 && border.centerZ == 0.0 && border.size == FlatOverworld.SIZE, "Missing surface border")
         for (y in listOf(-10000, 64, 20000)) {
-            helper.assertTrue(border.isWithinBounds(BlockPos(999, y, 999)), "Border added an altitude limit")
-            for (p in listOf(BlockPos(1000, y, 0), BlockPos(-1001, y, 0), BlockPos(0, y, 1000), BlockPos(0, y, -1001))) {
+            helper.assertTrue(border.isWithinBounds(BlockPos(4999, y, 4999)), "Border added an altitude limit")
+            for (p in listOf(BlockPos(5000, y, 0), BlockPos(-5001, y, 0), BlockPos(0, y, 5000), BlockPos(0, y, -5001))) {
                 helper.assertTrue(!border.isWithinBounds(p), "Border allowed an outside cell: $p")
             }
         }
         helper.assertTrue(!border.collisionShape.isEmpty, "Native border has no collision shape")
-        helper.assertTrue(!border.isWithinBounds(AABB(1001.0, 64.0, 0.0, 1002.0, 66.0, 1.0)), "Outside body accepted")
+        helper.assertTrue(!border.isWithinBounds(AABB(5001.0, 64.0, 0.0, 5002.0, 66.0, 1.0)), "Outside body accepted")
         helper.succeed()
     }
 
@@ -80,7 +80,7 @@ object SurfaceGameTests {
                         .getCurrentVersion()
                         .dataVersion.version,
                 )
-            helper.assertTrue(tag.getCompound("data").getInt("Version") == 1, "Initialization marker did not persist")
+            helper.assertTrue(tag.getCompound("data").getInt("Version") == 2, "Initialization marker did not persist")
             FlatOverworld.initialize(level, storage)
             helper.assertTrue(
                 level.worldBorder.centerX == 32.0 && level.worldBorder.centerZ == -48.0 && level.worldBorder.size == 1536.0,

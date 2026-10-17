@@ -45,8 +45,33 @@ object GameTestPlayers {
 
     fun create(
         helper: GameTestHelper,
+        locallyControlled: Boolean = false,
         packets: (Packet<*>) -> Unit = {},
     ): ServerPlayer {
+        helper.testInfo.addListener(
+            object : net.minecraft.gametest.framework.GameTestListener {
+                override fun testStructureLoaded(test: net.minecraft.gametest.framework.GameTestInfo) {}
+
+                override fun testPassed(
+                    test: net.minecraft.gametest.framework.GameTestInfo,
+                    runner: net.minecraft.gametest.framework.GameTestRunner,
+                ) {}
+
+                override fun testFailed(
+                    test: net.minecraft.gametest.framework.GameTestInfo,
+                    runner: net.minecraft.gametest.framework.GameTestRunner,
+                ) {
+                    test.error?.printStackTrace()
+                }
+
+                override fun testAddedForRerun(
+                    test: net.minecraft.gametest.framework.GameTestInfo,
+                    retry: net.minecraft.gametest.framework.GameTestInfo,
+                    runner: net.minecraft.gametest.framework.GameTestRunner,
+                ) {
+                }
+            },
+        )
         val profile = GameProfile(UUID.randomUUID(), "orbitalis-test")
         val connection = Connection(PacketFlow.SERVERBOUND)
         // NeoForge dimension changes inspect channel attributes even with an inert packet sink.
@@ -54,6 +79,8 @@ object GameTestPlayers {
         var teleportId: Int? = null
         val player =
             object : ServerPlayer(helper.level.server, helper.level, profile, ClientInformation.createDefault()) {
+                override fun isControlledByLocalInstance(): Boolean = locallyControlled
+
                 override fun remove(reason: RemovalReason) {
                     super.remove(reason)
                     if (reason.shouldDestroy()) {

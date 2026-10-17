@@ -27,27 +27,36 @@ import net.minecraft.world.level.storage.DimensionDataStorage
 
 /** Native border settings remain authoritative; the marker only records that defaults were installed. */
 object FlatOverworld {
-    const val SIZE = 2000.0
+    const val SIZE = org.cbi.orbitalis.core.planet.FlatPlanetDefinition.SIZE
     const val DATA_NAME = "orbitalis_flat_surface"
 
-    private class Initialized : SavedData() {
+    private class Initialized(
+        val version: Int = 2,
+    ) : SavedData() {
         override fun save(
             tag: CompoundTag,
             registries: HolderLookup.Provider,
-        ): CompoundTag = tag.apply { putInt("Version", 1) }
+        ): CompoundTag = tag.apply { putInt("Version", version) }
     }
 
-    // Any existing marker, including a future version, prevents rewriting native border settings.
-    private val factory = SavedData.Factory(::Initialized, { _, _ -> Initialized() }, null)
+    // Future versions and administrator customizations retain native authority.
+    private val factory = SavedData.Factory({ Initialized() }, { tag, _ -> Initialized(tag.getInt("Version")) }, null)
 
     fun initialize(
         level: ServerLevel,
         storage: DimensionDataStorage = level.dataStorage,
     ) {
         require(level.dimension() == Level.OVERWORLD)
-        if (storage.get(factory, DATA_NAME) != null) return
-        level.worldBorder.setCenter(0.0, 0.0)
-        level.worldBorder.size = SIZE
+        val marker = storage.get(factory, DATA_NAME)
+        if (marker != null && marker.version != 1) return
+        val border = level.worldBorder
+        val legacyDefault =
+            marker?.version == 1 && border.centerX == 0.0 && border.centerZ == 0.0 &&
+                border.size == 2000.0 && border.lerpTarget == 2000.0 && border.lerpRemainingTime <= 0L
+        if (marker == null || legacyDefault) {
+            border.setCenter(0.0, 0.0)
+            border.size = SIZE
+        }
         storage.set(DATA_NAME, Initialized().apply { setDirty() })
     }
 }

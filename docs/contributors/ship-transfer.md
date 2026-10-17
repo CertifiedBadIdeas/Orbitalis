@@ -40,7 +40,7 @@ powered ascent and return. There are no `flight enter`, `flight leave` or `trans
 
 `FlatPlanetFrame` adds 4096 to physical Y in space. Axes, inertial linear/angular velocities and
 player view direction are unchanged. Both worlds sample the same physical finite-body field.
-Transfers require |x|,|z|<=2048, physical Y=64..16000 and represented pilot/ship Y>=64. Space flight can
+Transfers require |x|,|z|<=5032 (the 5000 m half-footprint plus hull margin), physical Y=64..16000 and represented pilot/ship Y>=64. Space flight can
 leave this transfer patch but must return above it before a handoff. The consumer calls
 `SableFlightIntegration.transferService(server).begin(player, body, targetDimension)` on the server
 thread. It releases engine inputs and waits for fade, remains idle while `busy`, fails on `error` and
@@ -210,3 +210,9 @@ saving, so SavedData is flushed again afterwards. Source/losing entity copies us
 `RemovalReason.CHANGED_DIMENSION`, which avoids the inventory drops caused by `discard()` on
 container vehicles. These native save barriers run on the server thread and can still pause a busy
 world; seamless/asynchronous native entity checkpoints are not claimed.
+
+Transfer stage costs are logged as `ORBITALIS_TRANSFER_TIMING`, including asynchronous journal writes,
+native checkpoints and total paused duration. ETA-based terrain preparation does not remove this
+transaction's physics pause or prove seamless client rendering. Live player handoff preserves the
+controlling client's captured velocity through a bounded custom payload; durable recovery instead
+uses the recorded server velocity. The fixed +4096 frame and version-four journal layout are retained.

@@ -64,16 +64,22 @@ class RocketAscentTest {
     }
 
     @Test fun returnWindowIncludesTurnLeadAvoidsPadOvershootAndSelectsLowDeltaV() {
-        val orbit = BallisticOrbit.plan(field, 900.0)
-        for (home in listOf(Vector3(0.5, 29.0, 0.5), Vector3(800.0, 140.0, 500.0), Vector3(-800.0, 260.0, -700.0))) {
+        val field =
+            org.cbi.orbitalis.core.planet.FlatPlanetDefinition
+                .gravity(11.0)
+        val orbit = BallisticOrbit.plan(field, org.cbi.orbitalis.core.planet.FlatPlanetDefinition.ORBIT_HEIGHT)
+        for (home in listOf(Vector3(0.5, 29.0, 0.5), Vector3(4000.0, 140.0, 2500.0), Vector3(-4000.0, 260.0, -3500.0))) {
             val course = RocketCourse(orbit, RocketCourse.launchAxis(home))
             val initial = course.stateAt(orbit.period * 0.4)
             val departure = RocketReturn.departure(field, initial, home, 60.0, course.axis, orbit.period + RocketReturn.TURN_LEAD)
             val path = departure.path
             assertTrue(departure.delay >= RocketReturn.TURN_LEAD)
-            // Native baseline returns spent 662–738 m/s. Keep a margin below every baseline
-            // while accepting the attitude-feasible lateral approach of near-edge pads.
-            assertTrue(path.deltaV < 600.0, "Return wastes excessive delta-v: ${path.deltaV} from $home")
+            // Exercise the current production footprint, including near-edge pads.
+            // This is a bounded feasibility budget; pre-scaling fuel comparisons do not apply.
+            assertTrue(
+                path.deltaV < 600.0 * org.cbi.orbitalis.core.planet.FlatPlanetDefinition.SCALE,
+                "Return wastes excessive delta-v: ${path.deltaV} from $home",
+            )
             val start = path.at(0.0).state
             val direction = course.axis
             val remaining = (home - start.position).dot(direction)
@@ -93,6 +99,36 @@ class RocketAscentTest {
                 assertTrue(after.state.velocity.length() > 5.0, "Approach must not stop at a waypoint")
             }
             println("ROCKET_RETURN_PLAN home=$home delay=${departure.delay} duration=${path.duration} deltaV=${path.deltaV}")
+        }
+    }
+
+    @Test fun tenKilometreAscentAndUpperReturnRemainWithinEngineAuthority() {
+        val scaled =
+            org.cbi.orbitalis.core.planet.FlatPlanetDefinition
+                .gravity(11.0)
+        val orbit = BallisticOrbit.plan(scaled, 5000.0)
+        for (home in listOf(Vector3(0.5, 29.0, 0.5), Vector3(800.5, 89.0, 500.5))) {
+            val course = RocketCourse(orbit, RocketCourse.launchAxis(home))
+            val ascent = RocketAscent.plan(scaled, course, CartesianState(home + Vector3(0.0, 10.0, 0.0), Vector3(0.0, 6.0, 0.0)), 60.0)
+            assertTrue(
+                ascent.path
+                    .at(ascent.path.duration)
+                    .state.position.y >= 4064.0,
+                "Ascent joined the low descending orbit arc",
+            )
+            val upper =
+                (80..98)
+                    .map { course.stateAt(orbit.period * it / 100.0) }
+                    .first { it.position.y > 4000.0 && it.velocity.y > 0.0 }
+            val returning = RocketReturn.departure(scaled, upper, home, 60.0, course.axis, orbit.period + RocketReturn.TURN_LEAD).path
+            assertTrue(returning.deltaV.isFinite() && returning.deltaV > 0.0)
+            assertTrue((returning.at(returning.duration).state.position - (home + Vector3(0.0, 0.6, 0.0))).length() < 1e-7)
+            var t = 0.0
+            while (t <= returning.duration) {
+                val sample = returning.at(t)
+                assertTrue((sample.acceleration - scaled.acceleration(sample.state.position)).length() <= 25.0 + 1e-6)
+                t += 0.25
+            }
         }
     }
 }

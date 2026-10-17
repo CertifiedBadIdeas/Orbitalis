@@ -37,6 +37,7 @@ import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.phys.Vec3
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
+import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.flight.PlayerSpaceTravel
 import org.cbi.orbitalis.minecraft.flight.SpaceTravelReservations
@@ -64,35 +65,88 @@ object AutomaticTravelGameTests {
     fun automaticMountedSurvivalPassenger(helper: GameTestHelper) = ship(helper, true)
 
     @JvmStatic
-    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "automatic_player")
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "automatic_player", timeoutTicks = 1200)
     fun independentSurvivalPlayerRoundTrip(helper: GameTestHelper) {
         val packets = mutableListOf<net.minecraft.network.protocol.Packet<*>>()
         val p = GameTestPlayers.create(helper) { packets.add(it) }
         p.setGameMode(GameType.SURVIVAL)
         val surface = helper.level.server.overworld()
-        check(p.teleportTo(surface, 100.0, 665.0, 100.0, emptySet(), 31f, -12f))
-        p.deltaMovement = Vec3(0.2, 0.4, -0.1)
+        check(p.teleportTo(surface, 100.0, (FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ASCENT_HEIGHT + 1.0), 100.0, emptySet(), 31f, -12f))
+        p.deltaMovement = Vec3(8.0, 0.4, -7.0)
         packets.clear()
-        helper.assertTrue(PlayerSpaceTravel.transfer(p), "Independent player did not ascend")
-        helper.assertTrue(p.level().dimension() == FlatPlanetSpace.SPACE && abs(p.y - 4761.0) < 1e-6, "Player mapping incorrect")
-        helper.assertTrue(p.deltaMovement.distanceTo(Vec3(0.2, 0.4, -0.1)) < 1e-8 && !p.isCreative, "Player motion/mode changed")
-        val motion = packets.filterIsInstance<net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket>().lastOrNull()
-        helper.assertTrue(
-            motion != null && abs(motion.xa - 0.2) < 0.001 && abs(motion.ya - 0.4) < 0.001,
-            "Native client velocity was not restored after the absolute teleport",
-        )
-        helper.assertTrue(
-            packets.indexOf(motion!!) > packets.indexOfLast { it is net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket },
-            "Velocity packet preceded the position reset",
-        )
-        helper.assertTrue(!PlayerSpaceTravel.transfer(p), "Player bounced back at ascent boundary")
-        p.setPos(100.0, 4096.0 + 463.0, 100.0)
-        p.deltaMovement = Vec3(0.1, -0.4, 0.2)
-        helper.assertTrue(PlayerSpaceTravel.transfer(p), "Independent player did not return")
-        helper.assertTrue(p.level() === surface && abs(p.y - 463) < 1e-6 && p.deltaMovement.y == -0.4, "Return mapping changed motion")
-        helper.assertTrue(!PlayerSpaceTravel.transfer(p), "Player bounced into space after return")
-        p.discard()
-        helper.succeed()
+        var returning = false
+        helper.onEachTick {
+            if (!returning) {
+                if (!PlayerSpaceTravel.transfer(p)) {
+                    // Accelerated test ticks must allow native chunk/entity I/O to complete.
+                    java.util.concurrent.locks.LockSupport
+                        .parkNanos(2_000_000L)
+                    return@onEachTick
+                }
+                helper.assertTrue(
+                    p.level().dimension() == FlatPlanetSpace.SPACE &&
+                        abs(p.y - (4096.0 + FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ASCENT_HEIGHT + 1.0)) < 1e-6,
+                    "Player mapping incorrect",
+                )
+                helper.assertTrue(p.deltaMovement.distanceTo(Vec3(8.0, 0.4, -7.0)) < 1e-8 && !p.isCreative, "Player motion/mode changed")
+                val motion = packets.filterIsInstance<net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket>().lastOrNull()
+                helper.assertTrue(
+                    motion != null && abs(motion.xa - 3.9) < 0.001 && abs(motion.ya - 0.4) < 0.001,
+                    "Native client velocity was not restored after the absolute teleport",
+                )
+                helper.assertTrue(
+                    packets.indexOf(motion!!) >
+                        packets.indexOfLast { it is net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket },
+                    "Velocity packet preceded the position reset",
+                )
+                val exactMotion =
+                    packets
+                        .filterIsInstance<net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket>()
+                        .map { it.payload() }
+                        .filterIsInstance<org.cbi.orbitalis.minecraft.flight.FlightMotionPayload>()
+                        .lastOrNull()
+                helper.assertTrue(
+                    exactMotion != null && exactMotion.velocity == Vector3(8.0, 0.4, -7.0) &&
+                        exactMotion.dimension == FlatPlanetSpace.SPACE.location(),
+                    "Unclamped local-player flight motion packet was lost",
+                )
+                val buffer =
+                    net.minecraft.network.FriendlyByteBuf(
+                        io.netty.buffer.Unpooled
+                            .buffer(),
+                    )
+                try {
+                    org.cbi.orbitalis.minecraft.flight.FlightMotionPayload.CODEC
+                        .encode(buffer, checkNotNull(exactMotion))
+                    helper.assertTrue(
+                        org.cbi.orbitalis.minecraft.flight.FlightMotionPayload.CODEC
+                            .decode(buffer) == exactMotion,
+                        "Flight motion codec changed high-speed velocity",
+                    )
+                } finally {
+                    buffer.release()
+                }
+                helper.assertTrue(!PlayerSpaceTravel.transfer(p), "Player bounced back at ascent boundary")
+                p.setPos(100.0, (4096.0 + FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.DESCENT_HEIGHT - 1.0), 100.0)
+                p.deltaMovement = Vec3(0.1, -0.4, 0.2)
+                returning = true
+                return@onEachTick
+            }
+            if (!PlayerSpaceTravel.transfer(p)) {
+                // Accelerated test ticks must allow native chunk/entity I/O to complete.
+                java.util.concurrent.locks.LockSupport
+                    .parkNanos(2_000_000L)
+                return@onEachTick
+            }
+            helper.assertTrue(
+                p.level() === surface && abs(p.y - (FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.DESCENT_HEIGHT - 1.0)) < 1e-6 &&
+                    p.deltaMovement.y == -0.4,
+                "Return mapping changed motion",
+            )
+            helper.assertTrue(!PlayerSpaceTravel.transfer(p), "Player bounced into space after return")
+            p.discard()
+            helper.succeed()
+        }
     }
 
     private fun verifyEntityCheckpoint(
@@ -143,7 +197,7 @@ object AutomaticTravelGameTests {
         val space = checkNotNull(server.getLevel(FlatPlanetSpace.SPACE))
         val from = checkNotNull(SubLevelContainer.getContainer(surface))
         val to = checkNotNull(SubLevelContainer.getContainer(space))
-        val pose = Pose3d().also { it.position().set(-500.0, 700.0, -500.0) }
+        val pose = Pose3d().also { it.position().set(-4500.0, FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ASCENT_HEIGHT + 36.0, -500.0) }
         val source = from.allocateNewSubLevel(pose) as ServerSubLevel
         val id = source.uniqueId
         val owner = Any()
@@ -246,7 +300,7 @@ object AutomaticTravelGameTests {
                         )
                         check(surface.addFreshEntity(c))
                         if (player != null) {
-                            check(player.teleportTo(surface, -500.0, b.maxY() + 0.5, -500.0, emptySet(), 0f, 0f))
+                            check(player.teleportTo(surface, -4500.0, b.maxY() + 0.5, -500.0, emptySet(), 0f, 0f))
                             check(player.startRiding(c, true))
                         }
                         expectedCart = c.uuid
@@ -284,7 +338,7 @@ object AutomaticTravelGameTests {
                     helper.assertTrue(surface.getEntity(expectedCart!!) == null, "Source cart was duplicated")
                 }
                 val s = SableFlightGravity.reading(body)
-                val dy = 4096.0 + 450.0 - s.position.y
+                val dy = 4096.0 + FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.DESCENT_HEIGHT - 14.0 - s.position.y
                 val handle = SubLevelPhysicsSystem.require(space).getPhysicsHandle(body)
                 handle.teleport(Vector3d(body.logicalPose().position()).add(0.0, dy, 0.0), body.logicalPose().orientation())
                 handle.addLinearAndAngularVelocity(Vector3d(1.0, -10.0, 2.0).sub(s.velocity), Vector3d())
