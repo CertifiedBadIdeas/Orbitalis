@@ -53,7 +53,7 @@ class SurfaceAtlas {
         return true
     }
 
-    fun all(): Collection<Sample> = samples.values
+    fun all(): Collection<Sample> = java.util.Collections.unmodifiableCollection(samples.values)
 
     /** Only current values are retained; cursors also work after an earlier value was superseded. */
     fun after(
@@ -98,9 +98,9 @@ class SurfaceAtlas {
     }
 
     companion object {
-        const val MIN_CHUNK = -313
-        const val MAX_CHUNK = 312
-        const val WIDTH = MAX_CHUNK - MIN_CHUNK + 1
-        const val MAX_SAMPLES = WIDTH * WIDTH
+        val MIN_CHUNK = Math.floorDiv(-FlatPlanetDefinition.HALF_SIZE.toInt(), 16)
+        val MAX_CHUNK = Math.floorDiv(FlatPlanetDefinition.HALF_SIZE.toInt() - 1, 16)
+        val WIDTH = MAX_CHUNK - MIN_CHUNK + 1
+        val MAX_SAMPLES = WIDTH * WIDTH
     }
 }

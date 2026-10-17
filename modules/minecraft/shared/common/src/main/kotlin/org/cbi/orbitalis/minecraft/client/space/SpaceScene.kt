@@ -123,8 +123,10 @@ object SpaceScene {
         }
 
     /** One uniform camera-relative scale preserves perspective while fitting inside the sky pass. */
-    fun scale(observer: Vector3): Double =
-        60.0 / (observer.length() + Vector3(HALF_SIZE, maxOf(kotlin.math.abs(TOP), kotlin.math.abs(BOTTOM)), HALF_SIZE).length())
+    fun scale(
+        observer: Vector3,
+        verticalExtent: Double = maxOf(kotlin.math.abs(TOP), kotlin.math.abs(BOTTOM)),
+    ): Double = 60.0 / (observer.length() + Vector3(HALF_SIZE, verticalExtent, HALF_SIZE).length())
 
     fun visible(
         face: Face,

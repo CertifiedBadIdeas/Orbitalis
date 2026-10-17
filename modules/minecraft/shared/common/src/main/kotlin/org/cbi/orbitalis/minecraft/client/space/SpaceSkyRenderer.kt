@@ -34,7 +34,6 @@ import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
 import org.joml.Matrix4f
 import org.lwjgl.opengl.GL11
-import kotlin.math.max
 import kotlin.random.Random
 
 /** Distant presentation mesh; no remote chunks, block entities or optional mod APIs are loaded. */
@@ -79,7 +78,7 @@ object SpaceSkyRenderer {
         if (entity is LivingEntity && (entity.hasEffect(MobEffects.BLINDNESS) || entity.hasEffect(MobEffects.DARKNESS))) return
         val position = camera.position
         val observer = FlightSpaceCoordinates.globalPosition(level, Vector3(position.x, position.y, position.z))
-        val scale = SpaceScene.scale(observer)
+        val scale = SpaceScene.scale(observer, 4096.0)
         val previousColor = RenderSystem.getShaderColor().copyOf()
         val previousShader = RenderSystem.getShader()
         val depthTest = GL11.glIsEnabled(GL11.GL_DEPTH_TEST)
@@ -98,15 +97,8 @@ object SpaceSkyRenderer {
                 for (vertex in star.vertices) add(buffer, matrix, vertex, star.brightness, star.brightness, star.brightness)
             }
             for (vertex in sun) add(buffer, matrix, vertex, 255, 247, 220)
-            for (face in SpaceScene.body) {
-                if (!SpaceScene.visible(face, observer)) continue
-                val light = 0.18 + 0.82 * max(0.0, face.normal.dot(SpaceScene.SUN_DIRECTION))
-                val red = ((face.color shr 16 and 255) * light).toInt()
-                val green = ((face.color shr 8 and 255) * light).toInt()
-                val blue = ((face.color and 255) * light).toInt()
-                for (vertex in face.vertices) add(buffer, matrix, (vertex - observer) * scale, red, green, blue)
-            }
             BufferUploader.drawWithShader(buffer.buildOrThrow())
+            SurfacePlanetRenderer.render(observer, matrix, scale)
         } finally {
             RenderSystem.setShader { previousShader }
             RenderSystem.setShaderColor(previousColor[0], previousColor[1], previousColor[2], previousColor[3])

@@ -35,7 +35,7 @@ Use ./gradlew-sandbox-dev-parallel-summary for noninteractive Gradle commands. v
 verifyTooling, verifyArchitecture and :core:check. verifyLocalFull adds common/check, loader/check and
 production archive inspection. Core tests cover finite rectangular-body potential, the conservative surface layer, numerical low
 orbits, spherical/two-body fields and flight/frame math. This is mathematical coverage, not evidence of Minecraft/Sable gameplay. NO-SOURCE is not coverage.
-Run `:v1_21_1-neoforge:runGameTestServer` separately. The default `all` suite requires nine surface
+Run `:v1_21_1-neoforge:runGameTestServer` separately. The default `all` suite requires two surface-atlas sampling/persistence/packet scenarios, nine surface
 border/persistence/preload/void-floor/player-motion scenarios, six finite-orbit/ship-transfer/retirement/travel scenarios, two navigation scenarios and five sparse-vacuum scenarios, with no
 failed, skipped or error results in a fresh XML report. `-PorbitalisGameTestSuite=surface` runs the nine
 surface cases alone; `-PorbitalisGameTestSuite=transfer` runs the five native transfer/recovery/retirement/travel cases
@@ -113,3 +113,9 @@ space. They do not place static terrain blocks into vacuum. Surface assembly cas
 actual player blueprint, Create glue and native physics assembler; full missions cover dimension
 handoffs, modded block entities, cargo and seated riders. The reconnected return mission is checked
 for engine-off coast, attitude and energy preservation throughout its background planning phase.
+
+The `-PorbitalisGameTestSuite=atlas` suite requires `nativesurfaceatlaspersistence` and
+`surfaceatlaspacketbounds`: real native height/map colours and terrain updates, disk SavedData
+reload, unknown-version preservation, malformed records and bounded packet roundtrips/rejection.
+Both are included in `all`. Client framebuffer composition and relief appearance require the separate
+manual scenario in [space presentation](space-visuals.md).
