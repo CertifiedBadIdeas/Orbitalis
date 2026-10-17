@@ -60,14 +60,18 @@ flat-body [space presentation](space-visuals.md). The former `flight_test`, `orb
 untouched. Completed old receipts are ignored; unfinished old transfers require previous-version
 recovery. Old launch bookmarks are skipped, never reinterpreted as Overworld sites.
 
-The `SableShipTransfer` coordinator reconstructs one independent ship and pilot on the explicit
-Overworld/`orbitalis:space` route. Journal version 3 names both dimensions. `FlatPlanetFrame` owns
+The `SableShipTransfer` coordinator reconstructs one independent ship and an optional pilot on the explicit
+Overworld/`orbitalis:space` route. Journal version 4 names both dimensions, an optional pilot and bounded entity/mount manifests;
+active version-3 records remain readable. `FlatPlanetFrame` owns
 the fixed translation. Common owns native snapshots, exact-motion restoration and the versioned asynchronous
 journal and plot-chunk block-entity tick leases; NeoForge owns startup/tick/interaction wiring and
 a narrow Minecraft ticker hook that honors those leases without loading optional Sable classes.
 A second loader hook exposes vanilla's pending teleport acknowledgment without a custom network protocol.
-Common orders source tracking removal before dimension travel, then waits for the destination ship bundle,
-a subsequent teleport acknowledgment and native deck contact before releasing physics.
+Common owns automatic height triggers, guidance reservations and independent native player travel.
+Source entity chunks are loaded before participant selection. The transfer orders source tracking removal before dimension travel, then waits for the destination ship bundle,
+a subsequent teleport acknowledgment and native deck contact (or available vehicle plus restored
+passenger seat) before releasing physics. Travelling entities use a native entity-only checkpoint
+hook before DONE, and dimension-change removal preserves container contents without dropping them.
 PREPARED selects source authority, COMMITTED
 selects destination authority, and DONE follows a verified native checkpoint. Completed records contain
 receipts rather than stale ship payloads. Recovery does not make the journal a permanent ship store.

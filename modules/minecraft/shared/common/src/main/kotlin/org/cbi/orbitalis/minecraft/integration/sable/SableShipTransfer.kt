@@ -70,6 +70,7 @@ class SableShipTransfer(
     private var pilot: ServerPlayer? = null
     private val pauses = mutableMapOf<SubLevelPhysicsSystem, Boolean>()
     private val tickets = mutableSetOf<ServerSubLevel>()
+    private val entityPreloads = mutableListOf<org.cbi.orbitalis.minecraft.flight.ShipDestinationPreload>()
     var error: String? = null
         private set
     val busy: Boolean get() = !startupHandled || active != null || pending != null || waitFor != null || error != null
@@ -99,6 +100,8 @@ class SableShipTransfer(
 
     private fun resume() {
         ShipTransferTickGate.release(this)
+        entityPreloads.forEach { it.close() }
+        entityPreloads.clear()
         tickets.forEach { body ->
             if (!body.isRemoved) {
                 SubLevelContainer
@@ -121,6 +124,9 @@ class SableShipTransfer(
             )!!
             .addForceLoadTicket(body, SubLevelLoadingTicketType.COMMAND_FORCED, MinecraftUnit.INSTANCE)
         tickets.add(body)
+        active?.let { record ->
+            ShipTransferTickGate.holdEntities(this, body.level, ShipTransferPassengers.ids(record.sourcePassengers))
+        }
         ShipTransferTickGate.hold(this, body.level, body.plot.loadedChunks.map { it.chunk.pos })
     }
 
@@ -213,16 +219,53 @@ class SableShipTransfer(
         }
     }
 
+    private fun handoffTravellers(
+        player: ServerPlayer?,
+        body: ServerSubLevel,
+        state: CompoundTag,
+        passengers: net.minecraft.nbt.ListTag,
+        next: () -> Unit,
+    ) {
+        val mount = passengers.map { it as CompoundTag }.firstOrNull { it.getBoolean("player") && it.hasUUID("vehicle") }
+        if (player == null) {
+            awaitCondition("Destination entities did not become available", { ShipTransferPassengers.ready(body.level, passengers) }) {
+                ShipTransferPassengers.mount(body.level, passengers, null)
+                next()
+            }
+        } else if (mount == null) {
+            handoffPilot(player, body, state) {
+                awaitCondition("Destination entities did not become available", { ShipTransferPassengers.ready(body.level, passengers) }) {
+                    ShipTransferPassengers.mount(body.level, passengers, player)
+                    next()
+                }
+            }
+        } else {
+            player.stopRiding()
+            check(movePlayer(player, body.level, state)) { "Passenger dimension transfer was rejected" }
+            awaitCondition("Passenger ship tracking timed out", { pilotSync.hasShip(player, body) }) {
+                check(movePlayer(player, body.level, state))
+                awaitCondition("Passenger teleport acknowledgment timed out", {
+                    check(player.isAlive && player.level() === body.level) { "Passenger became unavailable" }
+                    !(player.connection as ShipTransferTeleportState).orbitalisHasPendingTeleport() &&
+                        ShipTransferPassengers.ready(body.level, passengers)
+                }) {
+                    ShipTransferPassengers.mount(body.level, passengers, player)
+                    next()
+                }
+            }
+        }
+    }
+
     @JvmOverloads
     fun begin(
-        player: ServerPlayer,
+        player: ServerPlayer?,
         body: ServerSubLevel,
         targetDimension: ResourceKey<Level>? = null,
     ) {
         require(
             !busy && records.values.none { it.pilotPending },
         ) { "A transfer/recovery is running: ${error ?: "wait for completion"}" }
-        require(SableFlightGravity.isManaged(body.level) && player.level() === body.level) {
+        require(SableFlightGravity.isManaged(body.level) && (player == null || player.level() === body.level)) {
             "Use the Overworld surface or a supported flight space"
         }
         val sourceDimension = body.level.dimension()
@@ -231,11 +274,13 @@ class SableShipTransfer(
         val orbitalDimension = FlatPlanetSpace.SPACE
         val destinationDimension = if (sourceOrbit) surfaceDimension else orbitalDimension
         require(targetDimension == null || targetDimension == destinationDimension) { "Only Overworld/space transfers are supported" }
-        require(server.playerList.players.none { it !== player && FlatPlanetSpace.contains(it.serverLevel()) }) {
-            "Other players must leave the participating flight spaces"
-        }
-        SableShipSnapshot.preflight(body, player)
-        val source = SableShipSnapshot.capture(body)
+        val travelling = ShipTransferPassengers.nearby(body).toMutableSet()
+        player?.let { travelling.add(it) }
+        require(travelling.filterIsInstance<ServerPlayer>().all { it === player }) { "Select the travelling player" }
+        val passengers = ShipTransferPassengers.capture(body, travelling)
+        val travellerIds = ShipTransferPassengers.ids(passengers)
+        SableShipSnapshot.preflight(body, player, travellerIds)
+        val source = SableShipSnapshot.capture(body, travellerIds)
         val delta =
             FlightSpaceCoordinates
                 .localPosition(
@@ -243,6 +288,7 @@ class SableShipTransfer(
                     FlightSpaceCoordinates.globalPosition(sourceDimension, Vector3.ZERO),
                 ).y
         val target = checkNotNull(server.getLevel(destinationDimension))
+        require(travelling.all { it.canChangeDimensions(body.level, target) }) { "A travelling entity rejects dimension travel" }
         val destination =
             SableShipSnapshot.forDestination(
                 SableShipSnapshot.translated(source, delta, destinationDimension),
@@ -250,14 +296,14 @@ class SableShipTransfer(
                 target,
             )
         checkDestination(target, destination)
-        val sourcePilot = playerState(player)
+        val sourcePilot = player?.let(::playerState) ?: CompoundTag()
         val destinationPilot = sourcePilot.copy().also { it.putDouble("y", it.getDouble("y") + delta) }
-        require(destinationPilot.getDouble("y") >= 64.0) { "Climb higher before transferring the pilot" }
+        require(player == null || destinationPilot.getDouble("y") >= 64.0) { "Climb higher before transferring the pilot" }
         val record =
             ShipTransferRecord(
                 UUID.randomUUID(),
                 body.uniqueId,
-                player.uuid,
+                player?.uuid,
                 sourceOrbit,
                 source,
                 destination,
@@ -267,7 +313,10 @@ class SableShipTransfer(
                 ShipTransferPhase.PREPARED,
                 orbitalDimension = orbitalDimension,
                 surfaceDimension = surfaceDimension,
+                sourcePassengers = passengers,
+                destinationPassengers = ShipTransferPassengers.translated(passengers, source, destination),
             )
+        player?.closeContainer()
         active = record
         pause()
         retain(body)
@@ -278,7 +327,7 @@ class SableShipTransfer(
     private fun stage(
         record: ShipTransferRecord,
         source: ServerSubLevel,
-        player: ServerPlayer,
+        player: ServerPlayer?,
     ) {
         try {
             stagePrepared(record, source, player)
@@ -289,7 +338,7 @@ class SableShipTransfer(
 
     private fun abortPrepared(
         record: ShipTransferRecord,
-        player: ServerPlayer,
+        player: ServerPlayer?,
         reason: String,
     ) {
         // Re-establish source authority durably before discarding a partially staged body.
@@ -300,14 +349,14 @@ class SableShipTransfer(
             }
             val target = SubLevelContainer.getContainer(level(!record.sourceIsOrbit, record))!!
             val staged = target.getSubLevel(record.ship) as? ServerSubLevel
-            val cleanup = {
+            val cleanup: () -> Unit = {
                 if (staged != null) {
                     SableShipSnapshot.discardAttachments(staged.level, record.destination)
                     target.removeSubLevel(staged, SubLevelRemovalReason.REMOVED)
                 }
                 checkpoint()
                 persist(record.copy(phase = ShipTransferPhase.DONE, recoveredSource = true)) { resume() }
-                player.sendSystemMessage(Component.literal("Transfer cancelled; source retained: $reason"))
+                player?.sendSystemMessage(Component.literal("Transfer cancelled; source retained: $reason"))
             }
             if (staged != null) awaitEntities(listOf(staged), cleanup) else cleanup()
         }
@@ -316,26 +365,32 @@ class SableShipTransfer(
     private fun stagePrepared(
         record: ShipTransferRecord,
         source: ServerSubLevel,
-        player: ServerPlayer,
+        player: ServerPlayer?,
     ) {
         // A block/entity update during the asynchronous prepare must not be silently discarded.
         val changed =
             when {
                 source.isRemoved -> "source ship was removed"
-                !player.isAlive || player.level() !== source.level -> "pilot became unavailable"
-                SableShipSnapshot.capture(source).getCompound("plot") != record.source.getCompound("plot") -> "ship block data changed"
+
+                player != null && (!player.isAlive || player.level() !== source.level) -> "pilot became unavailable"
+
+                SableShipSnapshot.capture(source, ShipTransferPassengers.ids(record.sourcePassengers)).getCompound("plot") !=
+                    record.source.getCompound("plot") -> "ship block data changed"
+
                 savedPointer(source) != record.sourcePointer -> "native save pointer changed"
-                player.position().distanceTo(position(record.sourcePilot)) > 0.25 -> "pilot moved more than 0.25 m"
+
+                player != null && player.position().distanceTo(position(record.sourcePilot)) > 0.25 -> "pilot moved more than 0.25 m"
+
                 else -> null
             }
         if (changed != null) {
             // No authority change happened: preserve the source's current state and checkpoint it.
             checkpoint()
             persist(record.copy(phase = ShipTransferPhase.DONE)) { resume() }
-            player.sendSystemMessage(Component.literal("Transfer cancelled; source retained: $changed."))
+            player?.sendSystemMessage(Component.literal("Transfer cancelled; source retained: $changed."))
             return
         }
-        SableShipSnapshot.preflight(source, player)
+        SableShipSnapshot.preflight(source, player, ShipTransferPassengers.ids(record.sourcePassengers))
         val target = level(!record.sourceIsOrbit, record)
         checkDestination(target, record.destination)
         val staged = SableShipSnapshot.load(target, record.destination)
@@ -343,15 +398,20 @@ class SableShipTransfer(
         check(staged.uniqueId == record.ship)
         awaitEntities(listOf(staged)) {
             try {
-                val current = SableShipSnapshot.capture(source)
-                require(!source.isRemoved && player.level() === source.level && player.isAlive) { "Source or pilot became unavailable" }
+                val current = SableShipSnapshot.capture(source, ShipTransferPassengers.ids(record.sourcePassengers))
+                require(
+                    !source.isRemoved && (player == null || (player.level() === source.level && player.isAlive)),
+                ) { "Source or pilot became unavailable" }
                 require(
                     current.getCompound("plot") == record.source.getCompound("plot") &&
                         current.get("orbitalis_attached") == record.source.get("orbitalis_attached"),
                 ) { "Source changed while loading destination" }
-                SableShipSnapshot.preflight(source, player)
+                require(
+                    ShipTransferPassengers.unchanged(source.level, record.sourcePassengers),
+                ) { "Travelling entity data changed while staging" }
+                SableShipSnapshot.preflight(source, player, ShipTransferPassengers.ids(record.sourcePassengers))
                 SableShipSnapshot.restoreAttachments(staged, record.destination)
-                verifyCargo(record.destination, SableShipSnapshot.capture(staged))
+                verifyCargo(record.destination, SableShipSnapshot.capture(staged, ShipTransferPassengers.ids(record.destinationPassengers)))
                 persist(record.copy(phase = ShipTransferPhase.COMMITTED)) { commit(record, source, staged, player) }
             } catch (failure: Exception) {
                 abortPrepared(record, player, failure.message ?: "Destination verification failed")
@@ -363,17 +423,20 @@ class SableShipTransfer(
         record: ShipTransferRecord,
         source: ServerSubLevel,
         staged: ServerSubLevel,
-        player: ServerPlayer,
+        player: ServerPlayer?,
     ) {
         // Sable removal packets carry plot coordinates but no dimension. Send them while
         // the pilot is still in the source world, before the destination respawn packet.
+        player?.stopRiding()
+        ShipTransferPassengers.discard(source.level, record.sourcePassengers)
         SableShipSnapshot.discardAttachments(source.level, record.source)
         SubLevelContainer.getContainer(source.level)!!.removeSubLevel(source, SubLevelRemovalReason.REMOVED)
-        handoffPilot(player, staged, record.destinationPilot) {
+        ShipTransferPassengers.restore(staged.level, record.destinationPassengers)
+        handoffTravellers(player, staged, record.destinationPilot, record.destinationPassengers) {
             checkpoint()
             verifySaved(staged)
             persist(record.copy(phase = ShipTransferPhase.DONE)) {
-                player.sendSystemMessage(
+                player?.sendSystemMessage(
                     Component.literal(
                         "Transferred ship ${record.ship}; exact motion and cargo preserved. /orbitalis flight transfer returns it.",
                     ),
@@ -386,6 +449,7 @@ class SableShipTransfer(
     private fun checkDestination(
         world: ServerLevel,
         snapshot: CompoundTag,
+        ignoredPlayers: Set<UUID> = emptySet(),
     ) {
         val container = checkNotNull(SubLevelContainer.getContainer(world))
         val plot = snapshot.getCompound("plot")
@@ -410,7 +474,18 @@ class SableShipTransfer(
             }
         }
         val area = AABB(bounds.minX(), bounds.minY(), bounds.minZ(), bounds.maxX(), bounds.maxY(), bounds.maxZ()).inflate(0.1)
-        require(world.noCollision(null, area) && world.getEntities(null, area).isEmpty()) { "Destination is obstructed" }
+        val clearBlocks =
+            if (ignoredPlayers.isEmpty()) {
+                world.noCollision(null, area)
+            } else {
+                world.getBlockCollisions(null, area).none { !it.isEmpty }
+            }
+        require(
+            clearBlocks &&
+                world.getEntities(null, area).all {
+                    it.uuid in ignoredPlayers && it is ServerPlayer
+                },
+        ) { "Destination is obstructed" }
         require(pose.position().isFinite) { "Invalid destination position" }
     }
 
@@ -423,9 +498,20 @@ class SableShipTransfer(
             // vanilla chunk visited by a full orbit would stall the server for minutes.
             container.holdingChunkMap.saveAll()
             container.holdingChunkMap.storage.flush()
+            val record = active
+            if (record != null && (
+                    record.sourcePassengers.any { !(it as CompoundTag).getBoolean("player") } ||
+                        record.destinationPassengers.any { !(it as CompoundTag).getBoolean("player") }
+                )
+            ) {
+                (world as ShipTransferEntityCheckpoint).orbitalisCheckpointEntities()
+            }
             world.dataStorage.save()
         }
         server.playerList.saveAll()
+        // Sable can create a mounted player's LoginPoint while saving player data.
+        // Persist that native SavedData after the player/RootVehicle save, before DONE.
+        for (world in worlds()) world.dataStorage.save()
     }
 
     private fun verifySaved(body: ServerSubLevel) {
@@ -433,7 +519,10 @@ class SableShipTransfer(
         val storage = SubLevelContainer.getContainer(body.level)!!.holdingChunkMap.storage
         val saved = checkNotNull(storage.attemptLoadSubLevel(pointer.chunkPos(), pointer.local())) { "Native checkpoint is unreadable" }
         check(saved.uuid() == body.uniqueId) { "Native checkpoint identity mismatch" }
-        verifyCargo(SableShipSnapshot.capture(body), saved.fullTag())
+        verifyCargo(
+            SableShipSnapshot.capture(body, active?.let { ShipTransferPassengers.ids(it.sourcePassengers) } ?: emptySet()),
+            saved.fullTag(),
+        )
     }
 
     private fun recoverNext() {
@@ -472,7 +561,26 @@ class SableShipTransfer(
                     SableShipSnapshot.load(world, snapshot).also(::retain)
                 }
             }
-        awaitEntities(copies) {
+        val passengerWorlds = listOf(sourceWorld to record.sourcePassengers, destinationWorld to record.destinationPassengers)
+        val entityChunks = mutableListOf<Pair<ServerLevel, ChunkPos>>()
+        for ((world, passengers) in passengerWorlds) {
+            for (item in passengers) {
+                val entry = item as CompoundTag
+                if (entry.getBoolean("player") || entry.getBoolean("plot")) continue
+                val pos = entry.getCompound("data").getList("Pos", 6)
+                val point = Vector3(pos.getDouble(0), pos.getDouble(1), pos.getDouble(2))
+                entityPreloads.add(
+                    org.cbi.orbitalis.minecraft.flight
+                        .ShipDestinationPreload()
+                        .also { it.update(world, point) },
+                )
+                entityChunks.add(world to ChunkPos(BlockPos.containing(point.x, point.y, point.z)))
+            }
+        }
+        awaitCondition("Recovery entity loading timed out", {
+            copies.all(SableShipSnapshot::entitiesReady) && entityChunks.all { (world, chunk) -> world.areEntitiesLoaded(chunk.toLong()) }
+        }) {
+            for ((world, passengers) in passengerWorlds) ShipTransferPassengers.discard(world, passengers)
             for ((world, snapshot) in listOf(sourceWorld to record.source, destinationWorld to record.destination)) {
                 val pointer = if (world === sourceWorld) record.sourcePointer else CompoundTag()
                 SableShipSnapshot.discardAttachments(world, snapshot)
@@ -481,24 +589,31 @@ class SableShipTransfer(
             val committed = record.phase == ShipTransferPhase.COMMITTED
             val winnerWorld = if (committed) destinationWorld else sourceWorld
             val snapshot = if (committed) record.destination else record.source
-            checkDestination(winnerWorld, snapshot)
+            checkDestination(winnerWorld, snapshot, record.pilot?.let { setOf(it) } ?: emptySet())
             val restored = SableShipSnapshot.load(winnerWorld, snapshot)
             retain(restored)
             awaitEntities(listOf(restored)) {
                 SableShipSnapshot.restoreAttachments(restored, snapshot)
-                val online = server.playerList.getPlayer(record.pilot)
+                val passengers = if (committed) record.destinationPassengers else record.sourcePassengers
+                ShipTransferPassengers.restore(winnerWorld, passengers)
+                val online = record.pilot?.let(server.playerList::getPlayer)
                 val finish = {
                     checkpoint()
                     verifySaved(restored)
                     persist(
-                        record.copy(phase = ShipTransferPhase.DONE, pilotPending = online == null, recoveredSource = !committed),
+                        record.copy(
+                            phase = ShipTransferPhase.DONE,
+                            pilotPending = record.pilot != null && online == null,
+                            recoveredSource = !committed,
+                        ),
                     ) { recoverNext() }
                 }
                 if (online == null) {
+                    ShipTransferPassengers.mount(winnerWorld, passengers, null)
                     finish()
                 } else {
                     pilot = online
-                    handoffPilot(online, restored, if (committed) record.destinationPilot else record.sourcePilot, finish)
+                    handoffTravellers(online, restored, if (committed) record.destinationPilot else record.sourcePilot, passengers, finish)
                 }
             }
         }
@@ -582,13 +697,15 @@ class SableShipTransfer(
         val snapshot = if (record.recoveredSource) record.source else record.destination
         val body = checkNotNull(findCopy(world, snapshot, CompoundTag())) { "Recovered ship checkpoint is unavailable" }
         retain(body)
-        handoffPilot(player, body, state) {
+        handoffTravellers(player, body, state, if (record.recoveredSource) record.sourcePassengers else record.destinationPassengers) {
             checkpoint()
             persist(record.copy(pilotPending = false)) { resume() }
         }
     }
 
     override fun close() {
+        entityPreloads.forEach { it.close() }
+        entityPreloads.clear()
         ShipTransferTickGate.release(this)
         journal.close()
     }
@@ -629,6 +746,10 @@ class SableShipTransfer(
             if (moved) {
                 player.deltaMovement = Vec3(state.getDouble("vx"), state.getDouble("vy"), state.getDouble("vz"))
                 player.fallDistance = 0f
+                player.connection.send(
+                    net.minecraft.network.protocol.game
+                        .ClientboundSetEntityMotionPacket(player),
+                )
             }
             return moved
         }

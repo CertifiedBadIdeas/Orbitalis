@@ -18,7 +18,7 @@ limitations under the License.
 
 # Surface/orbit ship transfer
 
-The optional Sable adapter transfers one independent construction and its unmounted creative pilot
+The optional Sable adapter transfers one independent construction and an optional pilot, including a seated survival player
 between ordinary Overworld and `orbitalis:space`. Use a disposable world and the isolated flight
 consumer. See [finite-body flight](flat-gravity.md) for gravity, altitude-triggered mission handoffs
 and the current low orbit. Journal staging pauses physics; this does not establish seamless rendering.
@@ -55,10 +55,19 @@ an available address from Sable's occupancy bitmap, including reservations for u
 A full destination rejects before modifying the source. Persist the selected address in PREPARED,
 then recheck it before reconstruction; a slot claimed during asynchronous preparation cancels safely.
 Foreign ships are never moved to make room. Physical destination obstructions still reject transfer.
-Destination terrain/nearby entities must be clear. Other players must leave both participating levels.
+Destination terrain/nearby entities must be clear. Other players may stay in either participating level.
 
-Connected/overlapping native chains, kinematic contraptions, mounted pilots, other onboard players,
-mobs, loose entities, general plot-space entities and pending block/fluid ticks are rejected.
+Connected/overlapping native chains, kinematic contraptions, more than one onboard player and
+pending block/fluid ticks are rejected. Up to 32 native serializable entities can travel, including
+a minecart and its player passenger. The manifest stores UUIDs, native entity NBT, explicit plot/world
+coordinate ownership and mount edges. Cycles, duplicate identities and external mount references
+are rejected. Plot-space positions follow the selected plot relocation; world-space positions follow
+the frame translation. Non-player entity ticks are held during staging, and changed source entity
+data cancels preparation. Players use their existing native player data, never an NBT clone.
+After client ship tracking and teleport acknowledgment, passenger edges are restored with native
+`startRiding`. Server GameTests exercise this with an inert connection; visual/client riding still
+needs an interactive check. A modded entity must accept dimension changes and native serialization;
+this does not certify every third-party entity or its external references.
 Create Super Glue (`create:super_glue`) and Simulated Honey Glue (`simulated:honey_glue`) are the
 supported metadata-entity exceptions: their NBT/UUID is captured and reconstructed
 in the selected destination plot coordinates. Preflight also recognizes this exception in Sable's world-space
@@ -76,18 +85,19 @@ The allowlist establishes a bounded experiment, not blanket compatibility with e
 
 ## Authority and persistence
 
-`ShipTransferJournal` writes version 3 compressed NBT records to
+`ShipTransferJournal` writes version 4 compressed NBT records to
 `<save>/data/orbitalis-transfers/<ship-uuid>.nbt`. A record contains transaction/ship/pilot UUIDs, source
 side, native source/destination snapshots (including glue metadata), exact linear/angular velocities, pilot pose/motion, the
 source's previous native save pointer, phase, orbital dimension and offline-pilot recovery flags. Unknown versions,
 missing state, identity mismatches and invalid numeric state fail closed. Compressed and decompressed
 records are bounded to 16 MiB. Native payloads remain tied to the pinned Sable serialization format;
 future Sable/Orbitalis migrations must handle unfinished records before changing that format.
-Version 3 requires explicit `surface_dimension=minecraft:overworld` and
-`orbital_dimension=orbitalis:space`. Its format and 4096-m translation remain unchanged.
+Version 4 requires explicit `surface_dimension=minecraft:overworld` and
+`orbital_dimension=orbitalis:space`. The 4096-m translation remains unchanged.
+Active version-3 records remain readable; version 4 adds optional pilots and entity/mount manifests.
 
 The retired `flight_test`, `orbit_test` and `space_test` dimensions are no longer registered. Their
-save directories are not deleted or converted. Legacy version-1/2 journals and version-3 diagnostic
+save directories are not deleted or converted. Legacy version-1/2 journals and version-3/4 diagnostic
 pairs are recognized only for retirement: a DONE receipt with no pending pilot is ignored without
 rewriting the file. An unfinished transaction or pending pilot fails closed with an explicit recovery
 message. Restore a backup and finish recovery using the previous version before upgrading; never
@@ -153,7 +163,7 @@ remain unchanged apart from the existing world-frame height translation. Chunk k
 plot-relative coordinates. Pinned Super Glue/Honey Glue `From`/`To` bounds and Propulsion controller
 offsets are relative, so they remain exact. This is a bounded adapter for the existing allowlist,
 not a generic recursive NBT coordinate rewrite or support for arbitrary mod block entities.
-Active version-3 journals store independent source and destination plot snapshots; recovery uses
+Active version-3/4 journals store independent source and destination plot snapshots; recovery uses
 each recorded address. Plot relocation requires no schema change.
 
 ## Evidence and remaining work
@@ -182,3 +192,20 @@ fixture is installed after its neighbours without creating scheduled ticks; the 
 restriction remains unchanged. Interactive Propulsion/glue operation, packet ordering, cockpit continuity,
 second observers and frame-time stalls need their own client evidence. Scheduled ticks, arbitrary
 passenger graphs, connected ships and global surface mapping remain later extensions.
+
+Journal v4 retains active v3 explicit routes; retired diagnostics follow the retirement policy above. A missing pilot is
+valid only in v4 and cannot have a pending-pilot receipt. Source/destination passenger manifests
+join the same PREPARED/COMMITTED authority decision as the ship. Recovery removes both entity
+copies before reconstructing the winner and its mount graph. DONE strips entity payloads as well
+as ship cargo: receipts never become a permanent vehicle/inventory backup. Pending-player recovery
+retains the existing paused-anchor behavior until the player returns; general offline passenger
+flight and multiple onboard players are not implemented.
+
+For travelling entities, the checkpoint includes vanilla entity storage before the player save and
+DONE. A narrow `ServerLevelEntityCheckpointMixin` exposes the native entity-only save barrier; it
+does not change entity serialization or flush all visited terrain chunks. Mounted player vehicles
+retain vanilla's player/RootVehicle ownership rules. Sable may create a LoginPoint during player
+saving, so SavedData is flushed again afterwards. Source/losing entity copies use
+`RemovalReason.CHANGED_DIMENSION`, which avoids the inventory drops caused by `discard()` on
+container vehicles. These native save barriers run on the server thread and can still pause a busy
+world; seamless/asynchronous native entity checkpoints are not claimed.

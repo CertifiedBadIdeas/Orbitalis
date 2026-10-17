@@ -36,9 +36,9 @@ verifyTooling, verifyArchitecture and :core:check. verifyLocalFull adds common/c
 production archive inspection. Core tests cover finite rectangular-body potential, the conservative surface layer, numerical low
 orbits, spherical/two-body fields and flight/frame math. This is mathematical coverage, not evidence of Minecraft/Sable gameplay. NO-SOURCE is not coverage.
 Run `:v1_21_1-neoforge:runGameTestServer` separately. The default `all` suite requires three surface
-border/persistence/packet scenarios and three finite-orbit/ship-transfer/retirement scenarios, with no
+border/persistence/packet scenarios and six finite-orbit/ship-transfer/retirement/travel scenarios, with no
 failed, skipped or error results in a fresh XML report. `-PorbitalisGameTestSuite=surface` runs the three
-surface cases alone; `-PorbitalisGameTestSuite=transfer` runs the two native transfer/recovery/retirement cases
+surface cases alone; `-PorbitalisGameTestSuite=transfer` runs the five native transfer/recovery/retirement/travel cases
 without the full-orbit performance cost. See [flat surface](flat-surface.md), [flight gravity](flight-gravity.md) and
 [ship transfer](ship-transfer.md). Use `-PorbitalisGameTestSuite=flat` for the inert finite-body native orbit alone. The consumer separately
 requires nine native flight scenarios; `-PorbitalisConsumerGameTestSuite=flat` runs its low-orbit
@@ -61,3 +61,11 @@ old chunks and SavedData. Both harnesses archive the disposable surface initiali
 each launch; this permits a fresh startup without deleting terrain caches. The persistence scenario
 uses a new DimensionDataStorage reader to verify that a saved marker preserves customized settings.
 Normal dedicated/integrated servers load their native border settings and do not run this fixture reset.
+
+The `-PorbitalisGameTestSuite=travel` suite requires all three automatic travel scenarios: an
+unmanned ship roundtrip plus interrupted committed recovery with no pilot, a seated survival player
+in a plot-space minecart travelling both ways plus interrupted recovery and deferred login, and an
+independent survival player preserving native velocity and mode in both directions. The unmanned
+case includes a chest minecart, checks for dropped-item duplication, and reads its freshly flushed
+native entity-region file to establish container persistence. The default suite includes these cases. It does not establish
+client rendering or a real logged-in riding handshake.

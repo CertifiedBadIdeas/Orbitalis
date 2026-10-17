@@ -106,9 +106,19 @@ object SableTransferGameTests {
                             .single()
                             .ship == ship,
                     ) { "Active route receipt was lost" }
+                    val previousActive = active.encode().apply { putInt("version", 3) }
+                    NbtIo.writeCompressed(previousActive, file)
+                    check(
+                        journal
+                            .read()
+                            .join()
+                            .single()
+                            .ship == ship,
+                    ) { "Active version-3 receipt was lost" }
+                    journal.write(active).join()
                     val retiredShip = UUID.randomUUID()
                     val retiredFile = folder.resolve("$retiredShip.nbt")
-                    for (version in 1..3) {
+                    for (version in 1..4) {
                         val retired =
                             active.encode().apply {
                                 putUUID("ship", retiredShip)

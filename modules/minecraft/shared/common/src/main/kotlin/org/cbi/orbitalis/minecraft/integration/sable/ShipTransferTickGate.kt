@@ -36,7 +36,22 @@ object ShipTransferTickGate {
         chunks.forEach { positions.add(it.toLong()) }
     }
 
+    private val entityLeases = IdentityHashMap<Any, MutableMap<Level, MutableSet<java.util.UUID>>>()
+
+    fun holdEntities(
+        owner: Any,
+        level: Level,
+        ids: Set<java.util.UUID>,
+    ) {
+        entityLeases.getOrPut(owner) { mutableMapOf() }.getOrPut(level) { mutableSetOf() }.addAll(ids)
+    }
+
+    fun blocksEntity(entity: net.minecraft.world.entity.Entity): Boolean =
+        !entity.level().isClientSide && entity !is net.minecraft.server.level.ServerPlayer &&
+            entityLeases.values.any { entity.uuid in it[entity.level()].orEmpty() }
+
     fun release(owner: Any) {
+        entityLeases.remove(owner)
         leases.remove(owner)
     }
 

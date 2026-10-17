@@ -220,7 +220,7 @@ redstone inputs and restores NORMAL control, allowing the native thrust envelope
 controllers off: normal redstone can command engines again afterwards. The pinned Propulsion server
 load resets peripheral mode to NORMAL, so a saved session cannot resume itself after reconstruction
 or restart. Hold sessions do not persist controller state. Orbital missions save a separate launch
-bookmark and use the shared version-3 transfer journal described below.
+bookmark and use the shared version-4 transfer journal described below.
 
 The native consumer tests retain a symmetric engine rig for controller isolation and also execute the
 actual built-in shuttle blueprint, including glue, through Simulated's native Physics Assembler. The

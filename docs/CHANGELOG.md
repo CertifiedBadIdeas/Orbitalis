@@ -25,6 +25,8 @@ limitations under the License.
   Preserve old save directories; ignore completed retired receipts, reject unfinished legacy transfers
   with recovery instructions, and skip retired launch bookmarks without converting their coordinates.
   Retain native transfer, cargo, gravity and propulsion coverage on the active route.
+- Automatically transfer supported loaded ships and independent players between Overworld and low space, including survival. Preserve a seated passenger's minecart and mount relationship; unmanned ships transfer and recover without a pilot. Preload source entities before selection and reserve guidance-controlled handoffs.
+- Extend the transfer journal to version 4 with optional pilots and bounded native entity/mount manifests, while retaining active version-3 records.
 
 - Add finite rectangular-body potential and gravity, a conservative native-gravity surface layer, and numerical low-orbit shooting with collision/clearance and energy checks.
 
