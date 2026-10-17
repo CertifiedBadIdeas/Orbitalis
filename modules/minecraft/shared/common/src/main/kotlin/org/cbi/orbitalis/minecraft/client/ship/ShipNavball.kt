@@ -27,13 +27,22 @@ import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
 import org.joml.Vector3d
 import java.util.Locale
-import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.roundToInt
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 /** Attitude follows the hull, never the observation camera. +Y rocket / +Z ship nose presets. */
 object ShipNavball {
     private const val PIXELS = 96
     private val gravity = FlatPlanetSpace.gravityField(1.0)
+    private val normals =
+        Array(PIXELS * PIXELS) { index ->
+            ShipViewMath.hemisphere(
+                (index % PIXELS + 0.5 - PIXELS / 2) / (PIXELS / 2 - 2.0),
+                (PIXELS / 2 - index / PIXELS - 0.5) / (PIXELS / 2 - 2.0),
+            )
+        }
     private var texture: DynamicTexture? = null
     private var location: net.minecraft.resources.ResourceLocation? = null
     private var rocketAxes = true
@@ -61,7 +70,10 @@ object ShipNavball {
         val acceleration = gravity.acceleration(global)
         if (acceleration.length() < 1e-8) return
         val upWorld = acceleration.normalized() * -1.0
-        val up = instrument(pose.orientation().transformInverse(Vector3d(upWorld.x, upWorld.y, upWorld.z)))
+
+        fun local(direction: Vector3) = instrument(pose.orientation().transformInverse(Vector3d(direction.x, direction.y, direction.z)))
+        val world = NavballGrid.worldFrame(upWorld)
+        val frame = NavballGrid.Frame(local(world.up), local(world.north), local(world.east))
         if (texture == null) {
             texture = DynamicTexture(NativeImage(PIXELS, PIXELS, false))
             location = minecraft.textureManager.register("orbitalis_navball", texture!!)
@@ -69,23 +81,18 @@ object ShipNavball {
         val image = checkNotNull(texture!!.pixels)
         for (y in 0 until PIXELS) {
             for (x in 0 until PIXELS) {
-                val n =
-                    ShipViewMath.hemisphere(
-                        (x + 0.5 - PIXELS / 2) / (PIXELS / 2 - 2.0),
-                        (PIXELS / 2 - y - 0.5) / (PIXELS / 2 - 2.0),
-                    )
+                val n = normals[y * PIXELS + x]
                 val color =
                     if (n == null) {
                         0
                     } else {
-                        val altitude = n.dot(up)
-                        when {
-                            abs(altitude) < 0.025 -> 0xffe8eee9.toInt()
-
-                            altitude > 0 -> 0xffd68b30.toInt()
-
-                            // NativeImage ABGR: sky blue
-                            else -> 0xff284e83.toInt() // ground brown
+                        val sky = n.dot(frame.up) > 0.0
+                        // NativeImage uses ABGR; keep distinct sky/ground under the grid.
+                        when (NavballGrid.line(n, frame)) {
+                            NavballGrid.Line.HORIZON -> 0xffe8eee9.toInt()
+                            NavballGrid.Line.MAJOR -> if (sky) 0xffeed2aa.toInt() else 0xffa0bccd.toInt()
+                            NavballGrid.Line.MINOR -> if (sky) 0xffdda76a.toInt() else 0xff5c7b9e.toInt()
+                            NavballGrid.Line.NONE -> if (sky) 0xffd68b30.toInt() else 0xff284e83.toInt()
                         }
                     }
                 image.setPixelRGBA(x, y, color)
@@ -104,6 +111,7 @@ object ShipNavball {
             .disableBlend()
         val cx = left + size / 2
         val cy = top + size / 2
+        graduations(gui, cx, cy, size, frame)
         gui.fill(cx - 8, cy, cx - 2, cy + 1, -1)
         gui.fill(cx + 3, cy, cx + 9, cy + 1, -1)
         gui.fill(cx, cy - 2, cx + 1, cy + 4, -1)
@@ -132,6 +140,48 @@ object ShipNavball {
         gui.drawCenteredString(minecraft.font, if (rocketAxes) "+Y" else "+Z", cx, top - 10, -1)
         val label = speed?.let { String.format(Locale.ROOT, "%.1f m/s", it) } ?: "— m/s"
         gui.drawCenteredString(minecraft.font, label, cx, top + size + 2, -1)
+    }
+
+    private fun graduations(
+        gui: GuiGraphics,
+        cx: Int,
+        cy: Int,
+        size: Int,
+        frame: NavballGrid.Frame,
+    ) {
+        val radius = size / 2.0 - 1
+        for (angle in 0 until 360 step 15) {
+            val radians = Math.toRadians(angle.toDouble())
+            val length = if (angle % 30 == 0) 4 else 2
+            for (step in 0 until length) {
+                val r = radius - step
+                val x = cx + (sin(radians) * r).roundToInt()
+                val y = cy - (cos(radians) * r).roundToInt()
+                gui.fill(x, y, x + 1, y + 1, 0xffe6e6df.toInt())
+            }
+        }
+        val font = Minecraft.getInstance().font
+        for (pitch in listOf(-60, -30, 30, 60)) {
+            val point = (0 until 360 step 90).map { NavballGrid.point(frame, pitch.toDouble(), it.toDouble()) }.maxBy { it.z }
+            if (point.z < 0.3) continue
+            val x = cx + point.x * (radius - 4)
+            val y = cy - point.y * (radius - 4)
+            if (kotlin.math.abs(x - cx) < 12 && kotlin.math.abs(y - cy) < 9) continue
+            gui.pose().pushPose()
+            try {
+                gui.pose().translate(x, y - 2, 0.0)
+                gui.pose().scale(0.65f, 0.65f, 1f)
+                gui.drawCenteredString(font, if (pitch > 0) "+$pitch" else "$pitch", 0, 0, -1)
+            } finally {
+                gui.pose().popPose()
+            }
+        }
+        val horizontal = sqrt(frame.up.x * frame.up.x + frame.up.y * frame.up.y)
+        if (horizontal > 0.05) {
+            val x = cx + (frame.up.x / horizontal * (radius - 5)).roundToInt()
+            val y = cy - (frame.up.y / horizontal * (radius - 5)).roundToInt()
+            gui.fill(x - 1, y - 1, x + 2, y + 2, 0xffffd060.toInt())
+        }
     }
 
     private fun marker(

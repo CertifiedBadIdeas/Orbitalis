@@ -32,6 +32,10 @@ Press F6 again to restore the previous perspective. F5 deliberately leaves obser
 disconnect and sustained loss of ship contact also leave it. During a handoff the camera only resumes
 on the same ship UUID after native contact returns; it never chooses a nearby replacement ship.
 
+The navball includes pitch lines every 15 degrees, stronger lines and labels at 30-degree intervals,
+heading meridians and a graduated bank rim. Its grid follows the same local gravity frame as the
+horizon, including attitudes that fill the disk with one hemisphere.
+
 The circular navball appears while aboard a ship in the Overworld/space flight route. Blue is above
 the local gravity horizon, brown below; the fixed white centre marks the nose. Its attitude follows
 the ship, independent of the external camera. Yellow marks prograde; orange marks retrograde on the

@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Add navball pitch/heading grid, numeric pitch labels and bank graduations. Continue live ballistic
+  forecasts across the dimension handoff to the reference-body intersection or forecast limit; keep
+  trajectory prediction independent of autopilot commands and future thrust.
+
 - Keep native RCS prograde control active during the rocket's ballistic orbit, damping residual roll
   with the main engines off. Transport the attitude's existing roll and smooth requested thrust
   acceleration across feedback/phase changes; retain native force application and engine fade.

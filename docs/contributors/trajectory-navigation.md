@@ -42,18 +42,18 @@ the trajectory subscription does not. One marker per player, at most 1024 marker
 
 After `trajectory on`, stay in native contact with a loaded Sable construction (or a tracked vehicle
 on board). A cyan line shows the next 120 seconds of coast. A yellow cross is the first predicted
-entry into the Overworld return region; a red cross is intersection of the centre of mass with the
-uniform reference body. A green cross marks your personal saved location. The line ends at entry,
-body intersection, a 30 km range bound or the forecast horizon. A horizon/range termination does not
+entry into the Overworld return region when that diagnostic is explicitly requested by code; the live
+coast forecast instead continues across the dimension boundary. A red cross is intersection of the
+centre of mass with the uniform reference body. A green cross marks your personal saved location. The live line ends at body intersection, a 30 km range bound or the forecast horizon. A horizon/range termination does not
 prove a stable orbit or escape. Use `status` for terminal event, time and physical coordinates.
 F1 hides the overlay. The line is a navigation overlay visible through geometry, not a rendered ship
 trail. Distant vertices preserve viewing direction inside the native far plane.
 
 The forecast omits working engines, native drag, collisions, terrain, hull extent, attitude and other
 constructions. Engine fade can still exert force after cutoff. The reference body is the illustrative
-2000×2000×128 slab, not sampled Overworld terrain or an actual collision surface in space. A yellow
-cross predicts the height-trigger region, not atmospheric drag, safe landing or autopilot transfer
-reservation behavior. Guidance may deliberately reserve a different handoff time. Near the surface,
+2000×2000×128 slab, not sampled Overworld terrain or an actual collision surface in space. A dimension handoff preserves the physical position and velocity and does not end the forecast.
+The optional pure entry diagnostic predicts a height-trigger region, not atmospheric drag, safe
+landing or autopilot transfer reservation behavior. Near the surface,
 the line can therefore extend into terrain before the reference-body warning.
 
 ## Ownership and budgets
@@ -61,7 +61,10 @@ the line can therefore extend into terrain before the reference-body warning.
 `CoastPrediction` in core uses velocity Verlet with 0.05 s integration steps, 0.5 s output samples,
 swept line/box clipping and finite limits. It accepts the same immutable `SurfaceGravityLayer` that
 supplies live construction forces. It is a general initial-state forecast, independent of the periodic
-meridian shooting in `BallisticOrbit`. No spherical Kepler fit is used. The pure API optionally expands
+meridian shooting in `BallisticOrbit`. No spherical Kepler fit or autopilot route is used. A suborbital arc ends on the reference body;
+a bound orbit is integrated through its future revolution without artificially closing the line.
+The finite nonspherical field can precess and does not generally produce an exact ellipse.
+A new velocity sample after a burn changes the forecast; future thrust and planned burns are omitted. The pure API optionally expands
 the reference body by a conservative hull radius; the live display uses the centre of mass only.
 
 `ShipCoastForecast.capture` copies position, velocity, field and identity on the server thread.

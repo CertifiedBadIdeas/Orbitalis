@@ -39,17 +39,27 @@ class CoastPredictionTest {
 
     @Test
     fun `entry plane detects descent and lateral arrivals but excludes outward and border tangency`() {
-        val falling = CoastPrediction.predict(field, CartesianState(Vector3(10.0, 700.0, 20.0), Vector3(1.0, -10.0, 0.0)))
+        val falling =
+            CoastPrediction.predict(
+                field,
+                CartesianState(Vector3(10.0, 700.0, 20.0), Vector3(1.0, -10.0, 0.0)),
+                CoastPrediction.Limits(detectEntry = true),
+            )
         assertEquals(CoastPrediction.End.SURFACE_ENTRY, falling.end)
         assertEquals(464.0, falling.terminal.state.position.y, 1e-8)
-        val lateral = CoastPrediction.predict(field, CartesianState(Vector3(1001.0, 400.0, 0.0), Vector3(-20.0, -1.0, 0.0)))
+        val lateral =
+            CoastPrediction.predict(
+                field,
+                CartesianState(Vector3(1001.0, 400.0, 0.0), Vector3(-20.0, -1.0, 0.0)),
+                CoastPrediction.Limits(detectEntry = true),
+            )
         assertEquals(CoastPrediction.End.SURFACE_ENTRY, lateral.end)
         assertTrue(lateral.terminal.seconds > 0.0)
         val rising =
             CoastPrediction.predict(
                 field,
                 CartesianState(Vector3(0.0, 400.0, 0.0), Vector3(0.0, 100.0, 0.0)),
-                CoastPrediction.Limits(horizon = 0.1),
+                CoastPrediction.Limits(horizon = 0.1, detectEntry = true),
             )
         assertEquals(CoastPrediction.End.HORIZON, rising.end)
     }
@@ -57,23 +67,28 @@ class CoastPredictionTest {
     @Test
     fun `surface forecast arms only after ascent and handles open corners`() {
         val low = CartesianState(Vector3(0.0, 200.0, 0.0), Vector3.ZERO)
-        val result = CoastPrediction.predict(field, low, CoastPrediction.Limits(entryInitiallyArmed = false))
+        val result = CoastPrediction.predict(field, low, CoastPrediction.Limits(detectEntry = true, entryInitiallyArmed = false))
         assertEquals(CoastPrediction.End.BODY_INTERSECTION, result.end)
         val launched =
             CoastPrediction.predict(
                 field,
                 CartesianState(Vector3(0.0, 400.0, 0.0), Vector3(0.0, 90.0, 0.0)),
-                CoastPrediction.Limits(entryInitiallyArmed = false),
+                CoastPrediction.Limits(detectEntry = true, entryInitiallyArmed = false),
             )
         assertEquals(CoastPrediction.End.SURFACE_ENTRY, launched.end)
         assertTrue(launched.terminal.seconds > 1.0)
-        val corner = CoastPrediction.predict(field, CartesianState(Vector3(1001.0, 400.0, 1001.0), Vector3(-20.0, -1.0, -20.0)))
+        val corner =
+            CoastPrediction.predict(
+                field,
+                CartesianState(Vector3(1001.0, 400.0, 1001.0), Vector3(-20.0, -1.0, -20.0)),
+                CoastPrediction.Limits(detectEntry = true),
+            )
         assertEquals(CoastPrediction.End.SURFACE_ENTRY, corner.end)
         val tangent =
             CoastPrediction.predict(
                 field,
                 CartesianState(Vector3(1000.0, 300.0, 0.0), Vector3(0.0, -1.0, 0.0)),
-                CoastPrediction.Limits(horizon = 0.1),
+                CoastPrediction.Limits(horizon = 0.1, detectEntry = true),
             )
         assertEquals(CoastPrediction.End.HORIZON, tangent.end)
     }
@@ -84,6 +99,7 @@ class CoastPredictionTest {
             CoastPrediction.predict(
                 field,
                 CartesianState(Vector3(1000.0, 300.0, 0.0), Vector3(-1.0, -1.0, 0.0)),
+                CoastPrediction.Limits(detectEntry = true),
             )
         assertEquals(CoastPrediction.End.SURFACE_ENTRY, result.end)
         assertEquals(1, result.points.size)
@@ -113,6 +129,36 @@ class CoastPredictionTest {
         val energy = field.specificEnergy(initial)
         assertTrue(coarse.points.all { abs((field.specificEnergy(it.state) - energy) / energy) < 0.001 })
         assertTrue(coarse.points.size <= 162)
+    }
+
+    @Test
+    fun `default coast follows a suborbital arc past the dimension boundary to the surface`() {
+        val native = SurfaceGravityLayer(field.body, 11.0, nearHeight = 600.0, fullHeight = 1000.0)
+        val initial = CartesianState(Vector3(-150.0, 200.0, 0.0), Vector3(10.0, 80.0, 0.0))
+        val result = CoastPrediction.predict(native, initial)
+        assertEquals(CoastPrediction.End.BODY_INTERSECTION, result.end)
+        assertTrue(result.points.maxOf { it.state.position.y } > 464.0)
+        val impactTime = (80.0 + sqrt(80.0 * 80.0 + 2.0 * 11.0 * 136.0)) / 11.0
+        assertEquals(impactTime, result.terminal.seconds, 0.001)
+        assertEquals(initial.position.x + 10.0 * impactTime, result.terminal.state.position.x, 0.01)
+        assertEquals(64.0, result.terminal.state.position.y, 1e-8)
+        // Starting again from a later state changes the remaining forecast, not the underlying arc.
+        val later = result.points.first { it.seconds > 5.0 }
+        val revised = CoastPrediction.predict(native, later.state)
+        assertEquals(result.terminal.seconds - later.seconds, revised.terminal.seconds, 0.002)
+        assertTrue((result.terminal.state.position - revised.terminal.state.position).length() < 0.02)
+        val changed = CoastPrediction.predict(native, later.state.copy(velocity = later.state.velocity + Vector3(5.0, 0.0, 0.0)))
+        assertTrue((changed.terminal.state.position - revised.terminal.state.position).length() > 10.0)
+    }
+
+    @Test
+    fun `default forecast completes a periodic orbit without forcing a geometric ellipse`() {
+        val orbit = BallisticOrbit.plan(field, 900.0)
+        val result = CoastPrediction.predict(field, orbit.initial, CoastPrediction.Limits(horizon = orbit.period))
+        assertEquals(CoastPrediction.End.HORIZON, result.end)
+        assertTrue(result.points.any { it.state.position.y < -64.0 })
+        assertTrue((result.terminal.state.position - orbit.initial.position).length() < 0.6)
+        assertTrue((result.terminal.state.velocity - orbit.initial.velocity).length() < 0.1)
     }
 
     @Test

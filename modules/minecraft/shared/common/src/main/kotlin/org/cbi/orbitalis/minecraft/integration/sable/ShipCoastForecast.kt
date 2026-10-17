@@ -52,12 +52,8 @@ class ShipCoastForecast private constructor(
                 body.level.gameTime,
                 CartesianState(global, Vector3(sample.velocity.x, sample.velocity.y, sample.velocity.z)),
                 SableFlightGravity.flatField(body.level),
-                CoastPrediction.Limits(
-                    entryHeight = FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.DESCENT_HEIGHT,
-                    entryArmHeight = FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ASCENT_HEIGHT,
-                    entryInitiallyArmed = body.level.dimension() == FlatPlanetSpace.SPACE,
-                    footprintHalfSize = FlatPlanetSpace.HALF_SIZE,
-                ),
+                // Dimension handoff is a change of representation, not the end of a ballistic path.
+                CoastPrediction.Limits(detectEntry = false),
             )
         }
     }

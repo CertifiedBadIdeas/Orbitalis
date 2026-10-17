@@ -47,7 +47,7 @@ object CoastPrediction {
         val hullRadius: Double = 0.0,
         val entryHeight: Double = 464.0,
         val footprintHalfSize: Double = 1000.0,
-        val detectEntry: Boolean = true,
+        val detectEntry: Boolean = false,
         val entryInitiallyArmed: Boolean = true,
         val entryArmHeight: Double = 664.0,
     ) {

@@ -37,6 +37,7 @@ import net.minecraft.network.FriendlyByteBuf
 import net.minecraft.util.Unit
 import net.minecraft.world.level.block.Blocks
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
+import org.cbi.orbitalis.core.planet.CoastPrediction
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
@@ -139,6 +140,11 @@ object TrajectoryGameTests {
                         helper.assertTrue(
                             (predicted.velocity - Vector3(actual.velocity.x, actual.velocity.y, actual.velocity.z)).length() < 0.15,
                             "Native velocity disagrees with forecast",
+                        )
+                        helper.assertTrue(
+                            result.prediction.end == CoastPrediction.End.BODY_INTERSECTION &&
+                                kotlin.math.abs(result.prediction.terminal.state.position.y - FlatPlanetSpace.SEA_LEVEL) < 1e-6,
+                            "Ballistic forecast stopped at the dimension handoff instead of continuing to the reference surface",
                         )
                         val buffer = FriendlyByteBuf(Unpooled.buffer())
                         try {
