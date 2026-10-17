@@ -247,7 +247,7 @@ tasks.configureEach {
             val travelNames = setOf("automaticemptyshiproundtrip", "automaticmountedsurvivalpassenger", "independentsurvivalplayerroundtrip")
             val navigationNames = setOf("nativecoastforecastandpacket", "navigationbookmarkpersistence")
             val sparseNames = setOf("nativeterrainloadingcontrol", "nativevacuumflightwithoutterrain", "nativevacuumshipcollision", "vacuumstorageandconstruction", "vacuummetadatacompatibility")
-            val atlasNames = setOf("nativesurfaceatlaspersistence", "surfaceatlaspacketbounds")
+            val atlasNames = setOf("nativesurfaceatlaspersistence", "surfaceatlaspacketbounds", "savedsurfaceatlasbackfill", "surfaceatlaslifecycleburst")
             val requiredNames = when (gameTestSuite) {
                 "atlas" -> atlasNames
                 "sparse" -> sparseNames

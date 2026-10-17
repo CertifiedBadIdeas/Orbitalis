@@ -61,7 +61,8 @@ Surface block/fluid logic and native Sable settings remain unchanged. The space 
 flat-body [space presentation](space-visuals.md), combining a persisted
 server-owned coarse Overworld surface atlas with illustrative fallback for unknown cells. Shared/common
 owns native sampling, SavedData, bounded packets and the client relief renderer; NeoForge owns chunk/
-player/tick lifecycle and network wiring. This presentation never requests terrain loads or generation.
+player/tick lifecycle and network wiring. This presentation never requests terrain loads or generation; bounded asynchronous native storage reads
+backfill already saved terrain without installing chunks, and CPU overview meshing runs off the render thread.
 The former `flight_test`, `orbit_test` and
 `space_test` IDs, their resources and spherical mission have been retired; save directories remain
 untouched. Completed old receipts are ignored; unfinished old transfers require previous-version

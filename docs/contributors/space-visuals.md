@@ -34,19 +34,28 @@ The reference body remains a 10,000-by-10,000-block flat slab centred at surface
 with a fallback top at Y=64 and underside at Y=-64. Its orbital top now uses a server-owned
 surface atlas: each naturally loaded Overworld chunk contributes sixteen height/map-colour probes,
 averaged to one chunk sample. Water, grass and leaves use native biome colours. The client combines
-known samples into 64-metre overview cells, including large terrain changes and buildings; this is
+known samples into 32-metre overview cells, including large terrain changes and buildings; this is
 an overview, not block-resolution geometry or a collision surface. Vertical skirts join differing
 heights, unknown neighbours and the slab edge. Side strata and the underside remain illustrative.
 Administrator border changes do not resize the physical reference body or its atlas.
 
 Unknown overview cells keep the existing deterministic water/coast/land mosaic. Any known samples
 in a cell provide its overview; a partially sampled cell is approximate until its other chunks load.
-The sampler never requests chunk generation or loading. Previously generated chunks that have not
-been observed since installing this feature retain fallback until their next normal load. Voxy and
-other terrain loaders may populate the atlas through ordinary chunk lifecycle events, but are not
-required. At most two chunks per server tick are sampled in round-robin order; unload may capture the
-last available sample on the server thread within that same budget. Changes to still-loaded terrain are picked up on the
-next sampling pass. Unloaded terrain retains its saved sample.
+The sampler never requests chunk generation or loading. Each normal full-chunk load/unload captures
+sixteen probes immediately on the server thread, so a lifecycle burst cannot lose chunks behind a
+refresh budget. Two still-loaded chunks per tick are additionally refreshed in round-robin order.
+
+Existing saved terrain is backfilled independently of live chunk loading and Voxy. A background scan
+reads only existing region location tables inside the footprint, nearest the origin first. Up to eight
+native asynchronous chunk-storage reads may be in flight; the server consumes up to eight ready records
+per tick, stopping between records after a two-millisecond decode budget. Native block-state and biome
+palette codecs decode only sampled sections; no live chunk, ticket, entity, POI or lighting is installed.
+The scan repeats at most once per minute after draining, so generation that bypasses full-chunk events
+can still contribute after saving. Complete current-version chunks with a WORLD_SURFACE heightmap are
+eligible; malformed, incomplete and older/newer-version terrain retains fallback until opened normally.
+Disk samples only fill unknown entries and cannot overwrite newer live observations. Backfill is
+incremental and may take minutes for a large existing world. Nothing waits for backfill at server stop.
+Unloaded terrain retains its saved sample.
 
 The Overworld owns `data/orbitalis_surface_atlas.dat`, SavedData version 1. `Samples` is an int array
 of `(chunkX, chunkZ, height, rgb)` tuples, bounded to the physical footprint (626 by 626 partial/full
@@ -70,8 +79,10 @@ chunk render distance and shrinks naturally with distance. A private colour/dept
 sky depth in front of ships. Its transparent result is composited over the stars. Stars and Sun are drawn first, the body afterward, and normal
 world geometry afterward, so ships occlude the background. The renderer restores its shader,
 shader colour, framebuffer and incoming depth/culling/blend state. Overview geometry is cached in a
-GPU vertex buffer and rebuilt at most twice per second when samples change; the top is bounded to
-24,964 quads, with at most two interior skirts per cell and bounded perimeter skirts. Sky is hidden in fluids, powder snow and under blindness/darkness;
+GPU vertex buffer. At most one CPU mesh job is pending, started at most twice per second on an immutable
+sample snapshot; only upload/compositing run on the render thread. Session generations reject stale jobs
+and disconnect releases completed/pending CPU buffers without waiting. The top is bounded to 98,596
+quads, with at most two interior skirts per cell and bounded perimeter skirts. Sky is hidden in fluids, powder snow and under blindness/darkness;
 medium-specific fog is retained.
 
 The new [finite-body route](flat-gravity.md) uses `orbitalis:space`, with represented Y equal to
@@ -84,7 +95,8 @@ and directional ship shadows remain separate work.
 `SurfaceAtlasTest` protects updates, bounded revision streams, coordinates and mixed known cells.
 `SurfacePlanetMeshTest` verifies complete fallback coverage, real relief replacement, edge/unknown
 skirts and the mesh budget. `-PorbitalisGameTestSuite=atlas` requires native sampling/terrain-change,
-real SavedData disk reload, future/malformed data handling and packet bounds/roundtrip scenarios.
+real SavedData disk reload, saved-terrain backfill, lifecycle bursts, future/malformed data handling
+and packet bounds/roundtrip scenarios.
 In a disposable client world, inspect generated land from above, then view the slab edges/underside
 and return to the same save after restart. Unknown regions should retain the mosaic; known terrain
 should retain location, height and map colours after unload and dimension travel. Change a large

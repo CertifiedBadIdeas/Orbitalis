@@ -44,7 +44,7 @@ class SurfaceAtlasTest {
         val atlas = SurfaceAtlas()
         assertTrue(atlas.overview().isEmpty())
         atlas.put(SurfaceAtlas.Sample(-1, -1, 100, 0xff0000))
-        atlas.put(SurfaceAtlas.Sample(-4, -4, 200, 0x0000ff))
+        atlas.put(SurfaceAtlas.Sample(-2, -2, 200, 0x0000ff))
         atlas.put(SurfaceAtlas.Sample(0, 0, 20, 0x00ff00))
         val cells = atlas.overview()
         assertEquals(2, cells.size)

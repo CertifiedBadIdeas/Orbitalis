@@ -53,6 +53,11 @@ class SurfaceAtlas {
         return true
     }
 
+    fun contains(
+        x: Int,
+        z: Int,
+    ): Boolean = samples.containsKey((x - MIN_CHUNK) * WIDTH + z - MIN_CHUNK)
+
     fun all(): Collection<Sample> = java.util.Collections.unmodifiableCollection(samples.values)
 
     /** Only current values are retained; cursors also work after an earlier value was superseded. */
@@ -73,11 +78,11 @@ class SurfaceAtlas {
         val known: Int,
     )
 
-    /** One 64m overview cell combines up to sixteen known chunk samples. */
+    /** One 32m overview cell combines up to four known chunk samples. */
     fun overview(): Map<Pair<Int, Int>, Cell> {
         val groups = hashMapOf<Pair<Int, Int>, LongArray>()
         for (sample in samples.values) {
-            val key = Math.floorDiv(sample.x, 4) to Math.floorDiv(sample.z, 4)
+            val key = Math.floorDiv(sample.x, 2) to Math.floorDiv(sample.z, 2)
             val sum = groups.getOrPut(key) { LongArray(5) }
             sum[0] += sample.height.toLong()
             sum[1] += (sample.color shr 16 and 255).toLong()

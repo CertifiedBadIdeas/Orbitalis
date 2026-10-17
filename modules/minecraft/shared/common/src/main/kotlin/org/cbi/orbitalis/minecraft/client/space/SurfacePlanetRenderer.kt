@@ -20,10 +20,13 @@ package org.cbi.orbitalis.minecraft.client.space
 
 import com.mojang.blaze3d.pipeline.TextureTarget
 import com.mojang.blaze3d.systems.RenderSystem
+import com.mojang.blaze3d.vertex.BufferBuilder
+import com.mojang.blaze3d.vertex.ByteBufferBuilder
 import com.mojang.blaze3d.vertex.DefaultVertexFormat
-import com.mojang.blaze3d.vertex.Tesselator
+import com.mojang.blaze3d.vertex.MeshData
 import com.mojang.blaze3d.vertex.VertexBuffer
 import com.mojang.blaze3d.vertex.VertexFormat
+import net.minecraft.Util
 import net.minecraft.client.Minecraft
 import net.minecraft.client.renderer.GameRenderer
 import org.cbi.orbitalis.core.planet.SurfaceAtlas
@@ -33,6 +36,7 @@ import org.joml.Matrix4f
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL14
 import java.util.UUID
+import java.util.concurrent.CompletableFuture
 
 /** Private depth attachment gives relief self-occlusion without placing sky depth in front of ships. */
 object SurfacePlanetRenderer {
@@ -43,10 +47,62 @@ object SurfacePlanetRenderer {
     private var lastBuild = 0L
     private var mesh: VertexBuffer? = null
     private var target: TextureTarget? = null
+    private var generation = 0L
+    private var pending: CompletableFuture<PreparedMesh>? = null
+
+    private class PreparedMesh(
+        val storage: ByteBufferBuilder,
+        val data: MeshData,
+        val revision: Long,
+        val generation: Long,
+    ) : AutoCloseable {
+        override fun close() {
+            data.close()
+            storage.close()
+        }
+    }
+
+    private fun prepare(
+        samples: List<SurfaceAtlas.Sample>,
+        revision: Long,
+        generation: Long,
+    ): PreparedMesh {
+        val snapshot = SurfaceAtlas()
+        samples.forEach(snapshot::put)
+        val storage = ByteBufferBuilder(1 shl 20)
+        try {
+            val buffer = BufferBuilder(storage, VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR)
+            for (face in SurfacePlanetMesh.faces(snapshot)) {
+                val light = 0.18 + 0.82 * maxOf(0.0, face.normal.dot(SpaceScene.SUN_DIRECTION))
+                val r = ((face.color shr 16 and 255) * light).toInt()
+                val g = ((face.color shr 8 and 255) * light).toInt()
+                val b = ((face.color and 255) * light).toInt()
+                for (v in face.vertices) buffer.addVertex(v.x.toFloat(), v.y.toFloat(), v.z.toFloat()).setColor(r, g, b, 255)
+            }
+            return PreparedMesh(storage, buffer.buildOrThrow(), revision, generation)
+        } catch (error: Throwable) {
+            storage.close()
+            throw error
+        }
+    }
+
+    private fun upload(prepared: PreparedMesh) {
+        prepared.use {
+            val gpu = mesh ?: VertexBuffer(VertexBuffer.Usage.STATIC).also { mesh = it }
+            gpu.bind()
+            try {
+                gpu.upload(it.data)
+            } finally {
+                VertexBuffer.unbind()
+            }
+            meshRevision = it.revision
+        }
+    }
 
     fun accept(payload: SurfaceAtlasPayload) {
         RenderSystem.assertOnRenderThread()
         if (payload.reset) {
+            generation++
             atlas = SurfaceAtlas()
             session = payload.session
             receivedRevision = -1L
@@ -60,6 +116,9 @@ object SurfacePlanetRenderer {
 
     fun clear() {
         RenderSystem.assertOnRenderThread()
+        generation++
+        pending?.thenAccept { it.close() }
+        pending = null
         atlas = SurfaceAtlas()
         session = null
         receivedRevision = -1L
@@ -79,20 +138,19 @@ object SurfacePlanetRenderer {
         val width = minecraft.mainRenderTarget.width
         val height = minecraft.mainRenderTarget.height
         val now = System.nanoTime()
-        if (mesh == null || (meshRevision != atlas.revision && now - lastBuild > 500_000_000L)) {
-            val buffer = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR)
-            for (face in SurfacePlanetMesh.faces(atlas)) {
-                val light = 0.18 + 0.82 * maxOf(0.0, face.normal.dot(SpaceScene.SUN_DIRECTION))
-                val r = ((face.color shr 16 and 255) * light).toInt()
-                val g = ((face.color shr 8 and 255) * light).toInt()
-                val b = ((face.color and 255) * light).toInt()
-                for (v in face.vertices) buffer.addVertex(v.x.toFloat(), v.y.toFloat(), v.z.toFloat()).setColor(r, g, b, 255)
+        if (mesh == null) upload(prepare(emptyList(), 0L, generation))
+        pending?.let { future ->
+            if (future.isDone) {
+                pending = null
+                val prepared = future.join()
+                if (prepared.generation == generation) upload(prepared) else prepared.close()
             }
-            val gpu = mesh ?: VertexBuffer(VertexBuffer.Usage.STATIC).also { mesh = it }
-            gpu.bind()
-            gpu.upload(buffer.buildOrThrow())
-            VertexBuffer.unbind()
-            meshRevision = atlas.revision
+        }
+        if (pending == null && meshRevision != atlas.revision && now - lastBuild > 500_000_000L) {
+            val samples = atlas.all().toList()
+            val revision = atlas.revision
+            val currentGeneration = generation
+            pending = CompletableFuture.supplyAsync({ prepare(samples, revision, currentGeneration) }, Util.backgroundExecutor())
             lastBuild = now
         }
         if (target == null) target = TextureTarget(width, height, true, Minecraft.ON_OSX).also { it.setClearColor(0f, 0f, 0f, 0f) }

@@ -18,18 +18,13 @@
 
 package org.cbi.orbitalis.minecraft.surface
 
-import net.minecraft.core.BlockPos
 import net.minecraft.core.HolderLookup
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.server.level.ServerLevel
-import net.minecraft.tags.BlockTags
-import net.minecraft.tags.FluidTags
 import net.minecraft.world.level.Level
-import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.level.chunk.LevelChunk
 import net.minecraft.world.level.levelgen.Heightmap
 import net.minecraft.world.level.saveddata.SavedData
-import org.cbi.orbitalis.core.planet.FlatPlanetDefinition
 import org.cbi.orbitalis.core.planet.SurfaceAtlas
 
 /** Versioned, disposable presentation cache. Unknown versions stay read-only, never rewritten. */
@@ -45,42 +40,20 @@ class SurfaceAtlasData(
         val cx = chunk.pos.x
         val cz = chunk.pos.z
         if (cx !in SurfaceAtlas.MIN_CHUNK..SurfaceAtlas.MAX_CHUNK || cz !in SurfaceAtlas.MIN_CHUNK..SurfaceAtlas.MAX_CHUNK) return false
-        var height = 0
-        var red = 0
-        var green = 0
-        var blue = 0
-        for (dx in intArrayOf(2, 6, 10, 14)) {
-            for (dz in intArrayOf(2, 6, 10, 14)) {
-                val x = (cx * 16 + dx).coerceIn(-FlatPlanetDefinition.HALF_SIZE.toInt(), FlatPlanetDefinition.HALF_SIZE.toInt() - 1)
-                val z = (cz * 16 + dz).coerceIn(-FlatPlanetDefinition.HALF_SIZE.toInt(), FlatPlanetDefinition.HALF_SIZE.toInt() - 1)
-                val y = chunk.getHeight(Heightmap.Types.WORLD_SURFACE, x and 15, z and 15)
-                val pos = BlockPos(x, y, z)
-                val state = chunk.getBlockState(pos)
-                val biome = chunk.getNoiseBiome((x and 15) shr 2, y shr 2, (z and 15) shr 2).value()
-                val color =
-                    when {
-                        state.fluidState.`is`(FluidTags.WATER) -> biome.waterColor
-
-                        state.`is`(BlockTags.LEAVES) -> biome.foliageColor
-
-                        state.`is`(Blocks.GRASS_BLOCK) || state.`is`(Blocks.SHORT_GRASS) || state.`is`(Blocks.TALL_GRASS) ||
-                            state.`is`(Blocks.FERN) -> biome.getGrassColor(x.toDouble(), z.toDouble())
-
-                        else -> state.getMapColor(level, pos).col
-                    }
-                height += y
-                red += color shr 16 and 255
-                green += color shr 8 and 255
-                blue += color and 255
-            }
-        }
         val value =
-            SurfaceAtlas.Sample(
+            SurfaceAtlasSampler.sample(
+                level,
                 cx,
                 cz,
-                (height / 16 + 1).coerceIn(-4096, 4096),
-                ((red / 16) shl 16) or ((green / 16) shl 8) or (blue / 16),
+                { x, z -> chunk.getHeight(Heightmap.Types.WORLD_SURFACE, x, z) },
+                chunk::getBlockState,
+                { x, y, z -> chunk.getNoiseBiome(x shr 2, y shr 2, z shr 2).value() },
             )
+        return record(value)
+    }
+
+    fun record(value: SurfaceAtlas.Sample): Boolean {
+        if (!supported) return false
         if (!atlas.put(value)) return false
         setDirty()
         return true

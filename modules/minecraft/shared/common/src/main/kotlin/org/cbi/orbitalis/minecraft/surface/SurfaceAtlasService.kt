@@ -26,7 +26,7 @@ import org.cbi.orbitalis.core.planet.SurfaceAtlas
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import java.util.UUID
 
-/** Server-thread owner: two already-loaded chunks/tick, 256 samples/orbital player/tick. */
+/** Server-thread owner: live lifecycle snapshots, bounded refresh/backfill and orbital packets. */
 class SurfaceAtlasService(
     private val server: MinecraftServer,
     private val send: (ServerPlayer, SurfaceAtlasPayload) -> Unit,
@@ -34,28 +34,17 @@ class SurfaceAtlasService(
     private val queue = linkedSetOf<Long>()
     private val cursors = mutableMapOf<UUID, Long>()
     private val session = UUID.randomUUID()
-    private var captureTick = -1
-    private var captures = 0
-
-    private fun capture(chunk: LevelChunk) {
-        if (captureTick != server.tickCount) {
-            captureTick = server.tickCount
-            captures = 0
-        }
-        if (captures >= 2) return
-        captures++
-        data.capture(server.overworld(), chunk)
-    }
-
     private val data by lazy { SurfaceAtlasData.get(server.overworld()) }
 
-    fun loaded(
-        x: Int,
-        z: Int,
-    ) {
+    private val backfill by lazy { SurfaceAtlasBackfill(server.overworld(), data) }
+
+    fun loaded(chunk: LevelChunk) {
+        val x = chunk.pos.x
+        val z = chunk.pos.z
         if (x in SurfaceAtlas.MIN_CHUNK..SurfaceAtlas.MAX_CHUNK &&
             z in SurfaceAtlas.MIN_CHUNK..SurfaceAtlas.MAX_CHUNK
         ) {
+            data.capture(server.overworld(), chunk)
             queue.add(ChunkPos.asLong(x, z))
         }
     }
@@ -65,7 +54,7 @@ class SurfaceAtlasService(
         if (chunk.pos.x in SurfaceAtlas.MIN_CHUNK..SurfaceAtlas.MAX_CHUNK &&
             chunk.pos.z in SurfaceAtlas.MIN_CHUNK..SurfaceAtlas.MAX_CHUNK
         ) {
-            capture(chunk)
+            data.capture(server.overworld(), chunk)
         }
     }
 
@@ -80,10 +69,11 @@ class SurfaceAtlasService(
             queue.remove(key)
             val chunk = level.chunkSource.getChunkNow(ChunkPos.getX(key), ChunkPos.getZ(key))
             if (chunk != null) {
-                capture(chunk)
+                data.capture(server.overworld(), chunk)
                 queue.add(key)
             }
         }
+        backfill.tick()
         for (player in server.playerList.players) {
             if (player.level().dimension() != FlatPlanetSpace.SPACE) continue
             val cursor = cursors[player.uuid]

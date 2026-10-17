@@ -22,9 +22,9 @@ import org.cbi.orbitalis.core.planet.SurfaceAtlas
 import org.cbi.orbitalis.core.planet.Vector3
 import kotlin.math.floor
 
-/** Fixed overview budget: 158 squared top cells, at most two interior skirts per cell. */
+/** Fixed overview budget: 314 squared top cells, at most two interior skirts per cell. */
 object SurfacePlanetMesh {
-    const val STEP = 64.0
+    const val STEP = 32.0
     private val low = floor(-SpaceScene.HALF_SIZE / STEP).toInt()
     private val high = floor((SpaceScene.HALF_SIZE - 1.0) / STEP).toInt()
 

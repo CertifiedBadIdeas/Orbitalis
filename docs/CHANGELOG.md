@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Increase orbital surface detail to 32-block cells. Backfill existing saved terrain without loading
+  chunks, retain samples during chunk lifecycle bursts, and prepare updated overview meshes in the background.
 - Show sampled Overworld relief and native map/biome colours on the orbital planet, retaining the
   illustrative model for unknown regions. Persist a bounded surface atlas, stream updates to orbital
   players without generating/loading terrain, and cache overview geometry with independent depth

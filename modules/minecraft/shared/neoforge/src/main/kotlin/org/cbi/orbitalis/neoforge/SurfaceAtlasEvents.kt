@@ -45,8 +45,8 @@ object SurfaceAtlasEvents {
     fun load(event: ChunkEvent.Load) {
         val level = event.level as? ServerLevel ?: return
         if (level.dimension() != Level.OVERWORLD) return
-        val pos = event.chunk.pos
-        level.server.execute { service(level.server).loaded(pos.x, pos.z) }
+        val chunk = event.chunk as? LevelChunk ?: return
+        level.server.execute { service(level.server).loaded(chunk) }
     }
 
     @JvmStatic @SubscribeEvent
@@ -61,7 +61,7 @@ object SurfaceAtlasEvents {
 
     @JvmStatic @SubscribeEvent
     fun tick(event: ServerTickEvent.Post) {
-        services[event.server]?.tick()
+        service(event.server).tick()
     }
 
     @JvmStatic @SubscribeEvent

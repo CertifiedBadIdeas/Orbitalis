@@ -30,8 +30,11 @@ import net.minecraft.world.level.storage.DimensionDataStorage
 import net.minecraft.world.level.storage.LevelResource
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
 import org.cbi.orbitalis.core.planet.SurfaceAtlas
+import org.cbi.orbitalis.minecraft.surface.SavedSurfaceSampler
+import org.cbi.orbitalis.minecraft.surface.SurfaceAtlasBackfill
 import org.cbi.orbitalis.minecraft.surface.SurfaceAtlasData
 import org.cbi.orbitalis.minecraft.surface.SurfaceAtlasPayload
+import org.cbi.orbitalis.minecraft.surface.SurfaceAtlasService
 import java.util.UUID
 
 @PrefixGameTestTemplate(false)
@@ -106,6 +109,104 @@ object SurfaceAtlasGameTests {
         val ungenerated = level.chunkSource.getChunkNow(300, 300)
         data.capture(level, chunk)
         helper.assertTrue(level.chunkSource.getChunkNow(300, 300) === ungenerated, "Sampling caused unrelated terrain loading")
+        helper.succeed()
+    }
+
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "atlas", timeoutTicks = 40000)
+    fun savedSurfaceAtlasBackfill(helper: GameTestHelper) {
+        val level = helper.level.server.overworld()
+        val chunk = level.getChunkAt(BlockPos(32, 180, 32))
+        for (x in 0..15) {
+            for (z in 0..15) {
+                level.setBlock(BlockPos(chunk.pos.minBlockX + x, 180, chunk.pos.minBlockZ + z), Blocks.GOLD_BLOCK.defaultBlockState(), 2)
+            }
+        }
+        val expectedData = SurfaceAtlasData()
+        expectedData.capture(level, chunk)
+        val expected = expectedData.atlas.all().single()
+        val snapshot =
+            net.minecraft.world.level.chunk.storage.ChunkSerializer
+                .write(level, chunk)
+        helper.assertTrue(SavedSurfaceSampler.sample(level, snapshot) == expected, "Saved and live surface probes differ")
+        helper.assertTrue(
+            SavedSurfaceSampler.sample(
+                level,
+                snapshot.copy().apply {
+                    putString("Status", "minecraft:noise")
+                },
+            ) == null,
+            "Incomplete chunk accepted",
+        )
+        helper.assertTrue(
+            SavedSurfaceSampler.sample(
+                level,
+                snapshot.copy().apply {
+                    putInt("DataVersion", 0)
+                },
+            ) == null,
+            "Unsupported terrain version decoded",
+        )
+        val empty = snapshot.copy()
+        empty
+            .getCompound(
+                "Heightmaps",
+            ).putLongArray("WORLD_SURFACE", LongArray(snapshot.getCompound("Heightmaps").getLongArray("WORLD_SURFACE").size))
+        helper.assertTrue(
+            SavedSurfaceSampler.sample(level, empty)?.height == level.minBuildHeight,
+            "Empty saved columns did not retain native minimum height",
+        )
+        // Own fixture only. Native I/O is flushed before checking its location-table entry.
+        val saved = level.chunkSource.chunkMap.write(chunk.pos, snapshot)
+        level.chunkSource.chunkMap.flushWorker()
+        val data = SurfaceAtlasData()
+        val backfill = SurfaceAtlasBackfill(level, data)
+        val before = level.chunkSource.getChunkNow(300, 300)
+
+        fun await() {
+            if (saved.isCompletedExceptionally) throw IllegalStateException("Fixture write failed")
+            if (saved.isDone) {
+                backfill.tick()
+                if (data.atlas.all().contains(expected)) {
+                    helper.assertTrue(level.chunkSource.getChunkNow(300, 300) === before, "Disk backfill loaded terrain")
+                    helper.succeed()
+                    return
+                }
+            }
+            helper.runAfterDelay(1) { await() }
+        }
+        await()
+    }
+
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "atlas", timeoutTicks = 100)
+    fun surfaceAtlasLifecycleBurst(helper: GameTestHelper) {
+        val level = helper.level.server.overworld()
+        val service = SurfaceAtlasService(level.server) { _, _ -> }
+        val chunks = (0..7).map { level.getChunk(40 + it, 40) }
+        val data = SurfaceAtlasData.get(level)
+        for ((index, chunk) in chunks.withIndex()) {
+            for (x in 0..15) {
+                for (z in 0..15) {
+                    level.setBlock(
+                        BlockPos(chunk.pos.minBlockX + x, 200 + index, chunk.pos.minBlockZ + z),
+                        Blocks.IRON_BLOCK.defaultBlockState(),
+                        2,
+                    )
+                }
+            }
+            service.loaded(chunk)
+            // All unloads happen within one tick, before any round-robin refresh.
+            service.unloaded(chunk)
+        }
+        for ((index, chunk) in chunks.withIndex()) {
+            helper.assertTrue(
+                data.atlas.all().any {
+                    it.x == chunk.pos.x && it.z == chunk.pos.z && it.height == 201 + index
+                },
+                "Burst lifecycle lost a chunk sample",
+            )
+        }
         helper.succeed()
     }
 

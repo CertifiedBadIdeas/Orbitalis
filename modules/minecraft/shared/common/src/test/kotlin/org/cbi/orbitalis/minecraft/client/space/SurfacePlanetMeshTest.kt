@@ -27,7 +27,7 @@ class SurfacePlanetMeshTest {
     @Test fun unknownAtlasCoversWholeFootprintWithFallbackAndHasBoundedGeometry() {
         val faces = SurfacePlanetMesh.faces(SurfaceAtlas()).toList()
         val tops = faces.filter { it.normal.y > 0.0 }
-        assertEquals(158 * 158, tops.size)
+        assertEquals(314 * 314, tops.size)
         val area =
             tops.sumOf { face ->
                 val a = face.vertices[0]
@@ -36,7 +36,7 @@ class SurfacePlanetMeshTest {
             }
         assertEquals(100_000_000.0, area)
         assertTrue(tops.all { it.vertices.all { v -> v.y == SpaceScene.TOP } })
-        assertTrue(faces.size < 76000)
+        assertTrue(faces.size < 300000)
     }
 
     @Test fun realReliefReplacesFallbackAndSkirtsJoinUnknownNeighboursAndPlanetEdges() {
@@ -46,7 +46,7 @@ class SurfacePlanetMeshTest {
         val faces = SurfacePlanetMesh.faces(atlas).toList()
         val peak = faces.single { it.normal.y > 0 && it.color == 0xff00ff }
         assertTrue(peak.vertices.all { it.y == 200.0 })
-        assertEquals(setOf(0.0, 64.0), peak.vertices.map { it.x }.toSet())
+        assertEquals(setOf(0.0, 32.0), peak.vertices.map { it.x }.toSet())
         assertTrue(
             faces.any {
                 it.normal.y == 0.0 &&
