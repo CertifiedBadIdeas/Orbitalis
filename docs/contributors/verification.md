@@ -36,7 +36,7 @@ verifyTooling, verifyArchitecture and :core:check. verifyLocalFull adds common/c
 production archive inspection. Core tests cover finite rectangular-body potential, the conservative surface layer, numerical low
 orbits, spherical/two-body fields and flight/frame math. This is mathematical coverage, not evidence of Minecraft/Sable gameplay. NO-SOURCE is not coverage.
 Run `:v1_21_1-neoforge:runGameTestServer` separately. The default `all` suite requires three surface
-border/persistence/packet scenarios and six finite-orbit/ship-transfer/retirement/travel scenarios, with no
+border/persistence/packet scenarios, six finite-orbit/ship-transfer/retirement/travel scenarios and two navigation scenarios, with no
 failed, skipped or error results in a fresh XML report. `-PorbitalisGameTestSuite=surface` runs the three
 surface cases alone; `-PorbitalisGameTestSuite=transfer` runs the five native transfer/recovery/retirement/travel cases
 without the full-orbit performance cost. See [flat surface](flat-surface.md), [flight gravity](flight-gravity.md) and
@@ -69,3 +69,10 @@ independent survival player preserving native velocity and mode in both directio
 case includes a chest minecart, checks for dropped-item duplication, and reads its freshly flushed
 native entity-region file to establish container persistence. The default suite includes these cases. It does not establish
 client rendering or a real logged-in riding handshake.
+
+
+The `-PorbitalisGameTestSuite=navigation` suite requires `nativecoastforecastandpacket` and
+`navigationbookmarkpersistence`: real Sable coast agrees with the numerical forecast, physical/native
+frame mapping and bounded packet roundtrips/rejection hold, and a personal surface marker survives a
+native SavedData write/read. Both are also required by `all`. See [trajectory navigation](trajectory-navigation.md)
+for the separate, still-required manual visual acceptance scenario.

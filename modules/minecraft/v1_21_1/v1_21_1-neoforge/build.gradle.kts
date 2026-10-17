@@ -196,7 +196,7 @@ val generateGameTestResources = tasks.register("generateGameTestResources") {
 gameTest.resources.srcDir(generateGameTestResources.map { generatedGameTestResources.get() })
 
 val gameTestSuite = providers.gradleProperty("orbitalisGameTestSuite").orElse("all").get()
-require(gameTestSuite in setOf("all", "surface", "transfer", "flat", "travel")) { "Unknown GameTest suite: $gameTestSuite" }
+require(gameTestSuite in setOf("all", "surface", "transfer", "flat", "travel", "navigation")) { "Unknown GameTest suite: $gameTestSuite" }
 val gameTestReport = layout.buildDirectory.file("test-results/gameTestServer/results.xml")
 loom.runs.register("gameTestServer") {
     server()
@@ -244,12 +244,14 @@ tasks.configureEach {
             val surfaceNames = setOf("nativeoverworldborder", "borderinitializationpreservescustomization", "spaceborderisindependent")
             val transferNames = setOf("overworldtransferroundtripandrecovery", "retireddiagnosticjournalhandling")
             val travelNames = setOf("automaticemptyshiproundtrip", "automaticmountedsurvivalpassenger", "independentsurvivalplayerroundtrip")
+            val navigationNames = setOf("nativecoastforecastandpacket", "navigationbookmarkpersistence")
             val requiredNames = when (gameTestSuite) {
+                "navigation" -> navigationNames
                 "travel" -> travelNames
                 "flat" -> setOf("nativefinitebodyfreeorbit")
                 "surface" -> surfaceNames
                 "transfer" -> transferNames + travelNames
-                else -> surfaceNames + transferNames + travelNames + setOf("nativefinitebodyfreeorbit")
+                else -> surfaceNames + transferNames + travelNames + navigationNames + setOf("nativefinitebodyfreeorbit")
             }
             check(names.containsAll(requiredNames)) {
                 "GameTest run did not execute its required $gameTestSuite scenarios: $names"

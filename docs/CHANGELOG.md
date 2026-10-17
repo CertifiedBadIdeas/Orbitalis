@@ -20,6 +20,11 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Add independent, bounded coast-trajectory prediction using the live finite-body field, a world-space
+  path overlay with surface-entry/body markers, operator navigation commands and personal persistent
+  surface markers. Keep navball, propulsion and consumer autopilot ownership independent. Add pure
+  numerical and native Sable/packet/bookmark verification; client visual acceptance remains separate.
+
 - Add a consumer-only vector rocket fixture, transient native gimbal control, bounded thrust allocation
   and native assembly/hold/cutoff checks. Add balanced native RCS orientation with the main engines off
   and bounded direct-ascent reference planning for centre and off-axis pads. Add consumer rocket guidance for a direct ascent into a 900-metre finite-body orbit, full engine-off
