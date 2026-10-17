@@ -19,7 +19,7 @@ limitations under the License.
 
 # Space presentation
 
-`orbit_test` and `space_test` use black vacuum fog, a fixed star field and a fixed Sun. Clouds,
+`space`, `orbit_test` and `space_test` use black vacuum fog, a fixed star field and a fixed Sun. Clouds,
 rain rendering and sunrise/sunset gradients are suppressed. Exposed skylight has constant daytime
 brightness; native sky occlusion and warm block lights remain, followed by vanilla gamma, night vision
 and darkness handling. Minecraft's ordinary face shading remains: this is not directional shadow
@@ -27,7 +27,7 @@ mapping or a physical sunlight simulation. Server time, surface weather and the 
 sky are unchanged.
 
 A single client-only `ClientLevel.effects()` selector supplies NeoForge's native dimension-effects
-extension for these two dimension IDs. It works with existing diagnostic saves whose dimension type
+extension for these dimension IDs. It works with existing diagnostic saves whose dimension type
 is still `minecraft:overworld`, without changing dimension registries, saved types or transfer journals.
 NeoForge owns the hook and effects adapter; shared/common owns the actual sky and body mesh. No Sable
 or Create APIs participate in rendering, and the selector never loads on a dedicated server.
@@ -39,7 +39,7 @@ the underside make the slab visible from every external direction. This is an il
 not a map of the generated Overworld or a collision surface. Administrator changes to the native
 Overworld border are not yet synchronized to this reference model.
 
-The camera position is converted through `FlightTestSpace.globalPosition`, using the same existing
+The camera position is converted through `FlightSpaceCoordinates.globalPosition`, using the same existing
 frame translations as transfer and force evaluation. Body vertices and the observer use surface
 coordinates. A single uniform scale fits the entire camera-relative mesh within a 60-unit sky shell,
 preserving every viewing angle and perspective size. The model therefore remains visible beyond
@@ -49,10 +49,11 @@ world geometry afterward, so ships occlude the background. The renderer restores
 shader colour and the incoming depth/culling/blend state. Sky is hidden in fluids, powder snow and under blindness/darkness;
 medium-specific fog is retained.
 
-This presentation does not choose flat-body orbital mechanics. The retained spherical diagnostic
-force field still governs test ships; an orbit can view the slab from above, alongside and below.
-Overworld ascent, live terrain imagery, atmosphere transitions, eclipses and directional ship shadows
-remain separate work.
+The new [finite-body route](flat-gravity.md) uses `orbitalis:space`, with represented Y equal to
+physical Y+4096. Its geometry shares the initial surface size and sea-level constants with this mesh.
+The retained spherical diagnostic force field still governs diagnostic ships; both kinds of orbit can
+view the slab from above, alongside and below. Live terrain imagery, atmosphere transitions, eclipses
+and directional ship shadows remain separate work.
 
 ## Verification
 
@@ -69,4 +70,6 @@ client world; compilation alone does not demonstrate appearance. Suggested manua
 - Compare `/time set noon` and `/time set midnight`: vacuum sky, Sun, body and skylight stay fixed.
 - `/execute in orbitalis:space_test run tp @s 0 34064 0 0 90` reproduces the first view
   through the other transfer frame.
+- `/execute in orbitalis:space run tp @s 0 5160 0 0 90` shows the body from 1000 m above sea level
+  through the new low frame.
 - Return to `minecraft:overworld` to confirm the ordinary sky still follows time and weather.

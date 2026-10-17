@@ -33,14 +33,16 @@ limitations under the License.
 
 Use ./gradlew-sandbox-dev-parallel-summary for noninteractive Gradle commands. verifyLocalFast runs
 verifyTooling, verifyArchitecture and :core:check. verifyLocalFull adds common/check, loader/check and
-production archive inspection. Core tests cover spherical/two-body fields and retained flight/frame
-math. This is mathematical coverage, not evidence of Minecraft/Sable gameplay. NO-SOURCE is not coverage.
+production archive inspection. Core tests cover finite rectangular-body potential, the conservative surface layer, numerical low
+orbits, spherical/two-body fields and flight/frame math. This is mathematical coverage, not evidence of Minecraft/Sable gameplay. NO-SOURCE is not coverage.
 Run `:v1_21_1-neoforge:runGameTestServer` separately. The default `all` suite requires three surface
-border/persistence/packet scenarios and four retained flight/orbit/ship-transfer scenarios, with no
+border/persistence/packet scenarios and six flight/orbit/ship-transfer scenarios, with no
 failed, skipped or error results in a fresh XML report. `-PorbitalisGameTestSuite=surface` runs the three
-surface cases alone; `-PorbitalisGameTestSuite=transfer` runs the two native transfer/recovery cases
+surface cases alone; `-PorbitalisGameTestSuite=transfer` runs the three native transfer/recovery cases
 without the full-orbit performance cost. See [flat surface](flat-surface.md), [flight gravity](flight-gravity.md) and
-[ship transfer](ship-transfer.md). The consumer separately requires its nine native flight scenarios.
+[ship transfer](ship-transfer.md). Use `-PorbitalisGameTestSuite=flat` for the inert finite-body native orbit alone. The consumer separately
+requires ten native flight scenarios; `-PorbitalisConsumerGameTestSuite=flat` runs its low-orbit
+Overworld mission and bookmark migration cases. See [finite-body flight](flat-gravity.md) for the new field and route.
 
 A successful client launch cannot prove visual or interactive correctness. Record manual observations,
 initial state, actions and expected outcome; mark unavailable evidence explicitly pending.

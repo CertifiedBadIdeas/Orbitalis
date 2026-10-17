@@ -192,7 +192,7 @@ val testResources = files(layout.projectDirectory.dir(
 )).builtBy(gradle.includedBuild("Orbitalis").task(":v1_21_1-neoforge:generateGameTestResources"))
 gameTest.resources.srcDir(testResources)
 val consumerGameTestSuite = providers.gradleProperty("orbitalisConsumerGameTestSuite").getOrElse("all")
-require(consumerGameTestSuite in setOf("all")) { "Unknown consumer GameTest suite: $consumerGameTestSuite" }
+require(consumerGameTestSuite in setOf("all", "flat")) { "Unknown consumer GameTest suite: $consumerGameTestSuite" }
 val gameTestReport = layout.buildDirectory.file("test-results/gameTestServer/results.xml")
 loom.runs.register("gameTestServer") {
     server()
@@ -228,7 +228,7 @@ tasks.matching { it.name == "runGameTestServer" }.configureEach {
         val document = factory.newDocumentBuilder().parse(report)
         val cases = document.getElementsByTagName("testcase")
         val names = (0 until cases.length).map { (cases.item(it) as org.w3c.dom.Element).getAttribute("name") }.toSet()
-        val required = setOf("nativeoverworldassembly", "shuttleassemblyandhold", "shuttlegravityprofile", "flighttoolsavailablebydefault", "nativepropulsionholdandcutoff", "preflightrejectsunsafeengines", "rejectsmissingliftauthority", "launchbookmarkroundtripandvalidation", "nativeorbitalinsertionandreturn")
+        val required = if (consumerGameTestSuite == "flat") setOf("overworldlaunchfreeorbitandreturn", "launchbookmarkroundtripandvalidation") else setOf("overworldlaunchfreeorbitandreturn", "nativeoverworldassembly", "shuttleassemblyandhold", "shuttlegravityprofile", "flighttoolsavailablebydefault", "nativepropulsionholdandcutoff", "preflightrejectsunsafeengines", "rejectsmissingliftauthority", "launchbookmarkroundtripandvalidation", "nativeorbitalinsertionandreturn")
         check(names == required) {
             "Missing native propulsion scenarios: $names"
         }

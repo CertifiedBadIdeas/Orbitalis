@@ -40,6 +40,8 @@ import net.minecraft.world.level.Level
 import net.minecraft.world.phys.AABB
 import net.minecraft.world.phys.Vec3
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
+import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
 import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
 import org.joml.Vector3d
 import java.nio.file.Path
@@ -73,19 +75,34 @@ class SableShipTransfer(
         private set
     val busy: Boolean get() = !startupHandled || active != null || pending != null || waitFor != null || error != null
 
-    fun locks(level: ServerLevel): Boolean = (busy || records.values.any { it.pilotPending }) && SableFlightGravity.isFlightSpace(level)
+    fun locks(level: ServerLevel): Boolean = (busy || records.values.any { it.pilotPending }) && level in worlds()
 
     private fun level(
         orbit: Boolean,
         record: ShipTransferRecord,
-    ): ServerLevel = checkNotNull(server.getLevel(if (orbit) record.orbitalDimension else FlightTestSpace.SURFACE))
+    ): ServerLevel = checkNotNull(server.getLevel(if (orbit) record.orbitalDimension else record.surfaceDimension))
 
-    private fun worlds(): List<ServerLevel> =
-        listOf(FlightTestSpace.SURFACE, FlightTestSpace.ORBIT, FlightTestSpace.SPACE).map { checkNotNull(server.getLevel(it)) }
+    private fun worlds(): List<ServerLevel> {
+        // Legacy diagnostic recovery must not freeze an unrelated ordinary surface.
+        val surfaceRoute =
+            !startupHandled || active?.surfaceDimension == Level.OVERWORLD ||
+                records.values.any {
+                    it.surfaceDimension == Level.OVERWORLD && (it.phase != ShipTransferPhase.DONE || it.pilotPending)
+                }
+        val keys = mutableListOf(FlightTestSpace.SURFACE, FlightTestSpace.ORBIT, FlightTestSpace.SPACE)
+        if (surfaceRoute) keys.addAll(listOf(Level.OVERWORLD, FlatPlanetSpace.SPACE))
+        return keys.map { checkNotNull(server.getLevel(it)) }
+    }
 
     private fun pause() {
-        for (world in worlds()) {
-            val physics = SubLevelPhysicsSystem.require(world)
+        val required = worlds().map(SubLevelPhysicsSystem::require).toSet()
+        for ((physics, previous) in pauses.toMap()) {
+            if (physics !in required) {
+                physics.paused = previous
+                pauses.remove(physics)
+            }
+        }
+        for (physics in required) {
             pauses.putIfAbsent(physics, physics.paused)
             physics.paused = true
         }
@@ -216,27 +233,49 @@ class SableShipTransfer(
         require(
             !busy && records.values.none { it.pilotPending },
         ) { "A transfer/recovery is running: ${error ?: "wait for completion"}" }
-        require(SableFlightGravity.isFlightSpace(body.level) && player.level() === body.level) { "Use the flight or orbit test space" }
-        require(
-            server.playerList.players.none {
-                it !== player && SableFlightGravity.isFlightSpace(it.serverLevel())
-            },
-        ) { "Other players must leave the diagnostic spaces" }
-        SableShipSnapshot.preflight(body, player)
+        require(SableFlightGravity.isManaged(body.level) && player.level() === body.level) {
+            "Use the Overworld surface or a supported flight space"
+        }
         val sourceDimension = body.level.dimension()
-        val sourceOrbit = sourceDimension != FlightTestSpace.SURFACE
-        val orbitalDimension = if (sourceOrbit) sourceDimension else targetDimension ?: FlightTestSpace.ORBIT
-        require(orbitalDimension == FlightTestSpace.ORBIT || orbitalDimension == FlightTestSpace.SPACE) { "Unknown orbital route" }
-        val destinationDimension = if (sourceOrbit) FlightTestSpace.SURFACE else orbitalDimension
+        val sourceOrbit = FlightSpaceCoordinates.isOrbital(sourceDimension)
+        val surfaceDimension =
+            if (sourceDimension == Level.OVERWORLD ||
+                sourceDimension == FlatPlanetSpace.SPACE
+            ) {
+                Level.OVERWORLD
+            } else {
+                FlightTestSpace.SURFACE
+            }
+        val orbitalDimension =
+            if (sourceOrbit) {
+                sourceDimension
+            } else {
+                targetDimension
+                    ?: if (surfaceDimension == Level.OVERWORLD) FlatPlanetSpace.SPACE else FlightTestSpace.ORBIT
+            }
+        require(
+            (surfaceDimension == Level.OVERWORLD && orbitalDimension == FlatPlanetSpace.SPACE) ||
+                (surfaceDimension == FlightTestSpace.SURFACE && orbitalDimension in listOf(FlightTestSpace.ORBIT, FlightTestSpace.SPACE)),
+        ) { "Unknown orbital route" }
+        val destinationDimension = if (sourceOrbit) surfaceDimension else orbitalDimension
         require(
             targetDimension == null || targetDimension == destinationDimension,
-        ) { "Only surface-to-orbital diagnostic routes are supported" }
+        ) { "Only matching surface-to-orbital routes are supported" }
+        require(
+            server.playerList.players.none {
+                it !== player && (
+                    SableFlightGravity.isFlightSpace(it.serverLevel()) ||
+                        (surfaceDimension == Level.OVERWORLD && FlatPlanetSpace.contains(it.serverLevel()))
+                )
+            },
+        ) { "Other players must leave the participating flight spaces" }
+        SableShipSnapshot.preflight(body, player)
         val source = SableShipSnapshot.capture(body)
         val delta =
-            FlightTestSpace
+            FlightSpaceCoordinates
                 .localPosition(
                     destinationDimension,
-                    FlightTestSpace.globalPosition(sourceDimension, Vector3.ZERO),
+                    FlightSpaceCoordinates.globalPosition(sourceDimension, Vector3.ZERO),
                 ).y
         val target = checkNotNull(server.getLevel(destinationDimension))
         val destination =
@@ -262,11 +301,12 @@ class SableShipTransfer(
                 savedPointer(body),
                 ShipTransferPhase.PREPARED,
                 orbitalDimension = orbitalDimension,
+                surfaceDimension = surfaceDimension,
             )
+        active = record
         pause()
         retain(body)
         pilot = player
-        active = record
         persist(record) { stage(record, body, player) }
     }
 
@@ -433,6 +473,8 @@ class SableShipTransfer(
 
     private fun recoverNext() {
         val record = records.values.firstOrNull { it.phase != ShipTransferPhase.DONE }
+        active = record
+        pause()
         if (record == null) {
             val waiting = records.values.filter { it.pilotPending }
             if (waiting.isEmpty()) {

@@ -1,0 +1,66 @@
+/*
+ * The Orbitalis Developers
+ *
+ * Copyright 2026 Vsevolod Petrov (lazyhat)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.cbi.orbitalis.minecraft.flight
+
+import net.minecraft.core.registries.Registries
+import net.minecraft.resources.ResourceKey
+import net.minecraft.resources.ResourceLocation
+import net.minecraft.world.level.Level
+import org.cbi.orbitalis.core.planet.FlatPlanetFrame
+import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.surface.FlatOverworld
+
+/** Ordinary surface and its own orbital frame; existing diagnostic frames keep their old meaning. */
+object FlatPlanetSpace {
+    val SPACE: ResourceKey<Level> = ResourceKey.create(Registries.DIMENSION, ResourceLocation.fromNamespaceAndPath("orbitalis", "space"))
+    const val SEA_LEVEL = 64.0
+    const val HALF_SIZE = FlatOverworld.SIZE / 2.0
+    const val LAUNCH_LIMIT = HALF_SIZE - 40.0
+    const val PRELOAD_HEIGHT = 400.0
+    const val ASCENT_HEIGHT = 600.0
+    const val DESCENT_HEIGHT = 400.0
+    const val ORBIT_HEIGHT = 1000.0
+
+    fun contains(level: Level): Boolean = level.dimension() == Level.OVERWORLD || level.dimension() == SPACE
+}
+
+/** Translations only. No dimension identifier or old journal is reinterpreted. */
+object FlightSpaceCoordinates {
+    fun isOrbital(dimension: ResourceKey<Level>): Boolean =
+        dimension == FlightTestSpace.ORBIT || dimension == FlightTestSpace.SPACE || dimension == FlatPlanetSpace.SPACE
+
+    fun hasIndependentBorder(level: Level): Boolean = FlightTestSpace.contains(level) || level.dimension() == FlatPlanetSpace.SPACE
+
+    fun globalPosition(
+        level: Level,
+        position: Vector3,
+    ): Vector3 = globalPosition(level.dimension(), position)
+
+    fun globalPosition(
+        dimension: ResourceKey<Level>,
+        position: Vector3,
+    ): Vector3 =
+        if (dimension == FlatPlanetSpace.SPACE) FlatPlanetFrame.toSurface(position) else FlightTestSpace.globalPosition(dimension, position)
+
+    fun localPosition(
+        dimension: ResourceKey<Level>,
+        position: Vector3,
+    ): Vector3 =
+        if (dimension == FlatPlanetSpace.SPACE) FlatPlanetFrame.toSpace(position) else FlightTestSpace.localPosition(dimension, position)
+}

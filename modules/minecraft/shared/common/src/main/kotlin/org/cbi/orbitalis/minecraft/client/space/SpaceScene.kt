@@ -19,15 +19,15 @@
 package org.cbi.orbitalis.minecraft.client.space
 
 import org.cbi.orbitalis.core.planet.Vector3
-import org.cbi.orbitalis.minecraft.surface.FlatOverworld
+import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import kotlin.math.cos
 import kotlin.math.sin
 
 /** Presentation only: a finite flat body in surface coordinates, independent of diagnostic gravity. */
 object SpaceScene {
-    const val HALF_SIZE = FlatOverworld.SIZE / 2.0
-    const val TOP = 64.0
-    const val BOTTOM = -64.0
+    const val HALF_SIZE = FlatPlanetSpace.HALF_SIZE
+    const val TOP = FlatPlanetSpace.SEA_LEVEL
+    const val BOTTOM = -FlatPlanetSpace.SEA_LEVEL
     val SUN_DIRECTION = Vector3(-0.4, 0.8, -0.3).normalized()
 
     data class Face(

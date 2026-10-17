@@ -25,14 +25,14 @@ import net.minecraft.client.renderer.DimensionSpecialEffects
 import net.minecraft.client.renderer.LightTexture
 import net.minecraft.world.phys.Vec3
 import org.cbi.orbitalis.minecraft.client.space.SpaceSkyRenderer
-import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
+import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
 import org.joml.Matrix4f
 import org.joml.Vector3f
 
 /** Native NeoForge sky hooks selected by dimension ID, including existing diagnostic saves. */
 object SpaceEffects : DimensionSpecialEffects(Float.NaN, false, SkyType.NONE, false, false) {
     @JvmStatic
-    fun applies(level: ClientLevel): Boolean = level.dimension() == FlightTestSpace.ORBIT || level.dimension() == FlightTestSpace.SPACE
+    fun applies(level: ClientLevel): Boolean = FlightSpaceCoordinates.isOrbital(level.dimension())
 
     override fun getBrightnessDependentFogColor(
         color: Vec3,

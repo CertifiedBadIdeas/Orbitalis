@@ -26,7 +26,10 @@ import dev.ryanhcode.sable.sublevel.ServerSubLevel
 import dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem
 import org.cbi.orbitalis.core.planet.CartesianState
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
+import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
 import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
+import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
 import org.joml.Quaterniond
 import org.joml.Vector3d
 import org.joml.Vector3dc
@@ -55,7 +58,7 @@ internal class AutopilotSession(
     }
 
     init {
-        require(FlightTestSpace.contains(body.level)) { "Use the flight/orbit test spaces" }
+        require(SableFlightGravity.isManaged(body.level)) { "Use the Overworld or a supported flight space" }
         require(body.massTracker.mass > 0 && body.massTracker.centerOfMass != null) { "Wait for native mass initialization" }
         require(body.plot.loadedChunks.size <= 4) { "Autopilot supports at most four native plot chunks" }
         for (holder in body.plot.loadedChunks) {
@@ -127,18 +130,29 @@ internal class AutopilotSession(
         }
     }
 
-    private fun gravity(): Vector3 {
-        val global = FlightTestSpace.globalPosition(body.level, position(body))
-        return FlightTestSpace.gravity.acceleration(global - FlightTestSpace.CENTRE)
-    }
+    private fun gravity(): Vector3 = SableFlightGravity.acceleration(body.level, position(body))
 
     private fun validateBounds() {
-        require(position(body).y >= 64 && target.y >= 64) {
-            "Keep ship and target above Y=64 in the current dimension; orbit altitude must be at least 256"
+        val minimum =
+            if (body.level.dimension() ==
+                net.minecraft.world.level.Level.OVERWORLD
+            ) {
+                body.level.minBuildHeight.toDouble()
+            } else {
+                64.0
+            }
+        require(position(body).y >= minimum && target.y >= minimum) {
+            "Keep ship and target inside the supported surface/space height range"
         }
-        val global = FlightTestSpace.globalPosition(body.level, position(body))
-        val goal = FlightTestSpace.globalPosition(body.level, target)
+        val global = FlightSpaceCoordinates.globalPosition(body.level, position(body))
+        val goal = FlightSpaceCoordinates.globalPosition(body.level, target)
         for (p in listOf(global, goal)) {
+            if (FlatPlanetSpace.contains(body.level)) {
+                require(
+                    p.length() < 10000 && (body.level.dimension() == FlatPlanetSpace.SPACE || p.y >= minimum),
+                ) { "Outside finite-body flight envelope" }
+                continue
+            }
             if (body.level.dimension() == FlightTestSpace.SPACE) {
                 val radius = (p - FlightTestSpace.CENTRE).length()
                 require(radius in 6500.0..24000.0) { "Outside the full-space autopilot envelope" }
@@ -170,7 +184,18 @@ internal class AutopilotSession(
         val pose = body.logicalPose()
         val velocity = handle.getLinearVelocity(Vector3d())
         val omega = pose.orientation().transformInverse(handle.getAngularVelocity(Vector3d()), Vector3d())
-        require(velocity.length() <= (if (body.level.dimension() == FlightTestSpace.SPACE) 220 else 120) && omega.length() <= 2.0) {
+        require(
+            velocity.length() <= (
+                if (body.level.dimension() == FlightTestSpace.SPACE ||
+                    FlatPlanetSpace.contains(body.level)
+                ) {
+                    220
+                } else {
+                    120
+                }
+            ) &&
+                omega.length() <= 2.0,
+        ) {
             "Speed/rotation exceeded test autopilot limits"
         }
         val error = Quaterniond(pose.orientation()).conjugate().mul(attitude).normalize()

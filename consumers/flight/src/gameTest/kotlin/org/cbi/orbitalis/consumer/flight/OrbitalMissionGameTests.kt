@@ -63,7 +63,16 @@ object OrbitalMissionGameTests {
         val rig = PropulsionGameTests.Rig(helper, -1400.0)
         val pilot = InertPilot(helper)
         val frame = FlightTestSpace
-        val worlds = listOf(frame.SURFACE, frame.ORBIT, frame.SPACE).map { checkNotNull(helper.level.server.getLevel(it)) }
+        val worlds =
+            listOf(
+                frame.SURFACE,
+                frame.ORBIT,
+                frame.SPACE,
+                net.minecraft.world.level.Level.OVERWORLD,
+                org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace.SPACE,
+            ).map {
+                checkNotNull(helper.level.server.getLevel(it))
+            }
         val terrain = mutableMapOf<BlockPos, BlockState>()
         for (x in -1405..-1395) {
             for (z in -5..5) {

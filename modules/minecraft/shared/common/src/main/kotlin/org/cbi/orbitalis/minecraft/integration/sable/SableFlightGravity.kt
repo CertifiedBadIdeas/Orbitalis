@@ -19,10 +19,15 @@
 package org.cbi.orbitalis.minecraft.integration.sable
 
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer
+import dev.ryanhcode.sable.physics.config.dimension_physics.DimensionPhysicsData
 import dev.ryanhcode.sable.sublevel.ServerSubLevel
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.world.level.Level
+import org.cbi.orbitalis.core.planet.RectangularGravity
+import org.cbi.orbitalis.core.planet.SurfaceGravityLayer
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
+import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
 import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
 import org.joml.Vector3d
 
@@ -35,10 +40,24 @@ object SableFlightGravity {
 
     fun isFlightSpace(level: Level): Boolean = FlightTestSpace.contains(level)
 
+    fun isManaged(level: Level): Boolean = isFlightSpace(level) || FlatPlanetSpace.contains(level)
+
+    private val flatFields = mutableMapOf<Double, SurfaceGravityLayer>()
+
+    /** Native configuration is the surface authority; changing it intentionally changes the mass model. */
+    fun flatField(level: ServerLevel): SurfaceGravityLayer {
+        val native = DimensionPhysicsData.getGravity(level.server.overworld())
+        require(native.x() == 0.0 && native.z() == 0.0 && native.y() < 0.0) { "Flat planet requires vertical downward native gravity" }
+        val g = -native.y()
+        return flatFields.getOrPut(g) {
+            SurfaceGravityLayer(RectangularGravity(FlatPlanetSpace.HALF_SIZE, FlatPlanetSpace.SEA_LEVEL, FlatPlanetSpace.HALF_SIZE, g), g)
+        }
+    }
+
     fun globalPosition(
         level: Level,
         position: Vector3,
-    ): Vector3 = FlightTestSpace.globalPosition(level, position)
+    ): Vector3 = FlightSpaceCoordinates.globalPosition(level, position)
 
     data class Reading(
         val position: Vector3,
@@ -65,24 +84,39 @@ object SableFlightGravity {
         )
     }
 
-    /** Isolated diagnostic field; ordinary Overworld players and ships use native gravity. */
+    /** Construction-only field. Players and ordinary block/fluid behavior remain native Minecraft. */
     fun acceleration(
         level: Level,
         position: Vector3,
     ): Vector3 {
-        require(isFlightSpace(level)) { "No Orbitalis construction gravity in this dimension" }
+        require(isManaged(level)) { "No Orbitalis construction gravity in this dimension" }
+        if (FlatPlanetSpace.contains(level)) return flatField(level as ServerLevel).acceleration(globalPosition(level, position))
         return field.acceleration(globalPosition(level, position) - CENTRE)
     }
 
-    /** Called on the server at each native physics substep, also for newly assembled/reloaded ships. */
+    /** Split the new field around native drift; retain the legacy diagnostic impulse timing. */
     fun beforePhysics(
         level: ServerLevel,
         seconds: Double,
+    ) = applyGravity(level, seconds)
+
+    fun afterPhysics(
+        level: ServerLevel,
+        seconds: Double,
     ) {
-        if (!isFlightSpace(level)) return
+        if (FlatPlanetSpace.contains(level)) applyGravity(level, seconds)
+    }
+
+    private fun applyGravity(
+        level: ServerLevel,
+        seconds: Double,
+    ) {
+        if (!isManaged(level)) return
         require(seconds.isFinite() && seconds > 0.0)
         val container = SubLevelContainer.getContainer(level) ?: return
         val physics = container.physicsSystem() ?: return
+        val fraction = if (FlatPlanetSpace.contains(level)) 0.5 else 1.0
+        val native = DimensionPhysicsData.getGravity(level)
         for (body in container.allSubLevels.filterIsInstance<ServerSubLevel>()) {
             val mass = body.massTracker.mass
             val localCom = body.massTracker.centerOfMass ?: continue
@@ -91,7 +125,15 @@ object SableFlightGravity {
             val com = pose.transformPosition(localCom, Vector3d())
             if (!com.isFinite) continue
             val acceleration = acceleration(level, Vector3(com.x, com.y, com.z))
-            val impulse = Vector3d(acceleration.x, acceleration.y, acceleration.z).mul(mass * seconds)
+            // Cancel only native gravity, retaining Sable's integration and every other force.
+            val impulse =
+                Vector3d(
+                    acceleration.x - native.x(),
+                    acceleration.y - native.y(),
+                    acceleration.z - native.z(),
+                ).mul(mass * seconds * fraction)
+            // Native surface gravity already matches exactly; do not wake sleeping ships with a zero impulse.
+            if (impulse.lengthSquared() == 0.0) continue
             pose.orientation().transformInverse(impulse)
             physics.getPhysicsHandle(body).applyLinearImpulse(impulse)
         }

@@ -321,3 +321,22 @@ assembly/hold, gravity, preflight rejection, launch-bookmark validation and orbi
 Former six-chart Create/vault/pipe/shaft/assembler fixtures and `faces` suite are removed with the cube.
 Create remains an external consumer dependency for its normal native behavior; production Orbitalis
 has no Create seam integration. Old measured cube-field values are no longer current acceptance data.
+
+## Low finite-body route
+
+The same `autopilot orbit` / `autopilot land` commands now select the [finite-body mission](flat-gravity.md)
+when the launch bookmark names ordinary Overworld. Assemble on a clear Overworld pad inside the
+first 2000-block footprint, leave manual inputs off and stay on deck with creative flight disabled.
+The target is about 1000 m above sea level; the trajectory circles the finite body and coasts with
+engines fully off. Surface gravity remains native through the build ceiling; a conservative
+compatibility layer connects it to the exterior field. The flight test dimension still selects the
+retained spherical 18 km mission. No existing diagnostic frame or old bookmark changes its meaning.
+
+The new mission uses pure numerical prediction on a worker, real engine capture, ascent terrain
+preloading from 400 m, an upward handoff at 600 m and downward handoff at 400 m. Its separate space
+frame uses a 4096-m Y translation for native float precision. Journal staging still pauses physics.
+The launch bookmark codec writes version 2 with an explicit surface ID; version 1 remains diagnostic.
+
+Use `-PorbitalisConsumerGameTestSuite=flat` with `check runGameTestServer` for the focused native
+Overworld/space/free-revolution/return and bookmark migration scenarios. The default suite includes it alongside all retained
+native Propulsion scenarios. This headless pilot does not verify actual client input, camera or deck contact.

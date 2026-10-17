@@ -45,8 +45,10 @@ internal class OrbitalMission(
     private val site: LaunchSites.Site,
     private val transfer: SableShipTransfer,
     land: Boolean,
-) : AutoCloseable {
+) : FlightMission {
     enum class Phase { ASCENT, CLIMB, INSERTION, COAST, RETURN, DESCENT, APPROACH, TOUCHDOWN, LANDED, FADE, TRANSFER }
+
+    override val stage: String get() = phase.name
 
     private val crown: Vector3
     private val homeRadial: Vector3
@@ -124,7 +126,7 @@ internal class OrbitalMission(
         enter(Phase.FADE)
     }
 
-    fun requestLanding() {
+    override fun requestLanding() {
         require(phase == Phase.COAST) { "Wait for orbital insertion to finish before requesting landing" }
         val o = OrbitalGuidance.observe(state(), CENTRE, normal)
         require(abs(o.radius - RADIUS) < 1000 && abs(o.planeError) < 500) {
@@ -142,7 +144,7 @@ internal class OrbitalMission(
     }
 
     /** True only after engines are off and the native terrain has held the craft for 60 ticks. */
-    fun tick(pilot: ServerPlayer?): Boolean {
+    override fun tick(pilot: ServerPlayer?): Boolean {
         require(!closed && pilot != null && pilot.isAlive) { "Pilot is unavailable" }
         check(++phaseTicks <= 40000) { "Mission stage timed out: $phase" }
         check(transfer.error == null) { "Transfer stopped: ${transfer.error}" }
@@ -263,7 +265,7 @@ internal class OrbitalMission(
         return false
     }
 
-    fun status(): String {
+    override fun status(): String {
         if (body.isRemoved) return "Mission $phase; waiting for journaled handoff"
         val p = position() - CENTRE
         val v = velocity()

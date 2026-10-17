@@ -38,8 +38,10 @@ import net.minecraft.gametest.framework.GameTestRunner
 import net.minecraft.gametest.framework.GlobalTestReporter
 import net.minecraft.gametest.framework.JUnitLikeTestReporter
 import net.minecraft.nbt.CompoundTag
+import net.minecraft.resources.ResourceKey
 import net.minecraft.resources.ResourceLocation
 import net.minecraft.util.Unit
+import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.Blocks
 import net.neoforged.bus.api.SubscribeEvent
 import net.neoforged.fml.common.EventBusSubscriber
@@ -91,10 +93,16 @@ object PropulsionGameTests {
     fun register(event: RegisterGameTestsEvent) {
         GlobalTestReporter.replaceWith(JUnitLikeTestReporter(File(System.getProperty("orbitalis.consumerGameTestReport"))))
         val suite = System.getProperty("orbitalis.consumerGameTestSuite", "all")
-        require(suite == "all") { "Unknown consumer GameTest suite: $suite" }
+        require(suite in setOf("all", "flat")) { "Unknown consumer GameTest suite: $suite" }
+        event.register(LaunchBookmarkGameTests::class.java)
+        if (suite == "flat") {
+            event.register(FlatMissionGameTests::class.java)
+            return
+        }
         event.register(PropulsionGameTests::class.java)
         event.register(ShuttleGameTests::class.java)
         event.register(OrbitalMissionGameTests::class.java)
+        event.register(FlatMissionGameTests::class.java)
     }
 
     @JvmStatic
@@ -119,59 +127,14 @@ object PropulsionGameTests {
         helper.succeed()
     }
 
-    @JvmStatic
-    @GameTest(template = "lab_empty", templateNamespace = "orbitalis")
-    fun launchBookmarkRoundTripAndValidation(helper: GameTestHelper) {
-        val registries = helper.level.registryAccess()
-        val pilot = UUID.randomUUID()
-        val ship = UUID.randomUUID()
-        val data = LaunchSites()
-        val site = LaunchSites.Site(ship, Vector3(15.0, 70.0, -10.0), Quaterniond().rotateY(0.2))
-        data.put(pilot, site)
-        val tag = data.save(CompoundTag(), registries)
-        val restored = LaunchSites.load(tag, registries).require(pilot, ship)
-        helper.assertTrue(
-            (restored.position - site.position).length() < 1e-12 &&
-                abs(restored.attitude.dot(site.attitude)) > 0.999999,
-            "Launch bookmark did not round-trip",
-        )
-
-        fun rejected(
-            reason: String,
-            action: () -> kotlin.Unit,
-        ) {
-            try {
-                action()
-                helper.fail(reason)
-            } catch (_: IllegalArgumentException) {
-            }
-        }
-        rejected("Bookmark authorized a different ship") { LaunchSites.load(tag, registries).require(pilot, UUID.randomUUID()) }
-        for (version in listOf(0, 99)) {
-            val corrupt = tag.copy().also { it.putInt("version", version) }
-            rejected("Unsupported bookmark version accepted") { LaunchSites.load(corrupt, registries) }
-        }
-        for (field in listOf("x", "y", "qw")) {
-            val corrupt = tag.copy()
-            corrupt.getList("sites", 10).getCompound(0).putDouble(field, Double.NaN)
-            rejected("Malformed launch bookmark accepted") { LaunchSites.load(corrupt, registries) }
-        }
-        val missing = tag.copy()
-        missing.getList("sites", 10).getCompound(0).remove("qy")
-        rejected("Incomplete bookmark accepted") { LaunchSites.load(missing, registries) }
-        val duplicate = tag.copy()
-        val entries = duplicate.getList("sites", 10)
-        entries.add(entries.getCompound(0).copy())
-        rejected("Duplicate launch bookmark accepted") { LaunchSites.load(duplicate, registries) }
-        helper.succeed()
-    }
-
     internal class Rig(
         helper: GameTestHelper,
         x: Double,
         faces: Array<Direction> = Direction.values(),
+        dimension: ResourceKey<Level> = FlightTestSpace.SURFACE,
+        y: Double = 240.0,
     ) : AutoCloseable {
-        val level = checkNotNull(helper.level.server.getLevel(FlightTestSpace.SURFACE))
+        val level = checkNotNull(helper.level.server.getLevel(dimension))
         val body: ServerSubLevel
         val engines = mutableListOf<CreativeThrusterBlockEntity>()
         var session: AutopilotSession? = null
@@ -179,7 +142,7 @@ object PropulsionGameTests {
         init {
             val container = checkNotNull(SubLevelContainer.getContainer(level))
             val pose = Pose3d()
-            pose.position().set(x, 240.0, 0.0)
+            pose.position().set(x, y, 0.0)
             body = container.allocateNewSubLevel(pose) as ServerSubLevel
             onFinished(helper, ::close)
             body.plot.newEmptyChunk(body.plot.centerChunk)

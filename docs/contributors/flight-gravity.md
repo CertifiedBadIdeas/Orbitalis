@@ -18,8 +18,9 @@ limitations under the License.
 
 # Isolated Sable flight diagnostics
 
-The normal Overworld has native Minecraft/player and Sable gravity. Orbitalis does not add a force
-there. See [flat surface](flat-surface.md) for the accepted surface model.
+The normal Overworld has native Minecraft/player behavior and native construction gravity through
+Y=320 inside the first footprint. Above it, the construction-only [finite-body field](flat-gravity.md)
+provides the new low orbital route. This page describes the retained spherical diagnostics.
 
 The retained `orbitalis:flight_test`, `orbitalis:orbit_test` and `orbitalis:space_test` are diagnostic
 spaces with native Sable gravity, pressure and drag disabled. Ordinary loaded ships receive an impulse
@@ -39,7 +40,7 @@ radial altitude and gravity. `/orbitalis flight leave` returns the player; ships
 space. Return points are transient; after restart use the Overworld spawn fallback.
 
 `/orbitalis flight transfer` and `transfer space` retain the [journaled ship handoff](ship-transfer.md).
-Their frames and records remain unchanged. This is not an Overworld-to-space ascent implementation.
+Their frames and records remain unchanged. These diagnostic commands do not select the new Overworld route when used in diagnostic terrain.
 All three diagnostic borders are independent of the 2000-block Overworld border.
 
 Real GameTests cover ordinary native acceleration and timestep/force coexistence, translated field

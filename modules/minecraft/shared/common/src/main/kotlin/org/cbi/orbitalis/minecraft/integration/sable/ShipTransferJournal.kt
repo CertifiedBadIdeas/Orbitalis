@@ -24,6 +24,7 @@ import net.minecraft.nbt.NbtAccounter
 import net.minecraft.nbt.NbtIo
 import net.minecraft.resources.ResourceKey
 import net.minecraft.world.level.Level
+import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
 import java.nio.channels.FileChannel
 import java.nio.file.Files
@@ -56,10 +57,12 @@ data class ShipTransferRecord(
     val pilotPending: Boolean = false,
     val recoveredSource: Boolean = false,
     val orbitalDimension: ResourceKey<Level> = FlightTestSpace.ORBIT,
+    val surfaceDimension: ResourceKey<Level> = FlightTestSpace.SURFACE,
 ) {
     fun encode(): CompoundTag =
         CompoundTag().also {
-            it.putInt("version", 2)
+            it.putInt("version", 3)
+            it.putString("surface_dimension", surfaceDimension.location().toString())
             it.putString("orbital_dimension", orbitalDimension.location().toString())
             it.putUUID("transaction", transaction)
             it.putUUID("ship", ship)
@@ -103,15 +106,32 @@ data class ShipTransferRecord(
     companion object {
         fun decode(tag: CompoundTag): ShipTransferRecord {
             val version = tag.getInt("version")
-            require(version in 1..2) { "Unsupported ship transfer journal version" }
+            require(version in 1..3) { "Unsupported ship transfer journal version" }
             val orbitalDimension =
                 if (version == 1) {
                     FlightTestSpace.ORBIT
                 } else {
-                    listOf(FlightTestSpace.ORBIT, FlightTestSpace.SPACE).singleOrNull {
+                    (
+                        if (version ==
+                            3
+                        ) {
+                            listOf(FlightTestSpace.ORBIT, FlightTestSpace.SPACE, FlatPlanetSpace.SPACE)
+                        } else {
+                            listOf(FlightTestSpace.ORBIT, FlightTestSpace.SPACE)
+                        }
+                    ).singleOrNull {
                         it.location().toString() == tag.getString("orbital_dimension")
                     } ?: throw IllegalArgumentException("Invalid transfer orbital dimension")
                 }
+            val surfaceDimension =
+                if (version < 3) {
+                    FlightTestSpace.SURFACE
+                } else {
+                    listOf(FlightTestSpace.SURFACE, Level.OVERWORLD).singleOrNull {
+                        it.location().toString() == tag.getString("surface_dimension")
+                    } ?: throw IllegalArgumentException("Invalid transfer surface dimension")
+                }
+            require((surfaceDimension == Level.OVERWORLD) == (orbitalDimension == FlatPlanetSpace.SPACE)) { "Inconsistent transfer route" }
             require(tag.contains("source_is_orbit", 1) && tag.contains("pilot_pending", 1) && tag.contains("recovered_source", 1)) {
                 "Missing transfer flags"
             }
@@ -183,7 +203,12 @@ data class ShipTransferRecord(
                 ) { "Unbounded snapshot" }
                 val decoded = SableNBTUtils.readPose3d(pose)
                 val orbitalSnapshot = if (index == 0) tag.getBoolean("source_is_orbit") else !tag.getBoolean("source_is_orbit")
-                val heights = if (orbitalDimension == FlightTestSpace.SPACE && orbitalSnapshot) 32064.0..48256.0 else 64.0..16256.0
+                val heights =
+                    when {
+                        orbitalSnapshot && orbitalDimension == FlatPlanetSpace.SPACE -> 4160.0..20352.0
+                        orbitalSnapshot && orbitalDimension == FlightTestSpace.SPACE -> 32064.0..48256.0
+                        else -> 64.0..16256.0
+                    }
                 require(
                     kotlin.math.abs(decoded.position().x) <= 2048 && kotlin.math.abs(decoded.position().z) <= 2048 &&
                         decoded.position().y in heights,
@@ -211,6 +236,7 @@ data class ShipTransferRecord(
                 tag.getBoolean("pilot_pending"),
                 tag.getBoolean("recovered_source"),
                 orbitalDimension,
+                surfaceDimension,
             )
         }
     }

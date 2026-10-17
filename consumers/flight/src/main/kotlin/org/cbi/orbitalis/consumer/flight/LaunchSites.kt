@@ -21,9 +21,12 @@ package org.cbi.orbitalis.consumer.flight
 import net.minecraft.core.HolderLookup
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.ListTag
+import net.minecraft.resources.ResourceKey
 import net.minecraft.server.MinecraftServer
+import net.minecraft.world.level.Level
 import net.minecraft.world.level.saveddata.SavedData
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
 import org.joml.Quaterniond
 import java.util.UUID
 import kotlin.math.abs
@@ -34,16 +37,19 @@ internal class LaunchSites : SavedData() {
         val ship: UUID,
         val position: Vector3,
         attitude: Quaterniond,
+        val surface: ResourceKey<Level> = FlightTestSpace.SURFACE,
     ) {
         private val savedAttitude = Quaterniond(attitude)
         val attitude: Quaterniond get() = Quaterniond(savedAttitude)
 
         init {
+            require(surface == FlightTestSpace.SURFACE || surface == Level.OVERWORLD)
+            val heights = if (surface == Level.OVERWORLD) -64.0..384.0 else 68.0..320.0
             require(
                 savedAttitude.isFinite && position.x.isFinite() && position.y.isFinite() && position.z.isFinite() &&
                     abs(savedAttitude.lengthSquared() - 1) <= 1e-6 && abs(position.x) <= 1800 && abs(position.z) <= 1800 &&
-                    position.y >= 68 && position.y <= 320,
-            ) { "Launch site outside the diagnostic terrain patch" }
+                    position.y in heights,
+            ) { "Launch site outside the supported surface bounds" }
         }
     }
 
@@ -71,11 +77,12 @@ internal class LaunchSites : SavedData() {
         tag: CompoundTag,
         registries: HolderLookup.Provider,
     ): CompoundTag {
-        tag.putInt("version", 1)
+        tag.putInt("version", 2)
         val list = ListTag()
         sites.forEach { (pilot, site) ->
             val entry = CompoundTag()
             entry.putUUID("pilot", pilot)
+            entry.putString("surface", site.surface.location().toString())
             entry.putUUID("ship", site.ship)
             entry.putDouble("x", site.position.x)
             entry.putDouble("y", site.position.y)
@@ -102,7 +109,7 @@ internal class LaunchSites : SavedData() {
             tag: CompoundTag,
             registries: HolderLookup.Provider,
         ): LaunchSites {
-            require(tag.getInt("version") == 1 && tag.contains("sites", 9)) { "Unsupported launch bookmark data" }
+            require(tag.getInt("version") in 1..2 && tag.contains("sites", 9)) { "Unsupported launch bookmark data" }
             val list = tag.get("sites") as ListTag
             require(list.isEmpty() || list.elementType.toInt() == 10) { "Invalid launch bookmark list" }
             require(list.size <= 64) { "Too many launch bookmarks" }
@@ -117,6 +124,15 @@ internal class LaunchSites : SavedData() {
                         entry.getUUID("ship"),
                         Vector3(entry.getDouble("x"), entry.getDouble("y"), entry.getDouble("z")),
                         Quaterniond(entry.getDouble("qx"), entry.getDouble("qy"), entry.getDouble("qz"), entry.getDouble("qw")),
+                        if (tag.getInt("version") ==
+                            1
+                        ) {
+                            FlightTestSpace.SURFACE
+                        } else {
+                            listOf(FlightTestSpace.SURFACE, Level.OVERWORLD).singleOrNull {
+                                it.location().toString() == entry.getString("surface")
+                            } ?: throw IllegalArgumentException("Invalid launch surface")
+                        },
                     )
                 require(data.sites.put(entry.getUUID("pilot"), site) == null) { "Duplicate launch bookmark" }
             }

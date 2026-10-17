@@ -21,6 +21,7 @@ package org.cbi.orbitalis.neoforge.integration
 import com.mojang.brigadier.CommandDispatcher
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType
 import dev.ryanhcode.sable.Sable
+import dev.ryanhcode.sable.neoforge.event.ForgeSablePostPhysicsTickEvent
 import dev.ryanhcode.sable.neoforge.event.ForgeSablePrePhysicsTickEvent
 import dev.ryanhcode.sable.sublevel.ServerSubLevel
 import net.minecraft.commands.CommandSourceStack
@@ -28,6 +29,7 @@ import net.minecraft.commands.Commands
 import net.minecraft.network.chat.Component
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerLevel
+import net.minecraft.world.level.Level
 import net.minecraft.world.level.storage.LevelResource
 import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.neoforge.event.RegisterCommandsEvent
@@ -36,6 +38,7 @@ import net.neoforged.neoforge.event.level.BlockEvent
 import net.neoforged.neoforge.event.server.ServerStartedEvent
 import net.neoforged.neoforge.event.server.ServerStoppedEvent
 import net.neoforged.neoforge.event.tick.ServerTickEvent
+import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
 import org.cbi.orbitalis.minecraft.integration.sable.FlightTestTravel
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
@@ -102,6 +105,9 @@ object SableFlightIntegration {
         NeoForge.EVENT_BUS.addListener { event: ForgeSablePrePhysicsTickEvent ->
             SableFlightGravity.beforePhysics(event.physicsSystem.level, event.timeStep)
         }
+        NeoForge.EVENT_BUS.addListener { event: ForgeSablePostPhysicsTickEvent ->
+            SableFlightGravity.afterPhysics(event.physicsSystem.level, event.timeStep)
+        }
         NeoForge.EVENT_BUS.addListener { event: ServerStoppedEvent ->
             travel.remove(event.server)
             transfers.remove(event.server)?.close()
@@ -138,28 +144,36 @@ object SableFlightIntegration {
                                     player.closeContainer()
                                     val manager = transfers[source.server] ?: failure("Transfer service is not ready")
                                     manager.begin(player, body)
-                                    "Preparing diagnostic ship transfer; remain on deck."
+                                    "Preparing ship transfer; remain on deck."
                                 }
 
                                 else -> {
-                                    if (!SableFlightGravity.isFlightSpace(source.level)) {
-                                        failure("Enter the flight test space first")
+                                    if (!SableFlightGravity.isManaged(source.level)) {
+                                        failure("Use the Overworld or a supported flight space")
                                     }
                                     val body =
                                         Sable.HELPER.getTrackingSubLevel(player) as? ServerSubLevel
                                             ?: failure("Stand on a Sable ship and wait for native contact")
                                     val sample = SableFlightGravity.reading(body)
+                                    val flat = FlatPlanetSpace.contains(source.level)
+                                    val global = SableFlightGravity.globalPosition(source.level, sample.position)
+                                    val altitude =
+                                        if (flat) {
+                                            global.y - FlatPlanetSpace.SEA_LEVEL
+                                        } else {
+                                            SableFlightGravity.field.altitude(global - SableFlightGravity.CENTRE)
+                                        }
                                     String.format(
                                         Locale.ROOT,
-                                        "Ship %s; mass=%.3f Sable units; centre-of-mass=(%.2f,%.2f,%.2f) m; radial altitude=%.2f m; speed=%.3f m/s; gravity=(%.4f,%.4f,%.4f) m/s²; |g|=%.4f m/s²",
+                                        "Ship %s; mass=%.3f Sable units; centre-of-mass=(%.2f,%.2f,%.2f) m; " +
+                                            (if (flat) "height above sea" else "radial altitude") +
+                                            "=%.2f m; speed=%.3f m/s; gravity=(%.4f,%.4f,%.4f) m/s²; |g|=%.4f m/s²",
                                         body.uniqueId,
                                         sample.mass,
                                         sample.position.x,
                                         sample.position.y,
                                         sample.position.z,
-                                        SableFlightGravity.field.altitude(
-                                            SableFlightGravity.globalPosition(source.level, sample.position) - SableFlightGravity.CENTRE,
-                                        ),
+                                        altitude,
                                         sample.velocity.length(),
                                         sample.acceleration.x,
                                         sample.acceleration.y,
@@ -185,7 +199,17 @@ object SableFlightIntegration {
                             ?: failure("Stand on the ship with creative flight disabled")
                     try {
                         player.closeContainer()
-                        transferService(context.source.server).begin(player, body, FlightTestSpace.SPACE)
+                        transferService(context.source.server).begin(
+                            player,
+                            body,
+                            if (player.level().dimension() ==
+                                Level.OVERWORLD
+                            ) {
+                                FlatPlanetSpace.SPACE
+                            } else {
+                                FlightTestSpace.SPACE
+                            },
+                        )
                     } catch (error: IllegalArgumentException) {
                         failure(error.message ?: "Flight transfer rejected")
                     }

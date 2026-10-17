@@ -147,7 +147,8 @@ val generateGameTestResources = tasks.register("generateGameTestResources") {
     val flightTest = rootProject.file("modules/minecraft/shared/common/src/main/resources/data/orbitalis/dimension/flight_test.json")
     val orbitTest = rootProject.file("modules/minecraft/shared/common/src/main/resources/data/orbitalis/dimension/orbit_test.json")
     val spaceTest = rootProject.file("modules/minecraft/shared/common/src/main/resources/data/orbitalis/dimension/space_test.json")
-    inputs.files(flightTest, orbitTest, spaceTest)
+    val flatSpace = rootProject.file("modules/minecraft/shared/common/src/main/resources/data/orbitalis/dimension/space.json")
+    inputs.files(flightTest, orbitTest, spaceTest, flatSpace)
     outputs.files(template, preset)
     doLast {
         // GameTestServer bakes the flat preset against an empty dimension registry in 1.21.1.
@@ -166,7 +167,8 @@ val generateGameTestResources = tasks.register("generateGameTestResources") {
               "minecraft:the_end": ${orbitTest.readText().replace("minecraft:overworld", "minecraft:the_end")},
               "orbitalis:flight_test": ${flightTest.readText()},
               "orbitalis:orbit_test": ${orbitTest.readText()},
-              "orbitalis:space_test": ${spaceTest.readText()}
+              "orbitalis:space_test": ${spaceTest.readText()},
+              "orbitalis:space": ${flatSpace.readText()}
             }}
         """.trimIndent())
         val file = template.get().asFile
@@ -200,7 +202,7 @@ val generateGameTestResources = tasks.register("generateGameTestResources") {
 gameTest.resources.srcDir(generateGameTestResources.map { generatedGameTestResources.get() })
 
 val gameTestSuite = providers.gradleProperty("orbitalisGameTestSuite").orElse("all").get()
-require(gameTestSuite in setOf("all", "surface", "transfer")) { "Unknown GameTest suite: $gameTestSuite" }
+require(gameTestSuite in setOf("all", "surface", "transfer", "flat")) { "Unknown GameTest suite: $gameTestSuite" }
 val gameTestReport = layout.buildDirectory.file("test-results/gameTestServer/results.xml")
 loom.runs.register("gameTestServer") {
     server()
@@ -246,11 +248,12 @@ tasks.configureEach {
             val cases = document.getElementsByTagName("testcase")
             val names = (0 until cases.length).map { (cases.item(it) as org.w3c.dom.Element).getAttribute("name") }.toSet()
             val surfaceNames = setOf("nativeoverworldborder", "borderinitializationpreservescustomization", "diagnosticbordersareindependent")
-            val transferNames = setOf("shiptransferroundtripandrecovery", "spacetransferroundtripandrecovery")
+            val transferNames = setOf("shiptransferroundtripandrecovery", "spacetransferroundtripandrecovery", "overworldtransferroundtripandrecovery")
             val requiredNames = when (gameTestSuite) {
+                "flat" -> setOf("nativefinitebodyfreeorbit")
                 "surface" -> surfaceNames
                 "transfer" -> transferNames
-                else -> surfaceNames + transferNames + setOf("ordinaryshipsreceivediagnosticgravity", "fullspaceorbitpreservesnativeenergy")
+                else -> surfaceNames + transferNames + setOf("ordinaryshipsreceivediagnosticgravity", "fullspaceorbitpreservesnativeenergy", "nativefinitebodyfreeorbit")
             }
             check(names.containsAll(requiredNames)) {
                 "GameTest run did not execute its required $gameTestSuite scenarios: $names"

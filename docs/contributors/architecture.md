@@ -53,15 +53,18 @@ broadcasts reaching their players. Vanilla Nether/End delegation and recipients 
 The retained `flight_test`, `orbit_test` and `space_test` IDs are diagnostic frames, separate from
 the Overworld surface. `FlightTestSpace` uses the existing spherical field (radius 6000 m, surface
 acceleration 9.81 m/s²), replacing the retired cube field. `SableFlightGravity` applies it at native
-server physics substeps. Native Sable owns ships, integration and collision. The adapter is inactive
-in the Overworld, whose normal Sable gravity is untouched. These diagnostics do not define future
-flat-body gravity or surface-to-space travel. The cube reference sky renderer is removed. The diagnostic
+server physics substeps. Native Sable owns ships, integration and collision. The diagnostic field
+does not apply in the Overworld. Its separate [finite-body route](flat-gravity.md)
+uses core rectangular-body gravity and a conservative native-gravity layer for constructions only.
+The new `orbitalis:space` frame adds 4096 to physical Y, independently of the diagnostic frame IDs.
+Ordinary Overworld construction gravity remains exact through Y=320 within the first footprint;
+players, block/fluid logic and native Sable settings are unchanged. The cube reference sky renderer is removed. The diagnostic
 orbit/space frames use the separate flat-body [space presentation](space-visuals.md), without altering
 their retained force field.
 
-The diagnostic `SableShipTransfer` coordinator reconstructs one independent ship and pilot between
-`orbitalis:flight_test` and stable `orbitalis:orbit_test`. Core `OrbitalTestFrame` owns the fixed
-translation. Common owns native snapshots, exact-motion restoration and the versioned asynchronous
+The `SableShipTransfer` coordinator reconstructs one independent ship and pilot on explicitly paired
+surface/orbital routes, including ordinary Overworld/`orbitalis:space` and the retained diagnostics.
+Journal version 3 names both dimensions; readers preserve version-1/2 diagnostic source semantics. Core frame objects own their distinct fixed translations. Common owns native snapshots, exact-motion restoration and the versioned asynchronous
 journal and plot-chunk block-entity tick leases; NeoForge owns startup/tick/interaction wiring and
 a narrow Minecraft ticker hook that honors those leases without loading optional Sable classes.
 A second loader hook exposes vanilla's pending teleport acknowledgment without a custom network protocol.
@@ -80,8 +83,9 @@ all belong to the disposable consumer. It reuses existing Orbitalis vector/gravi
 no autopilot API to production. The consumer assembles no release and does not alter the ordinary
 Sable-only laboratory runs.
 
-There is no dependency on Compukters, its VM, Rust runtime or addon SDK. There is no committed choice
-of production orbital physics, rendering engine, rocket mechanics or external space integration.
+There is no dependency on Compukters, its VM, Rust runtime or addon SDK. The first bounded planetary
+force model is a finite uniform slab with a conservative surface compatibility layer; it does not
+commit to a general planet system, rendering engine, rocket mechanics or external space integration.
 The exploration-first direction, Sable source investigation and proposed seamless surface/orbit
 experiments are recorded in [orbital-flight-feasibility.md](orbital-flight-feasibility.md).
 That note distinguishes desired behavior and proposals from implemented or runtime-verified support.

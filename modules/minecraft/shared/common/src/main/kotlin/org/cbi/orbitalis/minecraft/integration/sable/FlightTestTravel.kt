@@ -25,6 +25,7 @@ import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.levelgen.Heightmap
 import net.minecraft.world.phys.Vec3
+import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import java.util.UUID
 
 /** Player-only operator travel. Return points are transient; ships always stay in their own Level. */
@@ -59,7 +60,9 @@ class FlightTestTravel(
 
     fun leave(player: ServerPlayer): Boolean {
         require(!player.isPassenger) { "Dismount before leaving the flight test space" }
-        require(SableFlightGravity.isFlightSpace(player.level())) { "Enter the flight test space first" }
+        require(SableFlightGravity.isFlightSpace(player.level()) || player.level().dimension() == FlatPlanetSpace.SPACE) {
+            "Enter the flight test space first"
+        }
         val saved = returns[player.uuid]
         val level = saved?.let { server.getLevel(it.dimension) } ?: server.overworld()
         val position =

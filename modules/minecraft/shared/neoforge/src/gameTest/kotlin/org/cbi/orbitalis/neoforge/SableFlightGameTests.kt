@@ -143,7 +143,8 @@ object SableFlightGameTests {
             val light = ship(level, -16.0, 200.0)
             val heavy = ship(level, 16.0, 200.0, true)
             val high = ship(level, 0.0, 6064.0)
-            val outside = ship(helper.level, 0.0, 1000.0)
+            // Native surface gravity is preserved through the build ceiling, not at orbital heights.
+            val outside = ship(helper.level, 0.0, 300.0)
             helper.runAfterDelay(5) {
                 val before = listOf(light, heavy, high).map(SableFlightGravity::reading)
                 helper.assertTrue(
@@ -193,7 +194,7 @@ object SableFlightGameTests {
                     val outsideDelta = outsideHandle.getLinearVelocity(Vector3d()).y - outsideBefore.y
                     helper.assertTrue(
                         outsideDelta < -8.0 && outsideDelta > -12.0,
-                        "Orbitalis affected ordinary Overworld ships: $outsideDelta",
+                        "Orbitalis changed native surface gravity below Y=320: $outsideDelta",
                     )
                     helper.assertTrue(bodies.all { it.userDataTag?.isEmpty != false }, "Gravity required ship ownership metadata")
                     println(

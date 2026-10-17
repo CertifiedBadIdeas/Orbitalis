@@ -24,6 +24,7 @@ import net.minecraft.gametest.framework.GameTestHelper
 import net.minecraft.world.level.border.WorldBorder
 import net.minecraft.world.phys.AABB
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
+import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
 import org.cbi.orbitalis.minecraft.surface.FlatOverworld
 
@@ -99,7 +100,7 @@ object SurfaceGameTests {
         val surface = server.overworld().worldBorder
         val settings = surface.createSettings()
         val diagnostics =
-            listOf(FlightTestSpace.SURFACE, FlightTestSpace.ORBIT, FlightTestSpace.SPACE).map {
+            listOf(FlightTestSpace.SURFACE, FlightTestSpace.ORBIT, FlightTestSpace.SPACE, FlatPlanetSpace.SPACE).map {
                 checkNotNull(server.getLevel(it)).worldBorder
             }
         // getPlayers() is an unmodifiable view. This pinned-runtime fixture briefly registers inert
@@ -110,27 +111,31 @@ object SurfaceGameTests {
         val recipients = playersField.get(server.playerList) as MutableList<net.minecraft.server.level.ServerPlayer>
         val surfacePackets = mutableListOf<net.minecraft.network.protocol.Packet<*>>()
         val spacePackets = mutableListOf<net.minecraft.network.protocol.Packet<*>>()
+        val flatPackets = mutableListOf<net.minecraft.network.protocol.Packet<*>>()
+        val flatPlayer = GameTestPlayers.create(helper, packets = flatPackets::add)
+        flatPlayer.setServerLevel(checkNotNull(server.getLevel(FlatPlanetSpace.SPACE)))
         val surfacePlayer = GameTestPlayers.create(helper, packets = surfacePackets::add)
         val spacePlayer = GameTestPlayers.create(helper, packets = spacePackets::add)
         spacePlayer.setServerLevel(checkNotNull(server.getLevel(FlightTestSpace.SPACE)))
         surfacePackets.clear()
         spacePackets.clear()
         try {
-            recipients.addAll(listOf(surfacePlayer, spacePlayer))
+            recipients.addAll(listOf(surfacePlayer, spacePlayer, flatPlayer))
+            flatPackets.clear()
             surface.setCenter(128.0, -96.0)
             surface.size = 1024.0
             surface.lerpSizeBetween(1024.0, 512.0, 10000L)
             surface.warningTime = surface.warningTime + 1
             surface.warningBlocks = surface.warningBlocks + 1
             helper.assertTrue(surfacePackets.size == 5, "Surface client missed native border edits")
-            helper.assertTrue(spacePackets.isEmpty(), "Surface border packets leaked into space")
+            helper.assertTrue(spacePackets.isEmpty() && flatPackets.isEmpty(), "Surface border packets leaked into space")
             // Both login and dimension changes use this native initialization path, which normally
             // reads the Overworld border regardless of the destination level.
-            for ((player, packets) in listOf(surfacePlayer to surfacePackets, spacePlayer to spacePackets)) {
+            for ((player, packets) in listOf(surfacePlayer to surfacePackets, spacePlayer to spacePackets, flatPlayer to flatPackets)) {
                 packets.clear()
                 server.playerList.sendLevelInfo(player, player.serverLevel())
                 val packet = packets.filterIsInstance<net.minecraft.network.protocol.game.ClientboundInitializeBorderPacket>().single()
-                val expected = if (player === spacePlayer) WorldBorder.MAX_SIZE else surface.lerpTarget
+                val expected = if (player === surfacePlayer) surface.lerpTarget else WorldBorder.MAX_SIZE
                 helper.assertTrue(packet.newSize == expected, "Initial client border uses the wrong dimension")
             }
 
@@ -150,7 +155,8 @@ object SurfaceGameTests {
                 )
             }
         } finally {
-            recipients.removeAll(listOf(surfacePlayer, spacePlayer))
+            recipients.removeAll(listOf(surfacePlayer, spacePlayer, flatPlayer))
+            flatPlayer.discard()
             surfacePlayer.discard()
             spacePlayer.discard()
             surface.applySettings(settings)

@@ -31,7 +31,7 @@ import net.minecraft.world.effect.MobEffects
 import net.minecraft.world.entity.LivingEntity
 import net.minecraft.world.level.material.FogType
 import org.cbi.orbitalis.core.planet.Vector3
-import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
+import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
 import org.joml.Matrix4f
 import org.lwjgl.opengl.GL11
 import kotlin.math.max
@@ -78,7 +78,7 @@ object SpaceSkyRenderer {
         val entity = camera.entity
         if (entity is LivingEntity && (entity.hasEffect(MobEffects.BLINDNESS) || entity.hasEffect(MobEffects.DARKNESS))) return
         val position = camera.position
-        val observer = FlightTestSpace.globalPosition(level, Vector3(position.x, position.y, position.z))
+        val observer = FlightSpaceCoordinates.globalPosition(level, Vector3(position.x, position.y, position.z))
         val scale = SpaceScene.scale(observer)
         val previousColor = RenderSystem.getShaderColor().copyOf()
         val previousShader = RenderSystem.getShader()

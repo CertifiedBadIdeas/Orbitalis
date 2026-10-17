@@ -30,7 +30,7 @@ import net.minecraft.network.protocol.game.ClientboundSetBorderWarningDistancePa
 import net.minecraft.server.players.PlayerList;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.border.WorldBorder;
-import org.cbi.orbitalis.minecraft.flight.FlightTestSpace;
+import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -43,7 +43,7 @@ public abstract class DiagnosticBorderPacketsMixin {
         target = "Lnet/minecraft/server/level/ServerLevel;getWorldBorder()Lnet/minecraft/world/level/border/WorldBorder;"))
     private WorldBorder orbitalis$initialDiagnosticBorder(ServerLevel vanillaLevel, Operation<WorldBorder> original,
             @Local(argsOnly = true) ServerLevel destination) {
-        return FlightTestSpace.INSTANCE.contains(destination) ? destination.getWorldBorder() : original.call(vanillaLevel);
+        return FlightSpaceCoordinates.INSTANCE.hasIndependentBorder(destination) ? destination.getWorldBorder() : original.call(vanillaLevel);
     }
 
     @Inject(method = "broadcastAll(Lnet/minecraft/network/protocol/Packet;)V", at = @At("HEAD"), cancellable = true)
@@ -52,7 +52,7 @@ public abstract class DiagnosticBorderPacketsMixin {
                 || packet instanceof ClientboundSetBorderCenterPacket || packet instanceof ClientboundSetBorderWarningDelayPacket
                 || packet instanceof ClientboundSetBorderWarningDistancePacket) {
             for (var player : ((PlayerList) (Object) this).getPlayers()) {
-                if (!FlightTestSpace.INSTANCE.contains(player.serverLevel())) {
+                if (!FlightSpaceCoordinates.INSTANCE.hasIndependentBorder(player.serverLevel())) {
                     player.connection.send(packet);
                 }
             }

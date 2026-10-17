@@ -48,6 +48,7 @@ import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.level.block.entity.ChestBlockEntity
 import net.minecraft.world.level.block.entity.TickingBlockEntity
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
+import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipSnapshot
@@ -75,14 +76,24 @@ object SableTransferGameTests {
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "space_transfer", timeoutTicks = 600)
     fun spaceTransferRoundTripAndRecovery(helper: GameTestHelper) = transferScenario(helper, FlightTestSpace.SPACE)
 
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "flat_transfer", timeoutTicks = 600)
+    fun overworldTransferRoundTripAndRecovery(helper: GameTestHelper) = transferScenario(helper, FlatPlanetSpace.SPACE, Level.OVERWORLD)
+
     private fun transferScenario(
         helper: GameTestHelper,
         route: ResourceKey<Level>,
+        surfaceKey: ResourceKey<Level> = FlightTestSpace.SURFACE,
     ) {
         val server = helper.level.server
-        val surface = checkNotNull(server.getLevel(SableFlightGravity.DIMENSION))
+        val surface = checkNotNull(server.getLevel(surfaceKey))
         val orbit = checkNotNull(server.getLevel(route))
-        val delta = if (route == FlightTestSpace.SPACE) 32000.0 else -256.0
+        val delta =
+            when (route) {
+                FlatPlanetSpace.SPACE -> 4096.0
+                FlightTestSpace.SPACE -> 32000.0
+                else -> -256.0
+            }
         // The inert fake pilot is not in the player list; keep vanilla BE ticking active.
         surface.resetEmptyTime()
         orbit.resetEmptyTime()
@@ -106,6 +117,12 @@ object SableTransferGameTests {
                         contactTicks = 0
                     }
                     helper.assertTrue(SubLevelPhysicsSystem.require(body.level).paused, "Ship resumed before client tracking")
+                    if (surfaceKey == FlightTestSpace.SURFACE) {
+                        helper.assertTrue(
+                            !SubLevelPhysicsSystem.require(server.overworld()).paused,
+                            "Diagnostic transfer froze ordinary Overworld ships",
+                        )
+                    }
                     helper.assertTrue(
                         (player.connection as ShipTransferTeleportState).orbitalisHasPendingTeleport(),
                         "Dimension travel did not request a vanilla teleport acknowledgment",
@@ -131,7 +148,14 @@ object SableTransferGameTests {
         val player = GameTestPlayers.create(helper)
         val pose =
             Pose3d().also {
-                val anchor = if (route == FlightTestSpace.SPACE) 1200.0 else 1400.0
+                val anchor =
+                    if (route == FlatPlanetSpace.SPACE) {
+                        500.0
+                    } else if (route == FlightTestSpace.SPACE) {
+                        1200.0
+                    } else {
+                        1400.0
+                    }
                 it.position().set(anchor, 600.0, anchor)
                 it.orientation().rotateZ(0.1).rotateX(0.05)
             }
@@ -356,7 +380,13 @@ object SableTransferGameTests {
                 ) {
                     System.err.println("Ship transfer GameTest failed: ${test.error}")
                     runCatching { cleanup() }.onFailure { it.printStackTrace() }
-                    for (key in listOf(FlightTestSpace.SURFACE, FlightTestSpace.ORBIT, FlightTestSpace.SPACE)) {
+                    for (key in listOf(
+                        Level.OVERWORLD,
+                        FlatPlanetSpace.SPACE,
+                        FlightTestSpace.SURFACE,
+                        FlightTestSpace.ORBIT,
+                        FlightTestSpace.SPACE,
+                    )) {
                         SubLevelPhysicsSystem.require(checkNotNull(server.getLevel(key))).paused = false
                     }
                 }
@@ -508,6 +538,7 @@ object SableTransferGameTests {
                                     CompoundTag(),
                                     ShipTransferPhase.PREPARED,
                                     orbitalDimension = route,
+                                    surfaceDimension = surfaceKey,
                                 )
                             // Codec coverage only: the native runtime here does not install Create/Simulated.
                             for (id in listOf("create:super_glue", "simulated:honey_glue")) {
@@ -542,6 +573,21 @@ object SableTransferGameTests {
                                 )
                             }
                             helper.assertTrue(ShipTransferRecord.decode(record.encode()).orbitalDimension == route, "Journal route changed")
+                            helper.assertTrue(
+                                ShipTransferRecord.decode(record.encode()).surfaceDimension == surfaceKey,
+                                "Journal surface changed",
+                            )
+                            if (surfaceKey == FlightTestSpace.SURFACE) {
+                                val versionTwo =
+                                    record.encode().also {
+                                        it.putInt("version", 2)
+                                        it.remove("surface_dimension")
+                                    }
+                                helper.assertTrue(
+                                    ShipTransferRecord.decode(versionTwo).surfaceDimension == FlightTestSpace.SURFACE,
+                                    "Version-2 source was reinterpreted",
+                                )
+                            }
                             // Corrupt/unknown contracts must fail before any native mutation.
                             try {
                                 ShipTransferRecord.decode(record.encode().also { it.putInt("version", 99) })
@@ -551,6 +597,20 @@ object SableTransferGameTests {
                             for (corrupt in listOf(
                                 record.encode().also { it.putInt("version", 0) },
                                 record.encode().also { it.remove("orbital_dimension") },
+                                record.encode().also { it.remove("surface_dimension") },
+                                record.encode().also { it.putString("surface_dimension", "minecraft:the_end") },
+                                record.encode().also {
+                                    it.putString(
+                                        "surface_dimension",
+                                        if (surfaceKey ==
+                                            Level.OVERWORLD
+                                        ) {
+                                            "orbitalis:flight_test"
+                                        } else {
+                                            "minecraft:overworld"
+                                        },
+                                    )
+                                },
                                 record.encode().also { it.putString("orbital_dimension", "orbitalis:unknown") },
                                 record.encode().also { it.getCompound("destination").putUUID("uuid", UUID.randomUUID()) },
                                 record.encode().also { it.getCompound("source").getCompound("exact_linear").putDouble("x", Double.NaN) },

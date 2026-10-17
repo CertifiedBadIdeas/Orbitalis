@@ -22,6 +22,10 @@ limitations under the License.
 
 - Add finite rectangular-body potential and gravity, a conservative native-gravity surface layer, and numerical low-orbit shooting with collision/clearance and energy checks.
 
+- Add low free orbital flight around a finite 2000×2000×128 mass model, with a conservative transition from native surface construction gravity through Y=320. Keep Minecraft players, fluids and block logic unchanged; use native Sable motion with symmetric gravity impulses.
+- Connect ordinary Overworld to its own low space frame. The consumer autopilot transfers while moving above 600 m, captures a numerical orbit about 1000 m above sea level, coasts with engines off and returns to the saved launch pad. Preload destination terrain from 400 m; preserve existing spherical diagnostics, old transfer journals and launch bookmarks through explicit route versioning.
+
+
 - Choose a free native Sable plot when a ship transfer's original address is occupied, including by an unloaded ship. Relocate supported block entities and glue while preserving physical pose, motion, cargo and foreign ships; retain journal compatibility and per-snapshot recovery addresses.
 
 - Continue consumer orbital ascent/return across the dimension handoff without braking to a boundary waypoint. Preserve moving journal snapshots and automatically resume the next leg; retain braking for insertion and actual touchdown. Finish landing within 0.5 m only after native terrain supports the ship with engines off.

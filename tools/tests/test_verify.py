@@ -55,8 +55,9 @@ versionRange="[1.21.1,1.21.2)"
             'data/orbitalis/dimension_physics/orbit_test.json.license': b'Apache-2.0 fixture',
         }
         for folder in ('dimension', 'dimension_physics'):
-            self.files[f'data/orbitalis/{folder}/space_test.json'] = b'{}'
-            self.files[f'data/orbitalis/{folder}/space_test.json.license'] = b'Apache-2.0 fixture'
+            for name in ('space', 'space_test'):
+                self.files[f'data/orbitalis/{folder}/{name}.json'] = b'{}'
+                self.files[f'data/orbitalis/{folder}/{name}.json.license'] = b'Apache-2.0 fixture'
         for legal in verify.KOTLIN_LEGAL_FILES:
             self.files['META-INF/licenses/kotlin-stdlib/' + legal] = b'legal fixture'
         runtime = io.BytesIO()
@@ -78,6 +79,18 @@ versionRange="[1.21.1,1.21.2)"
 
     def test_accepts_complete_java21_distribution_contract(self):
         self.run_verifier()
+
+    def test_missing_low_space_descriptor_or_license_is_rejected(self):
+        for folder in ('dimension', 'dimension_physics'):
+            for suffix in ('.json', '.json.license'):
+                name = f'data/orbitalis/{folder}/space{suffix}'
+                with self.subTest(resource=name):
+                    payload = self.files.pop(name)
+                    try:
+                        with self.assertRaisesRegex(ValueError, 'Missing or duplicated'):
+                            self.run_verifier()
+                    finally:
+                        self.files[name] = payload
 
     def test_missing_legal_notice_is_rejected(self):
         del self.files['META-INF/NOTICE']

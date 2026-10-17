@@ -29,6 +29,7 @@ import net.minecraft.commands.Commands
 import net.minecraft.network.chat.Component
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerPlayer
+import net.minecraft.world.level.Level
 import net.neoforged.bus.api.SubscribeEvent
 import net.neoforged.fml.common.EventBusSubscriber
 import net.neoforged.fml.common.Mod
@@ -37,6 +38,8 @@ import net.neoforged.neoforge.event.RegisterCommandsEvent
 import net.neoforged.neoforge.event.server.ServerStoppingEvent
 import net.neoforged.neoforge.event.tick.ServerTickEvent
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
+import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
 import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
 import org.cbi.orbitalis.neoforge.integration.SableFlightIntegration
 import org.joml.Quaterniond
@@ -48,7 +51,7 @@ class FlightConsumerMod {
     private class Control(
         val owner: UUID,
         val session: AutopilotSession? = null,
-        val mission: OrbitalMission? = null,
+        val mission: FlightMission? = null,
     ) {
         fun status() = mission?.status() ?: checkNotNull(session).status()
 
@@ -92,14 +95,14 @@ class FlightConsumerMod {
                 stop(source.server, null)
                 var target = AutopilotSession.position(body)
                 if (altitude != null) {
-                    val global = FlightTestSpace.globalPosition(body.level, target)
+                    val global = FlightSpaceCoordinates.globalPosition(body.level, target)
                     val goal =
                         Vector3(
                             global.x,
-                            FlightTestSpace.CENTRE.y + FlightTestSpace.gravity.radius + altitude,
+                            FlatPlanetSpace.SEA_LEVEL + altitude,
                             global.z,
                         )
-                    target = FlightTestSpace.localPosition(body.level.dimension(), goal)
+                    target = FlightSpaceCoordinates.localPosition(body.level.dimension(), goal)
                 }
                 val session = AutopilotSession(body, target)
                 controls[source.server] = Control(player.uuid, session = session)
@@ -131,10 +134,22 @@ class FlightConsumerMod {
                     if (land) {
                         sites.require(player.uuid, body.uniqueId)
                     } else {
-                        LaunchSites.Site(body.uniqueId, AutopilotSession.position(body), Quaterniond(body.logicalPose().orientation()))
+                        LaunchSites.Site(
+                            body.uniqueId,
+                            AutopilotSession.position(body),
+                            Quaterniond(body.logicalPose().orientation()),
+                            body.level.dimension(),
+                        )
                     }
                 val manager = SableFlightIntegration.transferService(source.server)
-                val mission = OrbitalMission(player, body, site, manager, land)
+                val mission: FlightMission =
+                    if (site.surface ==
+                        Level.OVERWORLD
+                    ) {
+                        FlatOrbitalMission(player, body, site, manager, land)
+                    } else {
+                        OrbitalMission(player, body, site, manager, land)
+                    }
                 try {
                     if (!land) {
                         sites.put(player.uuid, site)
@@ -213,9 +228,9 @@ class FlightConsumerMod {
                 val player = event.server.playerList.getPlayer(active.owner)
                 val mission = active.mission
                 if (mission != null) {
-                    val previous = mission.phase
+                    val previous = mission.stage
                     val landed = mission.tick(player)
-                    if (player != null && mission.phase != previous) player.sendSystemMessage(Component.literal(active.status()))
+                    if (player != null && mission.stage != previous) player.sendSystemMessage(Component.literal(active.status()))
                     if (landed) stop(event.server, "landed at the saved launch site")
                     return
                 }

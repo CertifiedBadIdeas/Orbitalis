@@ -89,7 +89,11 @@ def jar(path, version):
                     'data/orbitalis/dimension/space_test.json',
                     'data/orbitalis/dimension/space_test.json.license',
                     'data/orbitalis/dimension_physics/space_test.json',
-                    'data/orbitalis/dimension_physics/space_test.json.license')
+                    'data/orbitalis/dimension_physics/space_test.json.license',
+                    'data/orbitalis/dimension/space.json',
+                    'data/orbitalis/dimension/space.json.license',
+                    'data/orbitalis/dimension_physics/space.json',
+                    'data/orbitalis/dimension_physics/space.json.license')
         for name in required:
             if entries.count(name) != 1:
                 raise ValueError(f'Missing or duplicated {name}')

@@ -16,7 +16,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-# Diagnostic surface/orbit ship transfer
+# Surface/orbit ship transfer
+
+The ordinary Overworld low-orbit route is described in [finite-body flight](flat-gravity.md). It uses
+this same coordinator, allowlist, readiness barrier and recovery journal with its own explicit route.
+The existing diagnostic operator workflow remains available below.
 
 The optional Sable adapter provides `/orbitalis flight transfer` for one independent construction
 and its unmounted creative pilot. Use a disposable world and the isolated flight consumer. The
@@ -94,22 +98,27 @@ The allowlist establishes a bounded experiment, not blanket compatibility with e
 
 ## Authority and persistence
 
-`ShipTransferJournal` writes version 2 compressed NBT records to
+`ShipTransferJournal` writes version 3 compressed NBT records to
 `<save>/data/orbitalis-transfers/<ship-uuid>.nbt`. A record contains transaction/ship/pilot UUIDs, source
 side, native source/destination snapshots (including glue metadata), exact linear/angular velocities, pilot pose/motion, the
 source's previous native save pointer, phase, orbital dimension and offline-pilot recovery flags. Unknown versions,
 missing state, identity mismatches and invalid numeric state fail closed. Compressed and decompressed
 records are bounded to 16 MiB. Native payloads remain tied to the pinned Sable serialization format;
 future Sable/Orbitalis migrations must handle unfinished records before changing that format.
-Version 2 requires `orbital_dimension` to be exactly `orbitalis:orbit_test` or `orbitalis:space_test`.
-Version 1 records remain readable and always select the legacy orbit frame; subsequent writes migrate
-that route explicitly to version 2. Older readers reject version 2 rather than guessing coordinates.
+Version 3 requires explicit `surface_dimension` and `orbital_dimension`, accepting only
+`minecraft:overworld`/`orbitalis:space` or `orbitalis:flight_test` with either diagnostic orbital frame.
+The new route translates Y by 4096; it never reuses the diagnostic full-space offset of 32000.
+Version 2 still means implicit `flight_test` and requires `orbital_dimension` to be exactly
+`orbitalis:orbit_test` or `orbitalis:space_test`. Version 1 always selects the legacy orbit frame.
+Both remain readable and migrate explicitly on write. Older readers reject version 3 rather than guessing coordinates.
 The version 1 manifest accepts both glue types. Existing Super Glue records remain readable; older
 Orbitalis builds that only accept Super Glue reject unfinished Honey Glue records rather than discarding them.
 
 Journal compression, reads and atomic file replacement/fsync run on one dedicated worker. Only copied
 NBT crosses threads. Minecraft world, player, plot and native storage calls remain on the server thread.
-All three diagnostic levels' native physics are paused while a transaction is active. Existing pause states
+All three diagnostic levels' native physics are paused while a transaction is active. Overworld and
+its new space frame join that scope only for their own route or while startup journal ownership is
+still unknown; legacy diagnostic recovery releases unrelated surface physics once its route is read. Existing pause states
 are restored afterward. Player interactions are blocked during the operation and source content/pilot
 position are revalidated after asynchronous preparation. Block-entity ticks in the held source/staged
 plot chunks are suspended by the loader's Minecraft ticker hook. This includes persisted engine counters;
@@ -154,9 +163,9 @@ anchor and the recorded prior native storage pointer, covering a ship saved befo
 A crash during the transaction rolls the ship back to that transaction snapshot; it does not replay later
 ordinary gameplay. A pilot who is offline follows the selected winner on login; only pose/motion is
 restored, never a copied player inventory. The pending-login flag remains durable until reconciliation.
-All diagnostic worlds stay paused and the recovered ship stays loaded until that pilot logs in, keeping
-the recovery anchor stable. This first prototype has no offline flight mode; ordinary Overworld play
-continues. A missing completed native checkpoint is an error, never an excuse to replay an old payload.
+The route's supported flight worlds stay paused and the recovered ship stays loaded until that pilot logs in, keeping
+the recovery anchor stable. This first prototype has no offline flight mode; ordinary block/entity simulation continues, but native construction physics and interactions in the
+participating Overworld are held during this bounded recovery. A missing completed native checkpoint is an error, never an excuse to replay an old payload.
 An unreadable journal or uncertain I/O failure retains paused diagnostic physics and stops further
 transfers for inspection/restart, instead of guessing ownership. Preserve the journal when investigating.
 
@@ -167,12 +176,12 @@ remain unchanged apart from the existing world-frame height translation. Chunk k
 plot-relative coordinates. Pinned Super Glue/Honey Glue `From`/`To` bounds and Propulsion controller
 offsets are relative, so they remain exact. This is a bounded adapter for the existing allowlist,
 not a generic recursive NBT coordinate rewrite or support for arbitrary mod block entities.
-Journal versions 1/2 already store independent source and destination plot snapshots; no schema change
-is needed. Older journals with equal addresses remain readable, and recovery uses each recorded address.
+All journal versions store independent source and destination plot snapshots; relocation itself
+requires no schema change. Older journals with equal addresses remain readable, and recovery uses each recorded address.
 
 ## Evidence and remaining work
 
-Native GameTests exercise round trips on both orbital routes using a rotated ship, nonzero small linear/angular velocity,
+Native GameTests exercise round trips on both diagnostic routes and the new Overworld route using a rotated ship, nonzero small linear/angular velocity,
 a chest and pilot pose, relocation around loaded/unloaded foreign ships on outbound/return, full-plot
 rejection, PREPARED rollback, COMMITTED recovery across unequal plot addresses with a stale
 occupancy bitmap, offline pilot

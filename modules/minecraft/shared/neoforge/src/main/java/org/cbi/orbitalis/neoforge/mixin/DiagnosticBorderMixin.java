@@ -25,7 +25,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.border.BorderChangeListener;
 import net.minecraft.world.level.border.WorldBorder;
-import org.cbi.orbitalis.minecraft.flight.FlightTestSpace;
+import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 
@@ -36,7 +36,7 @@ public abstract class DiagnosticBorderMixin {
         target = "Lnet/minecraft/world/level/border/WorldBorder;addListener(Lnet/minecraft/world/level/border/BorderChangeListener;)V"))
     private void orbitalis$independentDiagnosticBorder(WorldBorder border, BorderChangeListener listener,
             Operation<Void> original, @Local(ordinal = 1) ServerLevel target) {
-        if (!FlightTestSpace.INSTANCE.contains(target)) {
+        if (!FlightSpaceCoordinates.INSTANCE.hasIndependentBorder(target)) {
             original.call(border, listener);
         }
     }
