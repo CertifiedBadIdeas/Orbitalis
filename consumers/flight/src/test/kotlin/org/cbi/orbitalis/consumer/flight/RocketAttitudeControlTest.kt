@@ -37,6 +37,25 @@ class RocketAttitudeControlTest {
         assertTrue(settled.length() < 1e-10)
     }
 
+    @Test fun rcsFlipLimitsSpinAndBrakesBeforeReachingTheTarget() {
+        var angle = 0.0
+        var omega = 0.0
+        var maximumAngle = 0.0
+        var maximumRate = 0.0
+        repeat(600) {
+            val current = Vector3(sin(angle), cos(angle), 0.0)
+            val acceleration = -RocketAttitudeControl.acceleration(current, up * -1.0, Vector3(0.0, 0.0, -omega), Vector3.ZERO, true).z
+            assertTrue(kotlin.math.abs(acceleration) <= 0.120000001)
+            angle += omega * 0.05 + acceleration * 0.00125
+            omega += acceleration * 0.05
+            maximumAngle = maxOf(maximumAngle, angle)
+            maximumRate = maxOf(maximumRate, kotlin.math.abs(omega))
+        }
+        assertTrue(maximumRate <= RocketAttitudeControl.RCS_RATE + 0.005)
+        assertTrue(maximumAngle <= Math.PI + 0.02, "RCS overshot the target: $maximumAngle")
+        assertTrue(kotlin.math.abs(angle - Math.PI) < 0.005 && kotlin.math.abs(omega) < 0.005)
+    }
+
     @Test fun gimbalsSupportAForceDeflectionWithoutAnInstantHullTurn() {
         fun tilted(degrees: Double): Vector3 {
             val angle = Math.toRadians(degrees)

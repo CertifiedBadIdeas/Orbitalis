@@ -25,6 +25,10 @@ import kotlin.math.sin
 
 /** Shared nose controller for real actuator commands and bounded return feasibility prediction. */
 internal object RocketAttitudeControl {
+    const val RCS_THROTTLE = 0.2
+    const val RCS_RATE = 0.2
+    const val POWERED_RATE = 0.25
+
     fun rate(
         previous: Vector3?,
         desired: Vector3,
@@ -36,6 +40,7 @@ internal object RocketAttitudeControl {
         desired: Vector3,
         omega: Vector3,
         targetRate: Vector3,
+        orientationOnly: Boolean = false,
     ): Vector3 {
         val cross = current.cross(desired)
         val sine = cross.length()
@@ -56,7 +61,13 @@ internal object RocketAttitudeControl {
                         .normalized() * Math.PI
                 }
             }
-        return OrbitalGuidance.limited(error * 0.8 - (omega - targetRate) * 1.8, 0.45)
+        if (!orientationOnly) {
+            return OrbitalGuidance.limited(error * 0.8 - (omega - targetRate) * 1.8, 0.45)
+        }
+        // Rate control starts braking before the nose reaches its target. Capping acceleration
+        // alone still lets a large angle error accumulate an excessive angular velocity.
+        val requestedRate = OrbitalGuidance.limited(error * 0.6 + targetRate, RCS_RATE)
+        return OrbitalGuidance.limited((requestedRate - omega) * 2.0, 0.12)
     }
 
     /** Nose-only rollout; roll is damped by the live controller but does not change the thrust cone. */
@@ -75,7 +86,7 @@ internal object RocketAttitudeControl {
         ): Boolean {
             val magnitude = thrust.length()
             if (magnitude >= 0.3) requested = thrust * (1.0 / magnitude)
-            desired = RocketAttitude.advance(desired, requested, 0.25 * seconds)
+            desired = RocketAttitude.advance(desired, requested, POWERED_RATE * seconds)
             // Native engines gimbal 30 degrees per axis. Use the conservative inscribed cone,
             // with five degrees reserved for interpolation, tracking error and torque allocation.
             val supported = magnitude <= 1.5 || nose.dot(requested) >= cos(Math.toRadians(25.0))

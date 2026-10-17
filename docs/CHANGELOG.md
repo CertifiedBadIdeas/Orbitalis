@@ -20,6 +20,16 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Relocate Propulsion vector engines’ embedded directional link addresses with their native plot,
+  preserving frequencies and exact block-entity verification. Log preparation cancellation reasons
+  on the server as well as reporting them to the pilot.
+
+- Limit consumer autopilot RCS commands to 20% of configured thrust, include the cap in force/torque
+  allocation, and use bounded angular-rate control with anticipatory braking. Reserve a longer
+  engine-off turn lead before the return burn; keep main-engine throttle authority separate.
+  Prioritize attitude when side force conflicts with limited control torque, and validate the actual
+  ballistic insertion instead of burning to chase a moving reference point after ascent.
+
 - Replace the consumer rocket's fixed return trigger with a forecast burn-window search that includes
   RCS turn lead and compares continuous candidate manoeuvres by required delta-v. Reject crossing past
   the pad along the orbital approach axis; retain real Propulsion force application and native landing checks.

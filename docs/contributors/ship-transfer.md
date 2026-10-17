@@ -156,7 +156,8 @@ An unreadable journal or uncertain I/O failure retains paused flight physics and
 transfers for inspection/restart, instead of guessing ownership. Preserve the journal when investigating.
 
 Plot relocation shifts the serialized local rotation point, absolute block-entity x/z and attached
-entity `Pos`, plus the pinned redstone link's absolute `LastKnownPosition`. Physical world pose/bounds,
+entity `Pos`, plus the pinned Create link's absolute `LastKnownPosition` and Propulsion 1.1.5
+vector engines' four directional `*LastKnownPosition` addresses. Frequencies remain unchanged. Physical world pose/bounds,
 orientation, exact velocities, ship/entity UUIDs and payloads
 remain unchanged apart from the existing world-frame height translation. Chunk keys are native
 plot-relative coordinates. Pinned Super Glue/Honey Glue `From`/`To` bounds and Propulsion controller

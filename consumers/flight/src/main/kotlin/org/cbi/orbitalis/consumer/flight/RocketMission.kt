@@ -75,6 +75,7 @@ internal class RocketMission(
     private val preload = ShipDestinationPreload()
     private val planning = CompletableFuture.supplyAsync { BallisticOrbit.plan(field, FlatPlanetSpace.ORBIT_HEIGHT, 32.0) }
     private var connectionPlanning: CompletableFuture<*>? = null
+    private var capturePlanning: CompletableFuture<Boolean>? = null
     private lateinit var course: RocketCourse
     private lateinit var ascent: RocketAscent
     private var returning: RocketReturn.Path? = null
@@ -227,7 +228,19 @@ internal class RocketMission(
             Phase.ASCENT -> {
                 clock += 0.05
                 preload.approach(body.level, s.position, s.velocity)
-                if (clock <= ascent.path.duration) follow(ascent.path.at(clock)) else enter(Phase.CAPTURE)
+                if (clock <= ascent.path.duration) {
+                    follow(ascent.path.at(clock))
+                } else {
+                    val ref = course.stateAt(ascent.orbitPhase + clock - ascent.path.duration)
+                    val error = (ref.position - s.position).length()
+                    val velocityError = (ref.velocity - s.velocity).length()
+                    require(error < 200.0 && velocityError < 30.0) {
+                        "Ascent missed the bounded orbit capture: position=$error m, velocity=$velocityError m/s"
+                    }
+                    cut()
+                    capturePlanning = CompletableFuture.supplyAsync { RocketOrbitCapture.safe(field, s, course) }
+                    enter(Phase.CAPTURE)
+                }
                 if (body.level.dimension() == Level.OVERWORLD &&
                     s.position.y >= FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ASCENT_HEIGHT
                 ) {
@@ -236,21 +249,11 @@ internal class RocketMission(
             }
 
             Phase.CAPTURE -> {
-                clock += 0.05
-                val ref = course.stateAt(ascent.orbitPhase + clock - ascent.path.duration)
-                val error = (ref.position - s.position).length()
-                val velocityError = (ref.velocity - s.velocity).length()
-                if (ticks % 200 ==
-                    0
-                ) {
-                    println("ORBITALIS_ROCKET_CAPTURE positionError=$error velocityError=$velocityError ${engine().status()}")
-                }
-                follow(RocketConnection.Sample(ref, field.acceleration(ref.position)))
-                if (error < 1.5 && velocityError < 0.4) settled++ else settled = 0
-                if (settled >= 10) {
-                    cut()
-                    enter(Phase.ALIGN)
-                }
+                require(ticks < 200) { "Ballistic capture forecast timed out" }
+                val forecast = checkNotNull(capturePlanning)
+                if (!forecast.isDone) return false
+                require(forecast.join()) { "Actual insertion does not provide a safe low ballistic revolution" }
+                enter(Phase.ALIGN)
             }
 
             Phase.ALIGN -> {
@@ -411,6 +414,7 @@ internal class RocketMission(
         preload.close()
         planning.cancel(false)
         connectionPlanning?.cancel(true)
+        capturePlanning?.cancel(true)
         returnPlanning?.cancel(true)
         SpaceTravelReservations.release(site.ship, this)
     }

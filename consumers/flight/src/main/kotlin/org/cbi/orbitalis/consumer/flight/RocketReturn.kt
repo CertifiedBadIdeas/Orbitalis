@@ -26,7 +26,7 @@ import kotlin.math.sqrt
 
 /** Bounded search over burn epochs and continuous return curves; no fixed longitude trigger. */
 internal object RocketReturn {
-    const val TURN_LEAD = 12.0
+    const val TURN_LEAD = 30.0
 
     class Path(
         val segments: List<RocketConnection>,

@@ -288,12 +288,16 @@ is about 152 m/s and the period about 229 seconds; speed and height vary around 
 Square-body symmetries select the orbital plane from the launch site. No spherical Kepler formula or
 arbitrary rotation of the near-field gravity model is used.
 
-After capture, the main engines fade and remain off for a full ballistic revolution. Native ownership changes clear
+At the end of ascent, a bounded worker forecasts the actual insertion state with all engines off.
+Capture requires negative specific energy, a full revolution in the launch meridian, at least 64 m
+of reference-body clearance and a radius within 15% of the planned low orbit. An unsafe insertion
+fails explicitly. The controller does not chase a moving reference point after insertion: the main
+engines fade and remain off for a full ballistic revolution. Native ownership changes clear
 residual Propulsion inputs exactly. Balanced native
 RCS keeps the nose prograde and damps residual roll throughout that coast. The attitude target
 transports the current roll instead of rebuilding an absolute world-UP quaternion, avoiding a roll
 singularity below the planet. Return searches future ballistic states over the next revolution,
-including a 12-second engine-off RCS turn lead before the burn. It compares bounded continuous return
+including a 30-second engine-off RCS turn lead before the burn. It compares bounded continuous return
 curves by the integral of required thrust acceleration (delta-v); this is a finite candidate search,
 not proof of a globally optimal fuel solution. Candidates reject crossing past the pad along the orbital
 approach axis and respect thrust, speed and surface-border limits. An attitude rollout shares the live
@@ -306,6 +310,13 @@ the surface footprint. The real vector engines and RCS execute the selected path
 interpolation and physical torque determine the actual attitude. Requested thrust acceleration changes
 by at most 0.5 m/s² per 50-ms guidance tick (10 m/s³), smoothing phase/feedback changes before native
 allocation. This bounds the command, not the physical jerk from gravity, contacts or native engine fade.
+Each RCS pod is limited to 20% of its configured maximum throttle while the autopilot owns it.
+The allocator includes that per-engine budget when solving for torque, so it does not request unavailable
+control authority. Allocation weights attitude torque above unachievable side force: bottom-gimbal
+lateral thrust otherwise consumes limited RCS authority counteracting its pitching moment.
+RCS-only attitude requests cap angular rate at 0.2 rad/s and angular acceleration at
+0.12 rad/s²; powered attitude requests retain the 0.25 rad/s limit. The rate controller brakes before
+reaching the target angle. These are development-controller limits, not a propellant or power model.
 The controller never sets the live
 ship's pose, velocity or applied force directly.
 
@@ -353,3 +364,12 @@ control and reactivate when PERIPHERAL control returns. `NativeThrusterInput` fo
 through two synchronous public setter calls; those calls only dirty native state and run no physics
 between them. The native RCS test reproduces that residual before reacquiring control and requires
 all main engines to remain exactly off throughout the flip. No Propulsion field mixin is added.
+
+On the current 10-km body, the capped-RCS and ballistic-capture native rocket suite completes all
+five cases, including centre/off-axis launches, occupied-plot relocation, seated cargo transfer,
+steering/hold and the RCS-only 180-degree turn. The latter holds about 0.2 rad/s during the turn
+and settles below 0.00003 rad/s within 30 seconds. Every mission tick checks the 20% pod command cap.
+Summed main-plus-RCS scalar impulse is about 1828, 1818 and 1838 m/s for the centre and two off-axis
+cases, versus 1865, 1859 and 1849 m/s before this change. These are scenario measurements, not FE
+or a claim of globally optimal guidance. Powered ascent and braking attitude still depend on the
+reference trajectory and main-engine gimbals; the RCS limit alone does not redesign that trajectory.

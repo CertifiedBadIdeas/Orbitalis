@@ -246,10 +246,23 @@ object SableShipSnapshot {
             val chunk = copy.getCompound("plot").getCompound("chunks").getCompound(key)
             for (tag in chunk.getList("block_entities", 10)) {
                 val data = tag as CompoundTag
-                if (data.getString("id") == "create:redstone_link") {
-                    require(data.contains("LastKnownPosition", 4)) { "Missing native link position" }
-                    val previous = BlockPos.of(data.getLong("LastKnownPosition"))
-                    data.putLong("LastKnownPosition", previous.offset(dx.toInt(), 0, dz.toInt()).asLong())
+                // Create LinkBehaviour and Propulsion 1.1.5's four directional variants save
+                // their owning block's absolute address. Frequencies and every other field stay exact.
+                val linkPositions =
+                    when (data.getString("id")) {
+                        "create:redstone_link" -> listOf("LastKnownPosition")
+
+                        "createpropulsion:creative_vector_thruster_block_entity",
+                        "createpropulsion:vector_thruster_block_entity",
+                        "createpropulsion:liquid_vector_thruster_block_entity",
+                        -> listOf("DownLastKnownPosition", "UpLastKnownPosition", "WestLastKnownPosition", "EastLastKnownPosition")
+
+                        else -> emptyList()
+                    }
+                for (field in linkPositions) {
+                    require(data.contains(field, 4)) { "Missing native link position: $field" }
+                    val previous = BlockPos.of(data.getLong(field))
+                    data.putLong(field, previous.offset(dx.toInt(), 0, dz.toInt()).asLong())
                 }
                 data.putInt("x", Math.addExact(data.getInt("x"), dx.toInt()))
                 data.putInt("z", Math.addExact(data.getInt("z"), dz.toInt()))

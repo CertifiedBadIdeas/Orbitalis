@@ -91,6 +91,8 @@ object RocketGameTests {
                     }
                 },
             )
+        var relocationBlocker: ServerSubLevel? = null
+        var sourcePlot: net.minecraft.world.level.ChunkPos? = null
         var body: ServerSubLevel? = null
         var seatId: UUID? = null
         var mission: RocketMission? = null
@@ -130,9 +132,23 @@ object RocketGameTests {
             }
         }
         onFinished(helper) {
+            val evidence =
+                java.nio.file.Path
+                    .of("build/agent-logs/rocket-attempt-${origin.x}-${origin.z}.csv")
+            java.nio.file.Files
+                .createDirectories(evidence.parent)
+            java.nio.file.Files
+                .writeString(evidence, trace.toString())
             mission?.close()
             transfer.close()
             pilot.close()
+            relocationBlocker?.let { blocker ->
+                if (!blocker.isRemoved) {
+                    val c = checkNotNull(SubLevelContainer.getContainer(blocker.level))
+                    c.removeForceLoadTicket(blocker, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
+                    c.removeSubLevel(blocker, SubLevelRemovalReason.REMOVED)
+                }
+            }
             for (world in worlds) {
                 val c = checkNotNull(SubLevelContainer.getContainer(world))
                 body?.uniqueId?.let { id ->
@@ -248,6 +264,33 @@ object RocketGameTests {
                         "Create seat did not resolve to its plot-owned ship",
                     )
                 }
+                if (reload) {
+                    // Force a different destination plot, exercising embedded vector-link addresses.
+                    sourcePlot = b.plot.plotPos
+                    val target = checkNotNull(SubLevelContainer.getContainer(worlds[1]))
+                    val plotX = b.plot.plotPos.x - container.origin.x
+                    val plotZ = b.plot.plotPos.z - container.origin.y
+                    if (!target.occupancy[target.getIndex(plotX, plotZ)]) {
+                        val pose =
+                            dev.ryanhcode.sable.companion.math
+                                .Pose3d()
+                                .also { it.position().set(FlatPlanetSpace.HALF_SIZE + 1000.0, 10000.0, FlatPlanetSpace.HALF_SIZE + 1000.0) }
+                        val blocker = target.allocateSubLevel(UUID.randomUUID(), plotX, plotZ, pose) as ServerSubLevel
+                        blocker.plot.newEmptyChunk(blocker.plot.centerChunk)
+                        blocker.plot.embeddedLevelAccessor.setBlock(
+                            BlockPos.ZERO,
+                            net.minecraft.world.level.block.Blocks.GOLD_BLOCK
+                                .defaultBlockState(),
+                            3,
+                        )
+                        blocker.updateMergedMassData(1.0f)
+                        blocker.updateBoundingBox()
+                        blocker.forceUpdateGlobalBounds()
+                        blocker.updateLastPose()
+                        target.addForceLoadTicket(blocker, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
+                        relocationBlocker = blocker
+                    }
+                }
                 mission = RocketMission(pilot.player, b, site!!, transfer, false)
             }
             mission?.let { active ->
@@ -273,6 +316,16 @@ object RocketGameTests {
                         }
                     }
                     previousOrientation = orientation
+                    val rcs =
+                        b.plot.loadedChunks
+                            .flatMap {
+                                it.chunk.blockEntities.values
+                            }.filterIsInstance<AbstractThrusterBlockEntity>()
+                            .filter { it !is CreativeVectorThrusterBlockEntity }
+                    helper.assertTrue(
+                        rcs.all { it.power <= RocketAttitudeControl.RCS_THROTTLE + 0.0001 },
+                        "RCS exceeded its correction thrust cap",
+                    )
                     // Sum scalar native engine impulse: opposing RCS couples must not cancel.
                     for (engine in b.plot.loadedChunks
                         .flatMap { it.chunk.blockEntities.values }
@@ -384,6 +437,9 @@ object RocketGameTests {
                 if (before != active.phase || tick % 200 == 0) println("ORBITALIS_ROCKET_MISSION tick=$tick ${active.status()}")
                 if (before == RocketMission.Phase.TRANSFER && active.phase != before) {
                     handoffs++
+                    if (reload && handoffs == 1) {
+                        helper.assertTrue(active.body.plot.plotPos != sourcePlot, "Outbound rocket did not relocate its occupied plot")
+                    }
                     if (seated) helper.assertTrue(pilot.player.vehicle?.uuid == seatId, "Create seat/rider link lost at handoff")
                 }
                 if (active.phase == RocketMission.Phase.COAST && !requested) {
@@ -752,7 +808,24 @@ object RocketGameTests {
                         )} omega=${handle.getAngularVelocity(Vector3d())}",
                     )
                 }
-                if (tick < 400) {
+                val pods =
+                    rocket.plot.loadedChunks
+                        .flatMap {
+                            it.chunk.blockEntities.values
+                        }.filterIsInstance<AbstractThrusterBlockEntity>()
+                        .filter { it !is CreativeVectorThrusterBlockEntity }
+                helper.assertTrue(
+                    pods.size == 12 &&
+                        pods.all {
+                            it.power <= RocketAttitudeControl.RCS_THROTTLE + 0.0001
+                        },
+                    "RCS flip exceeded its throttle cap",
+                )
+                helper.assertTrue(
+                    handle.getAngularVelocity(Vector3d()).length() <= RocketAttitudeControl.RCS_RATE + 0.03,
+                    "RCS caused excessive spin",
+                )
+                if (tick < 600) {
                     helper.runAfterDelay(1) { run() }
                     return
                 }

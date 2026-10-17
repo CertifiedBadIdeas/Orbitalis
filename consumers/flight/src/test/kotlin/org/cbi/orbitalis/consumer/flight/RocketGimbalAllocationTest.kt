@@ -83,6 +83,38 @@ class RocketGimbalAllocationTest {
         assertTrue(result.inputs.all { it.throttle in 0.0..1.0 })
     }
 
+    @Test fun cappedRcsAuthorityCannotBeInventedForARequestedTorque() {
+        val pods =
+            listOf(
+                RocketGimbalAllocation.Engine(Vector3(3.0, 0.0, 0.0), 20.0, Vector3(0.0, 0.0, 1.0), 0.2),
+                RocketGimbalAllocation.Engine(Vector3(-3.0, 0.0, 0.0), 20.0, Vector3(0.0, 0.0, -1.0), 0.2),
+            )
+        val feasible = RocketGimbalAllocation.solve(pods, Vector3.ZERO, Vector3(0.0, -20.0, 0.0))
+        assertTrue(feasible.torqueResidual.length() < 0.02 && feasible.forceResidual.length() < 0.02)
+        val saturated = RocketGimbalAllocation.solve(pods, Vector3.ZERO, Vector3(0.0, -100.0, 0.0))
+        assertTrue(saturated.inputs.all { it.throttle <= 0.2 && it.force.length() <= 4.000001 })
+        assertTrue(saturated.torqueResidual.length() >= 75.99)
+        assertTrue(saturated.forceResidual.length() < 0.02)
+        val disabled = RocketGimbalAllocation.solve(pods.map { it.copy(maximumThrottle = 0.0) }, Vector3.ZERO, Vector3(0.0, -100.0, 0.0))
+        assertTrue(disabled.inputs.all { it.throttle == 0.0 && it.force.length() == 0.0 })
+    }
+
+    @Test fun limitedRcsTradesUnachievableSideForceForAttitudeControl() {
+        val layout =
+            listOf(
+                RocketGimbalAllocation.Engine(Vector3(0.0, -7.0, 0.0), 100.0),
+                RocketGimbalAllocation.Engine(Vector3(0.0, 3.0, 0.0), 10.0, Vector3(1.0, 0.0, 0.0), 0.2),
+                RocketGimbalAllocation.Engine(Vector3(0.0, 3.0, 0.0), 10.0, Vector3(-1.0, 0.0, 0.0), 0.2),
+            )
+        val force = Vector3(20.0, 80.0, 0.0)
+        val equal = RocketGimbalAllocation.solve(layout, force, Vector3.ZERO)
+        val attitude = RocketGimbalAllocation.solve(layout, force, Vector3.ZERO, 4.0)
+        assertTrue(attitude.torqueResidual.length() < equal.torqueResidual.length() * 0.5)
+        assertTrue(attitude.forceResidual.length() > equal.forceResidual.length())
+        assertTrue(attitude.inputs.drop(1).all { it.throttle <= 0.2 })
+        assertTrue(attitude.inputs[0].throttle <= 1.0)
+    }
+
     private fun checkLimits(result: RocketGimbalAllocation.Result) {
         for (input in result.inputs) {
             assertTrue(input.throttle in 0.0..1.0 && input.vectorX in -1.0..1.0 && input.vectorY in -1.0..1.0)

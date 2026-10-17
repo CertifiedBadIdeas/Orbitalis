@@ -363,6 +363,7 @@ class SableShipTransfer(
         player: ServerPlayer?,
         reason: String,
     ) {
+        Sable.LOGGER.warn("Orbitalis transfer cancelled; source retained: ship={} reason={}", record.ship, reason)
         // Re-establish source authority durably before discarding a partially staged body.
         persist(record) {
             if (SubLevelContainer.getContainer(level(record.sourceIsOrbit, record))!!.getSubLevel(record.ship) == null) {

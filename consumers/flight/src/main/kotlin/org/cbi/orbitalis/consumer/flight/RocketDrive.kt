@@ -126,6 +126,7 @@ internal class RocketDrive(
                 AutopilotSession.vector(Vector3d(sample.pointLocal()).sub(body.massTracker.centerOfMass)),
                 engine.capacity,
                 if (engine.main) null else AutopilotSession.vector(engine.block.thrustDirectionLocal),
+                if (engine.main) 1.0 else RocketAttitudeControl.RCS_THROTTLE,
             )
         }
 
@@ -137,9 +138,9 @@ internal class RocketDrive(
         val gravity = SableFlightGravity.acceleration(body.level, AutopilotSession.position(body))
         val thrust = netAcceleration - gravity
         if (desiredNose != null) {
-            nose = RocketAttitude.advance(nose, desiredNose, 0.25 * 0.05)
+            nose = RocketAttitude.advance(nose, desiredNose, RocketAttitudeControl.POWERED_RATE * 0.05)
         } else if (thrust.length() >= 0.3) {
-            nose = RocketAttitude.advance(nose, thrust, 0.25 * 0.05)
+            nose = RocketAttitude.advance(nose, thrust, RocketAttitudeControl.POWERED_RATE * 0.05)
         }
         val rate = if (trackDirection) directionRate(nose) else Vector3.ZERO
         apply(smoothing.next(thrust), nose, targetRate = rate)
@@ -197,6 +198,7 @@ internal class RocketDrive(
                 direction,
                 AutopilotSession.vector(pose.orientation().transform(Vector3d(omega))),
                 targetRate,
+                orientationOnly,
             )
         val angular = pose.orientation().transformInverse(Vector3d(angularWorld.x, angularWorld.y, angularWorld.z))
         val inertia = body.massTracker.inertiaTensor
@@ -204,7 +206,15 @@ internal class RocketDrive(
         torque.add(Vector3d(omega).cross(inertia.transform(omega, Vector3d())))
         val localForce = pose.orientation().transformInverse(Vector3d(thrust.x, thrust.y, thrust.z).mul(body.massTracker.mass))
         val selected = if (orientationOnly) engines.filter { !it.main } else engines
-        val result = RocketGimbalAllocation.solve(layout(selected), AutopilotSession.vector(localForce), AutopilotSession.vector(torque))
+        // Bottom gimbals create a moment opposite the requested nose tilt when they chase lateral
+        // force. Preserve attitude authority under the RCS cap; position feedback can recover force.
+        val result =
+            RocketGimbalAllocation.solve(
+                layout(selected),
+                AutopilotSession.vector(localForce),
+                AutopilotSession.vector(torque),
+                4.0,
+            )
         allocation = result
         ticks++
         if (orientationOnly) engines.filter { it.main }.forEach { NativeThrusterInput.set(it.block, 0.0f) }
