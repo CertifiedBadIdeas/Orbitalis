@@ -29,7 +29,9 @@ import net.minecraft.network.chat.Component
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.world.level.storage.LevelResource
+import net.neoforged.bus.api.EventPriority
 import net.neoforged.neoforge.common.NeoForge
+import net.neoforged.neoforge.event.OnDatapackSyncEvent
 import net.neoforged.neoforge.event.RegisterCommandsEvent
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent
 import net.neoforged.neoforge.event.level.BlockEvent
@@ -43,6 +45,7 @@ import org.cbi.orbitalis.minecraft.integration.sable.AutomaticShipTravel
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipContact
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipTransfer
+import org.cbi.orbitalis.minecraft.integration.sable.SableVacuumWorld
 import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferTickGate
 import java.util.Locale
 
@@ -56,6 +59,13 @@ object SableFlightIntegration {
     fun transferService(server: MinecraftServer): SableShipTransfer = checkNotNull(transfers[server]) { "Transfer service is not ready" }
 
     fun install() {
+        SableVacuumWorld.installPlotLookup()
+        // Apply before Sable compiles and sends its native dimension-physics packet.
+        NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST) { event: OnDatapackSyncEvent ->
+            event.playerList.server
+                .getLevel(FlatPlanetSpace.SPACE)
+                ?.let(SableVacuumWorld::configure)
+        }
         org.cbi.orbitalis.minecraft.flight.PlayerGravity.serverAcceleration = { SableFlightGravity.flatField(it).nativeAcceleration }
         NeoForge.EVENT_BUS.addListener { event: EntityTickEvent.Pre ->
             if (ShipTransferTickGate
@@ -65,6 +75,7 @@ object SableFlightIntegration {
             }
         }
         NeoForge.EVENT_BUS.addListener { event: ServerStartedEvent ->
+            event.server.getLevel(FlatPlanetSpace.SPACE)?.let(SableVacuumWorld::configure)
             transfers[event.server] =
                 SableShipTransfer(
                     event.server,
@@ -132,6 +143,7 @@ object SableFlightIntegration {
         NeoForge.EVENT_BUS.addListener { event: ServerStoppedEvent ->
             automatic.remove(event.server)?.close()
             transfers.remove(event.server)?.close()
+            SableVacuumWorld.close(event.server)
         }
     }
 

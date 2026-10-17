@@ -65,6 +65,47 @@ core, Minecraft-common and NeoForge outputs as Orbitalis, with its metadata and 
 It is a development input, not the remapped distribution. Kotlin is supplied separately by the consumer.
 No Maven Local publication or manually copied Orbitalis archive is needed after source edits.
 
+## Client terrain LODs
+
+`runClient` automatically runs `prepareFlightClientMods`, which downloads eight pinned original JARs,
+checks their SHA-512 digests and installs the prepared runtime only in `run/client/mods`. Native
+NeoForge dependencies and their nested modules are prepared through Loom in an isolated `clientVisual`
+source set; Voxy, Roxy and Connector remain original JARs for loader discovery. Generated IDE launches need
+that preparation task once before launch. A different existing file with a managed name is preserved
+and reported instead of overwritten. Server and GameTest run directories/classpaths do not receive
+these mods, and they are never packaged in Orbitalis.
+
+| Client dependency | Version / Modrinth release |
+| --- | --- |
+| Voxy | 0.2.16-beta for 1.21.11 / `H3w2nVdU` |
+| Roxy | 0.4.0 for NeoForge 1.21.1 / `cDmwpuYr` |
+| Sinytra Connector | 2.0.0-beta.17+1.21.1 / `IITF0PRC` |
+| Forgified Fabric API | 0.116.14+2.3.0+1.21.1 / `dAxle9F7` |
+| Sodium NeoForge | 0.8.12+mc1.21.1 / `S3DUMfBo` |
+| Voxy World Gen V2 NeoForge | 2.4.2 / `PzNUZlWw` |
+| Cloth Config NeoForge | 15.0.140 / `izKINKFg` |
+| Better ModList | 21.1.4 / `ZID4kkto` |
+
+The Voxy Minecraft version is intentional: [Roxy's supported original release](https://modrinth.com/mod/roxy)
+is the 1.21.11 JAR, adapted at runtime to NeoForge 1.21.1. Connector alone does not perform that version
+port. Use Forgified Fabric API rather than adding the Fabric-loader API distribution. Sodium and
+Forgified versions follow Roxy's release dependency pins. Keep the Voxy JAR unmodified and outside
+Loom's remapped mod configurations so Roxy can discover it. Connector's development clean-Minecraft
+input comes from Loom's unpatched intermediate JAR. Native API modules need development remapping
+because their production lambda names differ. Select Forgified API's newer/equal copies of Sodium's
+four embedded Fabric API modules; retain Sodium's service library and renderer module separately.
+Verification checks that no mod IDs are lost/duplicated and that prepared files stay out of ordinary
+compile, server and test classpaths.
+
+Voxy World Gen V2 fills the terrain cache through background generation in single-player; its
+settings live in `config/voxyworldgenv2.json`. Cloth Config and Better ModList follow the generator
+release's published dependency list. Installing this stack does not replace Orbitalis' space-body renderer.
+
+Observed client smoke check (2026-10-17): a new disposable Overworld loaded with the full module set,
+Sodium/Voxy rendered terrain, WorldGen initialized its Voxy ingester and reported 244 completed chunks
+in F3. Saving to title and quitting completed normally. The preview used a 12-chunk generation radius
+and two active tasks; these bounded preview settings are not installed in the ordinary consumer.
+
 ## Runtime pins and ownership
 
 | Component | Pin |
@@ -373,3 +414,6 @@ Summed main-plus-RCS scalar impulse is about 1828, 1818 and 1838 m/s for the cen
 cases, versus 1865, 1859 and 1849 m/s before this change. These are scenario measurements, not FE
 or a claim of globally optimal guidance. Powered ascent and braking attitude still depend on the
 reference trajectory and main-engine gimbals; the RCS limit alone does not redesign that trajectory.
+
+Reconnecting return guidance maintains native RCS prograde hold while its immutable reference orbit
+is calculated on the worker. Main engines stay off throughout this ballistic planning interval.

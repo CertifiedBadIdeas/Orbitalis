@@ -36,12 +36,12 @@ verifyTooling, verifyArchitecture and :core:check. verifyLocalFull adds common/c
 production archive inspection. Core tests cover finite rectangular-body potential, the conservative surface layer, numerical low
 orbits, spherical/two-body fields and flight/frame math. This is mathematical coverage, not evidence of Minecraft/Sable gameplay. NO-SOURCE is not coverage.
 Run `:v1_21_1-neoforge:runGameTestServer` separately. The default `all` suite requires nine surface
-border/persistence/preload/void-floor/player-motion scenarios, six finite-orbit/ship-transfer/retirement/travel scenarios and two navigation scenarios, with no
+border/persistence/preload/void-floor/player-motion scenarios, six finite-orbit/ship-transfer/retirement/travel scenarios, two navigation scenarios and five sparse-vacuum scenarios, with no
 failed, skipped or error results in a fresh XML report. `-PorbitalisGameTestSuite=surface` runs the nine
 surface cases alone; `-PorbitalisGameTestSuite=transfer` runs the five native transfer/recovery/retirement/travel cases
 without the full-orbit performance cost. See [flat surface](flat-surface.md), [flight gravity](flight-gravity.md) and
 [ship transfer](ship-transfer.md). Use `-PorbitalisGameTestSuite=flat` for the inert finite-body native orbit alone. The consumer separately
-requires thirteen native flight scenarios; `-PorbitalisConsumerGameTestSuite=flat` runs its low-orbit
+requires fourteen native flight scenarios; `-PorbitalisConsumerGameTestSuite=flat` runs its low-orbit
 Overworld mission and bookmark migration cases; `rocket` runs both rocket round trips and native
 steering/hold/RCS cases. Player tests execute native travel with a locally controlled server fixture,
 including a vanilla jump comparison and vacuum momentum; they do not prove a real client handoff. See [finite-body flight](flat-gravity.md) for the new field and route.
@@ -77,7 +77,8 @@ level's peak loaded chunk count and records loaded chunks, remaining players, ac
 force-loaded sublevels at shutdown in
 `server-stopping.json`; the finalizer includes these plus shutdown wall time in `metrics.json`.
 Ordinary consumer clients and production servers keep their own distance settings. Sable's collision
-manager also loads chunks along each force-loaded ship's path, independently of player distances.
+manager also loads terrain along force-loaded ships in the Overworld and legacy terrain dimensions.
+New objects-mode orbital worlds disable those terrain tickets; see [sparse orbital world](sparse-orbital-world.md).
 The occupied-plot fixture releases its reservation body and force-load ticket immediately after the
 outbound relocation assertion; it must not continue falling or trigger unrelated automatic travel
 while the real rocket completes its mission.
@@ -96,3 +97,19 @@ The `-PorbitalisGameTestSuite=navigation` suite requires `nativecoastforecastand
 frame mapping and bounded packet roundtrips/rejection hold, and a personal surface marker survives a
 native SavedData write/read. Both are also required by `all`. See [trajectory navigation](trajectory-navigation.md)
 for the separate, still-required manual visual acceptance scenario.
+
+The `-PorbitalisGameTestSuite=sparse` suite checks native terrain-ticket control versus vacuum
+flight, object/object collision, actual region-worker persistence and exclusion, construction ownership,
+and conservative SavedData compatibility. All five cases are required by `all`. See
+[sparse orbital world](sparse-orbital-world.md) for the exact storage boundary and legacy policy.
+
+Automatic travel fixtures pump a bounded number of native chunk-completion tasks per tick and
+yield to IO workers. GameTestServer omits the ordinary server's inter-tick wait; its tick count is
+not a wall-clock IO budget. The transfer scenarios retain a bounded timeout while allowing native
+readiness and checkpoint futures to finish without relying on incidental Sable terrain loads.
+
+Consumer gravity and RCS fixtures populate an already allocated native Sable plot in objects-mode
+space. They do not place static terrain blocks into vacuum. Surface assembly cases still execute the
+actual player blueprint, Create glue and native physics assembler; full missions cover dimension
+handoffs, modded block entities, cargo and seated riders. The reconnected return mission is checked
+for engine-off coast, attitude and energy preservation throughout its background planning phase.

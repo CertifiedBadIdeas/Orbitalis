@@ -201,6 +201,9 @@ internal class RocketMission(
         ) { "Rocket left the tested envelope" }
         when (phase) {
             Phase.PLANNING -> {
+                // Reconnecting to a flying rocket must retain attitude authority while the immutable
+                // reference orbit is calculated. Main engines remain off during this ballistic wait.
+                if (returningAtStart) engine().turn(s.velocity)
                 if (!planning.isDone) return false
                 course = RocketCourse(planning.join(), RocketCourse.launchAxis(site.position))
                 if (returningAtStart) {

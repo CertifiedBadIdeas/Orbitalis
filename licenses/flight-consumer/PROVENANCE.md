@@ -73,3 +73,30 @@ not an exhaustive legal audit of Minecraft or all tooling/transitive dependencie
 
 The Sable hash is recorded in its existing provenance and checked here as well. Extraction preserves
 the complete bytes of embedded JARs; Loom performs ordinary development remapping afterwards.
+
+## Client-only terrain rendering
+
+These original downloads are installed automatically for `consumers/flight/run/client` only.
+They are not redistributed, copied into source control or bundled in Orbitalis.
+`gradle/client-visuals.gradle.kts` records the release IDs and SHA-512 digests of every selected original JAR.
+Voxy, Roxy and Connector are installed unmodified. Loom prepares the native NeoForge dependencies and
+byte-for-byte extracted nested modules for the development namespace, preserving upstream legal notices.
+The full Forgified API supplies newer/equal versions of the four API modules also embedded in Sodium;
+its development copies are selected instead of duplicate Sodium copies. Sodium's service carrier
+remains a library; its separate embedded renderer remains a mod. No upstream implementation is vendored.
+
+| Component | Original source / exact release | License and holder |
+| --- | --- | --- |
+| Voxy | [Cortex / 0.2.16-beta, H3w2nVdU](https://modrinth.com/mod/voxy/version/H3w2nVdU) | All Rights Reserved, MCRcortex; [upstream terms](https://github.com/MCRcortex/voxy/blob/dev/LICENSE.md) |
+| Roxy | [Rasa Novum / 0.4.0, cDmwpuYr](https://modrinth.com/mod/roxy/version/cDmwpuYr) | MIT; [source and terms](https://github.com/RasaNovum/Roxy) |
+| Sinytra Connector | [2.0.0-beta.17, IITF0PRC](https://modrinth.com/mod/connector/version/IITF0PRC) | MIT, Sinytra; [upstream terms](https://github.com/Sinytra/Connector/blob/master/LICENSE) |
+| Forgified Fabric API | [0.116.14+2.3.0, dAxle9F7](https://modrinth.com/mod/forgified-fabric-api/version/dAxle9F7) | Apache-2.0, FabricMC and Sinytra contributors; [source and terms](https://github.com/Sinytra/ForgifiedFabricAPI) |
+| Voxy World Gen V2 | [2.4.2 NeoForge, PzNUZlWw](https://modrinth.com/mod/voxy-worldgen/version/PzNUZlWw) | iSeeEthan custom license; [upstream terms](https://github.com/iSeeEthan/voxy_worldgen_v2/blob/main/LICENSE) |
+| Cloth Config | [15.0.140 NeoForge, izKINKFg](https://modrinth.com/mod/cloth-config/version/izKINKFg) | LGPL-3.0-only, shedaniel; [source](https://github.com/shedaniel/ClothConfig) |
+| Better ModList | [21.1.4, ZID4kkto](https://modrinth.com/mod/better-modlist/version/ZID4kkto) | MIT; [source](https://github.com/1foxy2/neo_mod_menu) |
+| Sodium | [0.8.12 NeoForge, S3DUMfBo](https://modrinth.com/mod/sodium/version/S3DUMfBo) | PolyForm Shield 1.0.0, CaffeineMC; original `LICENSE.md` remains in the JAR |
+
+Roxy explicitly supports this original Minecraft 1.21.11 Voxy binary on NeoForge 1.21.1 and lists
+Sable/Create compatibility. Connector is included as requested, alongside Roxy's required version
+translation. This records upstream claims, not a guarantee of every terrain/ship rendering combination.
+No permission to redistribute Voxy or sublicense any upstream component under Apache-2.0 is implied.

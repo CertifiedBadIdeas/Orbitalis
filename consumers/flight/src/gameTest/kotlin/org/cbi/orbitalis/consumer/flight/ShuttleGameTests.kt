@@ -53,7 +53,7 @@ import kotlin.math.min
 
 @PrefixGameTestTemplate(false)
 object ShuttleGameTests {
-    /** Uses the actual player blueprint and native assembler, including Create glue. */
+    /** Uses the player blueprint: native surface assembly or an existing physical plot in vacuum. */
     private class Shuttle(
         helper: GameTestHelper,
         val level: ServerLevel,
@@ -99,6 +99,13 @@ object ShuttleGameTests {
         }
 
         fun assemble(helper: GameTestHelper) {
+            if (org.cbi.orbitalis.minecraft.space.SpaceWorlds
+                    .objects(level)
+            ) {
+                body = VacuumTestBlueprint.create(level, origin, "shuttle")
+                owned.add(body.uniqueId)
+                return
+            }
             val container = checkNotNull(SubLevelContainer.getContainer(level))
             val box = AABB(Vec3.atLowerCornerOf(origin.offset(-10, 0, -10)), Vec3.atLowerCornerOf(origin.offset(11, 11, 11)))
             // The disposable GameTest launch area may contain data from an earlier failed run.
@@ -151,6 +158,7 @@ object ShuttleGameTests {
             val container = checkNotNull(SubLevelContainer.getContainer(level))
             for (b in container.allSubLevels.toList()) {
                 if (b.uniqueId in owned || b.splitFromSubLevel in owned) {
+                    VacuumTestBlueprint.discardGlue(b)
                     container.removeForceLoadTicket(b, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
                     container.removeSubLevel(b, SubLevelRemovalReason.REMOVED)
                 }

@@ -20,6 +20,9 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Keep native RCS prograde control active while reconnecting the consumer's return autopilot and
+  calculating its background reference orbit, including in sparse orbital worlds.
+
 - Isolate each Gradle GameTest launch in an owned disposable world, retain failed worlds and
   successful logs/reports/region metrics, and remove successful worlds only after normal exit and
   report validation. Bound flight-consumer test server chunk distances and record loaded-chunk peaks
@@ -57,6 +60,13 @@ limitations under the License.
   registry identity and exact staged reconstruction to validate vanilla and modded payloads.
 - Use the same passenger preflight for guidance and transfer, and resolve plot-owned seats as ship
   contact for pilot commands, autopilot continuity and handoff readiness.
+- Make new orbital worlds sparse vacuum with construction owned by native Sable objects. Stop native
+  ship terrain tickets there and omit only new, known empty terrain writes; preserve existing entries,
+  entities, cargo and unknown mod data. Retain a conservative terrain mode for old saves and custom
+  generators. Add native collision, storage and persisted-model verification.
+
+- Install a pinned client-only Voxy/WorldGen/Roxy, Sinytra Connector, Forgified Fabric API and Sodium stack for the flight consumer; keep server/test classpaths and Orbitalis archives independent.
+
 - Scale consumer flight planning and return windows to the new footprint, reserve thrust/steering authority and keep powered attitude changes continuous. Clear residual native Propulsion commands across control ownership changes so RCS-only manoeuvres keep main engines fully off.
 
 - Expand the default flat Overworld and reference mass model to 10,000×10,000 blocks; migrate only the exact old default border and preserve administrator edits. Scale ascent/return altitudes to 3000/2000 m above sea level and nominal orbit altitude to 5000 m.

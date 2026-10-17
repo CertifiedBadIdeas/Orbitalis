@@ -383,7 +383,10 @@ object RocketGameTests {
                     }
                     previousState = current
                     previousWorld = b.level.dimension()
-                    if (active.phase in listOf(RocketMission.Phase.COAST, RocketMission.Phase.RETURN, RocketMission.Phase.FLIP)) {
+                    val replanningReturn = reload && requested && active.phase == RocketMission.Phase.PLANNING
+                    if (replanningReturn ||
+                        active.phase in listOf(RocketMission.Phase.COAST, RocketMission.Phase.RETURN, RocketMission.Phase.FLIP)
+                    ) {
                         val clearance =
                             Vector3(
                                 maxOf(0.0, abs(p.x) - FlatPlanetSpace.HALF_SIZE),
@@ -734,6 +737,7 @@ object RocketGameTests {
         onFinished(helper) {
             drive?.close()
             body?.let {
+                VacuumTestBlueprint.discardGlue(it)
                 container.removeForceLoadTicket(it, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
                 if (!it.isRemoved) container.removeSubLevel(it, SubLevelRemovalReason.REMOVED)
             }
@@ -754,21 +758,27 @@ object RocketGameTests {
                     helper.runAfterDelay(1) { prepare() }
                     return
                 }
-                val source =
-                    level.server
-                        .createCommandSourceStack()
-                        .withLevel(
-                            level,
-                        ).withPosition(Vec3.atLowerCornerOf(origin))
-                        .withSuppressedOutput()
-                val bounds = AABB(Vec3.atLowerCornerOf(origin.offset(-6, 0, -6)), Vec3.atLowerCornerOf(origin.offset(7, 17, 7)))
-                level.getEntitiesOfClass(SuperGlueEntity::class.java, bounds).forEach { it.discard() }
-                level.server.commands.performPrefixedCommand(source, "fill ~-6 ~ ~-6 ~6 ~16 ~6 minecraft:air")
-                level.server.commands.performPrefixedCommand(source, "function orbitalis_flight_test:rocket")
-                (level.getBlockEntity(origin.offset(0, 10, 0)) as PhysicsAssemblerBlockEntity).assembleOrDisassemble()
-                val created = container.allSubLevels.filter { it.uniqueId !in previous }
-                helper.assertTrue(created.size == 1, "RCS rocket split during assembly")
-                body = created.single() as ServerSubLevel
+                if (org.cbi.orbitalis.minecraft.space.SpaceWorlds
+                        .objects(level)
+                ) {
+                    body = VacuumTestBlueprint.create(level, origin, "rocket")
+                } else {
+                    val source =
+                        level.server
+                            .createCommandSourceStack()
+                            .withLevel(
+                                level,
+                            ).withPosition(Vec3.atLowerCornerOf(origin))
+                            .withSuppressedOutput()
+                    val bounds = AABB(Vec3.atLowerCornerOf(origin.offset(-6, 0, -6)), Vec3.atLowerCornerOf(origin.offset(7, 17, 7)))
+                    level.getEntitiesOfClass(SuperGlueEntity::class.java, bounds).forEach { it.discard() }
+                    level.server.commands.performPrefixedCommand(source, "fill ~-6 ~ ~-6 ~6 ~16 ~6 minecraft:air")
+                    level.server.commands.performPrefixedCommand(source, "function orbitalis_flight_test:rocket")
+                    (level.getBlockEntity(origin.offset(0, 10, 0)) as PhysicsAssemblerBlockEntity).assembleOrDisassemble()
+                    val created = container.allSubLevels.filter { it.uniqueId !in previous }
+                    helper.assertTrue(created.size == 1, "RCS rocket split during assembly")
+                    body = created.single() as ServerSubLevel
+                }
                 container.addForceLoadTicket(body!!, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
                 helper.runAfterDelay(10) {
                     val main =

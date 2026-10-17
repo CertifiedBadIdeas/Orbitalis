@@ -195,7 +195,7 @@ val generateGameTestResources = tasks.register("generateGameTestResources") {
 gameTest.resources.srcDir(generateGameTestResources.map { generatedGameTestResources.get() })
 
 val gameTestSuite = providers.gradleProperty("orbitalisGameTestSuite").orElse("all").get()
-require(gameTestSuite in setOf("all", "surface", "transfer", "flat", "travel", "navigation")) { "Unknown GameTest suite: $gameTestSuite" }
+require(gameTestSuite in setOf("all", "surface", "transfer", "flat", "travel", "navigation", "sparse")) { "Unknown GameTest suite: $gameTestSuite" }
 apply(from = "${rootProject.projectDir}/gradle/gametest-lifecycle.gradle.kts")
 val gameTestReport = layout.buildDirectory.file("test-results/gameTestServer/results.xml")
 loom.runs.register("gameTestServer") {
@@ -246,13 +246,15 @@ tasks.configureEach {
             val transferNames = setOf("overworldtransferroundtripandrecovery", "retireddiagnosticjournalhandling")
             val travelNames = setOf("automaticemptyshiproundtrip", "automaticmountedsurvivalpassenger", "independentsurvivalplayerroundtrip")
             val navigationNames = setOf("nativecoastforecastandpacket", "navigationbookmarkpersistence")
+            val sparseNames = setOf("nativeterrainloadingcontrol", "nativevacuumflightwithoutterrain", "nativevacuumshipcollision", "vacuumstorageandconstruction", "vacuummetadatacompatibility")
             val requiredNames = when (gameTestSuite) {
+                "sparse" -> sparseNames
                 "navigation" -> navigationNames
                 "travel" -> travelNames
                 "flat" -> setOf("nativefinitebodyfreeorbit")
                 "surface" -> surfaceNames
                 "transfer" -> transferNames + travelNames
-                else -> surfaceNames + transferNames + travelNames + navigationNames + setOf("nativefinitebodyfreeorbit")
+                else -> surfaceNames + transferNames + travelNames + navigationNames + sparseNames + setOf("nativefinitebodyfreeorbit")
             }
             check(names.containsAll(requiredNames)) {
                 "GameTest run did not execute its required $gameTestSuite scenarios: $names"
