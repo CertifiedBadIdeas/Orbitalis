@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+import dev.architectury.loom.forge.minecraft.MinecraftPatchedProvider
+import net.fabricmc.loom.configuration.RemapConfigurations
 import java.nio.file.Files
 import java.security.MessageDigest
 import java.util.zip.ZipFile
@@ -97,6 +99,19 @@ loom {
         named("server") { runDir("run/server"); ideConfigGenerated(true) }
     }
 }
+val clientVisualSource = sourceSets.create("clientVisual")
+loom.createRemapConfigurations(clientVisualSource)
+loom.remapConfigurations.filter { it.sourceSet.get() == clientVisualSource }.forEach {
+    it.applyDependencyTransforms.set(true)
+}
+extra["clientVisualMappedConfiguration"] = RemapConfigurations.getOrRegisterCollectorConfiguration(project, clientVisualSource, true).name
+apply(from = "gradle/client-visuals.gradle.kts")
+afterEvaluate {
+    loom.runs.named("client") {
+        property("connector.clean.path", MinecraftPatchedProvider.get(project).minecraftIntermediateJar.toString())
+    }
+}
+
 // This build composes external mods for development; it publishes no umbrella mod.
 tasks.jar { enabled = false }
 tasks.named("remapJar") { enabled = false }
