@@ -3,6 +3,6 @@
   "minVersion": "0.8",
   "package": "org.cbi.orbitalis.consumer.flight.mixin",
   "compatibilityLevel": "JAVA_21",
-  "mixins": ["RocketVectorMixin"],
+  "mixins": ["RocketVectorMixin", "VoxyWorldgenCancellationMixin"],
   "injectors": {"defaultRequire": 1}
 }

@@ -22,6 +22,8 @@ limitations under the License.
 
 - Increase orbital surface detail to 32-block cells. Backfill existing saved terrain without loading
   chunks, retain samples during chunk lifecycle bursts, and prepare updated overview meshes in the background.
+- Let the flight consumer cancel WorldGenV2 2.4.2's interrupted graph search during world shutdown;
+  keep this optional client-stack compatibility hook outside the Orbitalis mod.
 - Show sampled Overworld relief and native map/biome colours on the orbital planet, retaining the
   illustrative model for unknown regions. Persist a bounded surface atlas, stream updates to orbital
   players without generating/loading terrain, and cache overview geometry with independent depth

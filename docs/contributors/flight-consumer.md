@@ -420,3 +420,13 @@ reference trajectory and main-engine gimbals; the RCS limit alone does not redes
 
 Reconnecting return guidance maintains native RCS prograde hold while its immutable reference orbit
 is calculated on the worker. Main engines stay off throughout this ballistic planning interval.
+
+### WorldGenV2 shutdown compatibility
+
+The consumer has an optional `@Pseudo` hook for the pinned WorldGenV2 2.4.2 `DistanceGraph.findWork`.
+Its manager interrupts the worker and waits five seconds on shutdown, but graph traversal does not
+observe interruption. The hook returns no work at queue insertion/poll boundaries when interrupted,
+allowing the existing worker loop to terminate before manager cleanup. It does not clear the interrupt
+flag, alter ordinary search, cancel Minecraft saves or remove generation tickets. This hook belongs to
+the development consumer, introduces no WorldGen dependency into Orbitalis, and is absent when the
+third-party class is unavailable. Recheck these injection points before updating WorldGenV2.
