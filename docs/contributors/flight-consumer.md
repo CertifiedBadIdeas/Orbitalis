@@ -313,3 +313,11 @@ The focused `rocket` GameTest suite checks assembly, actual gimbal basis/interpo
 RCS-only orientation and complete native centre/off-axis missions with cargo and both dimension handoffs.
 Pure tests check force/torque constraints and continuity of the moving ascent and landing references.
 Headless pilot acknowledgments are test fixtures; they do not establish real cockpit continuity.
+
+### Manual rocket flight evidence (2026-10-17)
+
+The user completed the full rocket route in the flight consumer and reported a successful flight.
+The client log records liftoff, ascent, both dimension handoffs, capture, a full engine-off revolution,
+retrograde turn, braking and supported landing at the saved pad. The controller disengaged after
+landing. Cabin visibility was insufficient for watching the flight; an external ship camera is a
+separate follow-up. This observation does not establish seated Create passenger support.
