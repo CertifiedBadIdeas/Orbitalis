@@ -99,7 +99,7 @@ object TrajectoryGameTests {
                 return
             }
             val sample = SableFlightGravity.reading(body)
-            val target = FlightSpaceCoordinates.localPosition(FlatPlanetSpace.SPACE, Vector3(0.0, 1500.0, 0.0))
+            val target = FlightSpaceCoordinates.localPosition(FlatPlanetSpace.SPACE, Vector3(0.0, 8000.0, 0.0))
             val delta = target - sample.position
             val handle = physics.getPhysicsHandle(body)
             handle.teleport(Vector3d(body.logicalPose().position()).add(delta.x, delta.y, delta.z), body.logicalPose().orientation())
@@ -125,7 +125,7 @@ object TrajectoryGameTests {
                         helper.assertTrue(
                             result.prediction.points
                                 .first()
-                                .state.position.y < 2000.0,
+                                .state.position.y < 10000.0,
                             "Native space translation leaked into physical forecast",
                         )
                         val predicted =

@@ -23,7 +23,7 @@ import dev.ryanhcode.sable.physics.config.dimension_physics.DimensionPhysicsData
 import dev.ryanhcode.sable.sublevel.ServerSubLevel
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.world.level.Level
-import org.cbi.orbitalis.core.planet.RectangularGravity
+import org.cbi.orbitalis.core.planet.FlatPlanetDefinition
 import org.cbi.orbitalis.core.planet.SurfaceGravityLayer
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
@@ -42,7 +42,7 @@ object SableFlightGravity {
         require(native.x() == 0.0 && native.z() == 0.0 && native.y() < 0.0) { "Flat planet requires vertical downward native gravity" }
         val g = -native.y()
         return flatFields.getOrPut(g) {
-            SurfaceGravityLayer(RectangularGravity(FlatPlanetSpace.HALF_SIZE, FlatPlanetSpace.SEA_LEVEL, FlatPlanetSpace.HALF_SIZE, g), g)
+            FlatPlanetDefinition.gravity(g)
         }
     }
 
@@ -76,7 +76,7 @@ object SableFlightGravity {
         )
     }
 
-    /** Construction-only field. Players and ordinary block/fluid behavior remain native Minecraft. */
+    /** Ship adapter for the finite field; player exterior gravity shares its mass model. */
     fun acceleration(
         level: Level,
         position: Vector3,

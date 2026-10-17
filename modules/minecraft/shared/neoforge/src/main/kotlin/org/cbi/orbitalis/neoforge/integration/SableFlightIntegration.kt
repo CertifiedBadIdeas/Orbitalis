@@ -56,6 +56,7 @@ object SableFlightIntegration {
     fun transferService(server: MinecraftServer): SableShipTransfer = checkNotNull(transfers[server]) { "Transfer service is not ready" }
 
     fun install() {
+        org.cbi.orbitalis.minecraft.flight.PlayerGravity.serverAcceleration = { SableFlightGravity.flatField(it).nativeAcceleration }
         NeoForge.EVENT_BUS.addListener { event: EntityTickEvent.Pre ->
             if (ShipTransferTickGate
                     .blocksEntity(event.entity)

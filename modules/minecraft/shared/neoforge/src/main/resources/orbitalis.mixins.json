@@ -5,6 +5,10 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "LevelBlockEntityTickMixin",
+    "SpaceVoidFloorMixin",
+    "PlayerGravityMixin",
+    "PlayerVacuumNetworkMixin",
+    "CreativeFlightDragMixin",
     "ServerLevelEntityCheckpointMixin",
     "ServerGamePacketListenerTeleportMixin",
     "DiagnosticBorderMixin",

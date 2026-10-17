@@ -18,7 +18,6 @@
 
 package org.cbi.orbitalis.minecraft.flight
 
-import net.minecraft.core.BlockPos
 import net.minecraft.resources.ResourceKey
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerPlayer
@@ -43,26 +42,12 @@ object PlayerSpaceTravel {
 
     private fun preload(player: ServerPlayer) {
         val level = player.level()
-        val p = FlightSpaceCoordinates.globalPosition(level, Vector3(player.x, player.y, player.z))
-        val approaching =
-            FlatPlanetSpace.contains(level) && abs(p.x) < FlatPlanetSpace.HALF_SIZE && abs(p.z) < FlatPlanetSpace.HALF_SIZE &&
-                (
-                    if (level.dimension() ==
-                        Level.OVERWORLD
-                    ) {
-                        p.y >= FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.PRELOAD_HEIGHT && player.deltaMovement.y >= 0
-                    } else {
-                        p.y in FlatPlanetSpace.SEA_LEVEL..(FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ASCENT_HEIGHT) &&
-                            player.deltaMovement.y <= 0
-                    }
-                )
-        if (!approaching) {
+        if (!FlatPlanetSpace.contains(level)) {
             close(player)
             return
         }
-        val other = if (level.dimension() == Level.OVERWORLD) FlatPlanetSpace.SPACE else Level.OVERWORLD
-        val target = player.server.getLevel(other) ?: return
-        preloads.getOrPut(player) { ShipDestinationPreload() }.update(target, FlightSpaceCoordinates.localPosition(other, p))
+        val p = FlightSpaceCoordinates.globalPosition(level, Vector3(player.x, player.y, player.z))
+        preloads.getOrPut(player) { ShipDestinationPreload() }.approach(level as net.minecraft.server.level.ServerLevel, p)
     }
 
     fun destination(
@@ -93,25 +78,22 @@ object PlayerSpaceTravel {
             close(player)
             return false
         }
+        val velocity = player.deltaMovement
+        if (!velocity.x.isFinite() || !velocity.y.isFinite() || !velocity.z.isFinite() || velocity.length() > 500.0) {
+            close(player)
+            return false
+        }
         preload(player)
         val current = Vector3(player.x, player.y, player.z)
-        val key = destination(player.level(), current, player.deltaMovement.y) ?: return false
+        val sampledVerticalSpeed = preloads[player]?.sampledVelocity?.y ?: (velocity.y * 20.0)
+        val key = destination(player.level(), current, sampledVerticalSpeed) ?: return false
         val target = player.server.getLevel(key) ?: return false
         val p = FlightSpaceCoordinates.localPosition(key, FlightSpaceCoordinates.globalPosition(player.level(), current))
-        target.getChunk(
-            BlockPos
-                .containing(p.x, p.y, p.z),
-        )
-        val velocity = player.deltaMovement
+        if (preloads[player]?.ready != true) return false
+        val motionToken = PlayerFlightMotion.capture(player)
         if (!player.teleportTo(target, p.x, p.y, p.z, emptySet(), player.yRot, player.xRot)) return false
-        player.deltaMovement = velocity
         player.fallDistance = 0f
-        player.hasImpulse = true
-        // Absolute teleport packets reset client velocity. Restore it after the position packet.
-        player.connection.send(
-            net.minecraft.network.protocol.game
-                .ClientboundSetEntityMotionPacket(player),
-        )
+        PlayerFlightMotion.restore(player, velocity, motionToken)
         close(player)
         return true
     }

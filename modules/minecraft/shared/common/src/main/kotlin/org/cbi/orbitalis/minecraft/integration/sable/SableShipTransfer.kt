@@ -68,6 +68,7 @@ class SableShipTransfer(
     private var waitFailure = "Native entity loading timed out"
     private var active: ShipTransferRecord? = null
     private var pilot: ServerPlayer? = null
+    private var transferStarted = 0L
     private val pauses = mutableMapOf<SubLevelPhysicsSystem, Boolean>()
     private val tickets = mutableSetOf<ServerSubLevel>()
     private val entityPreloads = mutableListOf<org.cbi.orbitalis.minecraft.flight.ShipDestinationPreload>()
@@ -99,6 +100,14 @@ class SableShipTransfer(
     }
 
     private fun resume() {
+        if (transferStarted != 0L) {
+            Sable.LOGGER.info(
+                "ORBITALIS_TRANSFER_TIMING ship={} stage=total ms={}",
+                active?.ship,
+                (System.nanoTime() - transferStarted) / 1_000_000.0,
+            )
+            transferStarted = 0L
+        }
         ShipTransferTickGate.release(this)
         entityPreloads.forEach { it.close() }
         entityPreloads.clear()
@@ -134,8 +143,15 @@ class SableShipTransfer(
         record: ShipTransferRecord,
         next: () -> Unit,
     ) {
+        val started = System.nanoTime()
         pending = journal.write(record)
         continuation = {
+            Sable.LOGGER.info(
+                "ORBITALIS_TRANSFER_TIMING ship={} stage=journal-{} ms={}",
+                record.ship,
+                record.phase,
+                (System.nanoTime() - started) / 1_000_000.0,
+            )
             records[record.ship] = record
             active = record
             next()
@@ -199,9 +215,10 @@ class SableShipTransfer(
         player: ServerPlayer,
         body: ServerSubLevel,
         state: CompoundTag,
+        preserveClientMotion: Boolean = false,
         next: () -> Unit,
     ) {
-        check(movePlayer(player, body.level, state)) { "Pilot dimension transfer was rejected" }
+        check(movePlayer(player, body.level, state, preserveClientMotion)) { "Pilot dimension transfer was rejected" }
 
         fun available(): Boolean {
             check(player.isAlive && player.level() === body.level) { "Pilot became unavailable during client handoff" }
@@ -210,7 +227,7 @@ class SableShipTransfer(
         awaitCondition("Destination ship tracking timed out", { available() && pilotSync.hasShip(player, body) }) {
             // Native tracking has queued the complete ship bundle. This second teleport is
             // ordered after it on TCP, so its vanilla acknowledgment fences client loading.
-            check(movePlayer(player, body.level, state)) { "Pilot deck positioning was rejected" }
+            check(movePlayer(player, body.level, state, preserveClientMotion)) { "Pilot deck positioning was rejected" }
             awaitCondition("Pilot teleport acknowledgment or deck contact timed out", { available() && pilotSync.isReady(player, body) }) {
                 player.deltaMovement = Vec3(state.getDouble("vx"), state.getDouble("vy"), state.getDouble("vz"))
                 player.fallDistance = 0f
@@ -224,6 +241,7 @@ class SableShipTransfer(
         body: ServerSubLevel,
         state: CompoundTag,
         passengers: net.minecraft.nbt.ListTag,
+        preserveClientMotion: Boolean = false,
         next: () -> Unit,
     ) {
         val mount = passengers.map { it as CompoundTag }.firstOrNull { it.getBoolean("player") && it.hasUUID("vehicle") }
@@ -233,7 +251,7 @@ class SableShipTransfer(
                 next()
             }
         } else if (mount == null) {
-            handoffPilot(player, body, state) {
+            handoffPilot(player, body, state, preserveClientMotion) {
                 awaitCondition("Destination entities did not become available", { ShipTransferPassengers.ready(body.level, passengers) }) {
                     ShipTransferPassengers.mount(body.level, passengers, player)
                     next()
@@ -297,6 +315,12 @@ class SableShipTransfer(
             )
         checkDestination(target, destination)
         val sourcePilot = player?.let(::playerState) ?: CompoundTag()
+        if (player != null) {
+            org.cbi.orbitalis.minecraft.flight.FlightMotionPayload(
+                sourceDimension.location(),
+                Vector3(sourcePilot.getDouble("vx"), sourcePilot.getDouble("vy"), sourcePilot.getDouble("vz")),
+            )
+        }
         val destinationPilot = sourcePilot.copy().also { it.putDouble("y", it.getDouble("y") + delta) }
         require(player == null || destinationPilot.getDouble("y") >= 64.0) { "Climb higher before transferring the pilot" }
         val record =
@@ -318,6 +342,7 @@ class SableShipTransfer(
             )
         player?.closeContainer()
         active = record
+        transferStarted = System.nanoTime()
         pause()
         retain(body)
         pilot = player
@@ -432,7 +457,7 @@ class SableShipTransfer(
         SableShipSnapshot.discardAttachments(source.level, record.source)
         SubLevelContainer.getContainer(source.level)!!.removeSubLevel(source, SubLevelRemovalReason.REMOVED)
         ShipTransferPassengers.restore(staged.level, record.destinationPassengers)
-        handoffTravellers(player, staged, record.destinationPilot, record.destinationPassengers) {
+        handoffTravellers(player, staged, record.destinationPilot, record.destinationPassengers, true) {
             checkpoint()
             verifySaved(staged)
             persist(record.copy(phase = ShipTransferPhase.DONE)) {
@@ -491,6 +516,7 @@ class SableShipTransfer(
 
     /** Native save APIs own their server-thread checkpoint; journal compression/fsync uses its worker. */
     private fun checkpoint() {
+        val started = System.nanoTime()
         for (world in worlds()) {
             val container = SubLevelContainer.getContainer(world)!!
             // This is the same native ship checkpoint used by Sable's ServerLevel save hook.
@@ -512,6 +538,11 @@ class SableShipTransfer(
         // Sable can create a mounted player's LoginPoint while saving player data.
         // Persist that native SavedData after the player/RootVehicle save, before DONE.
         for (world in worlds()) world.dataStorage.save()
+        Sable.LOGGER.info(
+            "ORBITALIS_TRANSFER_TIMING ship={} stage=native-checkpoint ms={}",
+            active?.ship,
+            (System.nanoTime() - started) / 1_000_000.0,
+        )
     }
 
     private fun verifySaved(body: ServerSubLevel) {
@@ -613,7 +644,13 @@ class SableShipTransfer(
                     finish()
                 } else {
                     pilot = online
-                    handoffTravellers(online, restored, if (committed) record.destinationPilot else record.sourcePilot, passengers, finish)
+                    handoffTravellers(
+                        online,
+                        restored,
+                        if (committed) record.destinationPilot else record.sourcePilot,
+                        passengers,
+                        next = finish,
+                    )
                 }
             }
         }
@@ -729,10 +766,18 @@ class SableShipTransfer(
             player: ServerPlayer,
             world: ServerLevel,
             state: CompoundTag,
+            preserveClientMotion: Boolean = false,
         ): Boolean {
             val p = position(state)
             (player as EntityMovementExtension).`sable$setTrackingSubLevel`(null)
             (player as EntityMovementExtension).`sable$setLastTrackingSubLevelID`(null)
+            val motionToken =
+                if (preserveClientMotion) {
+                    org.cbi.orbitalis.minecraft.flight.PlayerFlightMotion
+                        .capture(player)
+                } else {
+                    java.util.UUID(0L, 0L)
+                }
             val moved =
                 player.teleportTo(
                     world,
@@ -746,10 +791,8 @@ class SableShipTransfer(
             if (moved) {
                 player.deltaMovement = Vec3(state.getDouble("vx"), state.getDouble("vy"), state.getDouble("vz"))
                 player.fallDistance = 0f
-                player.connection.send(
-                    net.minecraft.network.protocol.game
-                        .ClientboundSetEntityMotionPacket(player),
-                )
+                org.cbi.orbitalis.minecraft.flight.PlayerFlightMotion
+                    .restore(player, player.deltaMovement, motionToken)
             }
             return moved
         }

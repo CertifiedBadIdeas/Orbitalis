@@ -60,7 +60,7 @@ object FlatGravityGameTests {
             "Space has native gravity/drag",
         )
         val pose = Pose3d()
-        pose.position().set(0.0, 5160.0, 0.0)
+        pose.position().set(0.0, 4096.0 + FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ORBIT_HEIGHT, 0.0)
         val body = container.allocateNewSubLevel(pose) as ServerSubLevel
         helper.testInfo.addListener(
             object : GameTestListener {

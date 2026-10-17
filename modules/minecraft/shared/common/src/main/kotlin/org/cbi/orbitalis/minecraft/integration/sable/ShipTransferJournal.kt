@@ -221,7 +221,8 @@ data class ShipTransferRecord(
                         else -> 64.0..16256.0
                     }
                 require(
-                    abs(decoded.position().x) <= 2048 && abs(decoded.position().z) <= 2048 &&
+                    abs(decoded.position().x) <= FlatPlanetSpace.HALF_SIZE + 32.0 &&
+                        abs(decoded.position().z) <= FlatPlanetSpace.HALF_SIZE + 32.0 &&
                         decoded.position().y in heights,
                 ) { "Pose outside diagnostic bounds" }
                 require(abs(decoded.orientation().lengthSquared() - 1.0) < 1e-6) { "Invalid rotation magnitude" }
