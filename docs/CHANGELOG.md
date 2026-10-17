@@ -20,6 +20,11 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Make new orbital worlds sparse vacuum with construction owned by native Sable objects. Stop native
+  ship terrain tickets there and omit only new, known empty terrain writes; preserve existing entries,
+  entities, cargo and unknown mod data. Retain a conservative terrain mode for old saves and custom
+  generators. Add native collision, storage and persisted-model verification.
+
 - Install a pinned client-only Voxy/WorldGen/Roxy, Sinytra Connector, Forgified Fabric API and Sodium stack for the flight consumer; keep server/test classpaths and Orbitalis archives independent.
 
 - Scale consumer flight planning and return windows to the new footprint, reserve thrust/steering authority and keep powered attitude changes continuous. Clear residual native Propulsion commands across control ownership changes so RCS-only manoeuvres keep main engines fully off.

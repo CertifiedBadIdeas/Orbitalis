@@ -57,11 +57,17 @@ Gravity is vertical through Y=320 within the initial footprint and finite-body g
 Players retain native jumps with 32 m/s² at the surface; the exterior field shares the ship mass
 model. Native collisions remain, with split field impulses and vacuum inertia above the atmosphere.
 Atmospheric drag and elytra lift fade to zero at ascent altitude; creative flight coasts in vacuum.
-Block/fluid logic and native Sable settings are unchanged. The space frame uses the illustrative
+Surface block/fluid logic and native Sable settings remain unchanged. The space frame uses the illustrative
 flat-body [space presentation](space-visuals.md). The former `flight_test`, `orbit_test` and
 `space_test` IDs, their resources and spherical mission have been retired; save directories remain
 untouched. Completed old receipts are ignored; unfinished old transfers require previous-version
 recovery. Old launch bookmarks are skipped, never reinterpreted as Overworld sites.
+
+New orbital worlds use [sparse vacuum](sparse-orbital-world.md): the dedicated `orbitalis:vacuum`
+generator, a versioned objects/legacy world model, construction restricted to native Sable plots,
+and native terrain collision tickets disabled only in objects mode. A narrow region-worker hook omits
+new, known regenerable vacuum while preserving existing entries and unknown mod data. Legacy saves
+keep terrain collision and storage. Entities and native Sable storage remain authoritative.
 
 The `SableShipTransfer` coordinator reconstructs one independent ship and an optional pilot on the explicit
 Overworld/`orbitalis:space` route. Journal version 4 names both dimensions, an optional pilot and bounded entity/mount manifests;

@@ -36,7 +36,7 @@ verifyTooling, verifyArchitecture and :core:check. verifyLocalFull adds common/c
 production archive inspection. Core tests cover finite rectangular-body potential, the conservative surface layer, numerical low
 orbits, spherical/two-body fields and flight/frame math. This is mathematical coverage, not evidence of Minecraft/Sable gameplay. NO-SOURCE is not coverage.
 Run `:v1_21_1-neoforge:runGameTestServer` separately. The default `all` suite requires nine surface
-border/persistence/preload/void-floor/player-motion scenarios, six finite-orbit/ship-transfer/retirement/travel scenarios and two navigation scenarios, with no
+border/persistence/preload/void-floor/player-motion scenarios, six finite-orbit/ship-transfer/retirement/travel scenarios, two navigation scenarios and five sparse-vacuum scenarios, with no
 failed, skipped or error results in a fresh XML report. `-PorbitalisGameTestSuite=surface` runs the nine
 surface cases alone; `-PorbitalisGameTestSuite=transfer` runs the five native transfer/recovery/retirement/travel cases
 without the full-orbit performance cost. See [flat surface](flat-surface.md), [flight gravity](flight-gravity.md) and
@@ -78,3 +78,13 @@ The `-PorbitalisGameTestSuite=navigation` suite requires `nativecoastforecastand
 frame mapping and bounded packet roundtrips/rejection hold, and a personal surface marker survives a
 native SavedData write/read. Both are also required by `all`. See [trajectory navigation](trajectory-navigation.md)
 for the separate, still-required manual visual acceptance scenario.
+
+The `-PorbitalisGameTestSuite=sparse` suite checks native terrain-ticket control versus vacuum
+flight, object/object collision, actual region-worker persistence and exclusion, construction ownership,
+and conservative SavedData compatibility. All five cases are required by `all`. See
+[sparse orbital world](sparse-orbital-world.md) for the exact storage boundary and legacy policy.
+
+Automatic travel fixtures pump a bounded number of native chunk-completion tasks per tick and
+yield to IO workers. GameTestServer omits the ordinary server's inter-tick wait; its tick count is
+not a wall-clock IO budget. The transfer scenarios retain a bounded timeout while allowing native
+readiness and checkpoint futures to finish without relying on incidental Sable terrain loads.

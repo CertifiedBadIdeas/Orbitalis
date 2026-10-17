@@ -56,16 +56,31 @@ import kotlin.math.abs
 
 @PrefixGameTestTemplate(false)
 object AutomaticTravelGameTests {
+    /**
+     * GameTestServer omits the normal inter-tick wait. MinecraftServer's haveTime gate can then
+     * starve chunk executor completions. Terrain physics used to pump them incidentally through
+     * synchronous getChunk calls; vacuum ships deliberately no longer do that.
+     */
+    private fun pumpChunkTasks(helper: GameTestHelper) {
+        repeat(32) {
+            var worked = false
+            for (level in helper.level.server.allLevels) {
+                if (level.chunkSource.pollTask()) worked = true
+            }
+            if (!worked) return
+        }
+    }
+
     @JvmStatic
-    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "automatic_empty", timeoutTicks = 1200)
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "automatic_empty", timeoutTicks = 12000)
     fun automaticEmptyShipRoundTrip(helper: GameTestHelper) = ship(helper, false)
 
     @JvmStatic
-    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "automatic_mounted", timeoutTicks = 1200)
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "automatic_mounted", timeoutTicks = 12000)
     fun automaticMountedSurvivalPassenger(helper: GameTestHelper) = ship(helper, true)
 
     @JvmStatic
-    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "automatic_player", timeoutTicks = 1200)
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "automatic_player", timeoutTicks = 12000)
     fun independentSurvivalPlayerRoundTrip(helper: GameTestHelper) {
         val packets = mutableListOf<net.minecraft.network.protocol.Packet<*>>()
         val p = GameTestPlayers.create(helper) { packets.add(it) }
@@ -76,6 +91,7 @@ object AutomaticTravelGameTests {
         packets.clear()
         var returning = false
         helper.onEachTick {
+            pumpChunkTasks(helper)
             if (!returning) {
                 if (!PlayerSpaceTravel.transfer(p)) {
                     // Accelerated test ticks must allow native chunk/entity I/O to complete.
@@ -272,6 +288,10 @@ object AutomaticTravelGameTests {
         )
 
         fun run() {
+            // Native checkpoints and chunk reads run on IO workers; accelerated ticks must yield.
+            java.util.concurrent.locks.LockSupport
+                .parkNanos(2_000_000L)
+            pumpChunkTasks(helper)
             surface.resetEmptyTime()
             space.resetEmptyTime()
             player?.let { runCatching { GameTestPlayers.acknowledgeTeleport(it) } }
