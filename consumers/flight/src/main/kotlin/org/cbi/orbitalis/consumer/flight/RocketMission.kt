@@ -98,7 +98,7 @@ internal class RocketMission(
     init {
         require(site.surface == Level.OVERWORLD && site.ship == body.uniqueId && !transfer.busy)
         require(
-            abs(site.position.x) <= 960.0 && abs(site.position.z) <= 960.0,
+            abs(site.position.x) <= field.body.halfWidth - 40.0 && abs(site.position.z) <= field.body.halfDepth - 40.0,
         ) { "Leave a 40-metre launch-pad margin inside the finite surface" }
         require(pilot.level() === body.level)
         if (!returningAtStart) {

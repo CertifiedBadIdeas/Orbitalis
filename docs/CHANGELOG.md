@@ -20,6 +20,9 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Validate rocket launch-pad margins against the current physical planet dimensions instead of
+  the retired 2,000-block footprint, allowing launches across the 10,000-block surface.
+
 - Accept identical prepared client mod contents across IDE and managed Loom caches even when ZIP
   timestamps, entry order or generated access-rule order differ; continue preserving files whose
   actual contents differ.
