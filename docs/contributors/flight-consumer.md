@@ -259,3 +259,18 @@ check torque and translated-frame agreement, and retain the real assembled bluep
 Overworld assembly/hold, engine cutoff, unsafe-input/missing-lift rejection and the complete
 Overworld/space mission remain separate scenarios. Historical spherical and cube test results are
 not acceptance data for the finite-body route. Interactive cockpit continuity still needs client evidence.
+
+## Vector rocket prototype
+
+`/function orbitalis_flight_test:setup_rocket` builds an upright rocket with a glazed cabin, four cargo
+chests, landing legs and four bottom-mounted native creative vector engines. It replaces a bounded
+13×13×18 launch area in a disposable Overworld; feet must be between Y=-63 and Y=303. Assemble using
+the cabin lever. The engines use their own configurable creative power and require neither fuel nor FE.
+No external textures or models are imported. This fixture is separate from the shuttle.
+
+The consumer-only steering override preserves native redstone signals and native gimbal interpolation,
+clears on load/stop, and never changes the body's pose or motion directly. A constrained allocator shares
+one physical thrust budget across each engine's steering cone. The focused `rocket` GameTest suite
+checks native assembly, the vector basis/interpolation, powered recovery/hold after an initial
+perturbation, cargo and engine cutoff. Rocket orbital guidance is under development; the existing
+orbital mission still requires the shuttle's engine layout.

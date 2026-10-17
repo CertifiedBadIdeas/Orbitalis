@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Add a consumer-only vector rocket fixture, transient native gimbal control, bounded thrust allocation
+  and native assembly/hold/cutoff checks. Keep rocket orbital guidance separate while it is developed.
+
+
 - Remove the retired `flight_test`, `orbit_test` and `space_test` dimensions, player-only travel commands
   and spherical consumer autopilot. Keep Overworld/`orbitalis:space` as the sole flight route.
   Preserve old save directories; ignore completed retired receipts, reject unfinished legacy transfers

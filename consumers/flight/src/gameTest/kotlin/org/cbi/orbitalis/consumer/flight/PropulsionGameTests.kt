@@ -92,7 +92,12 @@ object PropulsionGameTests {
     fun register(event: RegisterGameTestsEvent) {
         GlobalTestReporter.replaceWith(JUnitLikeTestReporter(File(System.getProperty("orbitalis.consumerGameTestReport"))))
         val suite = System.getProperty("orbitalis.consumerGameTestSuite", "all")
-        require(suite in setOf("all", "flat")) { "Unknown consumer GameTest suite: $suite" }
+        require(suite in setOf("all", "flat", "rocket")) { "Unknown consumer GameTest suite: $suite" }
+        if (suite == "rocket") {
+            event.register(RocketGameTests::class.java)
+            return
+        }
+        if (suite == "all") event.register(RocketGameTests::class.java)
         event.register(LaunchBookmarkGameTests::class.java)
         if (suite == "flat") {
             event.register(FlatMissionGameTests::class.java)
@@ -107,7 +112,7 @@ object PropulsionGameTests {
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis")
     fun flightToolsAvailableByDefault(helper: GameTestHelper) {
         val server = helper.level.server
-        for (name in listOf("setup", "build", "shuttle")) {
+        for (name in listOf("setup", "build", "shuttle", "setup_rocket", "build_rocket", "rocket")) {
             helper.assertTrue(
                 server.functions.get(ResourceLocation.parse("orbitalis_flight_test:$name")).isPresent,
                 "Built-in flight function missing or failed to parse: $name",

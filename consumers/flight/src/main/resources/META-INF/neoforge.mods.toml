@@ -32,3 +32,6 @@ modId="createpropulsion"
 type="required"
 versionRange="[1.1.5]"
 side="BOTH"
+
+[[mixins]]
+config="orbitalis-flight-consumer.mixins.json"
