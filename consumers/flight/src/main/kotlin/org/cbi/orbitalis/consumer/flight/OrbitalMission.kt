@@ -228,27 +228,13 @@ internal class OrbitalMission(
 
             Phase.DESCENT -> {
                 // Brake for the actual landing site, never for the dimension boundary.
-                drive(OrbitalGuidance.point(state, site.position, 80.0))
+                drive(OrbitalGuidance.descent(state, site.position))
                 if (state.position.y <= HANDOFF_Y) prepareTransfer(Phase.APPROACH)
             }
 
             Phase.APPROACH -> {
                 // Remembered COM/attitude preserve landing-leg clearance; native Sable owns terrain collisions.
-                val clearance = state.position.y - site.position.y
-                val touchdown = site.position + Vector3(0.0, -0.08, 0.0)
-                drive(
-                    OrbitalGuidance.point(
-                        state,
-                        touchdown,
-                        if (clearance < 5) {
-                            0.4
-                        } else if (clearance < 40) {
-                            3.0
-                        } else {
-                            40.0
-                        },
-                    ),
-                )
+                drive(OrbitalGuidance.descent(state, site.position))
                 // Native support/friction can settle a fraction of a block from the launch COM.
                 // Touchdown must still settle with engines off; do not hover forever at a strict 0.2 m threshold.
                 if (reached(site.position, 0.5)) {

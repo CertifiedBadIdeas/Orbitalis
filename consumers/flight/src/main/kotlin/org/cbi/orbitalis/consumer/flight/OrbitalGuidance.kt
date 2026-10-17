@@ -76,6 +76,21 @@ internal object OrbitalGuidance {
         return limited(desired - state.velocity, MAX_ACCELERATION)
     }
 
+    /** Shared physical landing profile on both sides of a dimension handoff. */
+    fun descent(
+        state: CartesianState,
+        launch: Vector3,
+    ): Vector3 {
+        val clearance = state.position.y - launch.y
+        val maximumSpeed =
+            when {
+                clearance < 5 -> 0.4
+                clearance < 40 -> 3.0
+                else -> 80.0
+            }
+        return point(state, launch + Vector3(0.0, -0.08, 0.0), maximumSpeed)
+    }
+
     fun orbit(
         state: CartesianState,
         centre: Vector3,

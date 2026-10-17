@@ -98,4 +98,17 @@ class OrbitalGuidanceTest {
         }
         assertTrue((p - target).length() < 0.01 && v.length() < 0.01)
     }
+
+    @Test fun descentKeepsItsCruiseAndBrakesForThePadAcrossTheHandoffPlane() {
+        val launch = Vector3(15.0, 70.0, -10.0)
+        val far = CartesianState(launch + Vector3(0.0, 4000.0, 0.0), Vector3(0.0, -80.0, 0.0))
+        assertTrue(OrbitalGuidance.descent(far, launch).length() < 1e-12)
+        val crossing = CartesianState(Vector3(launch.x, 1000.0, launch.z), Vector3(0.0, -sqrt(3 * (930.0 + 0.08)), 0.0))
+        val before = OrbitalGuidance.descent(crossing, launch)
+        val after = OrbitalGuidance.descent(crossing.copy(position = crossing.position + Vector3(0.0, -0.01, 0.0)), launch)
+        assertTrue(before.length() < 1e-10, "Boundary substituted a lower speed target")
+        assertTrue((before - after).length() < 0.01, "Guidance jumps at the handoff altitude")
+        val near = CartesianState(launch + Vector3(0.0, 30.0, 0.0), Vector3(0.0, -10.0, 0.0))
+        assertTrue(OrbitalGuidance.descent(near, launch).y > 0, "Landing failed to brake near the pad")
+    }
 }

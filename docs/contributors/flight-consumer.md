@@ -299,7 +299,8 @@ finite terrain topology or seamless rendering. At local Y around 44000 the pinne
 can report small velocity while the Y pose remains quantized; the climb therefore transitions into
 insertion while moving rather than demanding a precise high-altitude hover. After orbital braking,
 the descent starts within 10 m of the launch radial at less than 2 m/s. During ascent the controller
-aims at the orbital crown; during descent it aims at the landing site. Crossing physical Y=1000
+aims at the orbital crown; descent and surface approach use the same physical landing profile,
+with an 80 m/s cruise cap and slower limits only within 40 m and 5 m of the launch COM. Crossing physical Y=1000
 starts handoff without a boundary-specific speed target. Native engine fade still completes before
 the snapshot; the journal preserves that measured inertial velocity during its paused readiness barrier.
 The mission resumes its next leg after native tracking/connectivity readiness, without another command.
