@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Add a flat 2000×2000 reference body with side strata and an underside in diagnostic space. Replace its Overworld sky with black vacuum, fixed stars/Sun and time-independent skylight; retain ordinary surface skies and existing saved dimension types. The body is illustrative, without live terrain sampling or new orbital physics.
+
 - Replace the cube surface experiment with a native flat Overworld border, initially 2000×2000 centred at zero; preserve administrator border edits and isolate diagnostic space borders and client updates.
 - Retire the cube dimension, six Sable charts, player gravity/camera, seam/fluid/Create compatibility hooks and fixtures. Remove production Create/Ponder dependencies. Old save files are untouched; start a new world.
 - Preserve ship-transfer journals and diagnostic dimension IDs; replace their retired cube field with the existing spherical diagnostic field. Overworld-to-space travel and flat-body gravity remain future work.

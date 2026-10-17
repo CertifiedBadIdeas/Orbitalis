@@ -57,6 +57,9 @@ object SurfaceGameTests {
             level.worldBorder.setCenter(32.0, -48.0)
             level.worldBorder.size = 1536.0
             level.dataStorage.save()
+            // NeoForge queues SavedData writes; a fresh reader must wait for the native I/O barrier.
+            net.neoforged.neoforge.common.IOUtilities
+                .waitUntilIOWorkerComplete()
             // Exercise a fresh storage reader, rather than just the in-memory marker cache.
             val dataDirectory =
                 level.server

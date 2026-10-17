@@ -55,7 +55,9 @@ the Overworld surface. `FlightTestSpace` uses the existing spherical field (radi
 acceleration 9.81 m/s²), replacing the retired cube field. `SableFlightGravity` applies it at native
 server physics substeps. Native Sable owns ships, integration and collision. The adapter is inactive
 in the Overworld, whose normal Sable gravity is untouched. These diagnostics do not define future
-flat-body gravity, surface-to-space travel or rendering. The cube reference sky renderer is removed.
+flat-body gravity or surface-to-space travel. The cube reference sky renderer is removed. The diagnostic
+orbit/space frames use the separate flat-body [space presentation](space-visuals.md), without altering
+their retained force field.
 
 The diagnostic `SableShipTransfer` coordinator reconstructs one independent ship and pilot between
 `orbitalis:flight_test` and stable `orbitalis:orbit_test`. Core `OrbitalTestFrame` owns the fixed
