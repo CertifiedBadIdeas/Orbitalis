@@ -26,7 +26,7 @@ import org.cbi.orbitalis.core.planet.FlatPlanetFrame
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.surface.FlatOverworld
 
-/** Ordinary surface and its own orbital frame; existing diagnostic frames keep their old meaning. */
+/** Ordinary surface and the sole orbital frame. */
 object FlatPlanetSpace {
     val SPACE: ResourceKey<Level> = ResourceKey.create(Registries.DIMENSION, ResourceLocation.fromNamespaceAndPath("orbitalis", "space"))
     const val SEA_LEVEL = 64.0
@@ -40,12 +40,11 @@ object FlatPlanetSpace {
     fun contains(level: Level): Boolean = level.dimension() == Level.OVERWORLD || level.dimension() == SPACE
 }
 
-/** Translations only. No dimension identifier or old journal is reinterpreted. */
+/** Physical Overworld coordinates and the sole orbital representation. */
 object FlightSpaceCoordinates {
-    fun isOrbital(dimension: ResourceKey<Level>): Boolean =
-        dimension == FlightTestSpace.ORBIT || dimension == FlightTestSpace.SPACE || dimension == FlatPlanetSpace.SPACE
+    fun isOrbital(dimension: ResourceKey<Level>): Boolean = dimension == FlatPlanetSpace.SPACE
 
-    fun hasIndependentBorder(level: Level): Boolean = FlightTestSpace.contains(level) || level.dimension() == FlatPlanetSpace.SPACE
+    fun hasIndependentBorder(level: Level): Boolean = isOrbital(level.dimension())
 
     fun globalPosition(
         level: Level,
@@ -56,11 +55,19 @@ object FlightSpaceCoordinates {
         dimension: ResourceKey<Level>,
         position: Vector3,
     ): Vector3 =
-        if (dimension == FlatPlanetSpace.SPACE) FlatPlanetFrame.toSurface(position) else FlightTestSpace.globalPosition(dimension, position)
+        when (dimension) {
+            Level.OVERWORLD -> position
+            FlatPlanetSpace.SPACE -> FlatPlanetFrame.toSurface(position)
+            else -> throw IllegalArgumentException("Unsupported flight dimension: ${dimension.location()}")
+        }
 
     fun localPosition(
         dimension: ResourceKey<Level>,
         position: Vector3,
     ): Vector3 =
-        if (dimension == FlatPlanetSpace.SPACE) FlatPlanetFrame.toSpace(position) else FlightTestSpace.localPosition(dimension, position)
+        when (dimension) {
+            Level.OVERWORLD -> position
+            FlatPlanetSpace.SPACE -> FlatPlanetFrame.toSpace(position)
+            else -> throw IllegalArgumentException("Unsupported flight dimension: ${dimension.location()}")
+        }
 }

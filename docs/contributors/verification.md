@@ -36,19 +36,19 @@ verifyTooling, verifyArchitecture and :core:check. verifyLocalFull adds common/c
 production archive inspection. Core tests cover finite rectangular-body potential, the conservative surface layer, numerical low
 orbits, spherical/two-body fields and flight/frame math. This is mathematical coverage, not evidence of Minecraft/Sable gameplay. NO-SOURCE is not coverage.
 Run `:v1_21_1-neoforge:runGameTestServer` separately. The default `all` suite requires three surface
-border/persistence/packet scenarios and six flight/orbit/ship-transfer scenarios, with no
+border/persistence/packet scenarios and three finite-orbit/ship-transfer/retirement scenarios, with no
 failed, skipped or error results in a fresh XML report. `-PorbitalisGameTestSuite=surface` runs the three
-surface cases alone; `-PorbitalisGameTestSuite=transfer` runs the three native transfer/recovery cases
+surface cases alone; `-PorbitalisGameTestSuite=transfer` runs the two native transfer/recovery/retirement cases
 without the full-orbit performance cost. See [flat surface](flat-surface.md), [flight gravity](flight-gravity.md) and
 [ship transfer](ship-transfer.md). Use `-PorbitalisGameTestSuite=flat` for the inert finite-body native orbit alone. The consumer separately
-requires ten native flight scenarios; `-PorbitalisConsumerGameTestSuite=flat` runs its low-orbit
+requires nine native flight scenarios; `-PorbitalisConsumerGameTestSuite=flat` runs its low-orbit
 Overworld mission and bookmark migration cases. See [finite-body flight](flat-gravity.md) for the new field and route.
 
 A successful client launch cannot prove visual or interactive correctness. Record manual observations,
 initial state, actions and expected outcome; mark unavailable evidence explicitly pending.
 
 Archive checks inspect actual metadata expansion, identity/version, Minecraft range, duplicate entries,
-required entry point/core class and laboratory dimension/legal resources, absence of bundled
+required entry point/core class and space dimension/legal resources and rejection of retired dimension descriptors, absence of bundled
 Minecraft/NeoForge, bundled Sable/Veil implementation or GameTest classes and test-only world resources, Java 21
 project bytecode and nested Kotlin stdlib plus its separately packaged upstream/third-party legal files. Sources and upstream legal notices are retained.
 When adding targets or libraries, extend packaging checks to their actual contracts. The import scan is

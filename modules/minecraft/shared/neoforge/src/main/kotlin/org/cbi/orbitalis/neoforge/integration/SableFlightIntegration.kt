@@ -29,7 +29,6 @@ import net.minecraft.commands.Commands
 import net.minecraft.network.chat.Component
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerLevel
-import net.minecraft.world.level.Level
 import net.minecraft.world.level.storage.LevelResource
 import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.neoforge.event.RegisterCommandsEvent
@@ -39,16 +38,12 @@ import net.neoforged.neoforge.event.server.ServerStartedEvent
 import net.neoforged.neoforge.event.server.ServerStoppedEvent
 import net.neoforged.neoforge.event.tick.ServerTickEvent
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
-import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
-import org.cbi.orbitalis.minecraft.integration.sable.FlightTestTravel
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipTransfer
 import java.util.Locale
 
 /** Registered only with Sable present. No Create or Propulsion classes cross this boundary. */
 object SableFlightIntegration {
-    private val travel = mutableMapOf<MinecraftServer, FlightTestTravel>()
-
     private val transfers = mutableMapOf<MinecraftServer, SableShipTransfer>()
 
     /** Server-thread diagnostic adapter entry point; consumers must not instantiate another coordinator. */
@@ -109,7 +104,6 @@ object SableFlightIntegration {
             SableFlightGravity.afterPhysics(event.physicsSystem.level, event.timeStep)
         }
         NeoForge.EVENT_BUS.addListener { event: ServerStoppedEvent ->
-            travel.remove(event.server)
             transfers.remove(event.server)?.close()
         }
     }
@@ -118,105 +112,53 @@ object SableFlightIntegration {
 
     private fun register(dispatcher: CommandDispatcher<CommandSourceStack>) {
         val flight = Commands.literal("flight")
-        for (action in listOf("enter", "leave", "sample", "transfer")) {
-            flight.then(
-                Commands.literal(action).executes { context ->
-                    val source = context.source
-                    val player = source.playerOrException
-                    val access = travel.getOrPut(source.server) { FlightTestTravel(source.server) }
-                    val message =
-                        try {
-                            when (action) {
-                                "enter" -> {
-                                    if (!access.enter(player)) failure("Player transfer was rejected")
-                                    "Entered flight test terrain. Build and assemble a ship here; only players are transferred. Use /orbitalis flight leave to return."
-                                }
-
-                                "leave" -> {
-                                    if (!access.leave(player)) failure("Player transfer was rejected")
-                                    "Left flight test space; ships remain there."
-                                }
-
-                                "transfer" -> {
-                                    val body =
-                                        Sable.HELPER.getTrackingSubLevel(player) as? ServerSubLevel
-                                            ?: failure("Stand on the ship with creative flight disabled")
-                                    player.closeContainer()
-                                    val manager = transfers[source.server] ?: failure("Transfer service is not ready")
-                                    manager.begin(player, body)
-                                    "Preparing ship transfer; remain on deck."
-                                }
-
-                                else -> {
-                                    if (!SableFlightGravity.isManaged(source.level)) {
-                                        failure("Use the Overworld or a supported flight space")
-                                    }
-                                    val body =
-                                        Sable.HELPER.getTrackingSubLevel(player) as? ServerSubLevel
-                                            ?: failure("Stand on a Sable ship and wait for native contact")
-                                    val sample = SableFlightGravity.reading(body)
-                                    val flat = FlatPlanetSpace.contains(source.level)
-                                    val global = SableFlightGravity.globalPosition(source.level, sample.position)
-                                    val altitude =
-                                        if (flat) {
-                                            global.y - FlatPlanetSpace.SEA_LEVEL
-                                        } else {
-                                            SableFlightGravity.field.altitude(global - SableFlightGravity.CENTRE)
-                                        }
-                                    String.format(
-                                        Locale.ROOT,
-                                        "Ship %s; mass=%.3f Sable units; centre-of-mass=(%.2f,%.2f,%.2f) m; " +
-                                            (if (flat) "height above sea" else "radial altitude") +
-                                            "=%.2f m; speed=%.3f m/s; gravity=(%.4f,%.4f,%.4f) m/s²; |g|=%.4f m/s²",
-                                        body.uniqueId,
-                                        sample.mass,
-                                        sample.position.x,
-                                        sample.position.y,
-                                        sample.position.z,
-                                        altitude,
-                                        sample.velocity.length(),
-                                        sample.acceleration.x,
-                                        sample.acceleration.y,
-                                        sample.acceleration.z,
-                                        sample.acceleration.length(),
-                                    )
-                                }
-                            }
-                        } catch (error: IllegalArgumentException) {
-                            failure(error.message ?: "Flight command rejected")
-                        }
-                    source.sendSuccess({ Component.literal(message) }, false)
-                    1
-                },
-            )
-        }
         flight.then(
-            Commands.literal("transfer").then(
-                Commands.literal("space").executes { context ->
-                    val player = context.source.playerOrException
-                    val body =
-                        Sable.HELPER.getTrackingSubLevel(player) as? ServerSubLevel
-                            ?: failure("Stand on the ship with creative flight disabled")
-                    try {
-                        player.closeContainer()
-                        transferService(context.source.server).begin(
-                            player,
-                            body,
-                            if (player.level().dimension() ==
-                                Level.OVERWORLD
-                            ) {
-                                FlatPlanetSpace.SPACE
-                            } else {
-                                FlightTestSpace.SPACE
-                            },
-                        )
-                    } catch (error: IllegalArgumentException) {
-                        failure(error.message ?: "Flight transfer rejected")
-                    }
-                    context.source.sendSuccess({ Component.literal("Preparing full-space diagnostic transfer; remain on deck.") }, false)
-                    1
-                },
-            ),
+            Commands.literal("sample").executes { context ->
+                val source = context.source
+                val player = source.playerOrException
+                if (!SableFlightGravity.isManaged(source.level)) failure("Use Overworld or orbitalis:space")
+                val body =
+                    Sable.HELPER.getTrackingSubLevel(player) as? ServerSubLevel
+                        ?: failure("Stand on a Sable ship and wait for native contact")
+                val sample = SableFlightGravity.reading(body)
+                val global = SableFlightGravity.globalPosition(source.level, sample.position)
+                val message =
+                    String.format(
+                        Locale.ROOT,
+                        "Ship %s; mass=%.3f Sable units; centre-of-mass=(%.2f,%.2f,%.2f) m; " +
+                            "height above sea=%.2f m; speed=%.3f m/s; gravity=(%.4f,%.4f,%.4f) m/s²; |g|=%.4f m/s²",
+                        body.uniqueId,
+                        sample.mass,
+                        sample.position.x,
+                        sample.position.y,
+                        sample.position.z,
+                        global.y - FlatPlanetSpace.SEA_LEVEL,
+                        sample.velocity.length(),
+                        sample.acceleration.x,
+                        sample.acceleration.y,
+                        sample.acceleration.z,
+                        sample.acceleration.length(),
+                    )
+                source.sendSuccess({ Component.literal(message) }, false)
+                1
+            },
+        )
+        flight.then(
+            Commands.literal("transfer").executes { context ->
+                val source = context.source
+                val player = source.playerOrException
+                val body =
+                    Sable.HELPER.getTrackingSubLevel(player) as? ServerSubLevel
+                        ?: failure("Stand on the ship with creative flight disabled")
+                try {
+                    player.closeContainer()
+                    transferService(source.server).begin(player, body)
+                } catch (error: IllegalArgumentException) {
+                    failure(error.message ?: "Flight transfer rejected")
+                }
+                source.sendSuccess({ Component.literal("Preparing ship transfer; remain on deck.") }, false)
+                1
+            },
         )
         dispatcher.register(Commands.literal("orbitalis").requires { it.hasPermission(2) }.then(flight))
     }

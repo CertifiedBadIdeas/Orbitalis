@@ -144,15 +144,12 @@ val generatedGameTestResources = layout.buildDirectory.dir("generated/gameTestRe
 val generateGameTestResources = tasks.register("generateGameTestResources") {
     val template = generatedGameTestResources.map { it.file("data/orbitalis/structure/lab_empty.nbt") }
     val preset = generatedGameTestResources.map { it.file("data/minecraft/worldgen/world_preset/flat.json") }
-    val flightTest = rootProject.file("modules/minecraft/shared/common/src/main/resources/data/orbitalis/dimension/flight_test.json")
-    val orbitTest = rootProject.file("modules/minecraft/shared/common/src/main/resources/data/orbitalis/dimension/orbit_test.json")
-    val spaceTest = rootProject.file("modules/minecraft/shared/common/src/main/resources/data/orbitalis/dimension/space_test.json")
     val flatSpace = rootProject.file("modules/minecraft/shared/common/src/main/resources/data/orbitalis/dimension/space.json")
-    inputs.files(flightTest, orbitTest, spaceTest, flatSpace)
+    inputs.file(flatSpace)
     outputs.files(template, preset)
     doLast {
         // GameTestServer bakes the flat preset against an empty dimension registry in 1.21.1.
-        // Include the retained diagnostic dimensions in this test-only preset.
+        // Include the orbital dimension in this test-only preset.
         val presetFile = preset.get().asFile
         presetFile.parentFile.mkdirs()
         presetFile.writeText("""
@@ -163,11 +160,8 @@ val generateGameTestResources = tasks.register("generateGameTestResources") {
                     {"height": 1, "block": "minecraft:bedrock"},
                     {"height": 2, "block": "minecraft:dirt"},
                     {"height": 1, "block": "minecraft:grass_block"}]}}},
-              "minecraft:the_nether": ${orbitTest.readText().replace("minecraft:overworld", "minecraft:the_nether")},
-              "minecraft:the_end": ${orbitTest.readText().replace("minecraft:overworld", "minecraft:the_end")},
-              "orbitalis:flight_test": ${flightTest.readText()},
-              "orbitalis:orbit_test": ${orbitTest.readText()},
-              "orbitalis:space_test": ${spaceTest.readText()},
+              "minecraft:the_nether": ${flatSpace.readText().replace("minecraft:overworld", "minecraft:the_nether")},
+              "minecraft:the_end": ${flatSpace.readText().replace("minecraft:overworld", "minecraft:the_end")},
               "orbitalis:space": ${flatSpace.readText()}
             }}
         """.trimIndent())
@@ -247,13 +241,13 @@ tasks.configureEach {
             val document = factory.newDocumentBuilder().parse(report)
             val cases = document.getElementsByTagName("testcase")
             val names = (0 until cases.length).map { (cases.item(it) as org.w3c.dom.Element).getAttribute("name") }.toSet()
-            val surfaceNames = setOf("nativeoverworldborder", "borderinitializationpreservescustomization", "diagnosticbordersareindependent")
-            val transferNames = setOf("shiptransferroundtripandrecovery", "spacetransferroundtripandrecovery", "overworldtransferroundtripandrecovery")
+            val surfaceNames = setOf("nativeoverworldborder", "borderinitializationpreservescustomization", "spaceborderisindependent")
+            val transferNames = setOf("overworldtransferroundtripandrecovery", "retireddiagnosticjournalhandling")
             val requiredNames = when (gameTestSuite) {
                 "flat" -> setOf("nativefinitebodyfreeorbit")
                 "surface" -> surfaceNames
                 "transfer" -> transferNames
-                else -> surfaceNames + transferNames + setOf("ordinaryshipsreceivediagnosticgravity", "fullspaceorbitpreservesnativeenergy", "nativefinitebodyfreeorbit")
+                else -> surfaceNames + transferNames + setOf("nativefinitebodyfreeorbit")
             }
             check(names.containsAll(requiredNames)) {
                 "GameTest run did not execute its required $gameTestSuite scenarios: $names"

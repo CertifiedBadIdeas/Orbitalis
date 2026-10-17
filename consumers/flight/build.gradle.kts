@@ -228,7 +228,7 @@ tasks.matching { it.name == "runGameTestServer" }.configureEach {
         val document = factory.newDocumentBuilder().parse(report)
         val cases = document.getElementsByTagName("testcase")
         val names = (0 until cases.length).map { (cases.item(it) as org.w3c.dom.Element).getAttribute("name") }.toSet()
-        val required = if (consumerGameTestSuite == "flat") setOf("overworldlaunchfreeorbitandreturn", "launchbookmarkroundtripandvalidation") else setOf("overworldlaunchfreeorbitandreturn", "nativeoverworldassembly", "shuttleassemblyandhold", "shuttlegravityprofile", "flighttoolsavailablebydefault", "nativepropulsionholdandcutoff", "preflightrejectsunsafeengines", "rejectsmissingliftauthority", "launchbookmarkroundtripandvalidation", "nativeorbitalinsertionandreturn")
+        val required = if (consumerGameTestSuite == "flat") setOf("overworldlaunchfreeorbitandreturn", "launchbookmarkroundtripandvalidation") else setOf("overworldlaunchfreeorbitandreturn", "nativeoverworldassembly", "shuttleassemblyandhold", "shuttlegravityprofile", "flighttoolsavailablebydefault", "nativepropulsionholdandcutoff", "preflightrejectsunsafeengines", "rejectsmissingliftauthority", "launchbookmarkroundtripandvalidation")
         check(names == required) {
             "Missing native propulsion scenarios: $names"
         }

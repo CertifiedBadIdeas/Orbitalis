@@ -21,7 +21,7 @@ limitations under the License.
 A space exploration mod for Minecraft, written in Kotlin. The current target is **1.21.1 / NeoForge**.
 New worlds use an ordinary flat Overworld bounded by a 2000×2000-block square centred at (0,0).
 Minecraft and other mods keep native block coordinates and physics. Cube-planet experiments have
-been retired. Separate Sable flight/space and journaled ship-transfer diagnostics remain available;
+been retired. Sable construction flight and journaled Overworld/space transfers are available;
 seamless Overworld-to-space travel and 26.1 support are future work.
 
 The development workflow and module boundaries are adapted from Compukters.
@@ -44,7 +44,7 @@ separate run/server/eula.txt. The scripts do not accept it on your behalf.
 Start a **new world** for the [finite flat surface](docs/contributors/flat-surface.md). The border is
 initialized once; later `/worldborder` changes remain authoritative. Old cube save files are preserved,
 but their runtime and commands have been removed. See [flight diagnostics](docs/contributors/flight-gravity.md)
-and [ship transfers](docs/contributors/ship-transfer.md) for retained experiments.
+and [ship transfers](docs/contributors/ship-transfer.md) for the current route.
 The standard `./gradlew :v1_21_1-neoforge:runClient` command automatically installs the pinned
 external Sable release in the client development run directory.
 

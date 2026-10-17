@@ -37,11 +37,9 @@ import net.minecraft.world.entity.Entity
 import net.minecraft.world.entity.EntityType
 import net.minecraft.world.level.Level
 import net.minecraft.world.phys.AABB
-import org.cbi.orbitalis.core.planet.OrbitalTestFrame
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
-import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
 import org.joml.Vector3d
 
 /** Pinned native serialization stays behind this integration boundary; no upstream code is copied. */
@@ -167,26 +165,16 @@ object SableShipSnapshot {
         snapshot.copy().also { tag ->
             val pose = SableNBTUtils.readPose3d(tag.getCompound("pose"))
             pose.position().add(0.0, delta, 0.0)
-            val dimension = target ?: if (delta < 0) FlightTestSpace.ORBIT else FlightTestSpace.SURFACE
+            val dimension = target ?: if (delta > 0) FlatPlanetSpace.SPACE else net.minecraft.world.level.Level.OVERWORLD
             val physical =
                 FlightSpaceCoordinates.globalPosition(
                     dimension,
                     Vector3(pose.position().x, pose.position().y, pose.position().z),
                 )
-            OrbitalTestFrame.requirePatch(physical)
-            require(
-                pose.position().y >= 64.0 &&
-                    (
-                        if ((dimension == FlightTestSpace.SPACE || dimension == FlatPlanetSpace.SPACE)) {
-                            physical.y in 64.0..16000.0
-                        } else {
-                            pose.position().y <=
-                                16000.0
-                        }
-                    ),
-            ) {
-                "Transfer outside the diagnostic surface altitude range; legacy orbit requires surface y>=320"
+            require(kotlin.math.abs(physical.x) <= 2048 && kotlin.math.abs(physical.z) <= 2048 && physical.y in 64.0..16000.0) {
+                "Transfer outside the supported surface patch or altitude range"
             }
+            require(pose.position().y >= 64.0) { "Transfer below the safe represented world height" }
             tag.put("pose", SableNBTUtils.writePose3d(pose))
             val b = SableNBTUtils.readBoundingBox(tag.getCompound("world_bounds"))
             tag.put(

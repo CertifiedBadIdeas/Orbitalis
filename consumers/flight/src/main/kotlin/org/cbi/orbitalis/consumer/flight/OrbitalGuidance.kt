@@ -29,17 +29,7 @@ import kotlin.math.sqrt
 
 /** Consumer experiment: inertial acceleration requests, with no world or engine ownership. */
 internal object OrbitalGuidance {
-    const val RADIUS = 18000.0
     const val MAX_ACCELERATION = 3.0
-
-    data class Orbit(
-        val radial: Vector3,
-        val tangent: Vector3,
-        val radius: Double,
-        val radialSpeed: Double,
-        val tangentialSpeed: Double,
-        val planeError: Double,
-    )
 
     fun limited(
         value: Vector3,
@@ -47,21 +37,6 @@ internal object OrbitalGuidance {
     ): Vector3 {
         val length = value.length()
         return if (length > maximum) value * (maximum / length) else value
-    }
-
-    fun observe(
-        state: CartesianState,
-        centre: Vector3,
-        normal: Vector3,
-    ): Orbit {
-        val relative = state.position - centre
-        val plane = relative.dot(normal)
-        val inPlane = relative - normal * plane
-        val radius = inPlane.length()
-        require(radius.isFinite() && radius >= 100) { "Outside orbital guidance envelope" }
-        val radial = inPlane * (1 / radius)
-        val tangent = normal.cross(radial)
-        return Orbit(radial, tangent, radius, state.velocity.dot(radial), state.velocity.dot(tangent), plane)
     }
 
     fun point(
@@ -90,34 +65,6 @@ internal object OrbitalGuidance {
             }
         return point(state, launch + Vector3(0.0, -0.08, 0.0), maximumSpeed)
     }
-
-    fun orbit(
-        state: CartesianState,
-        centre: Vector3,
-        normal: Vector3,
-        radius: Double,
-        desiredTangentialSpeed: Double,
-    ): Vector3 {
-        val o = observe(state, centre, normal)
-        val radial = ((radius - o.radius) * 0.04 - o.radialSpeed * 0.8).coerceIn(-2.0, 2.0)
-        val tangent = ((desiredTangentialSpeed - o.tangentialSpeed) * 0.8).coerceIn(-2.0, 2.0)
-        val plane = (-o.planeError * 0.04 - state.velocity.dot(normal) * 0.8).coerceIn(-2.0, 2.0)
-        // Geometric feed-forward keeps the path circular even while braking. At circular
-        // speed this equals central gravity, so a settled insertion requires no thrust.
-        return limited(o.radial * radial + o.tangent * tangent + normal * plane, MAX_ACCELERATION) +
-            o.radial * (-o.tangentialSpeed * o.tangentialSpeed / o.radius)
-    }
-
-    fun returnSpeed(
-        remainingArc: Double,
-        circularSpeed: Double,
-    ): Double = Math.copySign(min(circularSpeed, min(sqrt(2 * 1.2 * abs(remainingArc)), abs(remainingArc) * 0.3)), remainingArc)
-
-    fun angle(
-        radial: Vector3,
-        homeRadial: Vector3,
-        normal: Vector3,
-    ): Double = atan2(normal.dot(homeRadial.cross(radial)), homeRadial.dot(radial))
 
     fun angleStep(
         previous: Double,

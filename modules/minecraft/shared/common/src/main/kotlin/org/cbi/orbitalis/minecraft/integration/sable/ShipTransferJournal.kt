@@ -25,7 +25,6 @@ import net.minecraft.nbt.NbtIo
 import net.minecraft.resources.ResourceKey
 import net.minecraft.world.level.Level
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
-import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
 import java.nio.channels.FileChannel
 import java.nio.file.Files
 import java.nio.file.Path
@@ -34,6 +33,23 @@ import java.nio.file.StandardOpenOption
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executors
+
+/** Recognize removed routes without registering worlds or reinterpreting their coordinates. */
+internal object RetiredFlightData {
+    private val orbitalIds = setOf("orbitalis:orbit_test", "orbitalis:space_test")
+
+    fun isDiagnosticJournal(tag: CompoundTag): Boolean =
+        when (tag.getInt("version")) {
+            1 -> true
+
+            // This version only ever described the retired diagnostic surface.
+            2 -> tag.getString("orbital_dimension") in orbitalIds
+
+            3 -> tag.getString("surface_dimension") == "orbitalis:flight_test" && tag.getString("orbital_dimension") in orbitalIds
+
+            else -> false
+        }
+}
 
 /** Shared by live snapshot handling and every persisted-manifest reader. */
 internal object ShipTransferAttachments {
@@ -56,11 +72,12 @@ data class ShipTransferRecord(
     val phase: ShipTransferPhase,
     val pilotPending: Boolean = false,
     val recoveredSource: Boolean = false,
-    val orbitalDimension: ResourceKey<Level> = FlightTestSpace.ORBIT,
-    val surfaceDimension: ResourceKey<Level> = FlightTestSpace.SURFACE,
+    val orbitalDimension: ResourceKey<Level> = FlatPlanetSpace.SPACE,
+    val surfaceDimension: ResourceKey<Level> = Level.OVERWORLD,
 ) {
     fun encode(): CompoundTag =
         CompoundTag().also {
+            require(surfaceDimension == Level.OVERWORLD && orbitalDimension == FlatPlanetSpace.SPACE) { "Invalid transfer route" }
             it.putInt("version", 3)
             it.putString("surface_dimension", surfaceDimension.location().toString())
             it.putString("orbital_dimension", orbitalDimension.location().toString())
@@ -106,32 +123,16 @@ data class ShipTransferRecord(
     companion object {
         fun decode(tag: CompoundTag): ShipTransferRecord {
             val version = tag.getInt("version")
-            require(version in 1..3) { "Unsupported ship transfer journal version" }
-            val orbitalDimension =
-                if (version == 1) {
-                    FlightTestSpace.ORBIT
-                } else {
-                    (
-                        if (version ==
-                            3
-                        ) {
-                            listOf(FlightTestSpace.ORBIT, FlightTestSpace.SPACE, FlatPlanetSpace.SPACE)
-                        } else {
-                            listOf(FlightTestSpace.ORBIT, FlightTestSpace.SPACE)
-                        }
-                    ).singleOrNull {
-                        it.location().toString() == tag.getString("orbital_dimension")
-                    } ?: throw IllegalArgumentException("Invalid transfer orbital dimension")
-                }
-            val surfaceDimension =
-                if (version < 3) {
-                    FlightTestSpace.SURFACE
-                } else {
-                    listOf(FlightTestSpace.SURFACE, Level.OVERWORLD).singleOrNull {
-                        it.location().toString() == tag.getString("surface_dimension")
-                    } ?: throw IllegalArgumentException("Invalid transfer surface dimension")
-                }
-            require((surfaceDimension == Level.OVERWORLD) == (orbitalDimension == FlatPlanetSpace.SPACE)) { "Inconsistent transfer route" }
+            require(!RetiredFlightData.isDiagnosticJournal(tag)) {
+                "Retired diagnostic ship route; finish recovery with the previous Orbitalis version"
+            }
+            require(version == 3) { "Unsupported ship transfer journal version" }
+            require(
+                tag.getString("surface_dimension") == Level.OVERWORLD.location().toString() &&
+                    tag.getString("orbital_dimension") == FlatPlanetSpace.SPACE.location().toString(),
+            ) { "Invalid transfer route" }
+            val surfaceDimension = Level.OVERWORLD
+            val orbitalDimension = FlatPlanetSpace.SPACE
             require(tag.contains("source_is_orbit", 1) && tag.contains("pilot_pending", 1) && tag.contains("recovered_source", 1)) {
                 "Missing transfer flags"
             }
@@ -205,8 +206,7 @@ data class ShipTransferRecord(
                 val orbitalSnapshot = if (index == 0) tag.getBoolean("source_is_orbit") else !tag.getBoolean("source_is_orbit")
                 val heights =
                     when {
-                        orbitalSnapshot && orbitalDimension == FlatPlanetSpace.SPACE -> 4160.0..20352.0
-                        orbitalSnapshot && orbitalDimension == FlightTestSpace.SPACE -> 32064.0..48256.0
+                        orbitalSnapshot -> 4160.0..20352.0
                         else -> 64.0..16256.0
                     }
                 require(
@@ -259,10 +259,23 @@ class ShipTransferJournal(
                         .sorted()
                         .map { path ->
                             require(Files.size(path) <= MAX_BYTES) { "Oversized transfer journal: $path" }
-                            val record = ShipTransferRecord.decode(NbtIo.readCompressed(path, NbtAccounter.create(MAX_BYTES)))
-                            require(path.fileName.toString() == "${record.ship}.nbt") { "Journal file identity mismatch" }
-                            record
-                        }.toList()
+                            val tag = NbtIo.readCompressed(path, NbtAccounter.create(MAX_BYTES))
+                            require(path.fileName.toString() == "${tag.getUUID("ship")}.nbt") { "Journal file identity mismatch" }
+                            if (RetiredFlightData.isDiagnosticJournal(tag)) {
+                                require(
+                                    tag.getString("phase") == "DONE" && tag.contains("pilot_pending", 1) &&
+                                        !tag.getBoolean("pilot_pending"),
+                                ) {
+                                    "Unfinished retired diagnostic transfer in $path; recover with the previous Orbitalis version"
+                                }
+                                // A completed receipt owns no ship payload; preserve the file without replaying it.
+                                null
+                            } else {
+                                ShipTransferRecord.decode(tag)
+                            }
+                        }.filter { it != null }
+                        .map { checkNotNull(it) }
+                        .toList()
                 }
             }
         }, worker)

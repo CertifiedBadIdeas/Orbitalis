@@ -28,19 +28,11 @@ import org.cbi.orbitalis.core.planet.SurfaceGravityLayer
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
-import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
 import org.joml.Vector3d
 
 /** Dimension-scoped force adapter. It neither owns ships nor integrates their motion. */
 object SableFlightGravity {
-    val DIMENSION = FlightTestSpace.SURFACE
-    val ORBIT = FlightTestSpace.ORBIT
-    val CENTRE = FlightTestSpace.CENTRE
-    val field = FlightTestSpace.gravity
-
-    fun isFlightSpace(level: Level): Boolean = FlightTestSpace.contains(level)
-
-    fun isManaged(level: Level): Boolean = isFlightSpace(level) || FlatPlanetSpace.contains(level)
+    fun isManaged(level: Level): Boolean = FlatPlanetSpace.contains(level)
 
     private val flatFields = mutableMapOf<Double, SurfaceGravityLayer>()
 
@@ -90,11 +82,10 @@ object SableFlightGravity {
         position: Vector3,
     ): Vector3 {
         require(isManaged(level)) { "No Orbitalis construction gravity in this dimension" }
-        if (FlatPlanetSpace.contains(level)) return flatField(level as ServerLevel).acceleration(globalPosition(level, position))
-        return field.acceleration(globalPosition(level, position) - CENTRE)
+        return flatField(level as ServerLevel).acceleration(globalPosition(level, position))
     }
 
-    /** Split the new field around native drift; retain the legacy diagnostic impulse timing. */
+    /** Split the field around native drift while Sable owns body integration. */
     fun beforePhysics(
         level: ServerLevel,
         seconds: Double,
@@ -104,7 +95,7 @@ object SableFlightGravity {
         level: ServerLevel,
         seconds: Double,
     ) {
-        if (FlatPlanetSpace.contains(level)) applyGravity(level, seconds)
+        applyGravity(level, seconds)
     }
 
     private fun applyGravity(
@@ -115,7 +106,7 @@ object SableFlightGravity {
         require(seconds.isFinite() && seconds > 0.0)
         val container = SubLevelContainer.getContainer(level) ?: return
         val physics = container.physicsSystem() ?: return
-        val fraction = if (FlatPlanetSpace.contains(level)) 0.5 else 1.0
+        val fraction = 0.5
         val native = DimensionPhysicsData.getGravity(level)
         for (body in container.allSubLevels.filterIsInstance<ServerSubLevel>()) {
             val mass = body.massTracker.mass

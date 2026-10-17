@@ -15,6 +15,6 @@
 # limitations under the License.
 
 # Invoke once in a disposable Overworld or flight test space, standing on the launch ground.
-execute unless dimension minecraft:overworld unless dimension orbitalis:flight_test run tellraw @s {"text":"Use disposable Overworld or flight test terrain only.","color":"red"}
-execute unless dimension minecraft:overworld unless dimension orbitalis:flight_test run return fail
+execute unless dimension minecraft:overworld run tellraw @s {"text":"Use a disposable Overworld launch site.","color":"red"}
+execute unless dimension minecraft:overworld run return fail
 execute align xyz run function orbitalis_flight_test:build

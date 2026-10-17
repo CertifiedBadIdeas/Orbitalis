@@ -64,7 +64,6 @@ The new force correction is split before/after each native substep. In vacuum th
 field symmetric kicks around Sable's own drift; Sable still owns positions, collisions, mass, sleeping
 and integration of other forces. Native Overworld gravity, atmosphere and drag settings are unchanged.
 No position projection, energy rescaling, artificial orbital speed or synthetic propulsion is used.
-The retained spherical diagnostic routes keep their old force schedule and meanings.
 
 ## Trajectories and guidance
 
@@ -88,8 +87,7 @@ and descends. The final metre is an engines-off settling phase; native terrain m
 Ordinary Overworld uses a separate `orbitalis:space` frame. `FlatPlanetFrame` adds 4096 to represented
 Y; axes and velocity are unchanged. The smaller offset preserves more native float precision for
 low orbits. It is a bounded first-body frame, not a floating origin: physical Y below -4032 is outside
-the safe represented Y>=64 region. The existing diagnostic `space_test` still adds 32000 and its
-legacy journals are never reinterpreted.
+the safe represented Y>=64 region. The former diagnostic frames are removed; old journals are never reinterpreted.
 
 In the flight consumer, assemble a supported ship on a flat clear Overworld pad inside |x|,|z|<=960,
 turn manual inputs off, disable creative flight and stand on board. Run:
@@ -115,10 +113,11 @@ The orbital sky shows the existing illustrative flat body; it is not a live Over
 space terrain. The predictor/guidance keeps this route clear of that body; general underside landing
 and arbitrary collision with the distant illustration are not implemented.
 
-Transfer journal version 3 explicitly stores `surface_dimension` and `orbital_dimension`, accepting
-only Overworld/space or the existing diagnostic pairs. Version 1/2 retain implicit `flight_test`
-surface semantics and migrate explicitly on write. Launch bookmarks are version 2 with a surface
-identifier; version 1 still means diagnostic terrain. Unknown or inconsistent routes fail closed.
+Transfer journal version 3 explicitly stores `surface_dimension=minecraft:overworld` and
+`orbital_dimension=orbitalis:space`. Completed retired diagnostic receipts without a pending pilot
+are ignored; unfinished retired records fail closed and require recovery using the previous version.
+Launch bookmarks remain version 2; retired diagnostic bookmarks are skipped while active Overworld
+sites are preserved. Unknown or inconsistent routes fail closed. See [ship transfer](ship-transfer.md).
 The transaction remains single-pilot, with other players excluded from participating levels and
 native physics paused across supported flight levels (including Overworld) during reconciliation.
 

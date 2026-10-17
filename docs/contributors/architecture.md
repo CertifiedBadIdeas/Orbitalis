@@ -50,21 +50,19 @@ a small SavedData marker prevents startup from overriding administrator changes.
 hooks omit vanilla border delegation into Orbitalis diagnostic dimensions and stop surface-border
 broadcasts reaching their players. Vanilla Nether/End delegation and recipients remain unchanged.
 
-The retained `flight_test`, `orbit_test` and `space_test` IDs are diagnostic frames, separate from
-the Overworld surface. `FlightTestSpace` uses the existing spherical field (radius 6000 m, surface
-acceleration 9.81 m/s²), replacing the retired cube field. `SableFlightGravity` applies it at native
-server physics substeps. Native Sable owns ships, integration and collision. The diagnostic field
-does not apply in the Overworld. Its separate [finite-body route](flat-gravity.md)
-uses core rectangular-body gravity and a conservative native-gravity layer for constructions only.
-The new `orbitalis:space` frame adds 4096 to physical Y, independently of the diagnostic frame IDs.
-Ordinary Overworld construction gravity remains exact through Y=320 within the first footprint;
-players, block/fluid logic and native Sable settings are unchanged. The cube reference sky renderer is removed. The diagnostic
-orbit/space frames use the separate flat-body [space presentation](space-visuals.md), without altering
-their retained force field.
+The sole surface/orbital pair is ordinary Overworld and `orbitalis:space`. `FlatPlanetFrame` adds
+4096 to physical Y, preserving axes and inertial velocity. `SableFlightGravity` applies core
+rectangular-body gravity and a conservative surface compatibility layer to constructions only.
+Ordinary construction gravity remains exact through Y=320 within the initial footprint; players,
+block/fluid logic and native Sable settings are unchanged. The space frame uses the illustrative
+flat-body [space presentation](space-visuals.md). The former `flight_test`, `orbit_test` and
+`space_test` IDs, their resources and spherical mission have been retired; save directories remain
+untouched. Completed old receipts are ignored; unfinished old transfers require previous-version
+recovery. Old launch bookmarks are skipped, never reinterpreted as Overworld sites.
 
-The `SableShipTransfer` coordinator reconstructs one independent ship and pilot on explicitly paired
-surface/orbital routes, including ordinary Overworld/`orbitalis:space` and the retained diagnostics.
-Journal version 3 names both dimensions; readers preserve version-1/2 diagnostic source semantics. Core frame objects own their distinct fixed translations. Common owns native snapshots, exact-motion restoration and the versioned asynchronous
+The `SableShipTransfer` coordinator reconstructs one independent ship and pilot on the explicit
+Overworld/`orbitalis:space` route. Journal version 3 names both dimensions. `FlatPlanetFrame` owns
+the fixed translation. Common owns native snapshots, exact-motion restoration and the versioned asynchronous
 journal and plot-chunk block-entity tick leases; NeoForge owns startup/tick/interaction wiring and
 a narrow Minecraft ticker hook that honors those leases without loading optional Sable classes.
 A second loader hook exposes vanilla's pending teleport acknowledgment without a custom network protocol.
@@ -76,7 +74,7 @@ receipts rather than stale ship payloads. Recovery does not make the journal a p
 See [ship transfer](ship-transfer.md) for limits, failure handling and the server-thread checkpoint cost.
 
 The [flight consumer](flight-consumer.md) is an independent Gradle composite build, included only when
-explicitly selected with `-p consumers/flight`. The dependency points from consumer to Orbitalis through
+launched from `consumers/flight` using its own wrapper. The dependency points from consumer to Orbitalis through
 `developmentModJar`; production projects never include or depend on the consumer. Aeronautics and
 Propulsion APIs remain confined to the consumer adapter and its isolated GameTests. Create APIs remain confined to this consumer; production has no Create or Ponder compile dependency or adapters. Hold guidance, bounded thrust allocation, commands and their tests
 all belong to the disposable consumer. It reuses existing Orbitalis vector/gravity/frame types but adds
@@ -121,14 +119,3 @@ inspects the resulting archive, including Java bytecode ceilings and legal notic
 This scaffold reduces ownership and build migration work; it does not establish source/API compatibility
 with 26.1. Client-only classes must not load on dedicated servers. World authority belongs to the logical
 server; validate packet bounds and identifiers at receipt and keep blocking work off the tick thread.
-
-## Full-space diagnostic frame
-
-`orbitalis:space_test` adds a void representation for full free orbits. `SpaceTestFrame` translates
-physical/surface coordinates by the fixed origin (0,-32000,0), preserving axes and inertial velocity.
-The reference planet centre is consequently at local Y=26064. A radius-18000-m circle remains above
-Y=8064 and wholly in the current field's central far region, including diagonal portions of the orbit.
-The existing `orbitalis:orbit_test` retains its (0,256,0) origin; existing saves and version-1 transfer
-journals must never be reinterpreted as this new frame. New frame resources carry a distinct stable ID.
-Diagnostic gravity selects its frame by dimension. This is a bounded diagnostic,
-not a chosen finite-planet storage topology, floating origin or seamless rendering implementation.

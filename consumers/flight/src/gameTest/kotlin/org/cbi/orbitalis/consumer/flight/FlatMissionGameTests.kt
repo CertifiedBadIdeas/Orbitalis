@@ -38,7 +38,6 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
-import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipTransfer
 import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferPilotSync
@@ -58,7 +57,7 @@ object FlatMissionGameTests {
         val pilot = InertPilot(helper)
         val server = helper.level.server
         val worlds =
-            listOf(Level.OVERWORLD, FlatPlanetSpace.SPACE, FlightTestSpace.SURFACE, FlightTestSpace.ORBIT, FlightTestSpace.SPACE)
+            listOf(Level.OVERWORLD, FlatPlanetSpace.SPACE)
                 .map { checkNotNull(server.getLevel(it)) }
         val terrain =
             (-5..5)

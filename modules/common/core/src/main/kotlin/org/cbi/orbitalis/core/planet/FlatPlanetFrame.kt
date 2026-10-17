@@ -18,7 +18,7 @@
 
 package org.cbi.orbitalis.core.planet
 
-/** Fixed inertial representation for low finite-body orbits; diagnostic origins stay unchanged. */
+/** Fixed inertial representation for low finite-body orbits. */
 object FlatPlanetFrame {
     val origin = Vector3(0.0, -4096.0, 0.0)
 

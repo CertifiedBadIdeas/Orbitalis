@@ -20,10 +20,16 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Remove the retired `flight_test`, `orbit_test` and `space_test` dimensions, player-only travel commands
+  and spherical consumer autopilot. Keep Overworld/`orbitalis:space` as the sole flight route.
+  Preserve old save directories; ignore completed retired receipts, reject unfinished legacy transfers
+  with recovery instructions, and skip retired launch bookmarks without converting their coordinates.
+  Retain native transfer, cargo, gravity and propulsion coverage on the active route.
+
 - Add finite rectangular-body potential and gravity, a conservative native-gravity surface layer, and numerical low-orbit shooting with collision/clearance and energy checks.
 
 - Add low free orbital flight around a finite 2000×2000×128 mass model, with a conservative transition from native surface construction gravity through Y=320. Keep Minecraft players, fluids and block logic unchanged; use native Sable motion with symmetric gravity impulses.
-- Connect ordinary Overworld to its own low space frame. The consumer autopilot transfers while moving above 600 m, captures a numerical orbit about 1000 m above sea level, coasts with engines off and returns to the saved launch pad. Preload destination terrain from 400 m; preserve existing spherical diagnostics, old transfer journals and launch bookmarks through explicit route versioning.
+- Connect ordinary Overworld to its own low space frame. The consumer autopilot transfers while moving above 600 m, captures a numerical orbit about 1000 m above sea level, coasts with engines off and returns to the saved launch pad. Preload destination terrain from 400 m; explicitly identify the active route in transfer journals and launch bookmarks.
 
 
 - Choose a free native Sable plot when a ship transfer's original address is occupied, including by an unloaded ship. Relocate supported block entities and glue while preserving physical pose, motion, cargo and foreign ships; retain journal compatibility and per-snapshot recovery addresses.

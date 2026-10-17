@@ -21,7 +21,7 @@ limitations under the License.
 `consumers/flight` is an independent Gradle build for running the current Orbitalis checkout with
 Create, Sable, Create Aeronautics and Create Propulsion: Simulated. It owns a development-only control adapter with a separate mod identity,
 `orbitalis_flight_consumer`, and produces no distributable umbrella JAR. The ordinary Orbitalis build does not include this build,
-resolve its external mod stack, or depend on it. Existing Sable laboratory runs remain available separately.
+resolve its external mod stack, or depend on it. Sable-only development runs remain available separately.
 
 The adapter, guidance, unit tests and GameTests are written in Kotlin. Keep new consumer code in
 `src/main/kotlin`, `src/test/kotlin` or `src/gameTest/kotlin`. Kotlin and kotlinter versions come from
@@ -126,7 +126,7 @@ normal launch; they must not require manual installation or enter the production
 
 If you previously copied `orbitalis_terrain_ship` into a world's `datapacks` directory, remove that old
 copy while the world is closed so it cannot override the built-in functions with an outdated version.
-Nothing executes on load or every tick. In a disposable Overworld or after `/orbitalis flight enter`,
+Nothing executes on load or every tick. In a disposable Overworld,
 stand on the intended launch ground, away from existing ships, and run:
 
 ```mcfunction
@@ -178,7 +178,7 @@ See [central gravity](flight-gravity.md) for the Orbitalis force adapter and its
 
 ## Test autopilot (consumer only)
 
-Assemble a ship with creative Propulsion engines in a diagnostic flight/orbit dimension. Stay on deck
+Assemble a ship with creative Propulsion engines in Overworld or `orbitalis:space`. Stay on deck
 in creative mode with flying disabled, and toggle the Linked Controller off. Wait for native assembly to settle. With operator permission, use:
 
 ```mcfunction
@@ -189,9 +189,8 @@ in creative mode with flying disabled, and toggle the Linked Controller off. Wai
 ```
 
 `hold` captures the current centre of mass and attitude and brakes toward that point. `altitude`
-sets target centre-of-mass Y relative to the diagnostic surface datum Y=64, preserving global
-X/Z and attitude. This command uses vertical height, while `flight sample` reports radial altitude. A target
-of 400 corresponds to surface-frame Y=464, or orbit-frame Y=208. Commands retarget the same pilot's
+sets target centre-of-mass Y relative to sea level Y=64, preserving physical X/Z and attitude.
+A target of 400 corresponds to physical Y=464, or space-frame Y=4560. Commands retarget the same pilot's
 session; only one session or mission is allowed per server. These two hold commands do not plan travel;
 use the orbital mission commands below for insertion and return.
 
@@ -207,22 +206,21 @@ For `hold` and `altitude`, start airborne with clearance for startup and braking
 net acceleration is limited to 4 m/s²; these are guidance requests, not guaranteed physical bounds.
 The adapter rejects active manual inputs, unsupported non-creative thrusters and
 layouts that cannot approximately balance gravity. It supports up to 64 creative engine controllers
-across at most four plot chunks. Surface/legacy-orbit control uses the existing ±2048 X/Z diagnostic
-patch and global Y=64..16000; full-space control uses a planet-centred radius envelope of 6500..24000 m.
-Targets from `altitude` are limited to shell heights 32..15000. Current and target COM must also
-remain above local Y=64; in the orbit dimension this requires a shell height of at least 256. A single lift engine cannot provide every
+across at most four plot chunks. Control is limited to the Overworld/space pair, positions within
+10000 m of the physical origin and represented COM above local Y=64. `altitude` accepts heights
+32..15000, subject to the same position bounds. A single lift engine cannot provide every
 attitude correction: add spaced lift engines and opposing translation engines for more control.
 `status` reports position error and predicted unachievable force/torque. A large residual identifies
 missing authority; the controller cannot make an unsuitable layout stable.
 
 Sessions are ephemeral. Leaving the deck/dimension, logging out, losing an engine, paused physics,
-exceeding the patch or the speed/rotation limits disengages control. `flight transfer` and `flight leave`
-disengage before their snapshots/travel run; engage again after arrival. Stop clears peripheral and
+exceeding the patch or the speed/rotation limits disengages control. `flight transfer`
+disengage before its snapshot/travel runs; engage again after arrival. Stop clears peripheral and
 redstone inputs and restores NORMAL control, allowing the native thrust envelope to fade. Keep manual
 controllers off: normal redstone can command engines again afterwards. The pinned Propulsion server
 load resets peripheral mode to NORMAL, so a saved session cannot resume itself after reconstruction
 or restart. Hold sessions do not persist controller state. Orbital missions save a separate launch
-bookmark and use the shared version-2 transfer journal described below.
+bookmark and use the shared version-3 transfer journal described below.
 
 The native consumer tests retain a symmetric engine rig for controller isolation and also execute the
 actual built-in shuttle blueprint, including glue, through Simulated's native Physics Assembler. The
@@ -234,109 +232,30 @@ that predates the shuttle replacement and does not establish its appearance, boa
 
 ## Orbital insertion and return (consumer only)
 
-Launch the stand from `consumers/flight` with `./gradlew runClient`. Assemble the built-in shuttle on
-a flat clear pad in `orbitalis:flight_test`, turn manual inputs off, disable creative flight and remain
-on deck. Let the ship settle before running:
-
-```mcfunction
-/orbitalis flight autopilot orbit
-/orbitalis flight autopilot status
-```
-
-`orbit` records this pilot's launch COM, ship UUID and attitude, climbs through a physical Y=1000
-handoff plane without braking for it, waits for engine fade while coasting and transfers through
-the existing journal/client-readiness barrier to
-`orbitalis:space_test`. It climbs above the launch X/Z toward a planet-centred radius of 18000 m,
-begins insertion within 100 m at less than 10 m/s, accelerates east along the launch orbital plane
-and cuts engine inputs after insertion settles. `COAST` means
-free flight under gravity with engine inputs off; the reference speed is about 140.07 m/s and the
-period about 807 s. The exterior field is central throughout this circle. Phase changes and `status` expose radius, actual speed/radial speed, far-field specific energy,
-eccentricity and distance from the remembered launch COM. Energy/eccentricity are Kepler diagnostics
-for the exterior inverse-square field, not for the nonsingular interior.
-
-Once the mission reports `COAST`, use:
-
-```mcfunction
-/orbitalis flight autopilot land
-```
-
-The return controller follows the orbital plane, brakes along the arc to the point above the launch
-site, descends vertically above its saved X/Z, transfers to the surface near Y=1000 and approaches
-the saved COM/attitude slowly. It cuts engine inputs near touchdown and requires the native terrain
-to hold the craft for 60 ticks before reporting `LANDED`. It never corrects the ship by teleport,
-velocity assignment or virtual impulse. This conservative test path spends thrust to hold the orbital
-radius during braking; it is not an efficient ballistic reentry planner. A return can take most of a
-revolution. There is no obstacle avoidance, arbitrary landing-site selection, terrain-clearing operation
-or automatic safe path around another construction. Keep the launch pad and vertical approach clear.
-
-The launch bookmark is consumer-owned version-1 SavedData in the Overworld's
-`data/orbitalis_flight_launch_sites.dat`, bounded to 64 pilot/ship entries. It contains the saved pose,
-not a running mission or engine inputs. After restarting in space, stay on the same ship and issue
-`land` explicitly; automatic thrust never resumes. Return requires that ship near the 18 km launch
-orbital plane. A stop leaves the bookmark available. Starting a new `orbit` replaces that pilot's
-bookmark only after surface/ship preflight. Missing/unknown versions, malformed poses and another
-pilot/ship identity are rejected.
-
-Mission guidance requests up to 3 m/s² of corrective acceleration, with up to 80 m/s for long vertical
-legs and 220 m/s as the full-space safety limit. Preflight requires balanced additional acceleration
-authority in all six directions alongside gravity compensation. Actual native engine limits and fade
-still govern the flight. All propulsion, guidance, phase scheduling and launch bookmarks remain in this
-consumer; the production mod only supplies frames, gravity, rendering and journaled handoff. Manual
-`flight transfer`/`leave`, loss of deck contact or shutdown disengages a mission as it does hold.
-
-The full-space native coast test is server evidence for a complete unpowered revolution. The consumer
-mission scenario exercises real Propulsion insertion, coast, restored-bookmark return, both journaled
-handoffs, preserved cargo/UUID and touchdown supported by native terrain with thrust off. On
-2026-10-16 all eight consumer GameTests and eight unit tests passed after the Kotlin migration. The mission landed at tick 27200
-with a displayed launch error of 0.2 m (asserted below 0.5 m), speed 0.05 m/s and no engine output;
-the native terrain supported it for 60 ticks before success. The 200-tick coast measurement starts
-only after native engine power and actual thrust both reach zero. Evidence is retained in
-`build/agent-logs/consumer-kotlin-native-2.log`. Its inert pilot
-models client acknowledgments/contact; real cockpit continuity and interaction still require a client
-trial. Sable also requests ordinary world chunks along a full orbit, which can make initial world
-saving expensive. This fixed-origin stand does not establish the eventual space chunk-loading policy,
-finite terrain topology or seamless rendering. At local Y around 44000 the pinned native integrator
-can report small velocity while the Y pose remains quantized; the climb therefore transitions into
-insertion while moving rather than demanding a precise high-altitude hover. After orbital braking,
-the descent starts within 10 m of the launch radial at less than 2 m/s. During ascent the controller
-aims at the orbital crown; descent and surface approach use the same physical landing profile,
-with an 80 m/s cruise cap and slower limits only within 40 m and 5 m of the launch COM. Crossing physical Y=1000
-starts handoff without a boundary-specific speed target. Native engine fade still completes before
-the snapshot; the journal preserves that measured inertial velocity during its paused readiness barrier.
-The mission resumes its next leg after native tracking/connectivity readiness, without another command.
-Landing guidance still slows for touchdown. Within 0.5 m of the launch COM at low speed, it cuts
-thrust and requires the existing 60-tick native terrain-support check instead of trying to correct
-sub-block offsets against contact friction forever. The native mission test requires both handoffs above 20 m/s,
-the same velocity direction and bounded gravity-only change while the controller resumes.
-
-## Gravity trials
-
-The native shuttle test compares measured one-second free-fall against the spherical diagnostic field
-at several positions and heights, checks centreward lateral acceleration, absence of spurious torque,
-weakening at altitude and agreement across translated frames. These checks do not define flat-body
-physics or prove powered travel. A new native Overworld assembly scenario verifies the bounded surface can assemble a complete ship,
-retain cargo/engines and use ordinary Sable gravity. The eight retained consumer scenarios cover native propulsion,
-assembly/hold, gravity, preflight rejection, launch-bookmark validation and orbital insertion/return.
-
-Former six-chart Create/vault/pipe/shaft/assembler fixtures and `faces` suite are removed with the cube.
-Create remains an external consumer dependency for its normal native behavior; production Orbitalis
-has no Create seam integration. Old measured cube-field values are no longer current acceptance data.
-
-## Low finite-body route
-
-The same `autopilot orbit` / `autopilot land` commands now select the [finite-body mission](flat-gravity.md)
-when the launch bookmark names ordinary Overworld. Assemble on a clear Overworld pad inside the
+`/orbitalis flight autopilot orbit` starts the [finite-body mission](flat-gravity.md) from Overworld.
+`/orbitalis flight autopilot land` returns to the saved launch site. Assemble on a clear Overworld pad inside the
 first 2000-block footprint, leave manual inputs off and stay on deck with creative flight disabled.
 The target is about 1000 m above sea level; the trajectory circles the finite body and coasts with
 engines fully off. Surface gravity remains native through the build ceiling; a conservative
-compatibility layer connects it to the exterior field. The flight test dimension still selects the
-retained spherical 18 km mission. No existing diagnostic frame or old bookmark changes its meaning.
+compatibility layer connects it to the exterior field. The diagnostic 18 km mission and its dimensions have been removed.
 
 The new mission uses pure numerical prediction on a worker, real engine capture, ascent terrain
 preloading from 400 m, an upward handoff at 600 m and downward handoff at 400 m. Its separate space
 frame uses a 4096-m Y translation for native float precision. Journal staging still pauses physics.
-The launch bookmark codec writes version 2 with an explicit surface ID; version 1 remains diagnostic.
+The launch bookmark codec writes version 2 with an explicit Overworld surface ID. Retired diagnostic
+bookmarks (all version 1, or version 2 naming `flight_test`) are skipped rather than converted; valid
+Overworld bookmarks in the same file remain available. Saved bookmarks never resume thrust automatically.
+After a restart on the same ship, issue `land` explicitly. A new successful `orbit` preflight replaces
+that pilot's bookmark. The consumer stores at most 64 pilot/ship bookmarks.
 
 Use `-PorbitalisConsumerGameTestSuite=flat` with `check runGameTestServer` for the focused native
 Overworld/space/free-revolution/return and bookmark migration scenarios. The default suite includes it alongside all retained
 native Propulsion scenarios. This headless pilot does not verify actual client input, camera or deck contact.
+
+## Gravity trials
+
+Native shuttle trials compare initial unpowered acceleration from rest at surface, transition and exterior positions,
+check torque and translated-frame agreement, and retain the real assembled blueprint with cargo.
+Overworld assembly/hold, engine cutoff, unsafe-input/missing-lift rejection and the complete
+Overworld/space mission remain separate scenarios. Historical spherical and cube test results are
+not acceptance data for the finite-body route. Interactive cockpit continuity still needs client evidence.

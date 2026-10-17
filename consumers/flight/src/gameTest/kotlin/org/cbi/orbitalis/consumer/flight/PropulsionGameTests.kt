@@ -48,7 +48,6 @@ import net.neoforged.fml.common.EventBusSubscriber
 import net.neoforged.neoforge.event.RegisterGameTestsEvent
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
 import org.cbi.orbitalis.core.planet.Vector3
-import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
 import org.joml.Quaterniond
 import org.joml.Vector3d
 import java.io.File
@@ -101,7 +100,6 @@ object PropulsionGameTests {
         }
         event.register(PropulsionGameTests::class.java)
         event.register(ShuttleGameTests::class.java)
-        event.register(OrbitalMissionGameTests::class.java)
         event.register(FlatMissionGameTests::class.java)
     }
 
@@ -131,7 +129,7 @@ object PropulsionGameTests {
         helper: GameTestHelper,
         x: Double,
         faces: Array<Direction> = Direction.values(),
-        dimension: ResourceKey<Level> = FlightTestSpace.SURFACE,
+        dimension: ResourceKey<Level> = Level.OVERWORLD,
         y: Double = 240.0,
     ) : AutoCloseable {
         val level = checkNotNull(helper.level.server.getLevel(dimension))
@@ -206,7 +204,7 @@ object PropulsionGameTests {
     @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 1000, batch = "propulsion_hold")
     fun nativePropulsionHoldAndCutoff(helper: GameTestHelper) {
-        val rig = Rig(helper, 1200.0)
+        val rig = Rig(helper, 700.0)
         val physics = SubLevelPhysicsSystem.require(rig.level)
 
         class Sequence : Runnable {
@@ -281,7 +279,7 @@ object PropulsionGameTests {
     @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 80, batch = "propulsion_preflight")
     fun preflightRejectsUnsafeEngines(helper: GameTestHelper) {
-        val rig = Rig(helper, -1200.0)
+        val rig = Rig(helper, -700.0)
         helper.runAfterDelay(10) {
             rig.configure()
             val engine = rig.engines.first()

@@ -16,33 +16,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-# Isolated Sable flight diagnostics
+# Construction flight gravity
 
-The normal Overworld has native Minecraft/player behavior and native construction gravity through
-Y=320 inside the first footprint. Above it, the construction-only [finite-body field](flat-gravity.md)
-provides the new low orbital route. This page describes the retained spherical diagnostics.
+`SableFlightGravity` adapts construction impulses in ordinary Overworld and `orbitalis:space`.
+The [finite-body field](flat-gravity.md) combines a finite rectangular body with a conservative
+surface compatibility layer. Inside the initial footprint, construction gravity remains exactly
+native through Y=320. Players, blocks and fluids keep Minecraft behavior.
 
-The retained `orbitalis:flight_test`, `orbitalis:orbit_test` and `orbitalis:space_test` are diagnostic
-spaces with native Sable gravity, pressure and drag disabled. Ordinary loaded ships receive an impulse
-at each server physics substep from `SableFlightGravity`: mass times sampled acceleration times dt,
-converted into body axes. Other force producers retain their own impulses. Sable owns integration,
-collisions, assembly and saves; no enrollment tags or replacement ships are introduced.
+For each native server physics substep the adapter subtracts native base gravity and applies the
+remaining acceleration as mass-scaled impulses, split before and after integration. Body axes are
+respected and other force producers retain their impulses. Sable owns ships, collisions, mass,
+sleeping, integration and saves. The space frame adds 4096 to physical Y; force evaluation converts
+back to the same physical coordinates. Native Overworld pressure and drag settings are unchanged.
 
-The test field is `SphericalGravity(radius=6000, surfaceAcceleration=9.81)` around physical centre
-(0,-5936,0). Outside the reference radius it is inverse-square; inside, acceleration is linear and
-finite at the centre. The potential is continuous with zero at infinity. The former cube field and
-cube sky renderer are removed. This mathematical reference does not select a spherical surface or
-define future flat-body orbital physics.
+With operator permission, `/orbitalis flight sample` reports the ship's mass, position, speed,
+height above the Y=64 datum and gravity. `/orbitalis flight transfer` performs the
+[journaled ship handoff](ship-transfer.md). The [flight consumer](flight-consumer.md) supplies test
+propulsion and autopilot commands. Its fixture functions remain in `orbitalis_flight_test`; this is
+a function namespace, not a dimension.
 
-With cheats, `/orbitalis flight enter` enters ordinary diagnostic terrain. Build and assemble a ship,
-disable creative flight and stand on deck. `/orbitalis flight sample` reports mass, position, speed,
-radial altitude and gravity. `/orbitalis flight leave` returns the player; ships remain in the test
-space. Return points are transient; after restart use the Overworld spawn fallback.
+The former `flight_test`, `orbit_test` and `space_test` dimensions, their spherical gameplay field,
+entry/exit commands and diagnostic autopilot have been removed. Git retains their implementation.
+Saved directories are preserved; unfinished diagnostic transfers require recovery with the previous
+version before upgrading. No legacy coordinates become Overworld coordinates.
 
-`/orbitalis flight transfer` and `transfer space` retain the [journaled ship handoff](ship-transfer.md).
-Their frames and records remain unchanged. These diagnostic commands do not select the new Overworld route when used in diagnostic terrain.
-All three diagnostic borders are independent of the 2000-block Overworld border.
-
-Real GameTests cover ordinary native acceleration and timestep/force coexistence, translated field
-agreement, full-space energy and angular-momentum preservation, and ship/pilot recovery. A successful
-server test does not prove camera/rendering continuity or interactive piloting.
+Core tests cover force/potential consistency and frame translation. Native GameTests cover finite-body
+free flight, cargo-preserving transfer/recovery and real consumer propulsion. Server tests do not
+prove camera/rendering continuity or interactive piloting.

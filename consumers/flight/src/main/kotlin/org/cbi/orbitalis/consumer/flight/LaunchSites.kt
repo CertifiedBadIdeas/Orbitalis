@@ -26,7 +26,6 @@ import net.minecraft.server.MinecraftServer
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.saveddata.SavedData
 import org.cbi.orbitalis.core.planet.Vector3
-import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
 import org.joml.Quaterniond
 import java.util.UUID
 import kotlin.math.abs
@@ -37,14 +36,14 @@ internal class LaunchSites : SavedData() {
         val ship: UUID,
         val position: Vector3,
         attitude: Quaterniond,
-        val surface: ResourceKey<Level> = FlightTestSpace.SURFACE,
+        val surface: ResourceKey<Level> = Level.OVERWORLD,
     ) {
         private val savedAttitude = Quaterniond(attitude)
         val attitude: Quaterniond get() = Quaterniond(savedAttitude)
 
         init {
-            require(surface == FlightTestSpace.SURFACE || surface == Level.OVERWORLD)
-            val heights = if (surface == Level.OVERWORLD) -64.0..384.0 else 68.0..320.0
+            require(surface == Level.OVERWORLD)
+            val heights = -64.0..384.0
             require(
                 savedAttitude.isFinite && position.x.isFinite() && position.y.isFinite() && position.z.isFinite() &&
                     abs(savedAttitude.lengthSquared() - 1) <= 1e-6 && abs(position.x) <= 1800 && abs(position.z) <= 1800 &&
@@ -119,20 +118,15 @@ internal class LaunchSites : SavedData() {
                 for (key in listOf("x", "y", "z", "qx", "qy", "qz", "qw")) {
                     require(entry.contains(key, 99) && entry.getDouble(key).isFinite()) { "Invalid launch bookmark vector" }
                 }
+                val surface = if (tag.getInt("version") == 1) "orbitalis:flight_test" else entry.getString("surface")
+                if (surface == "orbitalis:flight_test") continue
+                require(surface == Level.OVERWORLD.location().toString()) { "Invalid launch surface" }
                 val site =
                     Site(
                         entry.getUUID("ship"),
                         Vector3(entry.getDouble("x"), entry.getDouble("y"), entry.getDouble("z")),
                         Quaterniond(entry.getDouble("qx"), entry.getDouble("qy"), entry.getDouble("qz"), entry.getDouble("qw")),
-                        if (tag.getInt("version") ==
-                            1
-                        ) {
-                            FlightTestSpace.SURFACE
-                        } else {
-                            listOf(FlightTestSpace.SURFACE, Level.OVERWORLD).singleOrNull {
-                                it.location().toString() == entry.getString("surface")
-                            } ?: throw IllegalArgumentException("Invalid launch surface")
-                        },
+                        Level.OVERWORLD,
                     )
                 require(data.sites.put(entry.getUUID("pilot"), site) == null) { "Duplicate launch bookmark" }
             }

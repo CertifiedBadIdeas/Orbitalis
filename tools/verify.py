@@ -78,18 +78,6 @@ def jar(path, version):
         required = ('META-INF/neoforge.mods.toml', 'META-INF/LICENSE.md', 'META-INF/NOTICE',
                     'org/cbi/orbitalis/core/Orbitalis.class',
                     'org/cbi/orbitalis/neoforge/OrbitalisMod.class',
-                    'data/orbitalis/dimension/flight_test.json',
-                    'data/orbitalis/dimension/flight_test.json.license',
-                    'data/orbitalis/dimension_physics/flight_test.json',
-                    'data/orbitalis/dimension_physics/flight_test.json.license',
-                    'data/orbitalis/dimension/orbit_test.json',
-                    'data/orbitalis/dimension/orbit_test.json.license',
-                    'data/orbitalis/dimension_physics/orbit_test.json',
-                    'data/orbitalis/dimension_physics/orbit_test.json.license',
-                    'data/orbitalis/dimension/space_test.json',
-                    'data/orbitalis/dimension/space_test.json.license',
-                    'data/orbitalis/dimension_physics/space_test.json',
-                    'data/orbitalis/dimension_physics/space_test.json.license',
                     'data/orbitalis/dimension/space.json',
                     'data/orbitalis/dimension/space.json.license',
                     'data/orbitalis/dimension_physics/space.json',
@@ -119,6 +107,10 @@ def jar(path, version):
         if any(name in entries for name in ('data/orbitalis/structure/lab_empty.nbt',
                                             'data/minecraft/worldgen/world_preset/flat.json')):
             raise ValueError('GameTest world resources leaked into production')
+        retired = ('flight_test', 'orbit_test', 'space_test')
+        if any(f'data/orbitalis/{kind}/{name}.json' in entries
+               for kind in ('dimension', 'dimension_physics') for name in retired):
+            raise ValueError('Retired diagnostic dimension resources leaked into production')
         if any(name.startswith('data/orbitalis_flight_test/') for name in entries):
             raise ValueError('Consumer-only resources leaked into production')
         # Enforce the bytecode ceiling for the current Java 21 production target.

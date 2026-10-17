@@ -18,11 +18,18 @@
 
 package org.cbi.orbitalis.core.planet
 
-/** Fixed inertial representation for full diagnostic orbits; legacy OrbitalTestFrame stays unchanged. */
-object SpaceTestFrame {
-    val origin = Vector3(0.0, -32000.0, 0.0)
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
-    fun toSpace(position: Vector3): Vector3 = position - origin
-
-    fun toSurface(position: Vector3): Vector3 = position + origin
+class FlatPlanetFrameTest {
+    @Test
+    fun `surface and space translations round trip without changing horizontal coordinates`() {
+        for (position in listOf(Vector3.ZERO, Vector3(-999.0, -64.0, 999.0), Vector3(1000.0, 1064.0, -500.0))) {
+            val space = FlatPlanetFrame.toSpace(position)
+            assertEquals(position.x, space.x)
+            assertEquals(position.z, space.z)
+            assertEquals(position.y + 4096.0, space.y)
+            assertEquals(position, FlatPlanetFrame.toSurface(space))
+        }
+    }
 }

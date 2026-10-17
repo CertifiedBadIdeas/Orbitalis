@@ -28,7 +28,6 @@ import org.cbi.orbitalis.core.planet.CartesianState
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
-import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
 import org.joml.Quaterniond
 import org.joml.Vector3d
@@ -147,20 +146,10 @@ internal class AutopilotSession(
         val global = FlightSpaceCoordinates.globalPosition(body.level, position(body))
         val goal = FlightSpaceCoordinates.globalPosition(body.level, target)
         for (p in listOf(global, goal)) {
-            if (FlatPlanetSpace.contains(body.level)) {
-                require(
-                    p.length() < 10000 && (body.level.dimension() == FlatPlanetSpace.SPACE || p.y >= minimum),
-                ) { "Outside finite-body flight envelope" }
-                continue
-            }
-            if (body.level.dimension() == FlightTestSpace.SPACE) {
-                val radius = (p - FlightTestSpace.CENTRE).length()
-                require(radius in 6500.0..24000.0) { "Outside the full-space autopilot envelope" }
-                continue
-            }
-            require(abs(p.x) <= 2048 && abs(p.z) <= 2048 && p.y in 64.0..16000.0) {
-                "Autopilot left the diagnostic surface patch or height bounds"
-            }
+            require(
+                FlatPlanetSpace.contains(body.level) && p.length() < 10000 &&
+                    (body.level.dimension() == FlatPlanetSpace.SPACE || p.y >= minimum),
+            ) { "Outside finite-body flight envelope" }
         }
     }
 
@@ -184,18 +173,7 @@ internal class AutopilotSession(
         val pose = body.logicalPose()
         val velocity = handle.getLinearVelocity(Vector3d())
         val omega = pose.orientation().transformInverse(handle.getAngularVelocity(Vector3d()), Vector3d())
-        require(
-            velocity.length() <= (
-                if (body.level.dimension() == FlightTestSpace.SPACE ||
-                    FlatPlanetSpace.contains(body.level)
-                ) {
-                    220
-                } else {
-                    120
-                }
-            ) &&
-                omega.length() <= 2.0,
-        ) {
+        require(velocity.length() <= 220.0 && omega.length() <= 2.0) {
             "Speed/rotation exceeded test autopilot limits"
         }
         val error = Quaterniond(pose.orientation()).conjugate().mul(attitude).normalize()

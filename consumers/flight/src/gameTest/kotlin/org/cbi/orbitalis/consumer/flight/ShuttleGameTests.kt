@@ -34,12 +34,15 @@ import net.minecraft.server.level.ServerLevel
 import net.minecraft.util.Unit
 import net.minecraft.world.item.Items
 import net.minecraft.world.level.ChunkPos
+import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.entity.ChestBlockEntity
 import net.minecraft.world.phys.AABB
 import net.minecraft.world.phys.Vec3
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
 import org.cbi.orbitalis.core.planet.Vector3
-import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
+import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
+import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
+import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
 import org.joml.Quaterniond
 import org.joml.Vector3d
 import java.util.UUID
@@ -54,7 +57,7 @@ object ShuttleGameTests {
     private class Shuttle(
         helper: GameTestHelper,
         val level: ServerLevel,
-        val origin: BlockPos = BlockPos(1400, 180, 8),
+        val origin: BlockPos = BlockPos(700, 180, 8),
     ) : AutoCloseable {
         val previous = mutableSetOf<UUID>()
         val owned = mutableSetOf<UUID>()
@@ -192,7 +195,7 @@ object ShuttleGameTests {
     @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 5000, batch = "shuttle_hold")
     fun shuttleAssemblyAndHold(helper: GameTestHelper) {
-        val shuttle = Shuttle(helper, checkNotNull(helper.level.server.getLevel(FlightTestSpace.SURFACE)))
+        val shuttle = Shuttle(helper, checkNotNull(helper.level.server.getLevel(Level.OVERWORLD)))
         val physics = SubLevelPhysicsSystem.require(shuttle.level)
 
         class Sequence : Runnable {
@@ -251,16 +254,16 @@ object ShuttleGameTests {
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 5000, batch = "shuttle_gravity")
     fun shuttleGravityProfile(helper: GameTestHelper) {
         val server = helper.level.server
-        val surface = Shuttle(helper, checkNotNull(server.getLevel(FlightTestSpace.SURFACE)))
-        val orbit = Shuttle(helper, checkNotNull(server.getLevel(FlightTestSpace.ORBIT)))
+        val surface = Shuttle(helper, checkNotNull(server.getLevel(Level.OVERWORLD)))
+        val orbit = Shuttle(helper, checkNotNull(server.getLevel(FlatPlanetSpace.SPACE)))
         val craft = listOf(surface, surface, surface, surface, orbit)
         val points =
             listOf(
                 Vector3(0.0, 240.0, 0.0),
-                Vector3(1600.0, 240.0, 0.0),
-                Vector3(1600.0, 2064.0, 0.0),
-                Vector3(1600.0, 6064.0, 0.0),
-                Vector3(1600.0, 5808.0, 0.0),
+                Vector3(500.0, 240.0, 0.0),
+                Vector3(500.0, 500.0, 0.0),
+                Vector3(500.0, 1064.0, 0.0),
+                Vector3(500.0, 5160.0, 0.0),
             )
         val measured = mutableListOf<Vector3>()
 
@@ -283,14 +286,18 @@ object ShuttleGameTests {
                 )
                 helper.runAfterDelay(8) {
                     val position = AutopilotSession.position(shuttle.body)
-                    val global = FlightTestSpace.globalPosition(shuttle.level, position)
-                    val expected = FlightTestSpace.gravity.acceleration(global - FlightTestSpace.CENTRE)
-                    val velocity = handle.getLinearVelocity(Vector3d())
-                    helper.runAfterDelay(20) {
-                        val actual = AutopilotSession.vector(handle.getLinearVelocity(Vector3d()).sub(velocity))
-                        // Exactly one second of native integration; field variation is tiny over this fall.
+                    val global = FlightSpaceCoordinates.globalPosition(shuttle.level, position)
+                    val expected = SableFlightGravity.acceleration(shuttle.level, position)
+                    // Overworld has native atmospheric drag. Measure the initial acceleration from
+                    // rest over one server tick; a one-second fall also measures accumulated drag.
+                    handle.addLinearAndAngularVelocity(
+                        handle.getLinearVelocity(Vector3d()).negate(),
+                        handle.getAngularVelocity(Vector3d()).negate(),
+                    )
+                    helper.runAfterDelay(1) {
+                        val actual = AutopilotSession.vector(handle.getLinearVelocity(Vector3d())) * 20.0
                         helper.assertTrue(
-                            (actual - expected).length() < 0.05,
+                            (actual - expected).length() < 0.08,
                             "Native gravity mismatch at $global: measured=$actual, field=$expected",
                         )
                         helper.assertTrue(handle.getAngularVelocity(Vector3d()).length() < 0.01, "Gravity introduced torque")
@@ -308,8 +315,8 @@ object ShuttleGameTests {
                         if (++index < points.size) {
                             helper.runAfterDelay(1) { run() }
                         } else {
-                            helper.assertTrue(measured[1].x < -0.1, "Offset diagnostic field did not point centreward")
-                            helper.assertTrue(measured[2].x < -0.01, "Diagnostic field lacks centreward lateral force")
+                            helper.assertTrue(abs(measured[1].x) < 0.02, "Surface field gained lateral acceleration")
+                            helper.assertTrue(measured[2].x < -0.01, "Transition field lacks centreward lateral force")
                             helper.assertTrue(measured[3].length() < measured[1].length() * 0.5, "High field did not weaken")
                             helper.assertTrue((measured[3] - measured[4]).length() < 0.03, "Frame translation changed gravity")
                             helper.succeed()

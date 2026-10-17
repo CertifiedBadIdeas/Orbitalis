@@ -49,7 +49,6 @@ import net.minecraft.world.level.block.entity.ChestBlockEntity
 import net.minecraft.world.level.block.entity.TickingBlockEntity
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
-import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipSnapshot
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipTransfer
@@ -69,12 +68,102 @@ import net.minecraft.util.Unit as MinecraftUnit
 @PrefixGameTestTemplate(false)
 object SableTransferGameTests {
     @JvmStatic
-    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "ship_transfer", timeoutTicks = 600)
-    fun shipTransferRoundTripAndRecovery(helper: GameTestHelper) = transferScenario(helper, FlightTestSpace.ORBIT)
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "retired_journal", timeoutTicks = 200)
+    fun retiredDiagnosticJournalHandling(helper: GameTestHelper) {
+        val future =
+            java.util.concurrent.CompletableFuture.supplyAsync {
+                val folder = Files.createTempDirectory("orbitalis-retired-journal-")
+                val ship = UUID.randomUUID()
+                val file = folder.resolve("$ship.nbt")
+                val pilot =
+                    CompoundTag().apply {
+                        for (key in listOf("x", "y", "z", "vx", "vy", "vz", "yaw", "pitch")) putDouble(key, 0.0)
+                    }
+                val receipt =
+                    CompoundTag().apply {
+                        putUUID("uuid", ship)
+                        put("pose", CompoundTag())
+                    }
+                val active =
+                    ShipTransferRecord(
+                        UUID.randomUUID(),
+                        ship,
+                        UUID.randomUUID(),
+                        false,
+                        receipt,
+                        receipt,
+                        pilot,
+                        pilot,
+                        CompoundTag(),
+                        ShipTransferPhase.DONE,
+                    )
+                ShipTransferJournal(folder).use { journal ->
+                    journal.write(active).join()
+                    check(
+                        journal
+                            .read()
+                            .join()
+                            .single()
+                            .ship == ship,
+                    ) { "Active route receipt was lost" }
+                    val retiredShip = UUID.randomUUID()
+                    val retiredFile = folder.resolve("$retiredShip.nbt")
+                    for (version in 1..3) {
+                        val retired =
+                            active.encode().apply {
+                                putUUID("ship", retiredShip)
+                                putInt("version", version)
+                                putString("surface_dimension", "orbitalis:flight_test")
+                                putString("orbital_dimension", "orbitalis:space_test")
+                            }
+                        NbtIo.writeCompressed(retired, retiredFile)
+                        val before = Files.readAllBytes(retiredFile)
+                        check(
+                            journal
+                                .read()
+                                .join()
+                                .single()
+                                .ship == ship,
+                        ) { "Retired receipt was replayed or active receipt discarded" }
+                        check(before.contentEquals(Files.readAllBytes(retiredFile))) { "Retired receipt was overwritten" }
+                        for (phase in listOf("PREPARED", "COMMITTED", "DONE")) {
+                            val pending =
+                                retired.copy().apply {
+                                    putString("phase", phase)
+                                    putBoolean("pilot_pending", true)
+                                }
+                            NbtIo.writeCompressed(pending, retiredFile)
+                            val failure = runCatching { journal.read().join() }.exceptionOrNull()
+                            check(
+                                failure?.cause?.message?.contains("Unfinished retired diagnostic") == true,
+                            ) { "Retired authority did not fail explicitly" }
+                            check(Files.exists(retiredFile)) { "Retired authority was deleted" }
+                        }
+                    }
+                    Files.delete(retiredFile)
+                    val unknownLegacy =
+                        active.encode().apply {
+                            putInt("version", 2)
+                            putString("orbital_dimension", "other:unknown")
+                        }
+                    NbtIo.writeCompressed(unknownLegacy, file)
+                    check(runCatching { journal.read().join() }.isFailure) { "Unknown legacy route was ignored" }
+                    val unknown = active.encode().apply { putString("surface_dimension", "minecraft:the_nether") }
+                    NbtIo.writeCompressed(unknown, file)
+                    check(runCatching { journal.read().join() }.isFailure) { "Unknown route was reinterpreted" }
+                }
+            }
 
-    @JvmStatic
-    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "space_transfer", timeoutTicks = 600)
-    fun spaceTransferRoundTripAndRecovery(helper: GameTestHelper) = transferScenario(helper, FlightTestSpace.SPACE)
+        fun await() {
+            if (!future.isDone) {
+                helper.runAfterDelay(1) { await() }
+                return
+            }
+            future.join()
+            helper.succeed()
+        }
+        helper.runAfterDelay(1) { await() }
+    }
 
     @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "flat_transfer", timeoutTicks = 600)
@@ -83,17 +172,12 @@ object SableTransferGameTests {
     private fun transferScenario(
         helper: GameTestHelper,
         route: ResourceKey<Level>,
-        surfaceKey: ResourceKey<Level> = FlightTestSpace.SURFACE,
+        surfaceKey: ResourceKey<Level> = Level.OVERWORLD,
     ) {
         val server = helper.level.server
         val surface = checkNotNull(server.getLevel(surfaceKey))
         val orbit = checkNotNull(server.getLevel(route))
-        val delta =
-            when (route) {
-                FlatPlanetSpace.SPACE -> 4096.0
-                FlightTestSpace.SPACE -> 32000.0
-                else -> -256.0
-            }
+        val delta = 4096.0
         // The inert fake pilot is not in the player list; keep vanilla BE ticking active.
         surface.resetEmptyTime()
         orbit.resetEmptyTime()
@@ -117,12 +201,7 @@ object SableTransferGameTests {
                         contactTicks = 0
                     }
                     helper.assertTrue(SubLevelPhysicsSystem.require(body.level).paused, "Ship resumed before client tracking")
-                    if (surfaceKey == FlightTestSpace.SURFACE) {
-                        helper.assertTrue(
-                            !SubLevelPhysicsSystem.require(server.overworld()).paused,
-                            "Diagnostic transfer froze ordinary Overworld ships",
-                        )
-                    }
+
                     helper.assertTrue(
                         (player.connection as ShipTransferTeleportState).orbitalisHasPendingTeleport(),
                         "Dimension travel did not request a vanilla teleport acknowledgment",
@@ -148,14 +227,7 @@ object SableTransferGameTests {
         val player = GameTestPlayers.create(helper)
         val pose =
             Pose3d().also {
-                val anchor =
-                    if (route == FlatPlanetSpace.SPACE) {
-                        500.0
-                    } else if (route == FlightTestSpace.SPACE) {
-                        1200.0
-                    } else {
-                        1400.0
-                    }
+                val anchor = 500.0
                 it.position().set(anchor, 600.0, anchor)
                 it.orientation().rotateZ(0.1).rotateX(0.05)
             }
@@ -383,9 +455,6 @@ object SableTransferGameTests {
                     for (key in listOf(
                         Level.OVERWORLD,
                         FlatPlanetSpace.SPACE,
-                        FlightTestSpace.SURFACE,
-                        FlightTestSpace.ORBIT,
-                        FlightTestSpace.SPACE,
                     )) {
                         SubLevelPhysicsSystem.require(checkNotNull(server.getLevel(key))).paused = false
                     }
@@ -561,31 +630,20 @@ object SableTransferGameTests {
                                     "Journal changed $id metadata",
                                 )
                             }
-                            if (route == FlightTestSpace.ORBIT) {
-                                val legacy =
-                                    record.encode().also {
-                                        it.putInt("version", 1)
-                                        it.remove("orbital_dimension")
-                                    }
-                                helper.assertTrue(
-                                    ShipTransferRecord.decode(legacy).orbitalDimension == FlightTestSpace.ORBIT,
-                                    "Version-1 journal was not kept in the legacy frame",
-                                )
-                            }
+
                             helper.assertTrue(ShipTransferRecord.decode(record.encode()).orbitalDimension == route, "Journal route changed")
                             helper.assertTrue(
                                 ShipTransferRecord.decode(record.encode()).surfaceDimension == surfaceKey,
                                 "Journal surface changed",
                             )
-                            if (surfaceKey == FlightTestSpace.SURFACE) {
-                                val versionTwo =
-                                    record.encode().also {
-                                        it.putInt("version", 2)
-                                        it.remove("surface_dimension")
-                                    }
+                            for (version in listOf(1, 2)) {
                                 helper.assertTrue(
-                                    ShipTransferRecord.decode(versionTwo).surfaceDimension == FlightTestSpace.SURFACE,
-                                    "Version-2 source was reinterpreted",
+                                    runCatching {
+                                        ShipTransferRecord.decode(
+                                            record.encode().also { it.putInt("version", version) },
+                                        )
+                                    }.isFailure,
+                                    "Retired journal was mapped onto the active route",
                                 )
                             }
                             // Corrupt/unknown contracts must fail before any native mutation.
@@ -632,19 +690,7 @@ object SableTransferGameTests {
                                 ) {
                                 }
                             }
-                            journalWrite =
-                                if (route == FlightTestSpace.ORBIT) {
-                                    CompletableFuture.supplyAsync {
-                                        val legacy =
-                                            record.encode().also {
-                                                it.putInt("version", 1)
-                                                it.remove("orbital_dimension")
-                                            }
-                                        NbtIo.writeCompressed(legacy, folder.resolve("$ship.nbt"))
-                                    }
-                                } else {
-                                    journal.write(record)
-                                }
+                            journalWrite = journal.write(record)
                             waitUntil({ journalWrite!!.isDone }) {
                                 journalWrite!!.join()
                                 // A prepared copy is not authoritative, even if reconstruction happened.

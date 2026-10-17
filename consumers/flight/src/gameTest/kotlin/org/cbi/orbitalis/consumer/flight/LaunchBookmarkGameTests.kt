@@ -24,7 +24,6 @@ import net.minecraft.nbt.CompoundTag
 import net.minecraft.world.level.Level
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
 import org.cbi.orbitalis.core.planet.Vector3
-import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
 import org.joml.Quaterniond
 import java.util.UUID
 import kotlin.math.abs
@@ -58,15 +57,19 @@ object LaunchBookmarkGameTests {
             } catch (_: IllegalArgumentException) {
             }
         }
-        helper.assertTrue(restored.surface == FlightTestSpace.SURFACE, "Diagnostic bookmark changed surface")
+        helper.assertTrue(restored.surface == Level.OVERWORLD, "Bookmark changed surface")
         val legacy =
             tag.copy().also {
                 it.putInt("version", 1)
                 it.getList("sites", 10).getCompound(0).remove("surface")
             }
+        rejected("Retired version-1 bookmark was reinterpreted") { LaunchSites.load(legacy, registries).require(pilot, ship) }
+        val retired = tag.copy().also { it.getList("sites", 10).getCompound(0).putString("surface", "orbitalis:flight_test") }
+        rejected("Retired version-2 bookmark was reinterpreted") { LaunchSites.load(retired, registries).require(pilot, ship) }
+        val mixed = tag.copy().also { it.getList("sites", 10).add(retired.getList("sites", 10).getCompound(0).copy()) }
         helper.assertTrue(
-            LaunchSites.load(legacy, registries).require(pilot, ship).surface == FlightTestSpace.SURFACE,
-            "Old bookmark reinterpreted",
+            LaunchSites.load(mixed, registries).require(pilot, ship).surface == Level.OVERWORLD,
+            "Retired bookmark discarded the active bookmark",
         )
         val ordinary =
             LaunchSites().also {

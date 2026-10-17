@@ -45,17 +45,9 @@ versionRange="[1.21.1,1.21.2)"
             'META-INF/NOTICE': b'upstream fixture',
             'org/cbi/orbitalis/core/Orbitalis.class': self.bytecode(65),
             'org/cbi/orbitalis/neoforge/OrbitalisMod.class': self.bytecode(65),
-            'data/orbitalis/dimension/flight_test.json': b'{}',
-            'data/orbitalis/dimension/flight_test.json.license': b'Apache-2.0 fixture',
-            'data/orbitalis/dimension_physics/flight_test.json': b'{}',
-            'data/orbitalis/dimension_physics/flight_test.json.license': b'Apache-2.0 fixture',
-            'data/orbitalis/dimension/orbit_test.json': b'{}',
-            'data/orbitalis/dimension/orbit_test.json.license': b'Apache-2.0 fixture',
-            'data/orbitalis/dimension_physics/orbit_test.json': b'{}',
-            'data/orbitalis/dimension_physics/orbit_test.json.license': b'Apache-2.0 fixture',
         }
         for folder in ('dimension', 'dimension_physics'):
-            for name in ('space', 'space_test'):
+            for name in ('space',):
                 self.files[f'data/orbitalis/{folder}/{name}.json'] = b'{}'
                 self.files[f'data/orbitalis/{folder}/{name}.json.license'] = b'Apache-2.0 fixture'
         for legal in verify.KOTLIN_LEGAL_FILES:
@@ -158,10 +150,20 @@ versionRange="[1.21.1,1.21.2)"
                         self.run_verifier()
                     del self.files[name]
 
-    def test_missing_laboratory_resource_is_rejected(self):
-        del self.files['data/orbitalis/dimension/flight_test.json']
-        with self.assertRaisesRegex(ValueError, 'flight_test.json'):
+    def test_missing_space_resource_is_rejected(self):
+        del self.files['data/orbitalis/dimension/space.json']
+        with self.assertRaisesRegex(ValueError, 'space.json'):
             self.run_verifier()
+
+    def test_retired_dimension_resources_are_rejected(self):
+        for kind in ('dimension', 'dimension_physics'):
+            for dimension in ('flight_test', 'orbit_test', 'space_test'):
+                name = f'data/orbitalis/{kind}/{dimension}.json'
+                with self.subTest(name=name):
+                    self.files[name] = b'{}'
+                    with self.assertRaisesRegex(ValueError, 'Retired diagnostic dimension'):
+                        self.run_verifier()
+                    del self.files[name]
 
     def test_consumer_resources_are_rejected(self):
         self.files['data/orbitalis_flight_test/function/setup.mcfunction'] = b'say consumer'

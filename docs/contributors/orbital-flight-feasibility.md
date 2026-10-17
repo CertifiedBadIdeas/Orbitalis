@@ -27,8 +27,9 @@ is now an ordinary [finite flat Overworld](flat-surface.md), initially 2000 by 2
 six face charts and cube/sphere projection experiments are retired. Native Minecraft/mod coordinates
 remain authoritative. Flat-body gravity and space presentation require a separate design.
 
-Independent spherical/two-body diagnostic fields and orbit/frame math remain, as do the isolated
-flight dimensions and [journaled transfers](ship-transfer.md). These diagnostics do not define the
+Independent spherical/two-body diagnostic fields and orbit/frame math remain, alongside the active
+Overworld/space [journaled transfers](ship-transfer.md). The old diagnostic dimensions are retired.
+The mathematical diagnostics do not define the
 physical shape of the Overworld. The source evidence and transition proposals below describe earlier
 investigation; they do not promise a production orbital model or seamless rendering implementation.
 

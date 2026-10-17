@@ -19,7 +19,7 @@ limitations under the License.
 
 # Space presentation
 
-`space`, `orbit_test` and `space_test` use black vacuum fog, a fixed star field and a fixed Sun. Clouds,
+`orbitalis:space` uses black vacuum fog, a fixed star field and a fixed Sun. Clouds,
 rain rendering and sunrise/sunset gradients are suppressed. Exposed skylight has constant daytime
 brightness; native sky occlusion and warm block lights remain, followed by vanilla gamma, night vision
 and darkness handling. Minecraft's ordinary face shading remains: this is not directional shadow
@@ -27,9 +27,7 @@ mapping or a physical sunlight simulation. Server time, surface weather and the 
 sky are unchanged.
 
 A single client-only `ClientLevel.effects()` selector supplies NeoForge's native dimension-effects
-extension for these dimension IDs. It works with existing diagnostic saves whose dimension type
-is still `minecraft:overworld`, without changing dimension registries, saved types or transfer journals.
-NeoForge owns the hook and effects adapter; shared/common owns the actual sky and body mesh. No Sable
+extension for this dimension ID. NeoForge owns the hook and effects adapter; shared/common owns the actual sky and body mesh. No Sable
 or Create APIs participate in rendering, and the selector never loads on a dedicated server.
 
 The reference body is a 2000-by-2000-block flat slab, centred at surface X/Z zero, with its top at
@@ -51,8 +49,7 @@ medium-specific fog is retained.
 
 The new [finite-body route](flat-gravity.md) uses `orbitalis:space`, with represented Y equal to
 physical Y+4096. Its geometry shares the initial surface size and sea-level constants with this mesh.
-The retained spherical diagnostic force field still governs diagnostic ships; both kinds of orbit can
-view the slab from above, alongside and below. Live terrain imagery, atmosphere transitions, eclipses
+The ship can view the slab from above, alongside and below. Live terrain imagery, atmosphere transitions, eclipses
 and directional ship shadows remain separate work.
 
 ## Verification
@@ -61,15 +58,13 @@ and directional ship shadows remain separate work.
 underside visibility, and distance-dependent apparent size. Run target checks and inspect a disposable
 client world; compilation alone does not demonstrate appearance. Suggested manual views:
 
-- `/gamemode spectator`, then `/execute in orbitalis:orbit_test run tp @s 0 1808 0 0 90`
+- `/gamemode spectator`, then `/execute in orbitalis:space run tp @s 0 6160 0 0 90`
   shows the surface from physical Y=2064.
-- `/execute in orbitalis:orbit_test run tp @s 2400 160 2400 135 15`
+- `/execute in orbitalis:space run tp @s 2400 4512 2400 135 15`
   shows the top and two sides.
-- `/execute in orbitalis:space_test run tp @s 0 29936 0 0 -90`
+- `/execute in orbitalis:space run tp @s 0 2032 0 0 -90`
   shows the underside from physical Y=-2064.
 - Compare `/time set noon` and `/time set midnight`: vacuum sky, Sun, body and skylight stay fixed.
-- `/execute in orbitalis:space_test run tp @s 0 34064 0 0 90` reproduces the first view
-  through the other transfer frame.
 - `/execute in orbitalis:space run tp @s 0 5160 0 0 90` shows the body from 1000 m above sea level
   through the new low frame.
 - Return to `minecraft:overworld` to confirm the ordinary sky still follows time and weather.

@@ -40,7 +40,6 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
-import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
 import org.cbi.orbitalis.neoforge.integration.SableFlightIntegration
 import org.joml.Quaterniond
 import java.util.UUID
@@ -142,14 +141,7 @@ class FlightConsumerMod {
                         )
                     }
                 val manager = SableFlightIntegration.transferService(source.server)
-                val mission: FlightMission =
-                    if (site.surface ==
-                        Level.OVERWORLD
-                    ) {
-                        FlatOrbitalMission(player, body, site, manager, land)
-                    } else {
-                        OrbitalMission(player, body, site, manager, land)
-                    }
+                val mission: FlightMission = FlatOrbitalMission(player, body, site, manager, land)
                 try {
                     if (!land) {
                         sites.put(player.uuid, site)
@@ -257,7 +249,7 @@ class FlightConsumerMod {
             while (context != null) {
                 val nodes = context.nodes
                 if (nodes.size >= 3 && nodes[0].node.name == "orbitalis" && nodes[1].node.name == "flight" &&
-                    nodes[2].node.name in setOf("transfer", "leave")
+                    nodes[2].node.name == "transfer"
                 ) {
                     stop(event.parseResults.context.source.server, "flight travel requested")
                 }

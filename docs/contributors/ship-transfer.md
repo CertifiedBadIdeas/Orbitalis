@@ -18,66 +18,44 @@ limitations under the License.
 
 # Surface/orbit ship transfer
 
-The ordinary Overworld low-orbit route is described in [finite-body flight](flat-gravity.md). It uses
-this same coordinator, allowlist, readiness barrier and recovery journal with its own explicit route.
-The existing diagnostic operator workflow remains available below.
-
-The optional Sable adapter provides `/orbitalis flight transfer` for one independent construction
-and its unmounted creative pilot. Use a disposable world and the isolated flight consumer. The
-command toggles between `orbitalis:flight_test` terrain and the stable `orbitalis:orbit_test` void
-level. These IDs are saved-world contracts. This is a reconstruction/ownership experiment; automatic
-height triggers, seamless rendering and production planet geography are outside this step.
+The optional Sable adapter transfers one independent construction and its unmounted creative pilot
+between ordinary Overworld and `orbitalis:space`. Use a disposable world and the isolated flight
+consumer. See [finite-body flight](flat-gravity.md) for gravity, altitude-triggered mission handoffs
+and the current low orbit. Journal staging pauses physics; this does not establish seamless rendering.
 
 ## Manual scenario
 
-Launch from `consumers/flight` using `./gradlew runClient`. Install the optional
-[terrain ship fixture](flight-consumer.md#repeatable-terrain-ship-fixture) in the selected disposable
-world and enter with `/orbitalis flight enter`. Assemble the craft, disable creative flight and use
-its controller to climb above y = 350 near x/z = 0. Stop applying thrust, toggle the controller off,
-remain on deck and run:
+Launch from `consumers/flight` using `./gradlew runClient`. Install the
+[terrain ship fixture](flight-consumer.md#repeatable-terrain-ship-fixture) on a clear Overworld pad,
+assemble it, disable creative flight and stand on deck. With manual controls off, use:
 
 ```mcfunction
 /orbitalis flight sample
 /orbitalis flight transfer
 ```
 
-Wait for the completion message before using controls. Inspect the entire ship and chest contents,
-then use `sample` and the external controller again. Run `transfer` on deck to return. A return at
-very low orbit coordinates is rejected; both represented pilot and ship positions must remain above
-y = 64. `/orbitalis flight leave` remains player-only and leaves the ship in its current dimension.
+Wait for completion before using controls. Inspect the ship and chest contents. Run `transfer` again
+on deck to return. The manual command supplies no propulsion; the consumer autopilot provides a
+powered ascent and return. There are no `flight enter`, `flight leave` or `transfer space` commands.
 
-The orbit representation subtracts (0, 256, 0) metres from surface positions. Axes are identical,
-the frame does not rotate or move, and linear/angular velocities and player view direction are unchanged.
-The same [spherical diagnostic field](flight-gravity.md) evaluates the reconstructed surface/global position
-in both levels. Radial altitude in `sample` therefore remains continuous even though Minecraft Y changes by 256. This offset
-is an experimental diagnostic constant, not an automatic ascent altitude or an orbital insertion.
-The patch is limited to |x|, |z| <= 2048 m; distant locations are rejected rather than wrapped.
-
-## Full-space route
-
-`/orbitalis flight transfer space` selects `orbitalis:space_test` from the surface; plain `transfer`
-returns from either orbital representation to the surface. Plain ascent still selects the legacy
-orbit frame. Direct travel between the two orbital frames is rejected. The full-space origin is
-(0,-32000,0), so ascent adds 32000 to local Y and return subtracts it. Handoffs remain inside the
-same bounded top-face patch and physical Y=64..16000; free space flight can leave that patch, but
-must return above it before a handoff. Local positions stay above Y=64.
-
-The consumer uses `SableFlightIntegration.transferService(server)` on the server thread and calls
-`begin(player, body, targetDimension)`. This exposes the existing coordinator, not a second journal
-or ownership implementation. It must release engine inputs and wait for native fade first, remain
-idle while `busy`, fail on `error`, then reacquire the ship by UUID after client readiness completes.
-The original two-argument `begin` retains its legacy ascent/default return behavior. No guidance or
-mission controller is added to the production mod.
+`FlatPlanetFrame` adds 4096 to physical Y in space. Axes, inertial linear/angular velocities and
+player view direction are unchanged. Both worlds sample the same physical finite-body field.
+Transfers require |x|,|z|<=2048, physical Y=64..16000 and represented pilot/ship Y>=64. Space flight can
+leave this transfer patch but must return above it before a handoff. The consumer calls
+`SableFlightIntegration.transferService(server).begin(player, body, targetDimension)` on the server
+thread. It releases engine inputs and waits for fade, remains idle while `busy`, fails on `error` and
+reacquires the ship by UUID after readiness. Both overloads select only the Overworld/space pair.
+Guidance remains consumer-owned.
 
 ## Supported boundary
 
-The first diagnostic accepts a ship with at most four native plot chunks and a 4096-block bounding
+The adapter accepts a ship with at most four native plot chunks and a 4096-block bounding
 volume, at most 32 m wide in x/z. Prefer the original native plot address when free; otherwise choose
 an available address from Sable's occupancy bitmap, including reservations for unloaded ships.
 A full destination rejects before modifying the source. Persist the selected address in PREPARED,
 then recheck it before reconstruction; a slot claimed during asynchronous preparation cancels safely.
 Foreign ships are never moved to make room. Physical destination obstructions still reject transfer.
-Destination terrain/nearby entities must be clear. Other players must leave all diagnostic flight levels.
+Destination terrain/nearby entities must be clear. Other players must leave both participating levels.
 
 Connected/overlapping native chains, kinematic contraptions, mounted pilots, other onboard players,
 mobs, loose entities, general plot-space entities and pending block/fluid ticks are rejected.
@@ -93,7 +71,7 @@ are rejected before preparation. A block-entity rejection lists every unsupporte
 ship, sorted by ID with a count per type, so one attempt reports the complete block-entity inventory
 requiring compatibility work. Other preflight conditions must pass before this inventory check runs.
 Native dependency chains are checked; arbitrary third-party constraints
-created outside Sable's reported actor connections are unsupported. Do not use this diagnostic for them.
+created outside Sable's reported actor connections are unsupported. Do not transfer them.
 The allowlist establishes a bounded experiment, not blanket compatibility with external mods.
 
 ## Authority and persistence
@@ -105,20 +83,19 @@ source's previous native save pointer, phase, orbital dimension and offline-pilo
 missing state, identity mismatches and invalid numeric state fail closed. Compressed and decompressed
 records are bounded to 16 MiB. Native payloads remain tied to the pinned Sable serialization format;
 future Sable/Orbitalis migrations must handle unfinished records before changing that format.
-Version 3 requires explicit `surface_dimension` and `orbital_dimension`, accepting only
-`minecraft:overworld`/`orbitalis:space` or `orbitalis:flight_test` with either diagnostic orbital frame.
-The new route translates Y by 4096; it never reuses the diagnostic full-space offset of 32000.
-Version 2 still means implicit `flight_test` and requires `orbital_dimension` to be exactly
-`orbitalis:orbit_test` or `orbitalis:space_test`. Version 1 always selects the legacy orbit frame.
-Both remain readable and migrate explicitly on write. Older readers reject version 3 rather than guessing coordinates.
-The version 1 manifest accepts both glue types. Existing Super Glue records remain readable; older
-Orbitalis builds that only accept Super Glue reject unfinished Honey Glue records rather than discarding them.
+Version 3 requires explicit `surface_dimension=minecraft:overworld` and
+`orbital_dimension=orbitalis:space`. Its format and 4096-m translation remain unchanged.
+
+The retired `flight_test`, `orbit_test` and `space_test` dimensions are no longer registered. Their
+save directories are not deleted or converted. Legacy version-1/2 journals and version-3 diagnostic
+pairs are recognized only for retirement: a DONE receipt with no pending pilot is ignored without
+rewriting the file. An unfinished transaction or pending pilot fails closed with an explicit recovery
+message. Restore a backup and finish recovery using the previous version before upgrading; never
+rename an old dimension or edit its journal into the active pair. Unknown routes/versions remain errors.
 
 Journal compression, reads and atomic file replacement/fsync run on one dedicated worker. Only copied
 NBT crosses threads. Minecraft world, player, plot and native storage calls remain on the server thread.
-All three diagnostic levels' native physics are paused while a transaction is active. Overworld and
-its new space frame join that scope only for their own route or while startup journal ownership is
-still unknown; legacy diagnostic recovery releases unrelated surface physics once its route is read. Existing pause states
+Both participating levels' native physics are paused while a transaction is active. Existing pause states
 are restored afterward. Player interactions are blocked during the operation and source content/pilot
 position are revalidated after asynchronous preparation. Block-entity ticks in the held source/staged
 plot chunks are suspended by the loader's Minecraft ticker hook. This includes persisted engine counters;
@@ -166,7 +143,7 @@ restored, never a copied player inventory. The pending-login flag remains durabl
 The route's supported flight worlds stay paused and the recovered ship stays loaded until that pilot logs in, keeping
 the recovery anchor stable. This first prototype has no offline flight mode; ordinary block/entity simulation continues, but native construction physics and interactions in the
 participating Overworld are held during this bounded recovery. A missing completed native checkpoint is an error, never an excuse to replay an old payload.
-An unreadable journal or uncertain I/O failure retains paused diagnostic physics and stops further
+An unreadable journal or uncertain I/O failure retains paused flight physics and stops further
 transfers for inspection/restart, instead of guessing ownership. Preserve the journal when investigating.
 
 Plot relocation shifts the serialized local rotation point, absolute block-entity x/z and attached
@@ -176,12 +153,12 @@ remain unchanged apart from the existing world-frame height translation. Chunk k
 plot-relative coordinates. Pinned Super Glue/Honey Glue `From`/`To` bounds and Propulsion controller
 offsets are relative, so they remain exact. This is a bounded adapter for the existing allowlist,
 not a generic recursive NBT coordinate rewrite or support for arbitrary mod block entities.
-All journal versions store independent source and destination plot snapshots; relocation itself
-requires no schema change. Older journals with equal addresses remain readable, and recovery uses each recorded address.
+Active version-3 journals store independent source and destination plot snapshots; recovery uses
+each recorded address. Plot relocation requires no schema change.
 
 ## Evidence and remaining work
 
-Native GameTests exercise round trips on both diagnostic routes and the new Overworld route using a rotated ship, nonzero small linear/angular velocity,
+Native GameTests exercise the Overworld/space round trip using a rotated ship, nonzero small linear/angular velocity,
 a chest and pilot pose, relocation around loaded/unloaded foreign ships on outbound/return, full-plot
 rejection, PREPARED rollback, COMMITTED recovery across unequal plot addresses with a stale
 occupancy bitmap, offline pilot
@@ -194,7 +171,8 @@ An isolated headless flight-consumer probe on 2026-10-15 reconstructed a copy of
 with its actual Create/Propulsion/Simulated block entities and three Honey Glue entities, then completed
 surface-to-orbit and return transactions with cargo checks. This reproduced the unordered-list and
 engine-connectivity-flag failures before their fixes; it does not establish client rendering or control continuity.
-Core tests cover the fixed-frame round trip
+Retirement tests verify that completed old receipts remain untouched, unfinished old records are
+rejected, and unknown pairs fail closed. Core tests cover the fixed-frame round trip
 and continuous gravitational field. A synthetic interrupted journal is not a power-loss/fsync fault test
 or a full separate-JVM restart. The Sable-only GameTest does not load Create and therefore does not verify actual Super Glue NBT
 round trips. The separate consumer mission forces an unloaded destination-slot collision and carries
