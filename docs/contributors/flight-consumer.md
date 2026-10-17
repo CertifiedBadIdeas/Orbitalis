@@ -291,10 +291,16 @@ arbitrary rotation of the near-field gravity model is used.
 After capture, the main engines fade and remain off for a full ballistic revolution. Balanced native
 RCS keeps the nose prograde and damps residual roll throughout that coast. The attitude target
 transports the current roll instead of rebuilding an absolute world-UP quaternion, avoiding a roll
-singularity below the planet. Return then turns the rocket retrograde with RCS while the main
-engines stay off, brakes with the real vector engines, and joins a vertical approach to the remembered
-pad while still descending. The braking and approach references share position, velocity and
-acceleration; they do not form a polyline or stop at an intermediate waypoint. Engine slew, gimbal
+singularity below the planet. Return searches future ballistic states over the next revolution,
+including a 12-second engine-off RCS turn lead before the burn. It compares bounded continuous return
+curves by the integral of required thrust acceleration (delta-v); this is a finite candidate search,
+not proof of a globally optimal fuel solution. Candidates reject crossing past the pad along the orbital
+approach axis and respect thrust, speed and surface-border limits. An attitude rollout shares the live
+nose controller and reserves five degrees inside the engines’ 30-degree gimbal cone; native torque
+and engine interpolation remain authoritative. Off-plane pads can use a separate
+moving lateral approach after braking. Every join preserves position, velocity and acceleration;
+there is no stop at an intermediate waypoint. Descent handoff occurs only while descending inside
+the surface footprint. The real vector engines and RCS execute the selected path. Engine slew, gimbal
 interpolation and physical torque determine the actual attitude. Requested thrust acceleration changes
 by at most 0.5 m/s² per 50-ms guidance tick (10 m/s³), smoothing phase/feedback changes before native
 allocation. This bounds the command, not the physical jerk from gravity, contacts or native engine fade.
@@ -319,6 +325,15 @@ RCS-only orientation and complete native centre/off-axis missions with cargo and
 The seated mission adds a real Create seat and previously excluded dispenser inventory. Coast trials
 apply a native angular impulse and require roll damping, prograde tracking, main-engine cutoff and
 bounded orbital energy drift; guidance never writes velocities to recover from that disturbance.
+The approach axis remains fixed through the curved coast; a natural change in horizontal velocity
+at an orbital corner is not mistaken for flying past the landing pad.
+Return trials additionally measure native translational delta-v (velocity changes minus gravity),
+require braking before passing the saved pad and bound along-track overshoot. This translation metric
+is not FE, propellant mass or the summed impulse of balanced RCS couples.
+The 2026-10-17 native comparison measured 527, 530 and 542 m/s for the centre and two off-axis
+returns, versus 662, 737 and 738 m/s before burn-window planning (20–28% lower). Maximum measured
+along-track overshoot was 5.9 metres. These are three fixture missions, not an arbitrary-terrain or
+global fuel-efficiency guarantee.
 Pure tests check force/torque constraints and continuity of the moving ascent and landing references.
 Headless pilot acknowledgments are test fixtures; they do not establish real cockpit continuity.
 

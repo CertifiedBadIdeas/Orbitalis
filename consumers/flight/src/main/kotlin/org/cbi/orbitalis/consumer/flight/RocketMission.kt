@@ -78,6 +78,10 @@ internal class RocketMission(
     private lateinit var course: RocketCourse
     private lateinit var ascent: RocketAscent
     private var returning: RocketReturn.Path? = null
+    private var returnPlanning: CompletableFuture<RocketReturn.Departure>? = null
+    val waitingForReturnPlan get() = returnPlanning?.isDone == false
+    private var departure: RocketReturn.Departure? = null
+    private var returnClock = 0.0
     private var drive: RocketDrive? = null
     private var ticks = 0
     private var settled = 0
@@ -269,34 +273,57 @@ internal class RocketMission(
                 coastAngle += OrbitalGuidance.angleStep(angle, current)
                 angle = current
                 if (phase == Phase.COAST && coastAngle >= 2 * PI) enter(Phase.RETURN)
-                if (phase == Phase.RETURN && coastAngle >= 2 * PI && s.position.y > 700.0 && s.position.dot(course.axis) < 0.0 &&
-                    s.velocity.dot(course.axis) > 0.0
-                ) {
-                    enter(Phase.FLIP)
+                if (phase == Phase.RETURN && coastAngle >= 2 * PI) {
+                    if (returnPlanning == null) {
+                        val initial = s
+                        val authority = engine().maximumAcceleration
+                        returnClock = 0.0
+                        returnPlanning =
+                            CompletableFuture.supplyAsync {
+                                RocketReturn.departure(
+                                    field,
+                                    initial,
+                                    site.position,
+                                    authority,
+                                    course.axis,
+                                    course.orbit.period + RocketReturn.TURN_LEAD,
+                                )
+                            }
+                    } else {
+                        returnClock += 0.05
+                        if (returnPlanning!!.isDone) {
+                            departure = returnPlanning!!.join()
+                            val window = checkNotNull(departure)
+                            require(returnClock < window.delay) { "Return planner missed its burn window; coast and retry return" }
+                            if (returnClock >= window.delay - RocketReturn.TURN_LEAD) enter(Phase.FLIP)
+                        }
+                    }
                 }
             }
 
             Phase.FLIP -> {
-                engine().turn(s.velocity * -1.0)
-                if (engine().alignment(s.velocity * -1.0) > 0.995 && ticks > 100) {
-                    val initial = s
-                    val authority = engine().maximumAcceleration
-                    connectionPlanning = CompletableFuture.supplyAsync { RocketReturn.plan(field, initial, site.position, authority) }
+                returnClock += 0.05
+                val window = checkNotNull(departure)
+                val direction =
+                    window.path
+                        .at(0.0)
+                        .state.velocity * -1.0
+                engine().turn(direction)
+                require(returnClock <= window.delay + 2.0) { "RCS missed the planned return attitude; manual control required" }
+                if (returnClock >= window.delay && engine().alignment(direction) > 0.995 && ticks > 100) {
+                    returning = window.path
+                    clock = returnClock - window.delay
                     enter(Phase.BRAKE)
-                    clock = 0.0
                 }
             }
 
             Phase.BRAKE -> {
                 clock += 0.05
-                if (returning == null) {
-                    engine().turn(s.velocity * -1.0)
-                    if (!connectionPlanning!!.isDone) return false
-                    returning = connectionPlanning!!.join() as RocketReturn.Path
-                }
                 follow(checkNotNull(returning).at(clock))
                 if (s.position.y <= 664.0) preload.update(pilot.server.overworld(), s.position)
-                if (body.level.dimension() == FlatPlanetSpace.SPACE && s.position.y <= 464.0) {
+                if (body.level.dimension() == FlatPlanetSpace.SPACE && s.position.y <= 464.0 && s.velocity.y < 0.0 &&
+                    abs(s.position.x) < 960.0 && abs(s.position.z) < 960.0
+                ) {
                     prepare(Phase.BRAKE)
                 } else if (clock >= checkNotNull(returning).duration) {
                     enter(Phase.APPROACH)
@@ -372,7 +399,8 @@ internal class RocketMission(
         cut()
         preload.close()
         planning.cancel(false)
-        connectionPlanning?.cancel(false)
+        connectionPlanning?.cancel(true)
+        returnPlanning?.cancel(true)
         SpaceTravelReservations.release(site.ship, this)
     }
 }

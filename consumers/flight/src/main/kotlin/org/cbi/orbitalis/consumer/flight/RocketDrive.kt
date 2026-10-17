@@ -31,10 +31,7 @@ import net.minecraft.core.Direction
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
-import org.joml.Quaterniond
 import org.joml.Vector3d
-import kotlin.math.atan2
-import kotlin.math.sqrt
 
 /** Consumer-only throttle/steering owner for a rocket with real bottom-mounted vector engines. */
 internal class RocketDrive(
@@ -158,7 +155,7 @@ internal class RocketDrive(
     private fun directionRate(direction: Vector3): Vector3 {
         val old = previousTurn
         previousTurn = direction
-        return if (old == null) Vector3.ZERO else OrbitalGuidance.limited(old.cross(direction) * 20.0, 0.8)
+        return RocketAttitudeControl.rate(old, direction, 0.05)
     }
 
     private fun apply(
@@ -188,21 +185,14 @@ internal class RocketDrive(
         // Correct only the nose error, transporting the existing roll. Rebuilding an absolute
         // UP-to-direction quaternion introduces a roll singularity around the planet's underside.
         val currentNose = pose.orientation().transform(Vector3d(0.0, 1.0, 0.0), Vector3d())
-        val desired =
-            Quaterniond()
-                .rotationTo(currentNose, Vector3d(direction.x, direction.y, direction.z))
-                .mul(pose.orientation())
-        val error = Quaterniond(pose.orientation()).conjugate().mul(desired).normalize()
-        if (error.w < 0.0) error.mul(-1.0)
-        val sine = sqrt(error.x * error.x + error.y * error.y + error.z * error.z)
-        val factor = if (sine > 1e-8) 2.0 * atan2(sine, error.w) / sine else 2.0
-        val rateLocal = pose.orientation().transformInverse(Vector3d(targetRate.x, targetRate.y, targetRate.z))
-        val angular =
-            OrbitalGuidance.limited(
-                Vector3(error.x * factor, error.y * factor, error.z * factor) * 0.8 -
-                    (AutopilotSession.vector(omega) - AutopilotSession.vector(rateLocal)) * 1.8,
-                0.45,
+        val angularWorld =
+            RocketAttitudeControl.acceleration(
+                AutopilotSession.vector(currentNose),
+                direction,
+                AutopilotSession.vector(pose.orientation().transform(Vector3d(omega))),
+                targetRate,
             )
+        val angular = pose.orientation().transformInverse(Vector3d(angularWorld.x, angularWorld.y, angularWorld.z))
         val inertia = body.massTracker.inertiaTensor
         val torque = inertia.transform(Vector3d(angular.x, angular.y, angular.z), Vector3d())
         torque.add(Vector3d(omega).cross(inertia.transform(omega, Vector3d())))

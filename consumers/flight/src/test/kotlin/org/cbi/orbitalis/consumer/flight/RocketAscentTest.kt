@@ -63,16 +63,36 @@ class RocketAscentTest {
         }
     }
 
-    @Test fun returningCurveJoinsVerticalApproachWithoutPositionVelocityOrAccelerationCorners() {
-        val initial = CartesianState(Vector3(318.0, 928.0, 0.0), Vector3(-71.0, 14.0, 0.0))
+    @Test fun returnWindowIncludesTurnLeadAvoidsPadOvershootAndSelectsLowDeltaV() {
+        val orbit = BallisticOrbit.plan(field, 900.0)
         for (home in listOf(Vector3(0.5, 29.0, 0.5), Vector3(800.0, 140.0, 500.0), Vector3(-800.0, 260.0, -700.0))) {
-            val path = RocketReturn.plan(field, initial, home, 60.0)
-            val before = path.braking.at(path.braking.duration)
-            val after = path.landing.at(0.0)
-            assertTrue((before.state.position - after.state.position).length() < 1e-7)
-            assertTrue((before.state.velocity - after.state.velocity).length() < 1e-7)
-            assertTrue((before.acceleration - after.acceleration).length() < 1e-7)
-            assertTrue(after.state.velocity.y < -5.0, "Approach must not stop at a waypoint")
+            val course = RocketCourse(orbit, RocketCourse.launchAxis(home))
+            val initial = course.stateAt(orbit.period * 0.4)
+            val departure = RocketReturn.departure(field, initial, home, 60.0, course.axis, orbit.period + RocketReturn.TURN_LEAD)
+            val path = departure.path
+            assertTrue(departure.delay >= RocketReturn.TURN_LEAD)
+            // Native baseline returns spent 662–738 m/s. Keep a margin below every baseline
+            // while accepting the attitude-feasible lateral approach of near-edge pads.
+            assertTrue(path.deltaV < 600.0, "Return wastes excessive delta-v: ${path.deltaV} from $home")
+            val start = path.at(0.0).state
+            val direction = course.axis
+            val remaining = (home - start.position).dot(direction)
+            assertTrue(remaining > 20.0, "Burn starts after passing the pad")
+            var t = 0.0
+            while (t <= path.duration) {
+                val sample = path.at(t)
+                assertTrue((sample.state.position - start.position).dot(direction) <= remaining + 0.51, "Return overshoots the pad")
+                t += 0.1
+            }
+            for ((left, right) in path.segments.zipWithNext()) {
+                val before = left.at(left.duration)
+                val after = right.at(0.0)
+                assertTrue((before.state.position - after.state.position).length() < 1e-7)
+                assertTrue((before.state.velocity - after.state.velocity).length() < 1e-7)
+                assertTrue((before.acceleration - after.acceleration).length() < 1e-7)
+                assertTrue(after.state.velocity.length() > 5.0, "Approach must not stop at a waypoint")
+            }
+            println("ROCKET_RETURN_PLAN home=$home delay=${departure.delay} duration=${path.duration} deltaV=${path.deltaV}")
         }
     }
 }

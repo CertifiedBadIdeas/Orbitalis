@@ -110,6 +110,9 @@ object RocketGameTests {
         var maximumCoastRateError = 0.0
         var initialEnergy: Double? = null
         var maximumEnergyDrift = 0.0
+        var returnDeltaV = 0.0
+        var returnDirection: Vector3? = null
+        var maximumPadOvershoot = 0.0
         val trace = StringBuilder("tick,phase,x,y,z,vx,vy,vz\n")
         val forced = mutableListOf<Long>()
         for (x in ((origin.x - 7) shr 4)..((origin.x + 7) shr 4)) {
@@ -269,11 +272,25 @@ object RocketGameTests {
                     if (old != null && previousWorld == b.level.dimension() &&
                         before !in listOf(RocketMission.Phase.TRANSFER, RocketMission.Phase.TOUCHDOWN)
                     ) {
+                        if (active.phase in listOf(RocketMission.Phase.BRAKE, RocketMission.Phase.APPROACH) ||
+                            (active.phase == RocketMission.Phase.FADE && returnDirection != null)
+                        ) {
+                            val field = SableFlightGravity.flatField(b.level)
+                            val acceleration = (v - old.velocity) * 20.0
+                            returnDeltaV += (acceleration - field.acceleration((p + old.position) * 0.5)).length() * 0.05
+                        }
                         maximumStepAcceleration = maxOf(maximumStepAcceleration, (v - old.velocity).length() / 0.05)
                         helper.assertTrue(
                             ((p - old.position) - (v + old.velocity) * 0.025).length() < 0.3,
                             "Native trajectory has a position jump",
                         )
+                    }
+                    if (active.phase == RocketMission.Phase.BRAKE && returnDirection == null) {
+                        returnDirection = RocketCourse.launchAxis(site!!.position)
+                        helper.assertTrue((site!!.position - p).dot(returnDirection!!) > 20.0, "Braking started after flying past the pad")
+                    }
+                    returnDirection?.let { direction ->
+                        maximumPadOvershoot = maxOf(maximumPadOvershoot, (p - site!!.position).dot(direction))
                     }
                     previousState = current
                     previousWorld = b.level.dimension()
@@ -398,6 +415,8 @@ object RocketGameTests {
                     helper.assertTrue(earlyHorizontal > 2.0, "No horizontal acceleration before ascent handoff")
                     helper.assertTrue(maximumHeight < 1200.0, "Rocket repeated the high-climb route: $maximumHeight")
                     helper.assertTrue(maximumStepAcceleration < 180.0, "Rocket motion has an acceleration spike: $maximumStepAcceleration")
+                    helper.assertTrue(maximumPadOvershoot < 10.0, "Return flew past the pad by $maximumPadOvershoot metres")
+                    helper.assertTrue(returnDeltaV < 600.0, "Return wasted excessive native delta-v: $returnDeltaV")
                     val tracePath =
                         java.nio.file.Path
                             .of("build/agent-logs/rocket-trace-${origin.x}-${origin.z}.csv")
@@ -407,15 +426,18 @@ object RocketGameTests {
                         .writeString(tracePath, trace)
                     println(
                         "ORBITALIS_ROCKET_RESULT pad=$origin clearance=$minimumClearance maxHeight=$maximumHeight " +
-                            "maxAcceleration=$maximumStepAcceleration earlyHorizontal=$earlyHorizontal",
+                            "maxAcceleration=$maximumStepAcceleration earlyHorizontal=$earlyHorizontal " +
+                            "returnDeltaV=$returnDeltaV padOvershoot=$maximumPadOvershoot",
                     )
                     helper.succeed()
                     return
                 }
                 // Accelerated GameTest ticks must give the real background planners CPU time.
-                if (active.phase in listOf(RocketMission.Phase.PLANNING, RocketMission.Phase.LIFTOFF, RocketMission.Phase.BRAKE)) {
+                if (active.phase in
+                    listOf(RocketMission.Phase.PLANNING, RocketMission.Phase.LIFTOFF, RocketMission.Phase.BRAKE, RocketMission.Phase.RETURN)
+                ) {
                     java.util.concurrent.locks.LockSupport
-                        .parkNanos(1_000_000L)
+                        .parkNanos(if (active.waitingForReturnPlan) 50_000_000L else 1_000_000L)
                 }
             }
             helper.runAfterDelay(1) { run() }

@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Replace the consumer rocket's fixed return trigger with a forecast burn-window search that includes
+  RCS turn lead and compares continuous candidate manoeuvres by required delta-v. Reject crossing past
+  the pad along the orbital approach axis; retain real Propulsion force application and native landing checks.
+
 - Add navball pitch/heading grid, numeric pitch labels and bank graduations. Continue live ballistic
   forecasts across the dimension handoff to the reference-body intersection or forecast limit; keep
   trajectory prediction independent of autopilot commands and future thrust.
