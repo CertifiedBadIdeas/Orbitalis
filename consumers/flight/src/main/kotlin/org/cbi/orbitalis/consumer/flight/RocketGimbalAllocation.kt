@@ -37,6 +37,7 @@ internal object RocketGimbalAllocation {
     data class Engine(
         val arm: Vector3,
         val capacity: Double,
+        val direction: Vector3? = null,
     )
 
     data class Input(
@@ -66,9 +67,16 @@ internal object RocketGimbalAllocation {
             f: Vector3,
             t: Vector3,
         ) = doubleArrayOf(f.x, f.y, f.z, t.x / lever, t.y / lever, t.z / lever)
+        val engineDirections = engines.map { engine -> engine.direction?.let { listOf(it.normalized()) } ?: directions }
+        val offsets = mutableListOf<Int>()
+        var offset = 0
+        for (list in engineDirections) {
+            offsets.add(offset)
+            offset += list.size
+        }
         val columns =
-            engines.flatMap { engine ->
-                directions.map { direction ->
+            engines.flatMapIndexed { index, engine ->
+                engineDirections[index].map { direction ->
                     val f = direction * (engine.capacity / scale)
                     row(f, engine.arm.cross(f))
                 }
@@ -87,7 +95,7 @@ internal object RocketGimbalAllocation {
                 }
             // Each engine shares one throttle budget across its cone rays. Treating the rays as
             // independent engines would invent force beyond native maximum thrust.
-            for (engine in engines.indices) projectBudget(next, engine * directions.size, directions.size)
+            for (engine in engines.indices) projectBudget(next, offsets[engine], engineDirections[engine].size)
             val nextMomentum = (1.0 + sqrt(1.0 + 4.0 * momentum * momentum)) * 0.5
             extrapolated = DoubleArray(weights.size) { i -> next[i] + (momentum - 1.0) / nextMomentum * (next[i] - weights[i]) }
             weights = next
@@ -96,11 +104,11 @@ internal object RocketGimbalAllocation {
         val inputs =
             engines.mapIndexed { i, engine ->
                 var f = Vector3.ZERO
-                for (j in directions.indices) f += directions[j] * (weights[i * directions.size + j] * engine.capacity)
+                for (j in engineDirections[i].indices) f += engineDirections[i][j] * (weights[offsets[i] + j] * engine.capacity)
                 val throttle = (f.length() / engine.capacity).coerceIn(0.0, 1.0)
                 // Native UP-facing engine: right=-X and up=-Z in its exhaust basis; force opposes exhaust.
-                val x = if (f.y > 1e-10) (f.x / (f.y * TANGENT)).coerceIn(-1.0, 1.0) else 0.0
-                val y = if (f.y > 1e-10) (f.z / (f.y * TANGENT)).coerceIn(-1.0, 1.0) else 0.0
+                val x = if (engine.direction == null && f.y > 1e-10) (f.x / (f.y * TANGENT)).coerceIn(-1.0, 1.0) else 0.0
+                val y = if (engine.direction == null && f.y > 1e-10) (f.z / (f.y * TANGENT)).coerceIn(-1.0, 1.0) else 0.0
                 Input(throttle, x, y, f)
             }
         var actualForce = Vector3.ZERO

@@ -22,6 +22,7 @@ import com.simibubi.create.foundation.blockEntity.behaviour.scrollValue.ScrollVa
 import dev.propulsionteam.propulsionsimulated.PropulsionConfig
 import dev.propulsionteam.propulsionsimulated.content.thruster.AbstractThrusterBlockEntity
 import dev.propulsionteam.propulsionsimulated.content.thruster.ThrusterForceProvider
+import dev.propulsionteam.propulsionsimulated.content.thruster.thruster.creative_thruster.CreativeThrusterBlockEntity
 import dev.propulsionteam.propulsionsimulated.content.thruster.thruster.creative_thruster.CreativeThrusterPowerScrollValueBehaviour
 import dev.propulsionteam.propulsionsimulated.content.thruster.vector_thruster.creative_vector_thruster.CreativeVectorThrusterBlockEntity
 import dev.ryanhcode.sable.sublevel.ServerSubLevel
@@ -41,14 +42,19 @@ internal class RocketDrive(
     requireUpright: Boolean = false,
 ) : AutoCloseable {
     private class Engine(
-        val block: CreativeVectorThrusterBlockEntity,
+        val block: AbstractThrusterBlockEntity,
     ) {
+        val main = block is CreativeVectorThrusterBlockEntity
         var capacity =
-            (
-                checkNotNull(
-                    block.getBehaviour(ScrollValueBehaviour.TYPE),
-                ) as CreativeThrusterPowerScrollValueBehaviour
-            ).targetThrust.toDouble()
+            if (block is CreativeThrusterBlockEntity) {
+                block.targetThrustNewtons.toDouble()
+            } else {
+                (
+                    checkNotNull(
+                        block.getBehaviour(ScrollValueBehaviour.TYPE),
+                    ) as CreativeThrusterPowerScrollValueBehaviour
+                ).targetThrust.toDouble()
+            }
     }
 
     private val engines = mutableListOf<Engine>()
@@ -63,30 +69,43 @@ internal class RocketDrive(
         for (holder in body.plot.loadedChunks) {
             for (block in holder.chunk.blockEntities.values) {
                 if (block !is AbstractThrusterBlockEntity) continue
-                require(block is CreativeVectorThrusterBlockEntity && block.facing == Direction.UP && block.isController) {
+                require(
+                    block.isController && (
+                        (block is CreativeVectorThrusterBlockEntity && block.facing == Direction.UP) ||
+                            (block is CreativeThrusterBlockEntity && block.facing.axis != Direction.Axis.Y)
+                    ),
+                ) {
                     "Rocket requires independent UP-facing creative vector engines underneath the hull"
                 }
-                require(block.power == 0.0f && block.targetVectorX == 0.0f && block.targetVectorY == 0.0f) {
+                require(
+                    block.power == 0.0f && (
+                        block !is CreativeVectorThrusterBlockEntity ||
+                            (block.targetVectorX == 0.0f && block.targetVectorY == 0.0f)
+                    ),
+                ) {
                     "Turn off all manual throttle and steering inputs before rocket control"
                 }
                 require(
                     block.saveWithFullMetadata(body.level.registryAccess()).getInt("ControlMode") ==
-                        AbstractThrusterBlockEntity.ControlMode.NORMAL.ordinal && !block.hasPeripheralThrustOverride(),
+                        AbstractThrusterBlockEntity.ControlMode.NORMAL.ordinal &&
+                        (block !is CreativeVectorThrusterBlockEntity || !block.hasPeripheralThrustOverride()),
                 ) {
                     "A rocket engine already has a peripheral owner"
                 }
-                require(block is RocketSteering) { "Consumer vector-steering adapter is not installed" }
+                require(
+                    block !is CreativeVectorThrusterBlockEntity || block is RocketSteering,
+                ) { "Consumer vector-steering adapter is not installed" }
                 engines.add(Engine(block))
             }
         }
         engines.sortBy { it.block.blockPos.asLong() }
-        require(engines.size in 4..16 && engines.all { it.capacity.isFinite() && it.capacity > 0.0 }) {
+        require(engines.size <= 16 && engines.count { it.main } in 4..16 && engines.all { it.capacity.isFinite() && it.capacity > 0.0 }) {
             "Rocket requires 4..16 configured creative vector engines"
         }
-        require(layout().all { it.arm.y < -2.0 }) { "Install vector engines below the centre of mass" }
+        require(layout(engines.filter { it.main }).all { it.arm.y < -2.0 }) { "Install vector engines below the centre of mass" }
         val up = body.logicalPose().orientation().transform(Vector3d(0.0, 1.0, 0.0))
         require(!requireUpright || up.y > 0.98) { "Start rocket control with an upright hull" }
-        require(engines.sumOf { it.capacity } / body.massTracker.mass >= 25.0) {
+        require(maximumAcceleration >= 25.0) {
             "Rocket needs at least 25 m/s² of configured native thrust authority; mass=${body.massTracker.mass}, capacity=${engines.sumOf {
                 it.capacity
             }}"
@@ -98,33 +117,43 @@ internal class RocketDrive(
         }
     }
 
-    private fun layout(): List<RocketGimbalAllocation.Engine> =
-        engines.map { engine ->
+    val maximumAcceleration: Double get() = engines.filter { it.main }.sumOf { it.capacity } / body.massTracker.mass
+
+    private fun layout(selected: List<Engine>): List<RocketGimbalAllocation.Engine> =
+        selected.map { engine ->
             val sample = ThrusterForceProvider.createSample(engine.block, 1.0)
             RocketGimbalAllocation.Engine(
                 AutopilotSession.vector(Vector3d(sample.pointLocal()).sub(body.massTracker.centerOfMass)),
                 engine.capacity,
+                if (engine.main) null else AutopilotSession.vector(engine.block.thrustDirectionLocal),
             )
         }
 
-    fun update(netAcceleration: Vector3) {
+    fun update(
+        netAcceleration: Vector3,
+        desiredNose: Vector3? = null,
+    ) {
         val gravity = SableFlightGravity.acceleration(body.level, AutopilotSession.position(body))
         val thrust = netAcceleration - gravity
-        if (thrust.length() >= 0.3) nose = thrust.normalized()
+        if (desiredNose != null) {
+            nose = desiredNose.normalized()
+        } else if (thrust.length() >= 0.3) {
+            nose = thrust.normalized()
+        }
         apply(thrust, nose)
     }
 
-    /** A gimbal cannot turn an unpowered ship: the turn has a real, measured translation cost. */
+    /** Balanced native RCS couples turn the hull while all main-engine throttles stay zero. */
     fun turn(direction: Vector3) {
-        require(direction.length() > 1e-8)
+        require(direction.length() > 1e-8 && engines.any { !it.main }) { "Rocket has no RCS authority" }
         nose = direction.normalized()
-        val current = body.logicalPose().orientation().transform(Vector3d(0.0, 1.0, 0.0))
-        apply(AutopilotSession.vector(current) * 1.5, nose)
+        apply(Vector3.ZERO, nose, true)
     }
 
     private fun apply(
         thrust: Vector3,
         direction: Vector3,
+        orientationOnly: Boolean = false,
     ) {
         require(!closed && !body.isRemoved) { "Rocket/controller unavailable" }
         val physics = SubLevelPhysicsSystem.require(body.level)
@@ -159,12 +188,14 @@ internal class RocketDrive(
         val torque = inertia.transform(Vector3d(angular.x, angular.y, angular.z), Vector3d())
         torque.add(Vector3d(omega).cross(inertia.transform(omega, Vector3d())))
         val localForce = pose.orientation().transformInverse(Vector3d(thrust.x, thrust.y, thrust.z).mul(body.massTracker.mass))
-        val result = RocketGimbalAllocation.solve(layout(), AutopilotSession.vector(localForce), AutopilotSession.vector(torque))
+        val selected = if (orientationOnly) engines.filter { !it.main } else engines
+        val result = RocketGimbalAllocation.solve(layout(selected), AutopilotSession.vector(localForce), AutopilotSession.vector(torque))
         allocation = result
         ticks++
-        engines.forEachIndexed { i, engine ->
+        if (orientationOnly) engines.filter { it.main }.forEach { it.block.setDigitalInput(0.0f) }
+        selected.forEachIndexed { i, engine ->
             val input = result.inputs[i]
-            (engine.block as RocketSteering).setRocketVector(input.vectorX.toFloat(), input.vectorY.toFloat())
+            if (engine.main) (engine.block as RocketSteering).setRocketVector(input.vectorX.toFloat(), input.vectorY.toFloat())
             engine.block.setDigitalInput(input.throttle.toFloat())
             if (ticks % 5 == 0) engine.block.notifyUpdate()
         }
@@ -188,7 +219,7 @@ internal class RocketDrive(
             val block = engine.block
             if (block.isRemoved) continue
             block.setDigitalInput(0.0f)
-            (block as RocketSteering).clearRocketVector()
+            if (engine.main) (block as RocketSteering).clearRocketVector()
             block.setControlMode(AbstractThrusterBlockEntity.ControlMode.NORMAL)
             block.dirtyThrust()
             block.notifyUpdate()

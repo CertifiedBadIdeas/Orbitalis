@@ -228,7 +228,7 @@ tasks.matching { it.name == "runGameTestServer" }.configureEach {
         val document = factory.newDocumentBuilder().parse(report)
         val cases = document.getElementsByTagName("testcase")
         val names = (0 until cases.length).map { (cases.item(it) as org.w3c.dom.Element).getAttribute("name") }.toSet()
-        val required = if (consumerGameTestSuite == "rocket") setOf("nativerocketassemblysteeringandhold") else if (consumerGameTestSuite == "flat") setOf("overworldlaunchfreeorbitandreturn", "launchbookmarkroundtripandvalidation") else setOf("nativerocketassemblysteeringandhold", "overworldlaunchfreeorbitandreturn", "nativeoverworldassembly", "shuttleassemblyandhold", "shuttlegravityprofile", "flighttoolsavailablebydefault", "nativepropulsionholdandcutoff", "preflightrejectsunsafeengines", "rejectsmissingliftauthority", "launchbookmarkroundtripandvalidation")
+        val required = if (consumerGameTestSuite == "rocket") setOf("nativerocketassemblysteeringandhold", "nativerocketrcsflip") else if (consumerGameTestSuite == "flat") setOf("overworldlaunchfreeorbitandreturn", "launchbookmarkroundtripandvalidation") else setOf("nativerocketassemblysteeringandhold", "nativerocketrcsflip", "overworldlaunchfreeorbitandreturn", "nativeoverworldassembly", "shuttleassemblyandhold", "shuttlegravityprofile", "flighttoolsavailablebydefault", "nativepropulsionholdandcutoff", "preflightrejectsunsafeengines", "rejectsmissingliftauthority", "launchbookmarkroundtripandvalidation")
         check(names == required) {
             "Missing native propulsion scenarios: $names"
         }

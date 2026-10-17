@@ -43,6 +43,19 @@ setblock ~1 ~3 ~-1 createpropulsion:creative_vector_thruster[facing=up]{ScrollVa
 setblock ~1 ~10 ~-1 minecraft:chest[facing=north,type=single]{Items:[{Slot:0b,id:"minecraft:cobblestone",count:16}]}
 setblock ~1 ~3 ~1 createpropulsion:creative_vector_thruster[facing=up]{ScrollValue:49}
 setblock ~1 ~10 ~1 minecraft:chest[facing=north,type=single]{Items:[{Slot:0b,id:"minecraft:cobblestone",count:16}]}
+# Native RCS pods: opposed couples provide pitch, yaw and roll with main engines off.
+setblock ~0 ~6 ~-3 createpropulsion:creative_thruster[facing=south]{ScrollValue:2}
+setblock ~0 ~6 ~3 createpropulsion:creative_thruster[facing=north]{ScrollValue:2}
+setblock ~-3 ~6 ~0 createpropulsion:creative_thruster[facing=east]{ScrollValue:2}
+setblock ~3 ~6 ~0 createpropulsion:creative_thruster[facing=west]{ScrollValue:2}
+setblock ~0 ~12 ~-3 createpropulsion:creative_thruster[facing=south]{ScrollValue:2}
+setblock ~0 ~12 ~3 createpropulsion:creative_thruster[facing=north]{ScrollValue:2}
+setblock ~-3 ~12 ~0 createpropulsion:creative_thruster[facing=east]{ScrollValue:2}
+setblock ~3 ~12 ~0 createpropulsion:creative_thruster[facing=west]{ScrollValue:2}
+setblock ~3 ~10 ~1 createpropulsion:creative_thruster[facing=north]{ScrollValue:2}
+setblock ~-3 ~10 ~-1 createpropulsion:creative_thruster[facing=south]{ScrollValue:2}
+setblock ~3 ~10 ~-1 createpropulsion:creative_thruster[facing=south]{ScrollValue:2}
+setblock ~-3 ~10 ~1 createpropulsion:creative_thruster[facing=north]{ScrollValue:2}
 setblock ~0 ~10 ~0 simulated:physics_assembler[face=floor,facing=north]
 setblock ~0 ~11 ~0 minecraft:lever[face=floor,facing=north,powered=false]
 summon create:super_glue ~0.5 ~0 ~0.5 {From:[-3.5d,0d,-3.5d],To:[3.5d,16d,3.5d]}

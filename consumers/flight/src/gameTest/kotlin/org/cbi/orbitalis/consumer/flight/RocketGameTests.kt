@@ -38,6 +38,8 @@ import net.minecraft.world.phys.Vec3
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
 import org.cbi.orbitalis.core.planet.CartesianState
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
+import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
 import org.joml.Vector3d
 import java.util.UUID
 import kotlin.math.abs
@@ -199,6 +201,117 @@ object RocketGameTests {
                         helper.assertTrue(engine.currentThrust == 0.0f, "Unpowered steering created thrust")
                     }
                     beginHold()
+                }
+            }
+        }
+        helper.runAfterDelay(1) { Sequence().prepare() }
+    }
+
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 5000, batch = "rocket_rcs")
+    fun nativeRocketRcsFlip(helper: GameTestHelper) {
+        val level = checkNotNull(helper.level.server.getLevel(FlatPlanetSpace.SPACE))
+        val origin = BlockPos(200, 160, 200)
+        val container = checkNotNull(SubLevelContainer.getContainer(level))
+        val previous = container.allSubLevels.map { it.uniqueId }.toSet()
+        val forced = mutableListOf<Long>()
+        var body: ServerSubLevel? = null
+        var drive: RocketDrive? = null
+        for (x in (origin.x - 6 shr 4)..(origin.x + 6 shr 4)) {
+            for (z in (origin.z - 6 shr 4)..(origin.z + 6 shr 4)) {
+                val key = ChunkPos.asLong(x, z)
+                if (!level.forcedChunks.contains(key)) {
+                    level.setChunkForced(x, z, true)
+                    forced.add(key)
+                }
+                level.getChunk(x, z)
+            }
+        }
+        onFinished(helper) {
+            drive?.close()
+            body?.let {
+                container.removeForceLoadTicket(it, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
+                if (!it.isRemoved) container.removeSubLevel(it, SubLevelRemovalReason.REMOVED)
+            }
+            for (key in forced) level.setChunkForced(ChunkPos.getX(key), ChunkPos.getZ(key), false)
+        }
+
+        class Sequence {
+            var attempts = 0
+            var tick = 0
+            var expectedVelocity = Vector3.ZERO
+
+            fun prepare() {
+                level.resetEmptyTime()
+                helper.assertTrue(++attempts < 4000, "RCS test entity chunks did not load")
+                if (!level.isPositionEntityTicking(origin) || forced.any { !level.areEntitiesLoaded(it) }) {
+                    java.util.concurrent.locks.LockSupport
+                        .parkNanos(5_000_000L)
+                    helper.runAfterDelay(1) { prepare() }
+                    return
+                }
+                val source =
+                    level.server
+                        .createCommandSourceStack()
+                        .withLevel(
+                            level,
+                        ).withPosition(Vec3.atLowerCornerOf(origin))
+                        .withSuppressedOutput()
+                val bounds = AABB(Vec3.atLowerCornerOf(origin.offset(-6, 0, -6)), Vec3.atLowerCornerOf(origin.offset(7, 17, 7)))
+                level.getEntitiesOfClass(SuperGlueEntity::class.java, bounds).forEach { it.discard() }
+                level.server.commands.performPrefixedCommand(source, "fill ~-6 ~ ~-6 ~6 ~16 ~6 minecraft:air")
+                level.server.commands.performPrefixedCommand(source, "function orbitalis_flight_test:rocket")
+                (level.getBlockEntity(origin.offset(0, 10, 0)) as PhysicsAssemblerBlockEntity).assembleOrDisassemble()
+                val created = container.allSubLevels.filter { it.uniqueId !in previous }
+                helper.assertTrue(created.size == 1, "RCS rocket split during assembly")
+                body = created.single() as ServerSubLevel
+                container.addForceLoadTicket(body!!, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
+                helper.runAfterDelay(10) {
+                    drive = RocketDrive(body!!, true)
+                    expectedVelocity =
+                        AutopilotSession.vector(SubLevelPhysicsSystem.require(level).getPhysicsHandle(body!!).getLinearVelocity(Vector3d()))
+                    run()
+                }
+            }
+
+            fun run() {
+                level.resetEmptyTime()
+                val rocket = body!!
+                val handle = SubLevelPhysicsSystem.require(level).getPhysicsHandle(rocket)
+                drive!!.turn(Vector3(0.0, -1.0, 0.0))
+                val main =
+                    rocket.plot.loadedChunks
+                        .flatMap { it.chunk.blockEntities.values }
+                        .filterIsInstance<CreativeVectorThrusterBlockEntity>()
+                helper.assertTrue(
+                    main.size == 4 && main.all { it.power == 0.0f && it.currentThrust == 0.0f },
+                    "Main engines fired during RCS flip",
+                )
+                expectedVelocity += SableFlightGravity.acceleration(level, AutopilotSession.position(rocket)) * 0.05
+                if (++tick % 100 ==
+                    0
+                ) {
+                    println(
+                        "ORBITALIS_ROCKET_FLIP tick=$tick alignment=${drive!!.alignment(
+                            Vector3(0.0,-1.0,0.0),
+                        )} omega=${handle.getAngularVelocity(Vector3d())}",
+                    )
+                }
+                if (tick < 400) {
+                    helper.runAfterDelay(1) { run() }
+                    return
+                }
+                helper.assertTrue(drive!!.alignment(Vector3(0.0, -1.0, 0.0)) > 0.999, "RCS did not complete the 180-degree flip")
+                helper.assertTrue(handle.getAngularVelocity(Vector3d()).length() < 0.02, "RCS did not settle rotation")
+                val velocity = AutopilotSession.vector(handle.getLinearVelocity(Vector3d()))
+                helper.assertTrue(
+                    (velocity - expectedVelocity).length() < 0.5,
+                    "RCS introduced excessive translation: $velocity vs $expectedVelocity",
+                )
+                drive!!.close()
+                helper.runAfterDelay(30) {
+                    helper.assertTrue(AutopilotSession.enginesFaded(rocket), "RCS remained powered after stop")
+                    helper.succeed()
                 }
             }
         }

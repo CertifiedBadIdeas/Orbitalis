@@ -61,6 +61,28 @@ class RocketGimbalAllocationTest {
         assertTrue(result.inputs.sumOf { it.force.length() } <= 400.00001)
     }
 
+    @Test fun fixedRcsCouplesProduceAttitudeTorqueWithoutMainThrust() {
+        val pods =
+            listOf(
+                Pair(Vector3(0.0, 4.0, -3.0), Vector3(0.0, 0.0, 1.0)),
+                Pair(Vector3(0.0, -2.0, 3.0), Vector3(0.0, 0.0, -1.0)),
+                Pair(Vector3(0.0, 4.0, 3.0), Vector3(0.0, 0.0, -1.0)),
+                Pair(Vector3(0.0, -2.0, -3.0), Vector3(0.0, 0.0, 1.0)),
+                Pair(Vector3(-3.0, 4.0, 0.0), Vector3(1.0, 0.0, 0.0)),
+                Pair(Vector3(3.0, -2.0, 0.0), Vector3(-1.0, 0.0, 0.0)),
+                Pair(Vector3(3.0, 4.0, 0.0), Vector3(-1.0, 0.0, 0.0)),
+                Pair(Vector3(-3.0, -2.0, 0.0), Vector3(1.0, 0.0, 0.0)),
+                Pair(Vector3(3.0, 2.0, 1.0), Vector3(0.0, 0.0, -1.0)),
+                Pair(Vector3(-3.0, 2.0, -1.0), Vector3(0.0, 0.0, 1.0)),
+                Pair(Vector3(3.0, 2.0, -1.0), Vector3(0.0, 0.0, 1.0)),
+                Pair(Vector3(-3.0, 2.0, 1.0), Vector3(0.0, 0.0, -1.0)),
+            ).map { (arm, direction) -> RocketGimbalAllocation.Engine(arm, 20.0, direction) }
+        val result = RocketGimbalAllocation.solve(pods, Vector3.ZERO, Vector3(10.0, 15.0, -10.0))
+        assertTrue(result.forceResidual.length() < 0.02)
+        assertTrue(result.torqueResidual.length() < 0.05)
+        assertTrue(result.inputs.all { it.throttle in 0.0..1.0 })
+    }
+
     private fun checkLimits(result: RocketGimbalAllocation.Result) {
         for (input in result.inputs) {
             assertTrue(input.throttle in 0.0..1.0 && input.vectorX in -1.0..1.0 && input.vectorY in -1.0..1.0)

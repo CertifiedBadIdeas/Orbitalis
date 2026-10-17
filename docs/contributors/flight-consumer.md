@@ -272,5 +272,7 @@ The consumer-only steering override preserves native redstone signals and native
 clears on load/stop, and never changes the body's pose or motion directly. A constrained allocator shares
 one physical thrust budget across each engine's steering cone. The focused `rocket` GameTest suite
 checks native assembly, the vector basis/interpolation, powered recovery/hold after an initial
-perturbation, cargo and engine cutoff. Rocket orbital guidance is under development; the existing
+perturbation, cargo and engine cutoff. Twelve small native RCS thrusters supply orientation couples;
+  a separate scenario verifies a 180-degree flip with the main engines off and negligible translation.
+  Pure reference-planning tests cover continuous horizontal acceleration from centre and off-axis pads. Rocket orbital guidance is under development; the existing
 orbital mission still requires the shuttle's engine layout.
