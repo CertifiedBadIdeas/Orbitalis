@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Accept identical prepared client mod contents across IDE and managed Loom caches even when ZIP
+  timestamps, entry order or generated access-rule order differ; continue preserving files whose
+  actual contents differ.
+
 - Keep native RCS prograde control active while reconnecting the consumer's return autopilot and
   calculating its background reference orbit, including in sparse orbital worlds.
 

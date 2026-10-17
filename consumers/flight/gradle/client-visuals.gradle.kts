@@ -139,6 +139,28 @@ verifyClientVisualMods.configure {
         }
     }
 }
+// Separate IDE/managed Loom caches can emit identical entries with different ZIP metadata.
+// Apply this only to prepared native mods; original release JARs retain exact-byte verification.
+fun samePreparedClientMod(first: File, second: File): Boolean = ZipFile(first).use { left ->
+    ZipFile(second).use { right ->
+        val leftEntries = left.entries().asSequence().toList()
+        val rightEntries = right.entries().asSequence().toList()
+        val names = leftEntries.map { it.name }
+        names.size == names.toSet().size && rightEntries.size == names.size &&
+            rightEntries.map { it.name }.toSet() == names.toSet() &&
+            leftEntries.all { entry ->
+                val other = right.getEntry(entry.name)
+                val leftBytes = left.getInputStream(entry).use { it.readBytes() }
+                val rightBytes = right.getInputStream(other).use { it.readBytes() }
+                entry.isDirectory == other.isDirectory &&
+                    (leftBytes.contentEquals(rightBytes) ||
+                        // Loom emits converted access rules in nondeterministic map iteration order.
+                        (entry.name == "META-INF/accesstransformer.cfg" &&
+                            leftBytes.toString(Charsets.UTF_8).lines().sorted() ==
+                            rightBytes.toString(Charsets.UTF_8).lines().sorted()))
+            }
+    }
+}
 val prepareFlightClientMods = tasks.register("prepareFlightClientMods") {
     group = "application"
     description = "Install the Voxy client stack, with native dependencies prepared for the Loom namespace."
@@ -157,7 +179,9 @@ val prepareFlightClientMods = tasks.register("prepareFlightClientMods") {
         } + nativeMappedMods.get().files.map { it to "orbitalis-client-dev-${it.name}" }
         sources.forEach { (source, name) ->
             val destination = layout.projectDirectory.file("run/client/mods/$name").asFile
-            check(!destination.exists() || (destination.isFile && clientVisualHash(destination) == clientVisualHash(source))) {
+            check(!destination.exists() || (destination.isFile &&
+                (clientVisualHash(destination) == clientVisualHash(source) ||
+                    (name.startsWith("orbitalis-client-dev-") && samePreparedClientMod(destination, source))))) {
                 "Preserving unexpected existing client mod: $destination"
             }
         }

@@ -71,7 +71,10 @@ No Maven Local publication or manually copied Orbitalis archive is needed after 
 checks their SHA-512 digests and installs the prepared runtime only in `run/client/mods`. Native
 NeoForge dependencies and their nested modules are prepared through Loom in an isolated `clientVisual`
 source set; Voxy, Roxy and Connector remain original JARs for loader discovery. Generated IDE launches need
-that preparation task once before launch. A different existing file with a managed name is preserved
+that preparation task once before launch. Prepared native JARs are compared by entry names and
+contents, ignoring ZIP timestamps, compression and entry order that may differ between IDE and managed Loom caches. Converted access-transformer
+rules may also appear in a different order; the complete rule list must match. Original release JARs still
+require identical bytes. A different existing file with a managed name is preserved
 and reported instead of overwritten. Server and GameTest run directories/classpaths do not receive
 these mods, and they are never packaged in Orbitalis.
 
