@@ -243,8 +243,9 @@ on deck. Let the ship settle before running:
 /orbitalis flight autopilot status
 ```
 
-`orbit` records this pilot's launch COM, ship UUID and attitude, climbs to a physical Y=1000 handoff,
-waits for engine fade and transfers through the existing journal/client-readiness barrier to
+`orbit` records this pilot's launch COM, ship UUID and attitude, climbs through a physical Y=1000
+handoff plane without braking for it, waits for engine fade while coasting and transfers through
+the existing journal/client-readiness barrier to
 `orbitalis:space_test`. It climbs above the launch X/Z toward a planet-centred radius of 18000 m,
 begins insertion within 100 m at less than 10 m/s, accelerates east along the launch orbital plane
 and cuts engine inputs after insertion settles. `COAST` means
@@ -297,8 +298,15 @@ saving expensive. This fixed-origin stand does not establish the eventual space 
 finite terrain topology or seamless rendering. At local Y around 44000 the pinned native integrator
 can report small velocity while the Y pose remains quantized; the climb therefore transitions into
 insertion while moving rather than demanding a precise high-altitude hover. After orbital braking,
-the descent starts within 10 m of the launch radial at less than 2 m/s. The return handoff
-accepts a 5 m corridor at less than 2 m/s and preserves the measured motion.
+the descent starts within 10 m of the launch radial at less than 2 m/s. During ascent the controller
+aims at the orbital crown; during descent it aims at the landing site. Crossing physical Y=1000
+starts handoff without a boundary-specific speed target. Native engine fade still completes before
+the snapshot; the journal preserves that measured inertial velocity during its paused readiness barrier.
+The mission resumes its next leg after native tracking/connectivity readiness, without another command.
+Landing guidance still slows for touchdown. Within 0.5 m of the launch COM at low speed, it cuts
+thrust and requires the existing 60-tick native terrain-support check instead of trying to correct
+sub-block offsets against contact friction forever. The native mission test requires both handoffs above 20 m/s,
+the same velocity direction and bounded gravity-only change while the controller resumes.
 
 ## Gravity trials
 

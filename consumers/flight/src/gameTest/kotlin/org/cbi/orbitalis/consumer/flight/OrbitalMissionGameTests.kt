@@ -93,6 +93,8 @@ object OrbitalMissionGameTests {
             var firstCoastEnergy = 0.0
             var previousCoastAngle = 0.0
             var coastAngle = 0.0
+            var transferVelocity: Vector3d? = null
+            var movingHandoffs = 0
             val phases = mutableSetOf<OrbitalMission.Phase>()
 
             override fun close() {
@@ -159,7 +161,38 @@ object OrbitalMissionGameTests {
                 }
                 val active = mission
                 if (active != null) {
+                    val previousPhase = active.phase
                     val landed = active.tick(pilot.player)
+                    if (active.phase != previousPhase && active.phase == OrbitalMission.Phase.FADE) {
+                        val velocity =
+                            SubLevelPhysicsSystem
+                                .require(
+                                    active.body.level,
+                                ).getPhysicsHandle(active.body)
+                                .getLinearVelocity(Vector3d())
+                        val sign = if (previousPhase == OrbitalMission.Phase.ASCENT) 1 else -1
+                        helper.assertTrue(velocity.y * sign > 20, "Mission braked at the transfer boundary: $velocity")
+                    }
+                    if (active.phase != previousPhase && active.phase == OrbitalMission.Phase.TRANSFER) {
+                        transferVelocity =
+                            SubLevelPhysicsSystem.require(active.body.level).getPhysicsHandle(active.body).getLinearVelocity(Vector3d())
+                        helper.assertTrue(checkNotNull(transferVelocity).length() > 20, "Ship stopped before the transfer snapshot")
+                    }
+                    if (previousPhase == OrbitalMission.Phase.TRANSFER && active.phase != previousPhase) {
+                        val velocity =
+                            SubLevelPhysicsSystem
+                                .require(
+                                    active.body.level,
+                                ).getPhysicsHandle(active.body)
+                                .getLinearVelocity(Vector3d())
+                        val before = checkNotNull(transferVelocity)
+                        // The service restores exact snapshot motion; resumed gravity acts during controller warmup.
+                        helper.assertTrue(velocity.distance(before) < 6, "Handoff lost inertial velocity: $before -> $velocity")
+                        helper.assertTrue(velocity.y * before.y > 0 && velocity.length() > 20, "Handoff reversed or stopped the ship")
+                        println("ORBITALIS_MOVING_HANDOFF before=$before after=$velocity")
+                        transferVelocity = null
+                        movingHandoffs++
+                    }
                     if (phases.add(active.phase)) println("ORBITALIS_MISSION tick=$tick ${active.status()}")
                     if (tick % 1000 == 0) println("ORBITALIS_MISSION tick=$tick ${active.status()}")
                     if (active.phase == OrbitalMission.Phase.COAST && !askedToLand && AutopilotSession.enginesFaded(active.body)) {
@@ -194,6 +227,7 @@ object OrbitalMissionGameTests {
                         }
                     }
                     if (landed) {
+                        helper.assertTrue(movingHandoffs == 2, "Mission did not complete both moving handoffs")
                         helper.assertTrue(
                             phases.containsAll(
                                 listOf(

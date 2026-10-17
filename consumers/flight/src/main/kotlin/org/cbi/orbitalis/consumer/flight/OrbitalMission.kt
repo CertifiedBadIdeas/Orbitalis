@@ -97,8 +97,6 @@ internal class OrbitalMission(
 
     private fun state() = CartesianState(position(), velocity())
 
-    private fun handoff() = Vector3(site.position.x, HANDOFF_Y, site.position.z)
-
     private fun enter(next: Phase) {
         phase = next
         phaseTicks = 0
@@ -173,8 +171,9 @@ internal class OrbitalMission(
         require(state.velocity.length() < 220) { "Mission speed exceeded 220 m/s" }
         when (phase) {
             Phase.ASCENT -> {
-                drive(OrbitalGuidance.point(state, handoff(), 60.0))
-                if (reached(handoff(), 0.5)) prepareTransfer(Phase.CLIMB)
+                // The handoff is a crossed plane, not a waypoint to settle at.
+                drive(OrbitalGuidance.point(state, crown, 80.0))
+                if (state.position.y >= HANDOFF_Y) prepareTransfer(Phase.CLIMB)
             }
 
             Phase.FADE -> {
@@ -228,9 +227,9 @@ internal class OrbitalMission(
             }
 
             Phase.DESCENT -> {
-                drive(OrbitalGuidance.point(state, handoff(), 80.0))
-                // The journal preserves motion; only a safe bounded handoff is needed here.
-                if ((state.position - handoff()).length() < 5 && state.velocity.length() < 2) prepareTransfer(Phase.APPROACH)
+                // Brake for the actual landing site, never for the dimension boundary.
+                drive(OrbitalGuidance.point(state, site.position, 80.0))
+                if (state.position.y <= HANDOFF_Y) prepareTransfer(Phase.APPROACH)
             }
 
             Phase.APPROACH -> {
@@ -250,7 +249,9 @@ internal class OrbitalMission(
                         },
                     ),
                 )
-                if (reached(site.position, 0.2)) {
+                // Native support/friction can settle a fraction of a block from the launch COM.
+                // Touchdown must still settle with engines off; do not hover forever at a strict 0.2 m threshold.
+                if (reached(site.position, 0.5)) {
                     cut()
                     enter(Phase.TOUCHDOWN)
                 }

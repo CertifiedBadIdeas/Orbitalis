@@ -84,7 +84,15 @@ object ShuttleGameTests {
 
         fun ready(): Boolean {
             level.resetEmptyTime()
-            return launchChunks.all(level::areEntitiesLoaded) && level.isPositionEntityTicking(origin)
+            val ready = launchChunks.all(level::areEntitiesLoaded) && level.isPositionEntityTicking(origin)
+            // Test-only backoff: accelerated empty ticks can consume the whole test budget before
+            // native asynchronous entity I/O has wall-clock time to finish. Keep ticking the level;
+            // never manufacture readiness or sleep inside production flight control.
+            if (!ready) {
+                java.util.concurrent.locks.LockSupport
+                    .parkNanos(5_000_000L)
+            }
+            return ready
         }
 
         fun assemble(helper: GameTestHelper) {
@@ -182,7 +190,7 @@ object ShuttleGameTests {
     }
 
     @JvmStatic
-    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 1000, batch = "shuttle_hold")
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 5000, batch = "shuttle_hold")
     fun shuttleAssemblyAndHold(helper: GameTestHelper) {
         val shuttle = Shuttle(helper, checkNotNull(helper.level.server.getLevel(FlightTestSpace.SURFACE)))
         val physics = SubLevelPhysicsSystem.require(shuttle.level)
@@ -196,7 +204,8 @@ object ShuttleGameTests {
                 shuttle.level.resetEmptyTime()
                 tick++
                 if (assembledAt == 0) {
-                    helper.assertTrue(tick < 200, "Timed out waiting for native entity chunks")
+                    // Accelerated GameTest ticks can exhaust 200 ticks before cold chunk I/O completes.
+                    helper.assertTrue(tick < 4000, "Timed out waiting for native entity chunks")
                     if (shuttle.ready()) {
                         shuttle.assemble(helper)
                         assembledAt = tick
@@ -239,7 +248,7 @@ object ShuttleGameTests {
     }
 
     @JvmStatic
-    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 600, batch = "shuttle_gravity")
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 5000, batch = "shuttle_gravity")
     fun shuttleGravityProfile(helper: GameTestHelper) {
         val server = helper.level.server
         val surface = Shuttle(helper, checkNotNull(server.getLevel(FlightTestSpace.SURFACE)))
@@ -314,7 +323,7 @@ object ShuttleGameTests {
             var attempts = 0
 
             override fun run() {
-                helper.assertTrue(++attempts < 200, "Timed out waiting for native entity chunks")
+                helper.assertTrue(++attempts < 4000, "Timed out waiting for native entity chunks")
                 if (surface.ready() && orbit.ready()) {
                     surface.assemble(helper)
                     orbit.assemble(helper)
