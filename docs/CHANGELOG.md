@@ -20,6 +20,11 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Remove ship-transfer block-entity allowlists, including plot relocation. Use native serialization,
+  registry identity and exact staged reconstruction to validate vanilla and modded payloads.
+- Use the same passenger preflight for guidance and transfer, and resolve plot-owned seats as ship
+  contact for pilot commands, autopilot continuity and handoff readiness.
+
 - Add a consumer-only vector rocket fixture, transient native gimbal control, bounded thrust allocation
   and native assembly/hold/cutoff checks. Add balanced native RCS orientation with the main engines off
   and bounded direct-ascent reference planning for centre and off-axis pads. Add consumer rocket guidance for a direct ascent into a 900-metre finite-body orbit, full engine-off

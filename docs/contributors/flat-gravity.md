@@ -99,7 +99,7 @@ turn manual inputs off, disable creative flight and stand on board. Run:
 
 After insertion the status reports engines-off free flight. For return, including from a reloaded
 launch bookmark, run `/orbitalis flight autopilot land`. These guidance commands still require an unmounted
-creative pilot; ship transfer itself also supports survival and an optional seated pilot, within its bounded allowlist. The consumer owns guidance, not production Orbitalis.
+creative pilot; ship transfer itself also supports survival and an optional seated pilot, within its bounded native serialization and ownership checks. The consumer owns guidance, not production Orbitalis.
 Manual `/orbitalis flight transfer` selects the matching surface/space route but supplies no thrust.
 Automatic altitude handoff also runs independently of this mission for loaded supported ships and
 individual players, including survival. Guidance reserves its own ship so both controllers cannot

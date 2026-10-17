@@ -69,17 +69,23 @@ internal class InertPilot(
     }
 
     fun attach(body: ServerSubLevel) {
+        // A seated pilot is positioned by the real seat entity; do not synthesize deck contact.
+        if (player.vehicle != null) return
         (player as EntityMovementExtension).`sable$setTrackingSubLevel`(body)
         val p = AutopilotSession.position(body)
         player.setPos(p.x, p.y + 3, p.z)
     }
 
     fun acknowledge(body: ServerSubLevel) {
+        acknowledgeTeleport()
+        attach(body)
+    }
+
+    fun acknowledgeTeleport() {
         teleportId?.let { id ->
             teleportId = null
             player.connection.handleAcceptTeleportPacket(ServerboundAcceptTeleportationPacket(id))
         }
-        attach(body)
     }
 
     override fun close() {

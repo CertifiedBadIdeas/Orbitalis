@@ -18,7 +18,6 @@
 
 package org.cbi.orbitalis.consumer.flight
 
-import dev.ryanhcode.sable.Sable
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer
 import dev.ryanhcode.sable.sublevel.ServerSubLevel
 import dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem
@@ -33,8 +32,9 @@ import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
 import org.cbi.orbitalis.minecraft.flight.ShipDestinationPreload
 import org.cbi.orbitalis.minecraft.flight.SpaceTravelReservations
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
-import org.cbi.orbitalis.minecraft.integration.sable.SableShipSnapshot
+import org.cbi.orbitalis.minecraft.integration.sable.SableShipContact
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipTransfer
+import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferPassengers
 import org.joml.Vector3d
 import java.util.concurrent.CompletableFuture
 import kotlin.math.PI
@@ -98,7 +98,7 @@ internal class RocketMission(
         require(pilot.level() === body.level)
         if (!returningAtStart) {
             require(body.level.dimension() == Level.OVERWORLD) { "Launch from ordinary Overworld terrain" }
-            SableShipSnapshot.preflight(body, pilot)
+            ShipTransferPassengers.preflight(body, pilot)
             val top =
                 body.level.getHeight(
                     Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
@@ -173,14 +173,14 @@ internal class RocketMission(
             val level = checkNotNull(pilot.server.getLevel(target))
             val restored = checkNotNull(SubLevelContainer.getContainer(level)).getSubLevel(site.ship) as? ServerSubLevel
             require(restored != null && pilot.level() === level) { "Destination rocket/pilot missing" }
-            if (++ready < 5 || Sable.HELPER.getTrackingSubLevel(pilot) !== restored) return false
+            if (++ready < 5 || SableShipContact.resolve(pilot) !== restored) return false
             body = restored
             clock += ready * 0.05
             preload.close()
             enter(afterTransfer)
             return false
         }
-        require(!body.isRemoved && pilot.level() === body.level && Sable.HELPER.getTrackingSubLevel(pilot) === body) {
+        require(!body.isRemoved && pilot.level() === body.level && SableShipContact.resolve(pilot) === body) {
             "Stay inside the rocket with creative flight disabled"
         }
         require(!SubLevelPhysicsSystem.require(body.level).paused) { "Native physics paused outside handoff" }

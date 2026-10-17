@@ -72,16 +72,15 @@ Create Super Glue (`create:super_glue`) and Simulated Honey Glue (`simulated:hon
 supported metadata-entity exceptions: their NBT/UUID is captured and reconstructed
 in the selected destination plot coordinates. Preflight also recognizes this exception in Sable's world-space
 entity queries, which include projected plot entities. Glue outside the selected plot remains an obstruction.
-Native entity chunks must finish loading before cleanup. Supported block
-entities are vanilla chests/barrels/signs, Create Redstone Links, the pinned Propulsion creative thruster
-(`createpropulsion:creative_thruster_block_entity`, its block-entity registry ID rather than its block ID)
-and the pinned Simulated Physics Assembler. Other block entities, including fuel-powered engines,
-are rejected before preparation. A block-entity rejection lists every unsupported registry type on the
-ship, sorted by ID with a count per type, so one attempt reports the complete block-entity inventory
-requiring compatibility work. Other preflight conditions must pass before this inventory check runs.
-Native dependency chains are checked; arbitrary third-party constraints
-created outside Sable's reported actor connections are unsupported. Do not transfer them.
-The allowlist establishes a bounded experiment, not blanket compatibility with external mods.
+Native entity chunks must finish loading before cleanup. Block-entity types are not allowlisted:
+vanilla and modded blocks use native Sable/Minecraft serialization. Preflight checks registry identity;
+staging checks that every block entity is reconstructed at its recorded position with its complete
+saved payload. A real serialization or reconstruction failure cancels preparation while preserving
+the authoritative source. The pinned creative thruster's transient connectivity rebuild flag remains
+the existing narrow comparison exception; cargo and engine configuration must match.
+Native dependency chains are checked; arbitrary third-party constraints created outside Sable's
+reported actor connections remain unsupported. Native serialization does not establish the semantics
+of external mod networks, world references or unsaved state.
 
 ## Authority and persistence
 
@@ -161,8 +160,10 @@ entity `Pos`, plus the pinned redstone link's absolute `LastKnownPosition`. Phys
 orientation, exact velocities, ship/entity UUIDs and payloads
 remain unchanged apart from the existing world-frame height translation. Chunk keys are native
 plot-relative coordinates. Pinned Super Glue/Honey Glue `From`/`To` bounds and Propulsion controller
-offsets are relative, so they remain exact. This is a bounded adapter for the existing allowlist,
-not a generic recursive NBT coordinate rewrite or support for arbitrary mod block entities.
+offsets are relative, so they remain exact. Other saved fields are retained verbatim. Mod-specific
+absolute references beyond these native coordinates may require an integration adapter; there is no
+generic recursive rewrite of arbitrary NBT integers. Exact payload reconstruction detects data changes,
+not the semantic validity of every third-party reference.
 Active version-3/4 journals store independent source and destination plot snapshots; recovery uses
 each recorded address. Plot relocation requires no schema change.
 

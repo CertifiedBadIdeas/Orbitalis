@@ -34,6 +34,24 @@ import java.util.UUID
 
 /** Bounded native entity snapshots with an explicit mount graph; players retain native player data. */
 object ShipTransferPassengers {
+    data class Manifest(
+        val entities: Set<Entity>,
+        val data: ListTag,
+    )
+
+    /** The same read-only participant validation is used by guidance and the actual handoff. */
+    fun preflight(
+        body: ServerSubLevel,
+        pilot: ServerPlayer?,
+    ): Manifest {
+        val travelling = nearby(body).toMutableSet()
+        pilot?.let { travelling.add(it) }
+        require(travelling.filterIsInstance<ServerPlayer>().all { it === pilot }) { "Select the travelling player" }
+        val passengers = capture(body, travelling)
+        SableShipSnapshot.preflight(body, pilot, ids(passengers))
+        return Manifest(travelling.toSet(), passengers)
+    }
+
     fun nearby(body: ServerSubLevel): Set<Entity> {
         val b = body.boundingBox()
         val area = AABB(b.minX(), b.minY(), b.minZ(), b.maxX(), b.maxY() + 3.0, b.maxZ()).inflate(1.0)

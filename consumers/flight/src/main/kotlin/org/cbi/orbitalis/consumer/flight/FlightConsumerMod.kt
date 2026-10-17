@@ -22,7 +22,6 @@ import com.mojang.brigadier.arguments.DoubleArgumentType
 import com.mojang.brigadier.context.CommandContextBuilder
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType
 import dev.propulsionteam.propulsionsimulated.content.thruster.vector_thruster.creative_vector_thruster.CreativeVectorThrusterBlockEntity
-import dev.ryanhcode.sable.Sable
 import dev.ryanhcode.sable.sublevel.ServerSubLevel
 import dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem
 import net.minecraft.commands.CommandSourceStack
@@ -41,6 +40,7 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
+import org.cbi.orbitalis.minecraft.integration.sable.SableShipContact
 import org.cbi.orbitalis.neoforge.integration.SableFlightIntegration
 import org.joml.Quaterniond
 import java.util.UUID
@@ -66,7 +66,7 @@ class FlightConsumerMod {
 
         private fun ship(player: ServerPlayer): ServerSubLevel {
             val body =
-                Sable.HELPER.getTrackingSubLevel(player) as? ServerSubLevel
+                SableShipContact.resolve(player) as? ServerSubLevel
                     ?: throw IllegalArgumentException("Stand on the ship with creative flight disabled")
             check(body.massTracker.centerOfMass != null && body.massTracker.mass > 0) { "Wait for native ship mass initialization" }
             return body
@@ -247,7 +247,7 @@ class FlightConsumerMod {
                 val session = checkNotNull(active.session)
                 val body = session.body
                 if (player == null || !player.isAlive || player.level() !== body.level ||
-                    Sable.HELPER.getTrackingSubLevel(player) !== body || body.isRemoved ||
+                    SableShipContact.resolve(player) !== body || body.isRemoved ||
                     SubLevelPhysicsSystem.require(body.level).paused
                 ) {
                     stop(event.server, "pilot/ship unavailable or physics paused")

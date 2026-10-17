@@ -274,12 +274,9 @@ class SableShipTransfer(
         val orbitalDimension = FlatPlanetSpace.SPACE
         val destinationDimension = if (sourceOrbit) surfaceDimension else orbitalDimension
         require(targetDimension == null || targetDimension == destinationDimension) { "Only Overworld/space transfers are supported" }
-        val travelling = ShipTransferPassengers.nearby(body).toMutableSet()
-        player?.let { travelling.add(it) }
-        require(travelling.filterIsInstance<ServerPlayer>().all { it === player }) { "Select the travelling player" }
-        val passengers = ShipTransferPassengers.capture(body, travelling)
+        val participants = ShipTransferPassengers.preflight(body, player)
+        val passengers = participants.data
         val travellerIds = ShipTransferPassengers.ids(passengers)
-        SableShipSnapshot.preflight(body, player, travellerIds)
         val source = SableShipSnapshot.capture(body, travellerIds)
         val delta =
             FlightSpaceCoordinates
@@ -288,7 +285,7 @@ class SableShipTransfer(
                     FlightSpaceCoordinates.globalPosition(sourceDimension, Vector3.ZERO),
                 ).y
         val target = checkNotNull(server.getLevel(destinationDimension))
-        require(travelling.all { it.canChangeDimensions(body.level, target) }) { "A travelling entity rejects dimension travel" }
+        require(participants.entities.all { it.canChangeDimensions(body.level, target) }) { "A travelling entity rejects dimension travel" }
         val destination =
             SableShipSnapshot.forDestination(
                 SableShipSnapshot.translated(source, delta, destinationDimension),

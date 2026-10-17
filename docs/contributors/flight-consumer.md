@@ -299,13 +299,13 @@ ship's pose, velocity or applied force directly.
 The rocket route returns automatically after the full revolution. `land` during free coast also queues
 that return, preserving the full-revolution requirement; after a controller restart it uses the persisted
 launch bookmark. `stop` releases all inputs and native engine fade still applies. The current stand
-requires one unmounted creative pilot, a supported upright rocket, a clear pad and an unobstructed
+requires one creative pilot, standing on the deck or riding a plot-owned seat, an upright rocket, a clear pad and an unobstructed
 approach. It does not plan around arbitrary terrain or buildings. The shuttle fixture and its hold
 controller remain separate regression tools.
 
 All guidance, engine allocation, transient gimbal override and fixture resources belong to this removable
-consumer. Production only admits the pinned creative vector engine's saved block entity through the
-existing journaled transfer boundary; all serialized fields remain subject to exact reconstruction checks.
+consumer. Production transfers native-serializable block entities without a type allowlist through the
+existing journaled transfer boundary; saved fields remain subject to exact reconstruction checks.
 The native creative engine variants supply unlimited development power without fuel or FE. No external
 textures or models are imported. Steering overrides preserve manual signals and clear on load/stop.
 

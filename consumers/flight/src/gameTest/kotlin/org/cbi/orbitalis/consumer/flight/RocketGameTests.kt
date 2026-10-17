@@ -54,10 +54,15 @@ object RocketGameTests {
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 24000, batch = "rocket_offaxis")
     fun nativeRocketOffAxisRoundTrip(helper: GameTestHelper) = roundTrip(helper, BlockPos(800, 81, 500), true)
 
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 24000, batch = "rocket_seated")
+    fun nativeRocketCreateSeatRoundTrip(helper: GameTestHelper) = roundTrip(helper, BlockPos(-800, 81, -500), false, true)
+
     private fun roundTrip(
         helper: GameTestHelper,
         origin: BlockPos,
         reload: Boolean,
+        seated: Boolean = false,
     ) {
         val server = helper.level.server
         val level = server.overworld()
@@ -87,6 +92,7 @@ object RocketGameTests {
                 },
             )
         var body: ServerSubLevel? = null
+        var seatId: UUID? = null
         var mission: RocketMission? = null
         var site: LaunchSites.Site? = null
         var tick = 0
@@ -140,6 +146,7 @@ object RocketGameTests {
         fun run() {
             tick++
             worlds.forEach { it.resetEmptyTime() }
+            pilot.acknowledgeTeleport()
             transfer.tick()
             helper.assertTrue(transfer.error == null, "Rocket transfer failed: ${transfer.error}")
             if (body == null) {
@@ -196,6 +203,42 @@ object RocketGameTests {
                         org.joml.Quaterniond(b.logicalPose().orientation()),
                         net.minecraft.world.level.Level.OVERWORLD,
                     )
+                if (seated) {
+                    val assembler =
+                        b.plot.loadedChunks
+                            .flatMap { it.chunk.blockEntities.values }
+                            .filterIsInstance<PhysicsAssemblerBlockEntity>()
+                            .single()
+                    // Previously excluded native block entities must survive the same real mission.
+                    val dispenserPosition = assembler.blockPos.offset(1, 1, 1)
+                    level.setBlock(
+                        dispenserPosition,
+                        net.minecraft.world.level.block.Blocks.DISPENSER
+                            .defaultBlockState(),
+                        3,
+                    )
+                    val dispenser = level.getBlockEntity(dispenserPosition) as net.minecraft.world.level.block.entity.DispenserBlockEntity
+                    dispenser.setItem(
+                        0,
+                        net.minecraft.world.item
+                            .ItemStack(net.minecraft.world.item.Items.DIAMOND, 7),
+                    )
+                    val seatPosition = assembler.blockPos.offset(0, 0, 1)
+                    val block =
+                        net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(
+                            net.minecraft.resources.ResourceLocation
+                                .parse("create:orange_seat"),
+                        )
+                    level.setBlock(seatPosition, block.defaultBlockState(), 3)
+                    com.simibubi.create.content.contraptions.actors.seat.SeatBlock
+                        .sitDown(level, seatPosition, pilot.player)
+                    seatId = checkNotNull(pilot.player.vehicle).uuid
+                    helper.assertTrue(
+                        org.cbi.orbitalis.minecraft.integration.sable.SableShipContact
+                            .resolve(pilot.player) === b,
+                        "Create seat did not resolve to its plot-owned ship",
+                    )
+                }
                 mission = RocketMission(pilot.player, b, site!!, transfer, false)
             }
             mission?.let { active ->
@@ -264,7 +307,10 @@ object RocketGameTests {
                     }
                 }
                 if (before != active.phase || tick % 200 == 0) println("ORBITALIS_ROCKET_MISSION tick=$tick ${active.status()}")
-                if (before == RocketMission.Phase.TRANSFER && active.phase != before) handoffs++
+                if (before == RocketMission.Phase.TRANSFER && active.phase != before) {
+                    handoffs++
+                    if (seated) helper.assertTrue(pilot.player.vehicle?.uuid == seatId, "Create seat/rider link lost at handoff")
+                }
                 if (active.phase == RocketMission.Phase.COAST && !requested) {
                     if (reload) {
                         val bookmarks = LaunchSites()
@@ -297,6 +343,25 @@ object RocketGameTests {
                             .filterIsInstance<ChestBlockEntity>()
                     helper.assertTrue(cargo.size == 4 && cargo.all { it.getItem(0).count == 16 }, "Rocket cargo lost")
                     helper.assertTrue(AutopilotSession.enginesFaded(active.body), "Rocket landed with thrust")
+                    if (seated) {
+                        val dispensers =
+                            active.body.plot.loadedChunks
+                                .flatMap { it.chunk.blockEntities.values }
+                                .filterIsInstance<net.minecraft.world.level.block.entity.DispenserBlockEntity>()
+                        helper.assertTrue(
+                            dispensers.size == 1 && dispensers.single().getItem(0).`is`(net.minecraft.world.item.Items.DIAMOND) &&
+                                dispensers.single().getItem(0).count == 7,
+                            "Previously excluded dispenser data or cargo was lost",
+                        )
+                        helper.assertTrue(
+                            pilot.player.vehicle?.uuid == seatId && pilot.player.vehicle?.type?.let {
+                                net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE
+                                    .getKey(it)
+                                    .toString() == "create:seat"
+                            } == true,
+                            "Create seat or pilot mount was lost",
+                        )
+                    }
                     helper.assertTrue(freeTicks > 1000, "No complete native engine-off revolution")
                     helper.assertTrue(earlyHorizontal > 2.0, "No horizontal acceleration before ascent handoff")
                     helper.assertTrue(maximumHeight < 1200.0, "Rocket repeated the high-climb route: $maximumHeight")

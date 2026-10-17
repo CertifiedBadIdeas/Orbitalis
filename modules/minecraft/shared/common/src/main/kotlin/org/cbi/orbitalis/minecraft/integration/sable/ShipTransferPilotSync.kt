@@ -18,7 +18,6 @@
 
 package org.cbi.orbitalis.minecraft.integration.sable
 
-import dev.ryanhcode.sable.Sable
 import dev.ryanhcode.sable.sublevel.ServerSubLevel
 import net.minecraft.server.level.ServerPlayer
 
@@ -47,7 +46,7 @@ interface ShipTransferPilotSync {
                     body: ServerSubLevel,
                 ): Boolean =
                     !(player.connection as ShipTransferTeleportState).orbitalisHasPendingTeleport() &&
-                        Sable.HELPER.getTrackingSubLevel(player) === body
+                        SableShipContact.resolve(player) === body
             }
     }
 }

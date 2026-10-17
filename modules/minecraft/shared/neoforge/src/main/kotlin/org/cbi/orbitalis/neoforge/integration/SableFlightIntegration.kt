@@ -20,7 +20,6 @@ package org.cbi.orbitalis.neoforge.integration
 
 import com.mojang.brigadier.CommandDispatcher
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType
-import dev.ryanhcode.sable.Sable
 import dev.ryanhcode.sable.neoforge.event.ForgeSablePostPhysicsTickEvent
 import dev.ryanhcode.sable.neoforge.event.ForgeSablePrePhysicsTickEvent
 import dev.ryanhcode.sable.sublevel.ServerSubLevel
@@ -42,6 +41,7 @@ import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.flight.PlayerSpaceTravel
 import org.cbi.orbitalis.minecraft.integration.sable.AutomaticShipTravel
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
+import org.cbi.orbitalis.minecraft.integration.sable.SableShipContact
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipTransfer
 import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferTickGate
 import java.util.Locale
@@ -144,7 +144,7 @@ object SableFlightIntegration {
                 val player = source.playerOrException
                 if (!SableFlightGravity.isManaged(source.level)) failure("Use Overworld or orbitalis:space")
                 val body =
-                    Sable.HELPER.getTrackingSubLevel(player) as? ServerSubLevel
+                    SableShipContact.resolve(player) as? ServerSubLevel
                         ?: failure("Stand on a Sable ship and wait for native contact")
                 val sample = SableFlightGravity.reading(body)
                 val global = SableFlightGravity.globalPosition(source.level, sample.position)
@@ -174,7 +174,7 @@ object SableFlightIntegration {
                 val source = context.source
                 val player = source.playerOrException
                 val body =
-                    Sable.HELPER.getTrackingSubLevel(player) as? ServerSubLevel
+                    SableShipContact.resolve(player) as? ServerSubLevel
                         ?: failure("Stand on the ship with creative flight disabled")
                 try {
                     player.closeContainer()

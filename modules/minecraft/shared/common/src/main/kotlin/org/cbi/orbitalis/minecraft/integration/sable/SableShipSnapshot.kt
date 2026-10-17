@@ -116,17 +116,15 @@ object SableShipSnapshot {
             },
         ) { "Only Create Super Glue and Simulated Honey Glue metadata entities are supported inside the plot" }
         require(entitiesReady(body)) { "Wait for native plot entities to finish loading" }
-        val unsupported =
-            body.plot.loadedChunks
-                .flatMap { it.chunk.blockEntities.values }
-                .map { BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(it.type).toString() }
-                .filter { it !in SUPPORTED_BLOCK_ENTITIES }
-                .groupingBy { it }
-                .eachCount()
-                .toSortedMap()
-        require(unsupported.isEmpty()) {
-            "Unsupported block entities (${unsupported.values.sum()}): " +
-                unsupported.entries.joinToString(", ") { (id, count) -> "$id × $count" }
+        // Native serialization, registry identity and exact reconstruction are the compatibility
+        // boundary. Block-entity type names are not a permission list.
+        for (holder in body.plot.loadedChunks) {
+            for (block in holder.chunk.blockEntities.values) {
+                val data = block.saveWithFullMetadata(body.level.registryAccess())
+                require(data.getString("id") == BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(block.type).toString()) {
+                    "Block entity did not serialize its registry identity at ${block.blockPos}"
+                }
+            }
         }
     }
 
@@ -244,7 +242,6 @@ object SableShipSnapshot {
             val chunk = copy.getCompound("plot").getCompound("chunks").getCompound(key)
             for (tag in chunk.getList("block_entities", 10)) {
                 val data = tag as CompoundTag
-                require(data.getString("id") in SUPPORTED_BLOCK_ENTITIES) { "Unsupported relocated block entity" }
                 if (data.getString("id") == "create:redstone_link") {
                     require(data.contains("LastKnownPosition", 4)) { "Missing native link position" }
                     val previous = BlockPos.of(data.getLong("LastKnownPosition"))
@@ -347,17 +344,4 @@ object SableShipSnapshot {
         SableNBTUtils.readVector3d(tag.getCompound(key)).also {
             require(it.isFinite) { "Nonfinite ship velocity" }
         }
-
-    private val SUPPORTED_BLOCK_ENTITIES =
-        setOf(
-            "minecraft:chest",
-            "minecraft:trapped_chest",
-            "minecraft:barrel",
-            "minecraft:sign",
-            "minecraft:hanging_sign",
-            "create:redstone_link",
-            "createpropulsion:creative_thruster_block_entity",
-            "createpropulsion:creative_vector_thruster_block_entity",
-            "simulated:physics_assembler",
-        )
 }
