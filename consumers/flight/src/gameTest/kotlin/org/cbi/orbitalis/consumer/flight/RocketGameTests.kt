@@ -106,6 +106,8 @@ object RocketGameTests {
         var maximumStepAcceleration = 0.0
         var earlyHorizontal = 0.0
         var freeTicks = 0
+        var disturbed = false
+        var maximumCoastRateError = 0.0
         var initialEnergy: Double? = null
         var maximumEnergyDrift = 0.0
         val trace = StringBuilder("tick,phase,x,y,z,vx,vy,vz\n")
@@ -285,7 +287,37 @@ object RocketGameTests {
                         minimumClearance = minOf(minimumClearance, clearance)
                         helper.assertTrue(clearance > 32.0, "Rocket's free coast passes too close to the planet: $clearance")
                         if (active.phase != RocketMission.Phase.FLIP) {
-                            helper.assertTrue(AutopilotSession.enginesFaded(b), "An engine fired during the unpowered revolution")
+                            val mains =
+                                b.plot.loadedChunks
+                                    .flatMap { it.chunk.blockEntities.values }
+                                    .filterIsInstance<CreativeVectorThrusterBlockEntity>()
+                            helper.assertTrue(
+                                mains.all { it.power == 0.0f && it.currentThrust == 0.0f },
+                                "A main engine fired during the ballistic revolution",
+                            )
+                            val handle = SubLevelPhysicsSystem.require(b.level).getPhysicsHandle(b)
+                            if (!disturbed) {
+                                // A real native angular impulse recreates residual roll after insertion.
+                                handle.applyAngularImpulse(b.massTracker.inertiaTensor.transform(Vector3d(0.0, 0.2, 0.0), Vector3d()))
+                                disturbed = true
+                            }
+                            if (freeTicks > 100) {
+                                val gravity =
+                                    org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity.acceleration(
+                                        b.level,
+                                        AutopilotSession.position(b),
+                                    )
+                                val expectedRate = v.cross(gravity) * (1.0 / v.dot(v))
+                                val rate = AutopilotSession.vector(handle.getAngularVelocity(Vector3d()))
+                                maximumCoastRateError = maxOf(maximumCoastRateError, (rate - expectedRate).length())
+                                helper.assertTrue(
+                                    maximumCoastRateError < 0.35,
+                                    "RCS failed to track changing orbit curvature: $maximumCoastRateError",
+                                )
+                                val nose = AutopilotSession.vector(b.logicalPose().orientation().transform(Vector3d(0.0, 1.0, 0.0)))
+                                helper.assertTrue(nose.dot(v.normalized()) > 0.97, "Rocket failed to hold prograde on the ballistic orbit")
+                                helper.assertTrue(abs(rate.dot(nose)) < 0.03, "RCS failed to damp longitudinal roll: ${rate.dot(nose)}")
+                            }
                             val energy =
                                 org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
                                     .flatField(
@@ -456,7 +488,7 @@ object RocketGameTests {
             lateinit var engines: List<CreativeVectorThrusterBlockEntity>
             var target = Vector3.ZERO
             var flightTick = 0
-            var tilted = false
+            var steeringUsed = false
 
             fun holdTick() {
                 level.resetEmptyTime()
@@ -470,11 +502,14 @@ object RocketGameTests {
                         12.0,
                     ),
                 )
-                tilted = tilted || rocket
-                    .logicalPose()
-                    .orientation()
-                    .transform(Vector3d(0.0, 1.0, 0.0))
-                    .y < 0.9995
+                // Vectoring can correct a disturbance with very little hull tilt. Check actual
+                // commanded gimbals, while the following motion checks prove the correction.
+                if (flightTick > 20) {
+                    steeringUsed = steeringUsed ||
+                        engines.any {
+                            abs(it.targetVectorX) > 0.01f || abs(it.targetVectorY) > 0.01f
+                        }
+                }
                 flightTick++
                 if (flightTick % 100 ==
                     0
@@ -488,7 +523,7 @@ object RocketGameTests {
                 helper.assertTrue((position - target).length() < 1.0, "Rocket did not reach/hold target: $position, $target")
                 helper.assertTrue(handle.getLinearVelocity(Vector3d()).length() < 0.4, "Rocket failed to settle translation")
                 helper.assertTrue(handle.getAngularVelocity(Vector3d()).length() < 0.04, "Rocket failed to settle rotation")
-                helper.assertTrue(tilted, "Rocket did not tilt to correct lateral disturbance")
+                helper.assertTrue(steeringUsed, "Rocket did not vector native thrust to correct lateral disturbance")
                 val cargo =
                     rocket.plot.loadedChunks
                         .flatMap { it.chunk.blockEntities.values }

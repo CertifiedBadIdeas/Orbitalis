@@ -63,6 +63,7 @@ internal class RocketDrive(
     private var allocation: RocketGimbalAllocation.Result? = null
     private var ticks = 0
     private var previousTurn: Vector3? = null
+    private val smoothing = RocketCommandSmoothing()
 
     init {
         require(SableFlightGravity.isManaged(body.level) && body.massTracker.mass > 0.0)
@@ -143,13 +144,14 @@ internal class RocketDrive(
             nose = thrust.normalized()
         }
         val rate = if (trackDirection) directionRate(nose) else Vector3.ZERO
-        apply(thrust, nose, targetRate = rate)
+        apply(smoothing.next(thrust), nose, targetRate = rate)
     }
 
     /** Balanced native RCS couples turn the hull while all main-engine throttles stay zero. */
     fun turn(direction: Vector3) {
         require(direction.length() > 1e-8 && engines.any { !it.main }) { "Rocket has no RCS authority" }
         nose = direction.normalized()
+        smoothing.clear()
         apply(Vector3.ZERO, nose, true, directionRate(nose))
     }
 
@@ -183,7 +185,13 @@ internal class RocketDrive(
                 engine.capacity = block.currentThrust / effective / PropulsionConfig.getThrustUnitsPerKnOrDefault()
             }
         }
-        val desired = Quaterniond().rotationTo(Vector3d(0.0, 1.0, 0.0), Vector3d(direction.x, direction.y, direction.z))
+        // Correct only the nose error, transporting the existing roll. Rebuilding an absolute
+        // UP-to-direction quaternion introduces a roll singularity around the planet's underside.
+        val currentNose = pose.orientation().transform(Vector3d(0.0, 1.0, 0.0), Vector3d())
+        val desired =
+            Quaterniond()
+                .rotationTo(currentNose, Vector3d(direction.x, direction.y, direction.z))
+                .mul(pose.orientation())
         val error = Quaterniond(pose.orientation()).conjugate().mul(desired).normalize()
         if (error.w < 0.0) error.mul(-1.0)
         val sine = sqrt(error.x * error.x + error.y * error.y + error.z * error.z)

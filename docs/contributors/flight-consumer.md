@@ -288,12 +288,17 @@ is about 72 m/s and the period about 65 seconds; speed and height vary around th
 Square-body symmetries select the orbital plane from the launch site. No spherical Kepler formula or
 arbitrary rotation of the near-field gravity model is used.
 
-After capture, RCS aligns the hull, all engines fade completely, and a full unpowered revolution is
-measured before the return window. Return then turns the rocket retrograde with RCS while the main
+After capture, the main engines fade and remain off for a full ballistic revolution. Balanced native
+RCS keeps the nose prograde and damps residual roll throughout that coast. The attitude target
+transports the current roll instead of rebuilding an absolute world-UP quaternion, avoiding a roll
+singularity below the planet. Return then turns the rocket retrograde with RCS while the main
 engines stay off, brakes with the real vector engines, and joins a vertical approach to the remembered
 pad while still descending. The braking and approach references share position, velocity and
 acceleration; they do not form a polyline or stop at an intermediate waypoint. Engine slew, gimbal
-interpolation and physical torque determine the actual attitude. The controller never sets the live
+interpolation and physical torque determine the actual attitude. Requested thrust acceleration changes
+by at most 0.5 m/s² per 50-ms guidance tick (10 m/s³), smoothing phase/feedback changes before native
+allocation. This bounds the command, not the physical jerk from gravity, contacts or native engine fade.
+The controller never sets the live
 ship's pose, velocity or applied force directly.
 
 The rocket route returns automatically after the full revolution. `land` during free coast also queues
@@ -311,6 +316,9 @@ textures or models are imported. Steering overrides preserve manual signals and 
 
 The focused `rocket` GameTest suite checks assembly, actual gimbal basis/interpolation, powered hold,
 RCS-only orientation and complete native centre/off-axis missions with cargo and both dimension handoffs.
+The seated mission adds a real Create seat and previously excluded dispenser inventory. Coast trials
+apply a native angular impulse and require roll damping, prograde tracking, main-engine cutoff and
+bounded orbital energy drift; guidance never writes velocities to recover from that disturbance.
 Pure tests check force/torque constraints and continuity of the moving ascent and landing references.
 Headless pilot acknowledgments are test fixtures; they do not establish real cockpit continuity.
 

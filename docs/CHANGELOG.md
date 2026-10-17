@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Keep native RCS prograde control active during the rocket's ballistic orbit, damping residual roll
+  with the main engines off. Transport the attitude's existing roll and smooth requested thrust
+  acceleration across feedback/phase changes; retain native force application and engine fade.
+
 - Add the main-mod external ship camera (F6, mouse orbit and wheel zoom) and a local-gravity navball
   with prograde/retrograde markers. F7 switches the instrument between +Y rocket and +Z ship axes.
   Use the same native deck/seat contact for trajectory subscriptions.

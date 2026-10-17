@@ -259,6 +259,9 @@ internal class RocketMission(
             }
 
             Phase.COAST, Phase.RETURN -> {
+                // Main engines remain off; balanced native RCS damps residual spin and tracks
+                // prograde continuously rather than leaving the hull uncontrolled for a full orbit.
+                engine().turn(s.velocity)
                 require(
                     coastEnergy < 0.0 && abs((field.specificEnergy(s) - coastEnergy) / coastEnergy) < 0.03,
                 ) { "Unpowered orbit energy drifted" }
