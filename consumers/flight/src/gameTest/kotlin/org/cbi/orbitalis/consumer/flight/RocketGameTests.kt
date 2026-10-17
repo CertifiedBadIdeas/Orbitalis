@@ -92,6 +92,22 @@ object RocketGameTests {
                 },
             )
         var relocationBlocker: ServerSubLevel? = null
+
+        fun releaseRelocationBlocker() {
+            relocationBlocker?.let { blocker ->
+                if (!blocker.isRemoved) {
+                    val c = checkNotNull(SubLevelContainer.getContainer(blocker.level))
+                    c.removeForceLoadTicket(blocker, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
+                    c.removeSubLevel(blocker, SubLevelRemovalReason.REMOVED)
+                    helper.assertTrue(
+                        c.allSubLevels.none { it.uniqueId == blocker.uniqueId } &&
+                            c.collectForceLoadedSubLevels().none { it.uniqueId == blocker.uniqueId },
+                        "Plot reservation retained its native body or force-load ticket",
+                    )
+                }
+            }
+            relocationBlocker = null
+        }
         var sourcePlot: net.minecraft.world.level.ChunkPos? = null
         var body: ServerSubLevel? = null
         var seatId: UUID? = null
@@ -142,13 +158,7 @@ object RocketGameTests {
             mission?.close()
             transfer.close()
             pilot.close()
-            relocationBlocker?.let { blocker ->
-                if (!blocker.isRemoved) {
-                    val c = checkNotNull(SubLevelContainer.getContainer(blocker.level))
-                    c.removeForceLoadTicket(blocker, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
-                    c.removeSubLevel(blocker, SubLevelRemovalReason.REMOVED)
-                }
-            }
+            releaseRelocationBlocker()
             for (world in worlds) {
                 val c = checkNotNull(SubLevelContainer.getContainer(world))
                 body?.uniqueId?.let { id ->
@@ -439,6 +449,9 @@ object RocketGameTests {
                     handoffs++
                     if (reload && handoffs == 1) {
                         helper.assertTrue(active.body.plot.plotPos != sourcePlot, "Outbound rocket did not relocate its occupied plot")
+                        // Its only purpose was to reserve the first target plot. A retained falling
+                        // body generates an unrelated chunk trail and can trigger automatic travel.
+                        releaseRelocationBlocker()
                     }
                     if (seated) helper.assertTrue(pilot.player.vehicle?.uuid == seatId, "Create seat/rider link lost at handoff")
                 }

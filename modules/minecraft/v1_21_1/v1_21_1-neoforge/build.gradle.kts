@@ -18,7 +18,6 @@
 
 import net.fabricmc.loom.task.RemapJarTask
 import java.io.DataOutputStream
-import java.nio.file.Files
 import java.security.MessageDigest
 import java.util.zip.GZIPOutputStream
 import javax.xml.parsers.DocumentBuilderFactory
@@ -52,7 +51,7 @@ val sableDistribution = configurations.create("sableDistribution") {
 dependencies { add(sableDistribution.name, libs.sable.v1211) }
 val prepareSableLab = tasks.register("prepareSableLab") {
     inputs.files(sableDistribution)
-    val directories = listOf("client", "server", "gameTestServer").map { layout.projectDirectory.dir("run/$it/mods") }
+    val directories = listOf("client", "server").map { layout.projectDirectory.dir("run/$it/mods") }
     outputs.dirs(directories)
     doLast {
         val archive = sableDistribution.singleFile
@@ -197,38 +196,40 @@ gameTest.resources.srcDir(generateGameTestResources.map { generatedGameTestResou
 
 val gameTestSuite = providers.gradleProperty("orbitalisGameTestSuite").orElse("all").get()
 require(gameTestSuite in setOf("all", "surface", "transfer", "flat", "travel", "navigation")) { "Unknown GameTest suite: $gameTestSuite" }
+apply(from = "${rootProject.projectDir}/gradle/gametest-lifecycle.gradle.kts")
 val gameTestReport = layout.buildDirectory.file("test-results/gameTestServer/results.xml")
 loom.runs.register("gameTestServer") {
     server()
     source(gameTest)
     environment("gametestserver")
     forgeTemplate("gameTestServer")
-    runDir("run/gameTestServer")
+    runDir(project.extra["orbitalisGameTestRunDirectory"] as String)
     property("neoforge.enabledGameTestNamespaces", "orbitalis")
     property("neoforge.gameTestServer", "true")
     property("orbitalis.gameTestSuite", gameTestSuite)
     property("orbitalis.gameTestReport", gameTestReport.get().asFile.absolutePath)
-    ideConfigGenerated(true)
+    ideConfigGenerated(false)
     mods {
         maybeCreate("main").apply {
             sourceSet(gameTest.name)
         }
     }
 }
-tasks.matching { it.name in setOf("runClient", "runServer", "runGameTestServer") }.configureEach { dependsOn(prepareSableLab) }
+val prepareGameTestMods = tasks.register("prepareGameTestMods") {
+    dependsOn(prepareSableLab, "prepareGameTestRun")
+    doLast {
+        val directory = file(project.extra["orbitalisGameTestRunDirectory"] as String).resolve("mods")
+        directory.mkdirs()
+        sableDistribution.singleFile.copyTo(directory.resolve("sable-neoforge-1.21.1-2.0.6.jar"), overwrite = false)
+    }
+}
+tasks.matching { it.name == "runGameTestServer" }.configureEach { dependsOn(prepareGameTestMods) }
+tasks.matching { it.name in setOf("runClient", "runServer") }.configureEach { dependsOn(prepareSableLab) }
 tasks.named("check") { dependsOn(gameTest.classesTaskName) }
 tasks.configureEach {
     if (name == "runGameTestServer") {
         dependsOn(gameTest.classesTaskName)
         doFirst {
-            // GameTestServer creates fresh PrimaryLevelData on every launch but reuses its chunk directory.
-            // Archive only this disposable fixture marker so production startup installs fresh defaults.
-            val surfaceMarker = layout.projectDirectory.file("run/gameTestServer/world/data/orbitalis_flat_surface.dat").asFile
-            if (surfaceMarker.isFile) {
-                val previous = layout.buildDirectory.file("agent-logs/gametest-markers/surface-${System.currentTimeMillis()}.dat").get().asFile
-                previous.parentFile.mkdirs()
-                Files.move(surfaceMarker.toPath(), previous.toPath())
-            }
             val report = gameTestReport.get().asFile
             report.parentFile.mkdirs()
             report.delete()

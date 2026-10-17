@@ -58,11 +58,29 @@ an early architecture guardrail; compilation and review remain necessary for tra
 
 Retain real command output in build/agent-logs. Never equate focused checks with complete release readiness.
 
-The native GameTestServer always constructs fresh PrimaryLevelData, even when its run directory has
-old chunks and SavedData. Both harnesses archive the disposable surface initialization marker before
-each launch; this permits a fresh startup without deleting terrain caches. The persistence scenario
-uses a new DimensionDataStorage reader to verify that a saved marker preserves customized settings.
-Normal dedicated/integrated servers load their native border settings and do not run this fixture reset.
+Both Gradle GameTest harnesses use a unique owned directory under the launching project's
+`build/agent-logs/gametest-runs/<run-id>`. Each invocation starts with fresh PrimaryLevelData,
+chunks and SavedData; persistence/reload scenarios still run within that invocation. The finalizer
+records region bytes and chunk counts in `metrics.json`, and retains logs and a copy of the XML.
+It deletes that run's `world` and regenerable `mods`/`.sable` runtime copies only after normal native
+process exit and successful report validation; logs, traces and configuration remain available.
+Failed/interrupted worlds remain for diagnosis; dependency failures never adopt existing directories.
+Legacy `run/gameTestServer/world` directories and interactive saves are untouched. A forcibly terminated
+Gradle process may not run its finalizer; its owned directory remains intact. Retained failed runs can
+be removed explicitly after diagnosis, while no server is using them. Do not run the GameTest main
+class directly from an IDE: use the Gradle task so ownership and finalization execute.
+
+The flight consumer's GameTest-only event subscriber sets server view and simulation distances to
+two chunks. The inert pilot already requests a two-chunk client view; that alone does not constrain
+server simulation tickets. Native chunk/entity ticking and saves remain enabled. It samples each
+level's peak loaded chunk count and records loaded chunks, remaining players, active sublevels and
+force-loaded sublevels at shutdown in
+`server-stopping.json`; the finalizer includes these plus shutdown wall time in `metrics.json`.
+Ordinary consumer clients and production servers keep their own distance settings. Sable's collision
+manager also loads chunks along each force-loaded ship's path, independently of player distances.
+The occupied-plot fixture releases its reservation body and force-load ticket immediately after the
+outbound relocation assertion; it must not continue falling or trigger unrelated automatic travel
+while the real rocket completes its mission.
 
 The `-PorbitalisGameTestSuite=travel` suite requires all three automatic travel scenarios: an
 unmanned ship roundtrip plus interrupted committed recovery with no pilot, a seated survival player

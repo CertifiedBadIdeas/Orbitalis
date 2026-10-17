@@ -20,6 +20,13 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Isolate each Gradle GameTest launch in an owned disposable world, retain failed worlds and
+  successful logs/reports/region metrics, and remove successful worlds only after normal exit and
+  report validation. Bound flight-consumer test server chunk distances and record loaded-chunk peaks
+  and shutdown duration without changing production server settings or existing saves. Release the
+  occupied-plot fixture immediately after outbound relocation, preventing its unrelated falling
+  body from loading chunks or triggering automatic travel during the rocket mission.
+
 - Relocate Propulsion vector engines’ embedded directional link addresses with their native plot,
   preserving frequencies and exact block-entity verification. Log preparation cancellation reasons
   on the server as well as reporting them to the pilot.

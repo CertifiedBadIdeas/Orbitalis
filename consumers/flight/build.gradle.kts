@@ -16,7 +16,6 @@
  * limitations under the License.
  */
 
-import java.nio.file.Files
 import java.security.MessageDigest
 import java.util.zip.ZipFile
 import javax.xml.parsers.DocumentBuilderFactory
@@ -193,13 +192,15 @@ val testResources = files(layout.projectDirectory.dir(
 gameTest.resources.srcDir(testResources)
 val consumerGameTestSuite = providers.gradleProperty("orbitalisConsumerGameTestSuite").getOrElse("all")
 require(consumerGameTestSuite in setOf("all", "flat", "rocket")) { "Unknown consumer GameTest suite: $consumerGameTestSuite" }
+apply(from = "../../gradle/gametest-lifecycle.gradle.kts")
 val gameTestReport = layout.buildDirectory.file("test-results/gameTestServer/results.xml")
 loom.runs.register("gameTestServer") {
     server()
     source(gameTest)
     environment("gametestserver")
     forgeTemplate("gameTestServer")
-    runDir("run/gameTestServer")
+    ideConfigGenerated(false)
+    runDir(project.extra["orbitalisGameTestRunDirectory"] as String)
     property("neoforge.enabledGameTestNamespaces", "orbitalis")
     property("neoforge.gameTestServer", "true")
     property("orbitalis.consumerGameTestSuite", consumerGameTestSuite)
@@ -210,14 +211,6 @@ tasks.named("check") { dependsOn(gameTest.classesTaskName) }
 tasks.matching { it.name == "runGameTestServer" }.configureEach {
     dependsOn(verifyConsumer, gameTest.classesTaskName)
     doFirst {
-        // GameTestServer creates fresh PrimaryLevelData on every launch but reuses its chunk directory.
-        // Archive only this disposable fixture marker so production startup installs fresh defaults.
-        val surfaceMarker = layout.projectDirectory.file("run/gameTestServer/world/data/orbitalis_flat_surface.dat").asFile
-        if (surfaceMarker.isFile) {
-            val previous = layout.buildDirectory.file("agent-logs/gametest-markers/surface-${System.currentTimeMillis()}.dat").get().asFile
-            previous.parentFile.mkdirs()
-            Files.move(surfaceMarker.toPath(), previous.toPath())
-        }
         gameTestReport.get().asFile.apply { parentFile.mkdirs(); delete() }
     }
     doLast {
