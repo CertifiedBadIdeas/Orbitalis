@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Add the main-mod external ship camera (F6, mouse orbit and wheel zoom) and a local-gravity navball
+  with prograde/retrograde markers. F7 switches the instrument between +Y rocket and +Z ship axes.
+  Use the same native deck/seat contact for trajectory subscriptions.
+
 - Remove ship-transfer block-entity allowlists, including plot relocation. Use native serialization,
   registry identity and exact staged reconstruction to validate vanilla and modded payloads.
 - Use the same passenger preflight for guidance and transfer, and resolve plot-owned seats as ship

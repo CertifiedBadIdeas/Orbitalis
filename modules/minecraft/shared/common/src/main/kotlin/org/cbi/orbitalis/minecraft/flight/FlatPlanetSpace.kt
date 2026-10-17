@@ -23,6 +23,8 @@ import net.minecraft.resources.ResourceKey
 import net.minecraft.resources.ResourceLocation
 import net.minecraft.world.level.Level
 import org.cbi.orbitalis.core.planet.FlatPlanetFrame
+import org.cbi.orbitalis.core.planet.RectangularGravity
+import org.cbi.orbitalis.core.planet.SurfaceGravityLayer
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.surface.FlatOverworld
 
@@ -36,6 +38,9 @@ object FlatPlanetSpace {
     const val ASCENT_HEIGHT = 600.0
     const val DESCENT_HEIGHT = 400.0
     const val ORBIT_HEIGHT = 1000.0
+
+    fun gravityField(surfaceGravity: Double): SurfaceGravityLayer =
+        SurfaceGravityLayer(RectangularGravity(HALF_SIZE, SEA_LEVEL, HALF_SIZE, surfaceGravity), surfaceGravity)
 
     fun contains(level: Level): Boolean = level.dimension() == Level.OVERWORLD || level.dimension() == SPACE
 }

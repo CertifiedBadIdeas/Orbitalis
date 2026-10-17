@@ -27,7 +27,7 @@ object SableShipContact {
     fun resolve(entity: Entity): SubLevel? {
         val root = entity.rootVehicle
         val mounted = if (root !== entity) Sable.HELPER.getContaining(root) else null
-        val tracked = Sable.HELPER.getTrackingSubLevel(root) ?: Sable.HELPER.getTrackingSubLevel(entity)
+        val tracked = (Sable.HELPER.getTrackingSubLevel(root) ?: Sable.HELPER.getTrackingSubLevel(entity))?.takeUnless { it.isRemoved }
         if (mounted != null && tracked != null && mounted !== tracked) return null
         return (mounted ?: tracked)?.takeUnless { it.isRemoved }
     }

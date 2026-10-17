@@ -19,7 +19,6 @@
 package org.cbi.orbitalis.minecraft.integration.sable
 
 import com.mojang.logging.LogUtils
-import dev.ryanhcode.sable.Sable
 import dev.ryanhcode.sable.sublevel.ServerSubLevel
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerPlayer
@@ -152,7 +151,7 @@ class ShipTrajectoryService(
 
     private fun tracked(player: ServerPlayer): ServerSubLevel? {
         if (!player.isAlive || !FlatPlanetSpace.contains(player.level())) return null
-        val body = (Sable.HELPER.getTrackingSubLevel(player) ?: Sable.HELPER.getTrackingSubLevel(player.rootVehicle)) as? ServerSubLevel
+        val body = SableShipContact.resolve(player) as? ServerSubLevel
         return body?.takeIf {
             !it.isRemoved && it.level === player.level() && it.massTracker.centerOfMass != null &&
                 it.massTracker.mass > 0.0

@@ -76,6 +76,9 @@ PREPARED selects source authority, COMMITTED
 selects destination authority, and DONE follows a verified native checkpoint. Completed records contain
 receipts rather than stale ship payloads. Recovery does not make the journal a permanent ship store.
 See [ship transfer](ship-transfer.md) for limits, failure handling and the server-thread checkpoint cost.
+Block-entity types are not allowlisted: native serialization and exact staged reconstruction validate
+saved payloads. Optional client [ship observation](ship-camera.md) uses native contact/interpolation,
+a shared gravity-field factory and client-only input/render hooks; it never controls ship physics.
 
 The [flight consumer](flight-consumer.md) is an independent Gradle composite build, included only when
 launched from `consumers/flight` using its own wrapper. The dependency points from consumer to Orbitalis through
