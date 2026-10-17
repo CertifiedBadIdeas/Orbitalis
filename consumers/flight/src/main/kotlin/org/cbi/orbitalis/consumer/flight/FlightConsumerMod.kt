@@ -21,6 +21,7 @@ package org.cbi.orbitalis.consumer.flight
 import com.mojang.brigadier.arguments.DoubleArgumentType
 import com.mojang.brigadier.context.CommandContextBuilder
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType
+import dev.propulsionteam.propulsionsimulated.content.thruster.vector_thruster.creative_vector_thruster.CreativeVectorThrusterBlockEntity
 import dev.ryanhcode.sable.Sable
 import dev.ryanhcode.sable.sublevel.ServerSubLevel
 import dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem
@@ -141,7 +142,24 @@ class FlightConsumerMod {
                         )
                     }
                 val manager = SableFlightIntegration.transferService(source.server)
-                val mission: FlightMission = FlatOrbitalMission(player, body, site, manager, land)
+                val rocket =
+                    body.plot.loadedChunks.any { chunk ->
+                        chunk.chunk.blockEntities.values.any {
+                            it is CreativeVectorThrusterBlockEntity
+                        }
+                    }
+                val mission: FlightMission =
+                    if (rocket) {
+                        RocketMission(
+                            player,
+                            body,
+                            site,
+                            manager,
+                            land,
+                        )
+                    } else {
+                        FlatOrbitalMission(player, body, site, manager, land)
+                    }
                 try {
                     if (!land) {
                         sites.put(player.uuid, site)

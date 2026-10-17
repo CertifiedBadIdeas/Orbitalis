@@ -57,5 +57,5 @@ setblock ~-3 ~10 ~-1 createpropulsion:creative_thruster[facing=south]{ScrollValu
 setblock ~3 ~10 ~-1 createpropulsion:creative_thruster[facing=south]{ScrollValue:2}
 setblock ~-3 ~10 ~1 createpropulsion:creative_thruster[facing=north]{ScrollValue:2}
 setblock ~0 ~10 ~0 simulated:physics_assembler[face=floor,facing=north]
-setblock ~0 ~11 ~0 minecraft:lever[face=floor,facing=north,powered=false]
+setblock ~1 ~10 ~0 minecraft:lever[face=wall,facing=west,powered=false]
 summon create:super_glue ~0.5 ~0 ~0.5 {From:[-3.5d,0d,-3.5d],To:[3.5d,16d,3.5d]}

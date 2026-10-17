@@ -62,4 +62,17 @@ class RocketAscentTest {
             assertTrue((end.acceleration - field.acceleration(expected.position)).length() < 1e-7)
         }
     }
+
+    @Test fun returningCurveJoinsVerticalApproachWithoutPositionVelocityOrAccelerationCorners() {
+        val initial = CartesianState(Vector3(318.0, 928.0, 0.0), Vector3(-71.0, 14.0, 0.0))
+        for (home in listOf(Vector3(0.5, 29.0, 0.5), Vector3(800.0, 140.0, 500.0), Vector3(-800.0, 260.0, -700.0))) {
+            val path = RocketReturn.plan(field, initial, home, 60.0)
+            val before = path.braking.at(path.braking.duration)
+            val after = path.landing.at(0.0)
+            assertTrue((before.state.position - after.state.position).length() < 1e-7)
+            assertTrue((before.state.velocity - after.state.velocity).length() < 1e-7)
+            assertTrue((before.acceleration - after.acceleration).length() < 1e-7)
+            assertTrue(after.state.velocity.y < -5.0, "Approach must not stop at a waypoint")
+        }
+    }
 }

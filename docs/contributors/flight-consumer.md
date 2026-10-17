@@ -262,17 +262,54 @@ not acceptance data for the finite-body route. Interactive cockpit continuity st
 
 ## Vector rocket prototype
 
-`/function orbitalis_flight_test:setup_rocket` builds an upright rocket with a glazed cabin, four cargo
-chests, landing legs and four bottom-mounted native creative vector engines. It replaces a bounded
-13×13×18 launch area in a disposable Overworld; feet must be between Y=-63 and Y=303. Assemble using
-the cabin lever. The engines use their own configurable creative power and require neither fuel nor FE.
-No external textures or models are imported. This fixture is separate from the shuttle.
+In a disposable Overworld, stand on a clear flat launch site and run:
 
-The consumer-only steering override preserves native redstone signals and native gimbal interpolation,
-clears on load/stop, and never changes the body's pose or motion directly. A constrained allocator shares
-one physical thrust budget across each engine's steering cone. The focused `rocket` GameTest suite
-checks native assembly, the vector basis/interpolation, powered recovery/hold after an initial
-perturbation, cargo and engine cutoff. Twelve small native RCS thrusters supply orientation couples;
-  a separate scenario verifies a 180-degree flip with the main engines off and negligible translation.
-  Pure reference-planning tests cover continuous horizontal acceleration from centre and off-axis pads. Rocket orbital guidance is under development; the existing
-orbital mission still requires the shuttle's engine layout.
+```mcfunction
+/function orbitalis_flight_test:setup_rocket
+```
+
+This replaces a bounded 13×13×18 area with a pad and an upright rocket: glazed cabin, four cargo
+chests, landing legs, four bottom-mounted creative vector engines and twelve small native RCS engines.
+Feet must be between Y=-63 and Y=303; leave 40 metres inside the finite surface boundary. Assemble
+with the cabin lever, turn off creative flight and all manual engine inputs, and let the legs settle.
+Then use:
+
+```mcfunction
+/orbitalis flight autopilot orbit
+/orbitalis flight autopilot status
+/orbitalis flight autopilot land
+/orbitalis flight autopilot stop
+```
+
+`orbit` detects the vector-engine layout and selects the consumer rocket controller. After a short
+vertical clearance leg it pitches over and accelerates horizontally during ascent, joining a numerically
+predicted finite-body orbit with a 900-metre crown altitude above sea level. The reference crown speed
+is about 72 m/s and the period about 65 seconds; speed and height vary around this nonspherical body.
+Square-body symmetries select the orbital plane from the launch site. No spherical Kepler formula or
+arbitrary rotation of the near-field gravity model is used.
+
+After capture, RCS aligns the hull, all engines fade completely, and a full unpowered revolution is
+measured before the return window. Return then turns the rocket retrograde with RCS while the main
+engines stay off, brakes with the real vector engines, and joins a vertical approach to the remembered
+pad while still descending. The braking and approach references share position, velocity and
+acceleration; they do not form a polyline or stop at an intermediate waypoint. Engine slew, gimbal
+interpolation and physical torque determine the actual attitude. The controller never sets the live
+ship's pose, velocity or applied force directly.
+
+The rocket route returns automatically after the full revolution. `land` during free coast also queues
+that return, preserving the full-revolution requirement; after a controller restart it uses the persisted
+launch bookmark. `stop` releases all inputs and native engine fade still applies. The current stand
+requires one unmounted creative pilot, a supported upright rocket, a clear pad and an unobstructed
+approach. It does not plan around arbitrary terrain or buildings. The shuttle fixture and its hold
+controller remain separate regression tools.
+
+All guidance, engine allocation, transient gimbal override and fixture resources belong to this removable
+consumer. Production only admits the pinned creative vector engine's saved block entity through the
+existing journaled transfer boundary; all serialized fields remain subject to exact reconstruction checks.
+The native creative engine variants supply unlimited development power without fuel or FE. No external
+textures or models are imported. Steering overrides preserve manual signals and clear on load/stop.
+
+The focused `rocket` GameTest suite checks assembly, actual gimbal basis/interpolation, powered hold,
+RCS-only orientation and complete native centre/off-axis missions with cargo and both dimension handoffs.
+Pure tests check force/torque constraints and continuity of the moving ascent and landing references.
+Headless pilot acknowledgments are test fixtures; they do not establish real cockpit continuity.

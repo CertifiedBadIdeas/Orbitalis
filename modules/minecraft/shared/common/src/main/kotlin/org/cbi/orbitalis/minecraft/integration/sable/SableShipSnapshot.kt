@@ -357,6 +357,7 @@ object SableShipSnapshot {
             "minecraft:hanging_sign",
             "create:redstone_link",
             "createpropulsion:creative_thruster_block_entity",
+            "createpropulsion:creative_vector_thruster_block_entity",
             "simulated:physics_assembler",
         )
 }

@@ -62,6 +62,7 @@ internal class RocketDrive(
     private var nose = Vector3(0.0, 1.0, 0.0)
     private var allocation: RocketGimbalAllocation.Result? = null
     private var ticks = 0
+    private var previousTurn: Vector3? = null
 
     init {
         require(SableFlightGravity.isManaged(body.level) && body.massTracker.mass > 0.0)
@@ -132,6 +133,7 @@ internal class RocketDrive(
     fun update(
         netAcceleration: Vector3,
         desiredNose: Vector3? = null,
+        trackDirection: Boolean = false,
     ) {
         val gravity = SableFlightGravity.acceleration(body.level, AutopilotSession.position(body))
         val thrust = netAcceleration - gravity
@@ -140,20 +142,28 @@ internal class RocketDrive(
         } else if (thrust.length() >= 0.3) {
             nose = thrust.normalized()
         }
-        apply(thrust, nose)
+        val rate = if (trackDirection) directionRate(nose) else Vector3.ZERO
+        apply(thrust, nose, targetRate = rate)
     }
 
     /** Balanced native RCS couples turn the hull while all main-engine throttles stay zero. */
     fun turn(direction: Vector3) {
         require(direction.length() > 1e-8 && engines.any { !it.main }) { "Rocket has no RCS authority" }
         nose = direction.normalized()
-        apply(Vector3.ZERO, nose, true)
+        apply(Vector3.ZERO, nose, true, directionRate(nose))
+    }
+
+    private fun directionRate(direction: Vector3): Vector3 {
+        val old = previousTurn
+        previousTurn = direction
+        return if (old == null) Vector3.ZERO else OrbitalGuidance.limited(old.cross(direction) * 20.0, 0.8)
     }
 
     private fun apply(
         thrust: Vector3,
         direction: Vector3,
         orientationOnly: Boolean = false,
+        targetRate: Vector3 = Vector3.ZERO,
     ) {
         require(!closed && !body.isRemoved) { "Rocket/controller unavailable" }
         val physics = SubLevelPhysicsSystem.require(body.level)
@@ -163,7 +173,7 @@ internal class RocketDrive(
         val omega = pose.orientation().transformInverse(handle.getAngularVelocity(Vector3d()), Vector3d())
         val global = FlightSpaceCoordinates.globalPosition(body.level, AutopilotSession.position(body))
         require(global.length() < 10000.0 && handle.getLinearVelocity(Vector3d()).length() < 220.0 && omega.length() < 2.0) {
-            "Rocket left the tested flight envelope"
+            "Rocket left the tested flight envelope: position=$global velocity=${handle.getLinearVelocity(Vector3d())} angular=$omega"
         }
         for (engine in engines) {
             val block = engine.block
@@ -178,10 +188,11 @@ internal class RocketDrive(
         if (error.w < 0.0) error.mul(-1.0)
         val sine = sqrt(error.x * error.x + error.y * error.y + error.z * error.z)
         val factor = if (sine > 1e-8) 2.0 * atan2(sine, error.w) / sine else 2.0
+        val rateLocal = pose.orientation().transformInverse(Vector3d(targetRate.x, targetRate.y, targetRate.z))
         val angular =
             OrbitalGuidance.limited(
                 Vector3(error.x * factor, error.y * factor, error.z * factor) * 0.8 -
-                    AutopilotSession.vector(omega) * 1.8,
+                    (AutopilotSession.vector(omega) - AutopilotSession.vector(rateLocal)) * 1.8,
                 0.45,
             )
         val inertia = body.massTracker.inertiaTensor
@@ -207,7 +218,7 @@ internal class RocketDrive(
     }
 
     fun status(): String =
-        "Rocket: ${engines.size} vector engines; force residual=%.3f m/s²".format(
+        "Rocket: ${engines.count { it.main }} main engines, ${engines.count { !it.main }} RCS; force residual=%.3f m/s²".format(
             java.util.Locale.ROOT,
             (allocation?.forceResidual?.length() ?: 0.0) / body.massTracker.mass,
         )

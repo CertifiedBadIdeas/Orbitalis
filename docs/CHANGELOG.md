@@ -22,7 +22,8 @@ limitations under the License.
 
 - Add a consumer-only vector rocket fixture, transient native gimbal control, bounded thrust allocation
   and native assembly/hold/cutoff checks. Add balanced native RCS orientation with the main engines off
-  and bounded direct-ascent reference planning for centre and off-axis pads. Keep rocket orbital guidance separate while it is developed.
+  and bounded direct-ascent reference planning for centre and off-axis pads. Add consumer rocket guidance for a direct ascent into a 900-metre finite-body orbit, full engine-off
+  revolution, RCS retrograde turn and smooth powered return to the saved launch pad.
 
 
 - Remove the retired `flight_test`, `orbit_test` and `space_test` dimensions, player-only travel commands
