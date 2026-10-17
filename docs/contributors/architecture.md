@@ -85,6 +85,12 @@ all belong to the disposable consumer. It reuses existing Orbitalis vector/gravi
 no autopilot API to production. The consumer assembles no release and does not alter the ordinary
 Sable-only laboratory runs.
 
+Independent [coast trajectory navigation](trajectory-navigation.md) copies native Sable state on the server,
+forecasts with the same finite field on a bounded worker and sends validated physical path samples
+to a separate client world overlay. Personal navigation markers have their own version-one SavedData;
+consumer autopilot launch bookmarks retain their existing ownership. Neither the predictor nor overlay
+owns engines, navball instruments or native ship movement.
+
 There is no dependency on Compukters, its VM, Rust runtime or addon SDK. The first bounded planetary
 force model is a finite uniform slab with a conservative surface compatibility layer; it does not
 commit to a general planet system, rendering engine, rocket mechanics or external space integration.
