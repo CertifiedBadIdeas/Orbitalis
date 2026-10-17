@@ -18,29 +18,40 @@
 
 package org.cbi.orbitalis.consumer.flight
 
+import com.simibubi.create.content.contraptions.glue.SuperGlueEntity
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer
 import dev.ryanhcode.sable.api.sublevel.ticket.SubLevelLoadingTicketType
+import dev.ryanhcode.sable.companion.math.Pose3d
 import dev.ryanhcode.sable.sublevel.ServerSubLevel
 import dev.ryanhcode.sable.sublevel.storage.SubLevelRemovalReason
+import dev.ryanhcode.sable.sublevel.storage.holding.GlobalSavedSubLevelPointer
 import dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem
+import dev.simulated_team.simulated.content.entities.honey_glue.HoneyGlueEntity
 import net.minecraft.core.BlockPos
+import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.gametest.framework.GameTest
 import net.minecraft.gametest.framework.GameTestHelper
 import net.minecraft.nbt.CompoundTag
+import net.minecraft.resources.ResourceLocation
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.util.Unit
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.item.Items
+import net.minecraft.world.level.ChunkPos
 import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.level.block.entity.ChestBlockEntity
 import net.minecraft.world.level.block.state.BlockState
+import net.minecraft.world.phys.AABB
+import net.minecraft.world.phys.Vec3
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
 import org.cbi.orbitalis.minecraft.flight.FlightTestSpace
+import org.cbi.orbitalis.minecraft.integration.sable.SableShipSnapshot
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipTransfer
 import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferPilotSync
 import org.joml.Quaterniond
 import org.joml.Vector3d
 import java.nio.file.Files
+import java.util.UUID
 import kotlin.math.abs
 import kotlin.math.atan2
 
@@ -96,6 +107,8 @@ object OrbitalMissionGameTests {
             var transferVelocity: Vector3d? = null
             var movingHandoffs = 0
             val phases = mutableSetOf<OrbitalMission.Phase>()
+            val glue = mutableSetOf<UUID>()
+            var blocker: ServerSubLevel? = null
 
             override fun close() {
                 if (cleaned) return
@@ -111,6 +124,27 @@ object OrbitalMissionGameTests {
                         container.removeSubLevel(body, SubLevelRemovalReason.REMOVED)
                     }
                     SubLevelPhysicsSystem.require(world).paused = false
+                }
+                blocker?.let { old ->
+                    val container = checkNotNull(SubLevelContainer.getContainer(old.level))
+                    if (container.getSubLevel(old.uniqueId) == null) {
+                        val map = container.holdingChunkMap
+                        val holding = map.getHoldingSubLevel(old.uniqueId)
+                        if (holding != null) {
+                            map.loadHoldingSubLevel(holding)
+                        } else {
+                            val anchor = ChunkPos(112, 112)
+                            map.storage.attemptLoadHoldingChunk(anchor)?.subLevelPointers?.toList()?.forEach { pointer ->
+                                if (map.storage.attemptLoadSubLevel(anchor, pointer)?.uuid() == old.uniqueId) {
+                                    map.snatchAndLoad(
+                                        GlobalSavedSubLevelPointer(anchor, pointer.storageIndex(), pointer.subLevelIndex()),
+                                        old.uniqueId,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    container.getSubLevel(old.uniqueId)?.let { container.removeSubLevel(it, SubLevelRemovalReason.REMOVED) }
                 }
                 terrain.forEach { (pos, state) -> rig.level.setBlock(pos, state, 3) }
             }
@@ -148,8 +182,39 @@ object OrbitalMissionGameTests {
                             chestPos,
                         ) as ChestBlockEntity
                     ).setItem(0, ItemStack(Items.COBBLESTONE, 16))
+                    // Install a settled unpowered link after its neighbours. Production still
+                    // rejects pending scheduled ticks; this fixture must not create them.
+                    val link = BuiltInRegistries.BLOCK.get(ResourceLocation.parse("create:redstone_link"))
+                    helper.assertTrue(link !== Blocks.AIR, "Native redstone link is missing")
+                    rig.body.plot.embeddedLevelAccessor
+                        .setBlock(BlockPos(1, 1, 0), link.defaultBlockState(), 2)
                 }
                 if (tick == 120) {
+                    val center = rig.body.plot.centerBlock
+                    val bounds = AABB(Vec3.atLowerCornerOf(center.offset(-2, -2, -2)), Vec3.atLowerCornerOf(center.offset(3, 3, 3)))
+                    for (entity in listOf(SuperGlueEntity(rig.level, bounds), HoneyGlueEntity(rig.level, bounds))) {
+                        helper.assertTrue(rig.level.addFreshEntity(entity), "Could not create native glue fixture")
+                        glue.add(entity.uuid)
+                    }
+                    val container = checkNotNull(SubLevelContainer.getContainer(worlds[2]))
+                    val plot = rig.body.plot.plotPos
+                    val address = plot.x - container.origin.x to plot.z - container.origin.y
+                    val foreign =
+                        container.allocateSubLevel(
+                            UUID.randomUUID(),
+                            address.first,
+                            address.second,
+                            Pose3d().also { it.position().set(1800.0, 1000.0, 1800.0) },
+                        ) as ServerSubLevel
+                    blocker = foreign
+                    foreign.plot.newEmptyChunk(foreign.plot.centerChunk)
+                    foreign.plot.embeddedLevelAccessor.setBlock(BlockPos.ZERO, Blocks.DIAMOND_BLOCK.defaultBlockState(), 3)
+                    foreign.updateMergedMassData(1.0f)
+                    foreign.updateBoundingBox()
+                    foreign.forceUpdateGlobalBounds()
+                    foreign.updateLastPose()
+                    container.holdingChunkMap.moveToUnloaded(foreign, ChunkPos(112, 112))
+
                     val p = AutopilotSession.position(rig.body)
                     helper.assertTrue(
                         pilot.player.teleportTo(rig.level, p.x, p.y + 3, p.z, emptySet(), 0.0f, 0.0f),
@@ -185,6 +250,23 @@ object OrbitalMissionGameTests {
                                     active.body.level,
                                 ).getPhysicsHandle(active.body)
                                 .getLinearVelocity(Vector3d())
+                        val body = active.body
+                        helper.assertTrue(
+                            body.plot.plotPos != checkNotNull(blocker).plot.plotPos || body.level === rig.level,
+                            "Mission reused an unloaded foreign plot",
+                        )
+                        val attached =
+                            SableShipSnapshot
+                                .capture(body)
+                                .getList("orbitalis_attached", 10)
+                        helper.assertTrue(
+                            attached.size == 2 && attached.map { (it as CompoundTag).getUUID("UUID") }.toSet() == glue,
+                            "Native glue was lost during relocation",
+                        )
+                        for (id in glue) {
+                            val entity = checkNotNull(body.level.getEntity(id))
+                            helper.assertTrue(body.plot.contains(entity.position()), "Glue stayed at old plot coordinates")
+                        }
                         val before = checkNotNull(transferVelocity)
                         // The service restores exact snapshot motion; resumed gravity acts during controller warmup.
                         helper.assertTrue(velocity.distance(before) < 6, "Handoff lost inertial velocity: $before -> $velocity")

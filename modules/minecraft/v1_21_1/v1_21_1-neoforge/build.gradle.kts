@@ -200,7 +200,7 @@ val generateGameTestResources = tasks.register("generateGameTestResources") {
 gameTest.resources.srcDir(generateGameTestResources.map { generatedGameTestResources.get() })
 
 val gameTestSuite = providers.gradleProperty("orbitalisGameTestSuite").orElse("all").get()
-require(gameTestSuite in setOf("all", "surface")) { "Unknown GameTest suite: $gameTestSuite" }
+require(gameTestSuite in setOf("all", "surface", "transfer")) { "Unknown GameTest suite: $gameTestSuite" }
 val gameTestReport = layout.buildDirectory.file("test-results/gameTestServer/results.xml")
 loom.runs.register("gameTestServer") {
     server()
@@ -246,7 +246,12 @@ tasks.configureEach {
             val cases = document.getElementsByTagName("testcase")
             val names = (0 until cases.length).map { (cases.item(it) as org.w3c.dom.Element).getAttribute("name") }.toSet()
             val surfaceNames = setOf("nativeoverworldborder", "borderinitializationpreservescustomization", "diagnosticbordersareindependent")
-            val requiredNames = if (gameTestSuite == "surface") surfaceNames else surfaceNames + setOf("ordinaryshipsreceivediagnosticgravity", "fullspaceorbitpreservesnativeenergy", "shiptransferroundtripandrecovery", "spacetransferroundtripandrecovery")
+            val transferNames = setOf("shiptransferroundtripandrecovery", "spacetransferroundtripandrecovery")
+            val requiredNames = when (gameTestSuite) {
+                "surface" -> surfaceNames
+                "transfer" -> transferNames
+                else -> surfaceNames + transferNames + setOf("ordinaryshipsreceivediagnosticgravity", "fullspaceorbitpreservesnativeenergy")
+            }
             check(names.containsAll(requiredNames)) {
                 "GameTest run did not execute its required $gameTestSuite scenarios: $names"
             }

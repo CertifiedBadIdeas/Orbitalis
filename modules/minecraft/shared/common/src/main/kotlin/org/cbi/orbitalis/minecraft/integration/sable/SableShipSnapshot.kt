@@ -28,6 +28,7 @@ import dev.ryanhcode.sable.util.SableNBTUtils
 import net.minecraft.core.BlockPos
 import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.nbt.CompoundTag
+import net.minecraft.nbt.DoubleTag
 import net.minecraft.nbt.ListTag
 import net.minecraft.resources.ResourceKey
 import net.minecraft.server.level.ServerLevel
@@ -189,6 +190,74 @@ object SableShipSnapshot {
                 ),
             )
         }
+
+    /** Native chunks are plot-relative; only the pivot and known absolute addresses move. */
+    fun forDestination(
+        snapshot: CompoundTag,
+        source: ServerLevel,
+        destination: ServerLevel,
+    ): CompoundTag {
+        val from = checkNotNull(SubLevelContainer.getContainer(source))
+        val to = checkNotNull(SubLevelContainer.getContainer(destination))
+        val plot = snapshot.getCompound("plot")
+        require(plot.getInt("log_size") == from.logPlotSize && from.logPlotSize == to.logPlotSize) {
+            "Incompatible native plot sizes"
+        }
+        val side = 1 shl to.logSideLength
+        val oldX = plot.getInt("plot_x")
+        val oldZ = plot.getInt("plot_z")
+        require(oldX in 0 until (1 shl from.logSideLength) && oldZ in 0 until (1 shl from.logSideLength)) {
+            "Invalid source native plot"
+        }
+        val index =
+            if (oldX in 0 until side && oldZ in 0 until side && !to.occupancy[to.getIndex(oldX, oldZ)]) {
+                to.getIndex(oldX, oldZ)
+            } else {
+                to.occupancy.nextClearBit(0)
+            }
+        require(index < side * side) { "No free destination plot; no source changes were made" }
+        val x = index % side
+        val z = index / side
+        val shift = from.logPlotSize + 4
+        val dx = (to.origin.x.toLong() + x - from.origin.x - oldX) shl shift
+        val dz = (to.origin.y.toLong() + z - from.origin.y - oldZ) shl shift
+        require(dx in Int.MIN_VALUE.toLong()..Int.MAX_VALUE && dz in Int.MIN_VALUE.toLong()..Int.MAX_VALUE) {
+            "Native plot relocation exceeds block coordinates"
+        }
+        val copy = snapshot.copy()
+        copy.getCompound("plot").putInt("plot_x", x)
+        copy.getCompound("plot").putInt("plot_z", z)
+        val pose = SableNBTUtils.readPose3d(copy.getCompound("pose"))
+        // The world-space center stays fixed. Translation of both local blocks and rotation point
+        // preserves the rigid transform even for a rotated craft and a nonzero angular velocity.
+        pose.rotationPoint().add(dx.toDouble(), 0.0, dz.toDouble())
+        copy.put("pose", SableNBTUtils.writePose3d(pose))
+        for (key in copy.getCompound("plot").getCompound("chunks").allKeys) {
+            val chunk = copy.getCompound("plot").getCompound("chunks").getCompound(key)
+            for (tag in chunk.getList("block_entities", 10)) {
+                val data = tag as CompoundTag
+                require(data.getString("id") in SUPPORTED_BLOCK_ENTITIES) { "Unsupported relocated block entity" }
+                if (data.getString("id") == "create:redstone_link") {
+                    require(data.contains("LastKnownPosition", 4)) { "Missing native link position" }
+                    val previous = BlockPos.of(data.getLong("LastKnownPosition"))
+                    data.putLong("LastKnownPosition", previous.offset(dx.toInt(), 0, dz.toInt()).asLong())
+                }
+                data.putInt("x", Math.addExact(data.getInt("x"), dx.toInt()))
+                data.putInt("z", Math.addExact(data.getInt("z"), dz.toInt()))
+            }
+        }
+        for (tag in copy.getList("orbitalis_attached", 10)) {
+            val data = tag as CompoundTag
+            require(ShipTransferAttachments.supports(data.getString("id"))) { "Unsupported relocated entity" }
+            val pos = data.getList("Pos", 6)
+            require(pos.size == 3) { "Invalid attached entity position" }
+            pos[0] = DoubleTag.valueOf(pos.getDouble(0) + dx)
+            pos[2] = DoubleTag.valueOf(pos.getDouble(2) + dz)
+            // Pinned Super Glue/Honey Glue From/To bounds are relative to Pos. Propulsion
+            // ControllerOffX/Y/Z are relative to the BE. Their payloads must stay exact.
+        }
+        return copy
+    }
 
     fun load(
         level: ServerLevel,

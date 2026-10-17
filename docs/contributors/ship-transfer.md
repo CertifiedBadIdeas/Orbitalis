@@ -68,15 +68,18 @@ mission controller is added to the production mod.
 ## Supported boundary
 
 The first diagnostic accepts a ship with at most four native plot chunks and a 4096-block bounding
-volume, at most 32 m wide in x/z. Native plot allocation is preserved. An occupied destination slot,
-including one reserved by an unloaded ship, causes rejection without deleting or remapping anything.
+volume, at most 32 m wide in x/z. Prefer the original native plot address when free; otherwise choose
+an available address from Sable's occupancy bitmap, including reservations for unloaded ships.
+A full destination rejects before modifying the source. Persist the selected address in PREPARED,
+then recheck it before reconstruction; a slot claimed during asynchronous preparation cancels safely.
+Foreign ships are never moved to make room. Physical destination obstructions still reject transfer.
 Destination terrain/nearby entities must be clear. Other players must leave all diagnostic flight levels.
 
 Connected/overlapping native chains, kinematic contraptions, mounted pilots, other onboard players,
 mobs, loose entities, general plot-space entities and pending block/fluid ticks are rejected.
 Create Super Glue (`create:super_glue`) and Simulated Honey Glue (`simulated:honey_glue`) are the
 supported metadata-entity exceptions: their NBT/UUID is captured and reconstructed
-in the unchanged native plot coordinates. Preflight also recognizes this exception in Sable's world-space
+in the selected destination plot coordinates. Preflight also recognizes this exception in Sable's world-space
 entity queries, which include projected plot entities. Glue outside the selected plot remains an obstruction.
 Native entity chunks must finish loading before cleanup. Supported block
 entities are vanilla chests/barrels/signs, Create Redstone Links, the pinned Propulsion creative thruster
@@ -157,10 +160,21 @@ continues. A missing completed native checkpoint is an error, never an excuse to
 An unreadable journal or uncertain I/O failure retains paused diagnostic physics and stops further
 transfers for inspection/restart, instead of guessing ownership. Preserve the journal when investigating.
 
+Plot relocation shifts the serialized local rotation point, absolute block-entity x/z and attached
+entity `Pos`, plus the pinned redstone link's absolute `LastKnownPosition`. Physical world pose/bounds,
+orientation, exact velocities, ship/entity UUIDs and payloads
+remain unchanged apart from the existing world-frame height translation. Chunk keys are native
+plot-relative coordinates. Pinned Super Glue/Honey Glue `From`/`To` bounds and Propulsion controller
+offsets are relative, so they remain exact. This is a bounded adapter for the existing allowlist,
+not a generic recursive NBT coordinate rewrite or support for arbitrary mod block entities.
+Journal versions 1/2 already store independent source and destination plot snapshots; no schema change
+is needed. Older journals with equal addresses remain readable, and recovery uses each recorded address.
+
 ## Evidence and remaining work
 
 Native GameTests exercise round trips on both orbital routes using a rotated ship, nonzero small linear/angular velocity,
-a chest and pilot pose, occupied-slot rejection, PREPARED rollback, COMMITTED recovery with a stale
+a chest and pilot pose, relocation around loaded/unloaded foreign ships on outbound/return, full-plot
+rejection, PREPARED rollback, COMMITTED recovery across unequal plot addresses with a stale
 occupancy bitmap, offline pilot
 reconciliation and preservation of post-DONE cargo changes. It also checks unordered block-entity
 comparison, rejection of cargo/type/position/duplicate changes and the narrowly scoped engine work-flag exception.
@@ -174,6 +188,10 @@ engine-connectivity-flag failures before their fixes; it does not establish clie
 Core tests cover the fixed-frame round trip
 and continuous gravitational field. A synthetic interrupted journal is not a power-loss/fsync fault test
 or a full separate-JVM restart. The Sable-only GameTest does not load Create and therefore does not verify actual Super Glue NBT
-round trips. Interactive Propulsion/glue operation, packet ordering, cockpit continuity,
+round trips. The separate consumer mission forces an unloaded destination-slot collision and carries
+an unpowered native Redstone Link, Super Glue and Honey Glue through both handoffs, checking glue
+identity/plot positions and native engine flight through orbital insertion and return/landing. The link
+fixture is installed after its neighbours without creating scheduled ticks; the production pending-tick
+restriction remains unchanged. Interactive Propulsion/glue operation, packet ordering, cockpit continuity,
 second observers and frame-time stalls need their own client evidence. Scheduled ticks, arbitrary
 passenger graphs, connected ships and global surface mapping remain later extensions.

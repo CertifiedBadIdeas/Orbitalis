@@ -238,8 +238,13 @@ class SableShipTransfer(
                     destinationDimension,
                     FlightTestSpace.globalPosition(sourceDimension, Vector3.ZERO),
                 ).y
-        val destination = SableShipSnapshot.translated(source, delta, destinationDimension)
         val target = checkNotNull(server.getLevel(destinationDimension))
+        val destination =
+            SableShipSnapshot.forDestination(
+                SableShipSnapshot.translated(source, delta, destinationDimension),
+                body.level,
+                target,
+            )
         checkDestination(target, destination)
         val sourcePilot = playerState(player)
         val destinationPilot = sourcePilot.copy().also { it.putDouble("y", it.getDouble("y") + delta) }
@@ -341,7 +346,7 @@ class SableShipTransfer(
                 ) { "Source changed while loading destination" }
                 SableShipSnapshot.preflight(source, player)
                 SableShipSnapshot.restoreAttachments(staged, record.destination)
-                verifyCargo(record.source, SableShipSnapshot.capture(staged))
+                verifyCargo(record.destination, SableShipSnapshot.capture(staged))
                 persist(record.copy(phase = ShipTransferPhase.COMMITTED)) { commit(record, source, staged, player) }
             } catch (failure: Exception) {
                 abortPrepared(record, player, failure.message ?: "Destination verification failed")

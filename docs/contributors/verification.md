@@ -38,7 +38,8 @@ math. This is mathematical coverage, not evidence of Minecraft/Sable gameplay. N
 Run `:v1_21_1-neoforge:runGameTestServer` separately. The default `all` suite requires three surface
 border/persistence/packet scenarios and four retained flight/orbit/ship-transfer scenarios, with no
 failed, skipped or error results in a fresh XML report. `-PorbitalisGameTestSuite=surface` runs the three
-surface cases alone. See [flat surface](flat-surface.md), [flight gravity](flight-gravity.md) and
+surface cases alone; `-PorbitalisGameTestSuite=transfer` runs the two native transfer/recovery cases
+without the full-orbit performance cost. See [flat surface](flat-surface.md), [flight gravity](flight-gravity.md) and
 [ship transfer](ship-transfer.md). The consumer separately requires its nine native flight scenarios.
 
 A successful client launch cannot prove visual or interactive correctness. Record manual observations,

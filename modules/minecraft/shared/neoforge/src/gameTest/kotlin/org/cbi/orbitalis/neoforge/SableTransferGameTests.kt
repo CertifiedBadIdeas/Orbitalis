@@ -26,6 +26,7 @@ import dev.ryanhcode.sable.mixinterface.entity.entity_sublevel_collision.EntityM
 import dev.ryanhcode.sable.sublevel.ServerSubLevel
 import dev.ryanhcode.sable.sublevel.SubLevel
 import dev.ryanhcode.sable.sublevel.storage.SubLevelRemovalReason
+import dev.ryanhcode.sable.sublevel.storage.holding.GlobalSavedSubLevelPointer
 import dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem
 import net.minecraft.core.BlockPos
 import net.minecraft.gametest.framework.GameTest
@@ -37,9 +38,11 @@ import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.ListTag
 import net.minecraft.nbt.NbtIo
 import net.minecraft.resources.ResourceKey
+import net.minecraft.server.level.ServerLevel
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.item.Items
+import net.minecraft.world.level.ChunkPos
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.level.block.entity.ChestBlockEntity
@@ -57,6 +60,7 @@ import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferTeleportState
 import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferTickGate
 import org.joml.Vector3d
 import java.nio.file.Files
+import java.util.BitSet
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import net.minecraft.util.Unit as MinecraftUnit
@@ -127,10 +131,18 @@ object SableTransferGameTests {
         val player = GameTestPlayers.create(helper)
         val pose =
             Pose3d().also {
-                it.position().set(1200.0, 600.0, 1200.0)
+                val anchor = if (route == FlightTestSpace.SPACE) 1200.0 else 1400.0
+                it.position().set(anchor, 600.0, anchor)
                 it.orientation().rotateZ(0.1).rotateX(0.05)
             }
-        val source = surfaceContainer.allocateNewSubLevel(pose) as ServerSubLevel
+        val unavailable = surfaceContainer.occupancy.clone() as BitSet
+        unavailable.or(orbitContainer.occupancy)
+        val sourceSide = 1 shl surfaceContainer.logSideLength
+        // Start in another row so the outbound relocation exercises both local X and Z.
+        val sourceAddress = unavailable.nextClearBit(sourceSide)
+        val source =
+            surfaceContainer.allocateSubLevel(UUID.randomUUID(), sourceAddress % sourceSide, sourceAddress / sourceSide, pose)
+                as ServerSubLevel
         val ship = source.uniqueId
         var sourceRemovedBeforeTravel = false
         surfaceContainer.addObserver(
@@ -264,7 +276,61 @@ object SableTransferGameTests {
             helper.assertTrue(body.logicalPose().orientation().dot(expectedAngle) > 0.99999, "Orientation changed")
         }
 
+        val foreign = mutableListOf<Pair<ServerLevel, ServerSubLevel>>()
+
+        fun blocker(
+            world: ServerLevel,
+            x: Int,
+            z: Int,
+        ): ServerSubLevel {
+            val container = checkNotNull(SubLevelContainer.getContainer(world))
+            val pose = Pose3d().also { it.position().set(1804.0 + 32 * foreign.size, 1000.0, 1804.0) }
+            val body = container.allocateSubLevel(UUID.randomUUID(), x, z, pose) as ServerSubLevel
+            body.plot.newEmptyChunk(body.plot.centerChunk)
+            body.plot.embeddedLevelAccessor.setBlock(BlockPos.ZERO, Blocks.CHEST.defaultBlockState(), 3)
+            chest(body).setItem(0, ItemStack(Items.DIAMOND, 7))
+            body.updateMergedMassData(1.0f)
+            body.updateBoundingBox()
+            body.forceUpdateGlobalBounds()
+            body.updateLastPose()
+            container.addForceLoadTicket(body, SubLevelLoadingTicketType.COMMAND_FORCED, MinecraftUnit.INSTANCE)
+            foreign.add(world to body)
+            return body
+        }
+
+        fun restoreForeign(
+            world: ServerLevel,
+            old: ServerSubLevel,
+        ): ServerSubLevel {
+            val container = checkNotNull(SubLevelContainer.getContainer(world))
+            if (container.getSubLevel(old.uniqueId) == null) {
+                val map = container.holdingChunkMap
+                val holding = map.getHoldingSubLevel(old.uniqueId)
+                if (holding != null) {
+                    map.loadHoldingSubLevel(holding)
+                } else {
+                    val anchor = ChunkPos(BlockPos.containing(old.logicalPose().position().x, 0.0, old.logicalPose().position().z))
+                    for (pointer in checkNotNull(map.storage.attemptLoadHoldingChunk(anchor)).subLevelPointers.toList()) {
+                        if (map.storage.attemptLoadSubLevel(anchor, pointer)?.uuid() == old.uniqueId) {
+                            map.snatchAndLoad(
+                                GlobalSavedSubLevelPointer(anchor, pointer.storageIndex(), pointer.subLevelIndex()),
+                                old.uniqueId,
+                            )
+                        }
+                    }
+                }
+            }
+            return container.getSubLevel(old.uniqueId) as ServerSubLevel
+        }
+
         fun cleanup() {
+            for ((world, old) in foreign) {
+                val container = checkNotNull(SubLevelContainer.getContainer(world))
+                runCatching { restoreForeign(world, old) }.getOrNull()?.let { body ->
+                    container.removeForceLoadTicket(body, SubLevelLoadingTicketType.COMMAND_FORCED, MinecraftUnit.INSTANCE)
+                    container.removeSubLevel(body, SubLevelRemovalReason.REMOVED)
+                }
+            }
             for (container in listOf(surfaceContainer, orbitContainer)) {
                 (container.getSubLevel(ship) as? ServerSubLevel)?.let { body ->
                     container.removeForceLoadTicket(body, SubLevelLoadingTicketType.COMMAND_FORCED, MinecraftUnit.INSTANCE)
@@ -288,7 +354,8 @@ object SableTransferGameTests {
                     test: GameTestInfo,
                     runner: GameTestRunner,
                 ) {
-                    cleanup()
+                    System.err.println("Ship transfer GameTest failed: ${test.error}")
+                    runCatching { cleanup() }.onFailure { it.printStackTrace() }
                     for (key in listOf(FlightTestSpace.SURFACE, FlightTestSpace.ORBIT, FlightTestSpace.SPACE)) {
                         SubLevelPhysicsSystem.require(checkNotNull(server.getLevel(key))).paused = false
                     }
@@ -312,15 +379,40 @@ object SableTransferGameTests {
                 check(player.teleportTo(surface, p.x, p.y + 2.0, p.z, emptySet(), 32f, 12f))
                 val startY = player.y
                 val before = SableShipSnapshot.capture(source)
+                val expectedChest =
+                    source
+                        .logicalPose()
+                        .transformPosition(
+                            Vector3d(
+                                chest(source).blockPos.x.toDouble(),
+                                chest(source).blockPos.y.toDouble(),
+                                chest(source).blockPos.z.toDouble(),
+                            ),
+                        ).add(0.0, delta, 0.0)
                 val plot = before.getCompound("plot")
-                val blocker = orbitContainer.allocateSubLevel(UUID.randomUUID(), plot.getInt("plot_x"), plot.getInt("plot_z"), Pose3d())
+                val occupied = blocker(orbit, plot.getInt("plot_x"), plot.getInt("plot_z"))
+                val firstFree = orbitContainer.occupancy.nextClearBit(0)
+                val side = 1 shl orbitContainer.logSideLength
+                val unloaded = blocker(orbit, firstFree % side, firstFree / side)
+                orbitContainer.removeForceLoadTicket(unloaded, SubLevelLoadingTicketType.COMMAND_FORCED, MinecraftUnit.INSTANCE)
+                orbitContainer.holdingChunkMap.moveToUnloaded(
+                    unloaded,
+                    ChunkPos(BlockPos.containing(unloaded.logicalPose().position().x, 0.0, unloaded.logicalPose().position().z)),
+                )
+                helper.assertTrue(orbitContainer.getSubLevel(unloaded.uniqueId) == null, "Blocker did not unload")
+                helper.assertTrue(
+                    orbitContainer.getSubLevel(occupied.uniqueId) === occupied,
+                    "Unloading fixture also removed loaded blocker; bounds=${occupied.boundingBox()} / ${unloaded.boundingBox()}",
+                )
+                val occupancy = orbitContainer.occupancy.clone() as BitSet
                 try {
-                    manager.begin(player, source, route)
-                    helper.fail("Occupied destination was accepted")
-                } catch (_: IllegalArgumentException) {
+                    orbitContainer.occupancy.set(0, 1 shl (2 * orbitContainer.logSideLength))
+                    helper.assertTrue(runCatching { manager.begin(player, source, route) }.isFailure, "Full allocation was accepted")
+                    helper.assertTrue(surfaceContainer.getSubLevel(ship) === source && !manager.busy, "Full allocation changed source")
+                } finally {
+                    orbitContainer.occupancy.clear()
+                    orbitContainer.occupancy.or(occupancy)
                 }
-                helper.assertTrue(surfaceContainer.getSubLevel(ship) === source && !manager.busy, "Rejected transfer changed the source")
-                orbitContainer.removeSubLevel(blocker, SubLevelRemovalReason.REMOVED)
                 val ticksBeforeTransfer = blockTicks
                 val tickerPosition = chest(source).blockPos
                 manager.begin(player, source, route)
@@ -338,6 +430,29 @@ object SableTransferGameTests {
                     )
                     helper.assertTrue(player.yRot == 32f && player.xRot == 12f, "Pilot view changed")
                     cargo(moved)
+                    val actualChest =
+                        moved.logicalPose().transformPosition(
+                            Vector3d(
+                                chest(moved).blockPos.x.toDouble(),
+                                chest(moved).blockPos.y.toDouble(),
+                                chest(moved).blockPos.z.toDouble(),
+                            ),
+                        )
+                    helper.assertTrue(actualChest.distance(expectedChest) < 1e-6, "Plot relocation moved the physical blocks")
+                    helper.assertTrue(
+                        moved.plot.plotPos != occupied.plot.plotPos && moved.plot.plotPos != unloaded.plot.plotPos,
+                        "Transfer reused a loaded or unloaded foreign plot",
+                    )
+                    helper.assertTrue(
+                        orbitContainer.getSubLevel(occupied.uniqueId) === occupied,
+                        "Loaded blocker was replaced; current=${orbitContainer.getSubLevel(
+                            occupied.uniqueId,
+                        )} removed=${occupied.isRemoved}",
+                    )
+                    val movedPlot = SableShipSnapshot.capture(moved).getCompound("plot")
+                    if (!surfaceContainer.occupancy[surfaceContainer.getIndex(movedPlot.getInt("plot_x"), movedPlot.getInt("plot_z"))]) {
+                        blocker(surface, movedPlot.getInt("plot_x"), movedPlot.getInt("plot_z"))
+                    }
                     val linear = SubLevelPhysicsSystem.require(orbit).getPhysicsHandle(moved).getLinearVelocity(Vector3d())
                     helper.assertTrue(linear.distance(Vector3d(0.03, 0.04, -0.02)) < 1e-8, "Small linear velocity changed across handoff")
                     val angular = SubLevelPhysicsSystem.require(orbit).getPhysicsHandle(moved).getAngularVelocity(Vector3d())
@@ -361,7 +476,23 @@ object SableTransferGameTests {
                             cargo(returned, 32)
                             chest(returned).setItem(0, ItemStack(Items.COBBLESTONE, 16))
                             val snapshot = SableShipSnapshot.capture(returned)
-                            val shifted = SableShipSnapshot.translated(snapshot, delta, route)
+                            val recoveryPlot = snapshot.getCompound("plot")
+                            val recoveryX = recoveryPlot.getInt("plot_x")
+                            val recoveryZ = recoveryPlot.getInt("plot_z")
+                            if (!orbitContainer.occupancy[orbitContainer.getIndex(recoveryX, recoveryZ)]) {
+                                blocker(orbit, recoveryX, recoveryZ)
+                            }
+                            val shifted =
+                                SableShipSnapshot.forDestination(
+                                    SableShipSnapshot.translated(snapshot, delta, route),
+                                    surface,
+                                    orbit,
+                                )
+                            helper.assertTrue(
+                                shifted.getCompound("plot").getInt("plot_x") != recoveryX ||
+                                    shifted.getCompound("plot").getInt("plot_z") != recoveryZ,
+                                "Recovery fixture did not relocate the destination plot",
+                            )
                             val pilotState = SableShipTransfer.playerState(player)
                             val orbitState = pilotState.copy().also { it.putDouble("y", it.getDouble("y") + delta) }
                             val record =
@@ -478,7 +609,10 @@ object SableTransferGameTests {
                                             surfaceContainer.getIndex(reserved.getInt("plot_x"), reserved.getInt("plot_z")),
                                         )
                                         orbitContainer.occupancy.set(
-                                            orbitContainer.getIndex(reserved.getInt("plot_x"), reserved.getInt("plot_z")),
+                                            orbitContainer.getIndex(
+                                                shifted.getCompound("plot").getInt("plot_x"),
+                                                shifted.getCompound("plot").getInt("plot_z"),
+                                            ),
                                         )
                                         journalWrite = journal.write(record.copy(phase = ShipTransferPhase.COMMITTED))
                                         waitUntil({ journalWrite!!.isDone }) {
@@ -510,6 +644,15 @@ object SableTransferGameTests {
                                                         )
                                                         cargo(recovered)
                                                         brokenStore.close()
+                                                        for ((world, old) in foreign) {
+                                                            val body = restoreForeign(world, old)
+                                                            helper.assertTrue(
+                                                                chest(body).getItem(0).`is`(Items.DIAMOND) &&
+                                                                    chest(body).getItem(0).count == 7,
+                                                                "Foreign cargo changed",
+                                                            )
+                                                            helper.assertTrue(body.plot.plotPos == old.plot.plotPos, "Foreign plot moved")
+                                                        }
                                                         cleanup()
                                                         helper.succeed()
                                                     }

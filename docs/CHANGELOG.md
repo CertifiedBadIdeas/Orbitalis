@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Choose a free native Sable plot when a ship transfer's original address is occupied, including by an unloaded ship. Relocate supported block entities and glue while preserving physical pose, motion, cargo and foreign ships; retain journal compatibility and per-snapshot recovery addresses.
+
 - Continue consumer orbital ascent/return across the dimension handoff without braking to a boundary waypoint. Preserve moving journal snapshots and automatically resume the next leg; retain braking for insertion and actual touchdown. Finish landing within 0.5 m only after native terrain supports the ship with engines off.
 
 - Add a flat 2000×2000 reference body with side strata and an underside in diagnostic space. Replace its Overworld sky with black vacuum, fixed stars/Sun and time-independent skylight; retain ordinary surface skies and existing saved dimension types. The body is illustrative, without live terrain sampling or new orbital physics.
