@@ -33,6 +33,7 @@ data class PlayerGravityPayload(
     val advancing: Boolean = true,
 ) : CustomPacketPayload {
     init {
+        require(profile?.earthSpinEpochTick?.let { it <= simulationTick } != false)
         require(simulationTick >= 0 && (profile == null || profile.epochTick <= simulationTick))
         require(profile == null || profile.surfaceGravity == acceleration)
         require(acceleration.isFinite() && acceleration > 0.0 && acceleration <= 1000.0)
@@ -58,6 +59,8 @@ data class PlayerGravityPayload(
                         buffer.writeLong(it.epochTick)
                         buffer.writeDouble(it.earthPhase)
                         buffer.writeDouble(it.moonPhase)
+                        buffer.writeBoolean(it.earthSpinEpochTick != null)
+                        it.earthSpinEpochTick?.let(buffer::writeLong)
                     }
                 }
 
@@ -69,7 +72,13 @@ data class PlayerGravityPayload(
                     val profile =
                         if (buffer.readBoolean()) {
                             require(buffer.readVarInt() == SolarSystemProfile.VERSION)
-                            SolarSystemProfile(acceleration, buffer.readLong(), buffer.readDouble(), buffer.readDouble())
+                            SolarSystemProfile(
+                                acceleration,
+                                buffer.readLong(),
+                                buffer.readDouble(),
+                                buffer.readDouble(),
+                                if (buffer.readBoolean()) buffer.readLong() else null,
+                            )
                         } else {
                             null
                         }

@@ -23,7 +23,7 @@ import org.cbi.orbitalis.core.planet.LunarSurface
 import org.cbi.orbitalis.core.planet.RectangularGravity
 import kotlin.math.PI
 
-/** Version-one compact preset. Persist phases and epoch with the simulation clock, not daylight. */
+/** Compact preset. Persist orbit and spin epochs with the simulation clock, not daylight. */
 data class SolarSystemProfile(
     val surfaceGravity: Double,
     val epochTick: Long = 0,
@@ -104,7 +104,7 @@ data class SolarSystemProfile(
     }
 
     companion object {
-        const val VERSION = 1
+        const val VERSION = 2
         const val EARTH_SPIN_TICKS = 24000L
         const val EARTH_SPIN_PERIOD = 1200.0
         const val SUN = "orbitalis:sun"

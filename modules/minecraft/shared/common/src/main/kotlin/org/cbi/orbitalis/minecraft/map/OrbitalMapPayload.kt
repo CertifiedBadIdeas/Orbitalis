@@ -78,7 +78,10 @@ data class MapSnapshot(
     init {
         require(gravity.isFinite() && gravity in 1e-6..1e6)
         require(tick >= 0 && simulationTick >= 0 && player.length() <= 1e8)
-        celestialProfile?.let { require(it.epochTick <= simulationTick && it.surfaceGravity == gravity) }
+        celestialProfile?.let {
+            require(it.epochTick <= simulationTick && it.surfaceGravity == gravity)
+            require(it.earthSpinEpochTick?.let { epoch -> epoch <= simulationTick } != false)
+        }
         require(objects.size <= MAX_OBJECTS && total in objects.size..1000000)
         require(objects.map { it.id }.toSet().size == objects.size)
     }
@@ -117,6 +120,8 @@ data class MapSnapshot(
                         buffer.writeLong(profile.epochTick)
                         buffer.writeDouble(profile.earthPhase)
                         buffer.writeDouble(profile.moonPhase)
+                        buffer.writeBoolean(profile.earthSpinEpochTick != null)
+                        profile.earthSpinEpochTick?.let(buffer::writeLong)
                     }
                 }
 
@@ -144,7 +149,13 @@ data class MapSnapshot(
                     val profile =
                         if (buffer.readBoolean()) {
                             require(buffer.readVarInt() == SolarSystemProfile.VERSION) { "Unknown celestial profile version" }
-                            SolarSystemProfile(buffer.readDouble(), buffer.readLong(), buffer.readDouble(), buffer.readDouble())
+                            SolarSystemProfile(
+                                buffer.readDouble(),
+                                buffer.readLong(),
+                                buffer.readDouble(),
+                                buffer.readDouble(),
+                                if (buffer.readBoolean()) buffer.readLong() else null,
+                            ).also { require(it.earthSpinEpochTick?.let { epoch -> epoch <= simulationTick } != false) }
                         } else {
                             null
                         }

@@ -65,7 +65,7 @@ culling enables after drawing. Marker projection uses the same camera basis as t
 map admits that player to the existing bounded atlas stream; closing leaves the shared client atlas
 cache available for later map/orbital views. Atlas SavedData and its existing protocol are unchanged.
 
-## Version-three map network contract
+## Version-five map network contract
 
 `orbitalis:map_request` carries a screen-local random UUID token and an open/close flag. The native
 connection supplies player identity. Only Overworld/space subscribers are admitted. A 100-server-tick
@@ -82,7 +82,7 @@ rejected. Gravity must be finite and within 0.000001..1,000,000 m/s². The maxim
 For overflow, nearest objects are retained and shown count differs from total. The client accepts only
 the current screen token and nondecreasing snapshot ticks. It marks missing/stale responses after
 three seconds and hides stale trajectory previews. Forecasts do not move the authoritative object
-markers. Screen state is discarded on close. Version two added gravity; version three registers the additional bounded flight-plan messages described below. Mismatched clients are rejected during native protocol negotiation; existing map/atlas data is unchanged.
+markers. Screen state is discarded on close. Version two added gravity, version three added the bounded flight-plan messages below, version four added the celestial catalogue and simulation epoch, and version five carries the Earth spin epoch. Mismatched clients are rejected during native protocol negotiation; existing map/atlas data is unchanged.
 
 ## Verification
 

@@ -21,7 +21,8 @@ limitations under the License.
 The accepted first solar-system model uses prescribed trajectories for massive bodies and numerical
 motion for vessels. The intended hierarchy is Sun → Earth → Moon. Daylight remains ordinary
 Minecraft behavior: `/time set`, sleep and local sky presentation do not advance orbital simulation.
-Physical sunlight, platform spin and sleep-driven system acceleration remain deferred.
+Physical sunlight and sleep-driven system acceleration remain deferred. Twenty-minute
+[axial rotation](earth-rotation.md) is being integrated independently of native daylight.
 
 ## Current scope
 
@@ -152,3 +153,8 @@ floor. The native generator and automatic ship arrival/departure use this defini
 Core tests cover seed/query-order reproducibility, finite edges, negative-coordinate/chunk seams,
 Earth-facing normal through a full orbit, rigid-state round trips and independent finite-difference
 checks of the velocity/acceleration of a point fixed to the spinning surface.
+
+The version-two celestial profile also stores an optional Earth spin epoch. Version-one profiles
+retain their old fixed surface axes when decoded; the runtime upgrade will attach a new spin epoch
+at the current simulation clock. Frozen old transfer frames keep their original meaning. Motion
+record positions, their frame identifier and the outer version-two index remain unchanged.

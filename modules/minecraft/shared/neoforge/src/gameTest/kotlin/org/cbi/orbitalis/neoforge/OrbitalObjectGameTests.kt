@@ -154,17 +154,43 @@ object OrbitalObjectGameTests {
                     .origin == expected,
             "Profile reload changed orbital phase",
         )
+        val legacyProfile =
+            saved.copy().apply {
+                getCompound("Celestial").apply {
+                    putInt("Version", 1)
+                    remove("EarthRotates")
+                    remove("EarthSpinEpoch")
+                }
+            }
+        val legacy = OrbitalObjectData.load(legacyProfile)
+        helper.assertTrue(legacy.readable && legacy.profile?.earthSpinEpochTick == null, "Legacy profile acquired a spin")
+        val spinningTag =
+            saved.copy().apply {
+                getCompound("Celestial").apply {
+                    putBoolean("EarthRotates", true)
+                    putLong("EarthSpinEpoch", 500)
+                }
+            }
+        val spinning = OrbitalObjectData.load(spinningTag)
+        val rotatingProfile = checkNotNull(spinning.profile)
+        helper.assertTrue(rotatingProfile.earthSpinEpochTick == 500L, "Spin phase epoch was lost")
+        val turning = rotatingProfile.earthSurfaceFrame(6500).orientation
+        helper.assertTrue((turning.xAxis - Vector3(0.0, 1.0, 0.0)).length() < 1e-9, "Restored spin has the wrong phase")
+        val spinReload = OrbitalObjectData.load(spinning.save(CompoundTag(), registries))
+        helper.assertTrue(spinReload.profile == rotatingProfile, "Spin profile did not roundtrip through native NBT")
+        checkSpinPackets(helper, rotatingProfile, spinning.clock)
         val folder = Files.createTempDirectory("orbitalis-celestial-clock-").toFile()
         try {
             val storage = DimensionDataStorage(folder, helper.level.server.fixerUpper, registries)
-            storage.set(OrbitalObjectData.NAME, data)
-            data.setDirty()
+            storage.set(OrbitalObjectData.NAME, spinning)
+            spinning.setDirty()
             storage.save()
             net.neoforged.neoforge.common.IOUtilities
                 .waitUntilIOWorkerComplete()
             val fresh =
                 DimensionDataStorage(folder, helper.level.server.fixerUpper, registries)
                     .computeIfAbsent(OrbitalObjectData.FACTORY, OrbitalObjectData.NAME)
+            helper.assertTrue(fresh.profile == rotatingProfile, "Fresh disk read changed Earth spin epoch")
             helper.assertTrue(
                 fresh.clock == data.clock &&
                     fresh.profile!!
@@ -182,6 +208,11 @@ object OrbitalObjectGameTests {
             saved.copy().apply { getCompound("Celestial").putDouble("Gravity", Double.NaN) },
             saved.copy().apply { getCompound("Celestial").putLong("EpochTick", 511) },
             saved.copy().apply { getCompound("Celestial").remove("MoonPhase") },
+            saved.copy().apply { getCompound("Celestial").remove("EarthRotates") },
+            saved.copy().apply { getCompound("Celestial").putByte("EarthRotates", 2) },
+            spinningTag.copy().apply { getCompound("Celestial").remove("EarthSpinEpoch") },
+            spinningTag.copy().apply { getCompound("Celestial").putLong("EarthSpinEpoch", -1) },
+            spinningTag.copy().apply { getCompound("Celestial").putLong("EarthSpinEpoch", 511) },
         )) {
             val unknown = OrbitalObjectData.load(bad)
             unknown.advanceClock()
@@ -191,6 +222,70 @@ object OrbitalObjectGameTests {
             )
         }
         helper.succeed()
+    }
+
+    private fun checkSpinPackets(
+        helper: GameTestHelper,
+        profile: SolarSystemProfile,
+        tick: Long,
+    ) {
+        val buffer =
+            net.minecraft.network.FriendlyByteBuf(
+                io.netty.buffer.Unpooled
+                    .buffer(),
+            )
+        try {
+            val gravity =
+                org.cbi.orbitalis.minecraft.flight
+                    .PlayerGravityPayload(profile.surfaceGravity, tick, profile)
+            org.cbi.orbitalis.minecraft.flight.PlayerGravityPayload.CODEC
+                .encode(buffer, gravity)
+            helper.assertTrue(
+                org.cbi.orbitalis.minecraft.flight.PlayerGravityPayload.CODEC
+                    .decode(buffer) == gravity,
+                "Gravity packet lost the spinning surface phase",
+            )
+            buffer.readerIndex(0)
+            // Profile epoch is the final long; reject future surface epochs at receipt.
+            buffer.setLong(buffer.writerIndex() - 8, tick + 1)
+            helper.assertTrue(
+                runCatching {
+                    org.cbi.orbitalis.minecraft.flight.PlayerGravityPayload.CODEC
+                        .decode(buffer)
+                }.isFailure,
+                "Gravity packet accepted a future spin epoch",
+            )
+            buffer.clear()
+            val map =
+                org.cbi.orbitalis.minecraft.map.MapSnapshot(
+                    UUID.randomUUID(),
+                    tick,
+                    Vector3.ZERO,
+                    emptyList(),
+                    gravity = profile.surfaceGravity,
+                    simulationTick = tick,
+                    total = 0,
+                    celestialProfile = profile,
+                )
+            org.cbi.orbitalis.minecraft.map.MapSnapshot.CODEC
+                .encode(buffer, map)
+            helper.assertTrue(
+                org.cbi.orbitalis.minecraft.map.MapSnapshot.CODEC
+                    .decode(buffer) == map,
+                "Map packet lost the spinning surface phase",
+            )
+            buffer.readerIndex(0)
+            buffer.setLong(buffer.writerIndex() - 8, tick + 1)
+            helper.assertTrue(
+                runCatching {
+                    org.cbi.orbitalis.minecraft.map.MapSnapshot.CODEC
+                        .decode(buffer)
+                }.isFailure,
+                "Map packet accepted a future spin epoch",
+            )
+        } finally {
+            buffer.release()
+        }
     }
 
     @JvmStatic

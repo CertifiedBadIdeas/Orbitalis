@@ -40,7 +40,12 @@ Earth rotation does not make the Moon follow a particular terrestrial longitude.
 legacy fixed-Earth contracts. Spin phase survives mass-model retuning. Root-space coast
 predictions intersect the moving body's local geometry at each integration instant.
 
-The core model is implemented first. Runtime activation, profile persistence/networking,
-old receipt compatibility, native-world adapters, renderers and consumer guidance must be
+Version-two profiles persist `EarthRotates` and, when enabled, a bounded `EarthSpinEpoch`.
+Version-one profiles decode with fixed Earth axes, including frozen lunar receipts. Gravity
+protocol three and map protocol five carry the optional spin epoch and reject epochs later
+than their simulation snapshot. Future or malformed saved profiles remain preserved unreadable.
+
+The core model and profile contracts are implemented first. Runtime activation, old Earth
+receipt compatibility, native-world adapters, renderers and consumer guidance must be
 wired together before enabling this model in ordinary worlds. Existing orbital root states
 must remain unchanged, and pending old receipts must retain their recorded frame semantics.

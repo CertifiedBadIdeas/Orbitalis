@@ -107,6 +107,8 @@ class OrbitalObjectData private constructor(
                     putDouble("Gravity", value.surfaceGravity)
                     putDouble("EarthPhase", value.earthPhase)
                     putDouble("MoonPhase", value.moonPhase)
+                    putBoolean("EarthRotates", value.earthSpinEpochTick != null)
+                    value.earthSpinEpochTick?.let { putLong("EarthSpinEpoch", it) }
                 },
             )
         }
@@ -130,14 +132,27 @@ class OrbitalObjectData private constructor(
                 if (tag.getInt("Version") == 2 && tag.contains("Celestial")) {
                     require(tag.contains("Celestial", Tag.TAG_COMPOUND.toInt()))
                     val celestial = tag.getCompound("Celestial")
-                    require(celestial.getInt("Version") == SolarSystemProfile.VERSION && celestial.contains("EpochTick", 4))
+                    require(celestial.getInt("Version") in 1..SolarSystemProfile.VERSION && celestial.contains("EpochTick", 4))
                     require(listOf("Gravity", "EarthPhase", "MoonPhase").all { celestial.contains(it, 6) })
+                    val spinEpoch =
+                        if (celestial.getInt("Version") >= 2) {
+                            require(celestial.contains("EarthRotates", 1) && celestial.getByte("EarthRotates").toInt() in 0..1)
+                            if (celestial.getBoolean("EarthRotates")) {
+                                require(celestial.contains("EarthSpinEpoch", 4))
+                                celestial.getLong("EarthSpinEpoch").also { require(it in 0..result.clock) }
+                            } else {
+                                null
+                            }
+                        } else {
+                            null
+                        }
                     result.profile =
                         SolarSystemProfile(
                             celestial.getDouble("Gravity"),
                             celestial.getLong("EpochTick"),
                             celestial.getDouble("EarthPhase"),
                             celestial.getDouble("MoonPhase"),
+                            spinEpoch,
                         ).also { require(it.epochTick <= result.clock) }
                 }
                 require(tag.contains("Objects", Tag.TAG_LIST.toInt()))

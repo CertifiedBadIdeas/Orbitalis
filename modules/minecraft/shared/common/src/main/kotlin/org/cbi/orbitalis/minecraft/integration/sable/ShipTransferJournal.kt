@@ -101,6 +101,9 @@ data class ShipTransferRecord(
                         frame.putDouble("gravity", sample.frames.profile.surfaceGravity)
                         frame.putDouble("earth_phase", sample.frames.profile.earthPhase)
                         frame.putDouble("moon_phase", sample.frames.profile.moonPhase)
+                        frame.putBoolean("earth_rotates", sample.frames.profile.earthSpinEpochTick != null)
+                        sample.frames.profile.earthSpinEpochTick
+                            ?.let { frame.putLong("earth_spin_epoch", it) }
                     },
                 )
             }
@@ -169,17 +172,30 @@ data class ShipTransferRecord(
                 if (version == 6) {
                     require(tag.contains("frame", 10)) { "Missing frozen lunar frame" }
                     val frame = tag.getCompound("frame")
-                    require(frame.contains("version", 3) && frame.getInt("version") == SolarSystemProfile.VERSION)
+                    require(frame.contains("version", 3) && frame.getInt("version") in 1..SolarSystemProfile.VERSION)
                     require(frame.contains("tick", 4) && frame.contains("epoch", 4))
                     require(listOf("gravity", "earth_phase", "moon_phase").all { frame.contains(it, 6) })
+                    val tick = frame.getLong("tick")
+                    val spinEpoch =
+                        if (frame.getInt("version") >= 2) {
+                            require(frame.contains("earth_rotates", 1) && frame.getByte("earth_rotates").toInt() in 0..1)
+                            if (frame.getBoolean("earth_rotates")) {
+                                require(frame.contains("earth_spin_epoch", 4))
+                                frame.getLong("earth_spin_epoch").also { require(it in 0..tick) }
+                            } else {
+                                null
+                            }
+                        } else {
+                            null
+                        }
                     val profile =
                         SolarSystemProfile(
                             frame.getDouble("gravity"),
                             frame.getLong("epoch"),
                             frame.getDouble("earth_phase"),
                             frame.getDouble("moon_phase"),
+                            spinEpoch,
                         )
-                    val tick = frame.getLong("tick")
                     require(tick >= profile.epochTick)
                     CelestialFlight(SurfaceFlightFrames(profile, tick))
                 } else {
