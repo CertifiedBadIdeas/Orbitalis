@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Add a per-world Earth-size selection to the native world-creation More tab, with a 1000-block
+  preview preset and a 10000-block default. Save creation intent in native world metadata and
+  preserve legacy absence and unsupported records for the physical-system adapter.
+
 - Move optional Voxy WorldGenV2 finite-terrain search and shutdown compatibility into the main mod.
   Keep Voxy and WorldGenV2 separately installed, with optional client dependency declarations;
   the flight consumer no longer owns these compatibility hooks.

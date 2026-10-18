@@ -53,5 +53,8 @@
   "map.orbitalis.view.earth_moon": "Земля–Луна",
   "map.orbitalis.view.system": "Система",
   "body.orbitalis.sun": "Солнце",
-  "body.orbitalis.moon": "Луна"
+  "body.orbitalis.moon": "Луна",
+  "world.orbitalis.size": "Размер Земли",
+  "world.orbitalis.size.blocks": "%s блоков",
+  "world.orbitalis.size.tooltip": "Размер Земли, Луны и физический масштаб солнечной системы. Выбирается при создании мира. Для проверки визуала подойдёт 1000 блоков."
 }

@@ -40,10 +40,26 @@ object OrbitalisGameTests {
         val suite = System.getProperty("orbitalis.gameTestSuite", "all")
         require(
             suite in
-                setOf("all", "surface", "transfer", "flat", "travel", "navigation", "sparse", "atlas", "objects", "terrain", "map", "moon"),
+                setOf(
+                    "all",
+                    "surface",
+                    "transfer",
+                    "flat",
+                    "travel",
+                    "navigation",
+                    "sparse",
+                    "atlas",
+                    "objects",
+                    "terrain",
+                    "map",
+                    "moon",
+                    "settings",
+                ),
         ) {
             "Unknown GameTest suite: $suite"
         }
+        if (suite == "all" || suite == "settings") event.register(WorldSystemSettingsGameTests::class.java)
+        if (suite == "settings") return
         if (suite == "all" || suite == "moon") event.register(LunarGameTests::class.java)
         if (suite == "moon") return
         if (suite == "objects") {
