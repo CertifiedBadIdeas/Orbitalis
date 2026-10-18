@@ -53,5 +53,8 @@
   "map.orbitalis.view.earth_moon": "Earth–Moon",
   "map.orbitalis.view.system": "Solar system",
   "body.orbitalis.sun": "Sun",
-  "body.orbitalis.moon": "Moon"
+  "body.orbitalis.moon": "Moon",
+  "world.orbitalis.size": "Earth size",
+  "world.orbitalis.size.blocks": "%s blocks",
+  "world.orbitalis.size.tooltip": "Scales Earth, Moon and the physical solar system. Fixed when the world is created. 1000 blocks is useful for visual previews."
 }

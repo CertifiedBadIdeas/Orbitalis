@@ -23,6 +23,9 @@ limitations under the License.
 - Keep Creative free-flight input in the visible lunar horizon across surface/space transitions,
   retaining orbital transport velocity while Space/Shift and directional steering accelerate in
   the same local directions. Preserve transported camera roll when looking directly along local up.
+- Add a per-world Earth-size selection to the native world-creation More tab, with a 1000-block
+  preview preset and a 10000-block default. Save creation intent in native world metadata and
+  preserve legacy absence and unsupported records for the physical-system adapter.
 
 - Derive Earth/Moon orbit distances from unchanged mass parameters and physical periods: a 365.24-day
   year and 27.32-day lunar revolution, using 20-minute mean solar days. Define the corresponding

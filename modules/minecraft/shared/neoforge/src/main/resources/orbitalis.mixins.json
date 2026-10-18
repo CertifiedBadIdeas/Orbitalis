@@ -5,6 +5,8 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "LevelBlockEntityTickMixin",
+    "WorldSystemSettingsMixin",
+    "WorldSystemSettingsSaveMixin",
     "OrbitalHoldingMapMixin",
     "OrbitalHoldingChunkMixin",
     "OrbitalShipHeightMixin",
@@ -30,6 +32,8 @@
     "CreativeFlightLiftMixin",
     "CreativeFlightMovementMixin",
     "ClientLevelSpaceEffectsMixin",
+    "PlanetSizeCreationMixin",
+    "PlanetSizeTabMixin",
     "FlightSkyRendererMixin",
     "PlanetCloudProjectionMixin",
     "FlightTransitionPacketMixin",

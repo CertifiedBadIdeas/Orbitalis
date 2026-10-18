@@ -165,3 +165,8 @@ a verified 44 m/s native impact, automatic descent
 with a seated survival player and chest cargo, real lunar ground contact and automatic ascent back
 to space, plus real seated/cargo entry and departure beside and underneath the Moon. The default suite includes all five. Core checks cover moving-frame/force/hysteresis behavior.
 These scenarios do not prove client rendering or third-party engine compatibility.
+
+The focused `-PorbitalisGameTestSuite=settings` suite requires `nativeworldcreationsettings`, also
+included by `all`. It exercises real LevelSettings copy/parse, PrimaryLevelData save, compressed NBT
+disk roundtrip and legacy/future/malformed metadata preservation. World-creation tab input and layout
+require a separate observed client preview; this fixture does not prove scaled physical geometry.
