@@ -53,6 +53,13 @@ import java.util.UUID
 class FlightConsumerMod {
     init {
         AutopilotFlightLoading.initialize()
+        org.cbi.orbitalis.minecraft.navigation.FlightPlanHooks.execute = { player, id, plan -> executePlan(player, id, plan) }
+        org.cbi.orbitalis.minecraft.navigation.FlightPlanHooks.stop = { player, id ->
+            val active = controls[player.server]?.get(id)
+            require(active == null || active.owner == player.uuid) { "Another pilot owns this autopilot" }
+            stop(player.server, "manual stop", id)
+        }
+        org.cbi.orbitalis.minecraft.navigation.FlightPlanHooks.running = { server, id -> controls[server]?.containsKey(id) == true }
     }
 
     private class Control(
@@ -194,6 +201,45 @@ class FlightConsumerMod {
                 1
             }
 
+        private fun executePlan(
+            player: ServerPlayer,
+            id: UUID,
+            plan: org.cbi.orbitalis.core.planet.ManeuverPlan,
+        ) {
+            require(player.isCreative && player.hasPermissions(2)) { "Test autopilot requires creative mode and permission level 2" }
+            require(controls[player.server]?.containsKey(id) != true) { "Stop existing autopilot control first" }
+            val body = FlightShips.loaded(player.server, id)
+            val mission = ManeuverMission(body, plan)
+            try {
+                controls.getOrPut(player.server) { linkedMapOf() }[id] = Control(player.uuid, mission = mission)
+            } catch (
+                failure: RuntimeException,
+            ) {
+                mission.close()
+                throw failure
+            }
+        }
+
+        private fun executeCommand(
+            source: CommandSourceStack,
+            id: UUID?,
+        ): Int =
+            commandResult {
+                val player = source.playerOrException
+                val ship = id ?: selectedId(source)
+                val plan =
+                    checkNotNull(
+                        org.cbi.orbitalis.minecraft.navigation.FlightPlans
+                            .get(source.server)
+                            .get(player.uuid, ship),
+                    ) {
+                        "Save a flight plan on the orbital map first"
+                    }.plan
+                executePlan(player, ship, plan)
+                source.sendSuccess({ Component.literal("Executing saved maneuver plan for $ship") }, false)
+                1
+            }
+
         private fun selectedId(source: CommandSourceStack): UUID {
             val player = source.playerOrException
             (SableShipContact.resolve(player) as? ServerSubLevel)?.let { return it.uniqueId }
@@ -279,6 +325,7 @@ class FlightConsumerMod {
             val command =
                 Commands
                     .literal("autopilot")
+                    .then(Commands.literal("execute").executes { executeCommand(it.source, null) }.then(shipArgument(::executeCommand)))
                     .then(
                         Commands.literal("orbit").executes { mission(it.source, false) }.then(
                             shipArgument {
@@ -343,7 +390,7 @@ class FlightConsumerMod {
                         val landed = mission.tick(player)
                         active.retainFlight()
                         if (player != null && mission.stage != previous) player.sendSystemMessage(Component.literal(active.status()))
-                        if (landed) stop(event.server, "landed at the saved launch site", id)
+                        if (landed) stop(event.server, mission.completionReason, id)
                     } else {
                         val session = checkNotNull(active.session)
                         if (session.body.isRemoved) {

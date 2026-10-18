@@ -95,4 +95,19 @@ class ManeuverPlanTest {
             )
         }
     }
+
+    @Test fun `sub tick nodes retain swept collision and initial contact rejects immediate burn`() {
+        val plan = ManeuverPlan(0, listOf(ManeuverNode(0.06, 100.0, 0.0, 0.0)))
+        val impact = plan.predict(field, CartesianState(Vector3(0.0, 64.05, 0.0), Vector3(1.0, -20.0, 0.0)), 1)
+        assertTrue(impact.burns.isEmpty())
+        assertEquals(
+            CoastPrediction.End.BODY_INTERSECTION,
+            impact.segments
+                .single()
+                .coast.end,
+        )
+        val immediate = plan.copy(nodes = listOf(ManeuverNode(0.05, 100.0, 0.0, 0.0)))
+        val inside = immediate.predict(field, CartesianState(Vector3.ZERO, Vector3(1.0, 0.0, 0.0)), 1)
+        assertTrue(inside.burns.isEmpty())
+    }
 }

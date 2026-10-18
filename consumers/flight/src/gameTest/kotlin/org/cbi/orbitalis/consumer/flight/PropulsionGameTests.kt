@@ -95,7 +95,11 @@ object PropulsionGameTests {
     fun register(event: RegisterGameTestsEvent) {
         GlobalTestReporter.replaceWith(JUnitLikeTestReporter(File(System.getProperty("orbitalis.consumerGameTestReport"))))
         val suite = System.getProperty("orbitalis.consumerGameTestSuite", "all")
-        require(suite in setOf("all", "flat", "rocket")) { "Unknown consumer GameTest suite: $suite" }
+        require(suite in setOf("all", "flat", "rocket", "maneuver")) { "Unknown consumer GameTest suite: $suite" }
+        if (suite == "maneuver") {
+            event.register(ManeuverGameTests::class.java)
+            return
+        }
         if (suite == "rocket") {
             event.register(RocketGameTests::class.java)
             return
@@ -106,6 +110,7 @@ object PropulsionGameTests {
             event.register(FlatMissionGameTests::class.java)
             return
         }
+        event.register(ManeuverGameTests::class.java)
         event.register(PropulsionGameTests::class.java)
         event.register(ShuttleGameTests::class.java)
         event.register(FlatMissionGameTests::class.java)
@@ -127,7 +132,7 @@ object PropulsionGameTests {
                 .getChild("flight")
         val autopilot = flight.getChild("autopilot")
         helper.assertTrue(autopilot != null, "Consumer autopilot commands missing")
-        for (name in listOf("hold", "altitude", "orbit", "land", "status", "stop", "list")) {
+        for (name in listOf("hold", "altitude", "orbit", "land", "status", "stop", "list", "execute")) {
             helper.assertTrue(autopilot.getChild(name) != null, "Consumer autopilot command missing: $name")
         }
         helper.succeed()

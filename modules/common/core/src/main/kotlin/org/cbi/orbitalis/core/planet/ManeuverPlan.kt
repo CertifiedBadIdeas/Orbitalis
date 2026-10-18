@@ -81,6 +81,9 @@ data class ManeuverPlan(
         gameTick: Long,
     ): Prediction {
         require(gameTick >= 0)
+        require(gameTick >= epochTick) { "Plan epoch is in the future" }
+        val start = CoastPrediction.predict(field, initial, CoastPrediction.Limits(horizon = 0.05, range = 100000.0))
+        if (start.terminal.seconds == 0.0) return Prediction(listOf(Segment(0.0, start)), emptyList())
         val elapsed = (gameTick - epochTick) / 20.0
         val segments = mutableListOf<Segment>()
         val burns = mutableListOf<Burn>()
@@ -90,16 +93,11 @@ data class ManeuverPlan(
             val due = node.seconds - elapsed
             if (due < 0.0) continue // Past impulses are already part of the observed physical state.
             val duration = due - time
-            if (duration >= 0.05) {
+            if (duration > 0.0) {
                 val coast = CoastPrediction.predict(field, state, limits(duration))
                 segments.add(Segment(time, coast))
                 if (coast.end != CoastPrediction.End.HORIZON) return Prediction(segments, burns)
                 state = coast.terminal.state
-            } else if (duration > 0.0) {
-                // Avoid moving a near-immediate node by a full integration step.
-                val acceleration = field.acceleration(state.position)
-                val position = state.position + state.velocity * duration + acceleration * (duration * duration * 0.5)
-                state = CartesianState(position, state.velocity + (acceleration + field.acceleration(position)) * (duration * 0.5))
             }
             time = due
             val delta = node.deltaVelocity(state)

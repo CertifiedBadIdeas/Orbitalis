@@ -22,6 +22,7 @@ import net.minecraft.server.level.ServerPlayer
 
 /** Consumer-owned guidance lifecycle shared by the retained and finite-body experiments. */
 internal interface FlightMission : AutoCloseable {
+    val completionReason: String get() = "landed at the saved launch site"
     val stage: String
     val body: dev.ryanhcode.sable.sublevel.ServerSubLevel
 
