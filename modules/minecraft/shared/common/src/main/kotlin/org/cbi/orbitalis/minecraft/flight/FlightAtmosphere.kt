@@ -18,10 +18,18 @@
 
 package org.cbi.orbitalis.minecraft.flight
 
-/** Shared presentation altitude; no change to the force or drag model. */
+import org.cbi.orbitalis.core.planet.PlanetAtmosphere
+import org.cbi.orbitalis.core.planet.Vector3
+
+/** Presentation blends over the upper surface and around the existing lateral/lower atmosphere. */
 object FlightAtmosphere {
     const val START = FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ASCENT_HEIGHT * 0.1
     const val END = FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.DESCENT_HEIGHT * 0.75
+
+    fun vacuum(position: Vector3): Float {
+        val lateral = PlanetAtmosphere.vacuum(Vector3(position.x, minOf(position.y, FlatPlanetSpace.SEA_LEVEL), position.z))
+        return (1.0 - (1.0 - vacuum(position.y)) * (1.0 - lateral)).toFloat()
+    }
 
     fun vacuum(height: Double): Float {
         if (!height.isFinite()) return 0f

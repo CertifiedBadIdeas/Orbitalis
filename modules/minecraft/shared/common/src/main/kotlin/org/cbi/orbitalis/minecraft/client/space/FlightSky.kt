@@ -34,6 +34,6 @@ object FlightSky {
         if (level.dimension() == FlatPlanetSpace.SPACE) return 1f
         if (level.dimension() != Level.OVERWORLD) return 0f
         val p = camera.position
-        return FlightAtmosphere.vacuum(FlightSpaceCoordinates.globalPosition(level, Vector3(p.x, p.y, p.z)).y)
+        return FlightAtmosphere.vacuum(FlightSpaceCoordinates.globalPosition(level, Vector3(p.x, p.y, p.z)))
     }
 }

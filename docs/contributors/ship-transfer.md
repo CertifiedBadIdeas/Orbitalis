@@ -40,8 +40,9 @@ powered ascent and return. There are no `flight enter`, `flight leave` or `trans
 
 `FlatPlanetFrame` adds 4096 to physical Y in space. Axes, inertial linear/angular velocities and
 player view direction are unchanged. Both worlds sample the same physical finite-body field.
-Transfers require |x|,|z|<=5032 (the 5000 m half-footprint plus hull margin), physical Y=64..16000 and represented pilot/ship Y>=64. Space flight can
-leave this transfer patch but must return above it before a handoff. The consumer calls
+Transfer snapshots and represented pilots must remain within 100 km of the physical origin. Automatic
+handoffs use distance to the reference body from above, beside or below, with 3000 m outward and
+2000 m inward thresholds. Plot size, cargo and passenger limits still apply. The consumer calls
 `SableFlightIntegration.transferService(server).begin(player, body, targetDimension)` on the server
 thread. It releases engine inputs and waits for fade, remains idle while `busy`, fails on `error` and
 reacquires the ship by UUID after readiness. Both overloads select only the Overworld/space pair.
@@ -84,16 +85,19 @@ of external mod networks, world references or unsaved state.
 
 ## Authority and persistence
 
-`ShipTransferJournal` writes version 4 compressed NBT records to
+`ShipTransferJournal` writes version 5 compressed NBT records to
 `<save>/data/orbitalis-transfers/<ship-uuid>.nbt`. A record contains transaction/ship/pilot UUIDs, source
 side, native source/destination snapshots (including glue metadata), exact linear/angular velocities, pilot pose/motion, the
 source's previous native save pointer, phase, orbital dimension and offline-pilot recovery flags. Unknown versions,
 missing state, identity mismatches and invalid numeric state fail closed. Compressed and decompressed
 records are bounded to 16 MiB. Native payloads remain tied to the pinned Sable serialization format;
 future Sable/Orbitalis migrations must handle unfinished records before changing that format.
-Version 4 requires explicit `surface_dimension=minecraft:overworld` and
+Version 5 requires explicit `surface_dimension=minecraft:overworld` and
 `orbital_dimension=orbitalis:space`. The 4096-m translation remains unchanged.
-Active version-3 records remain readable; version 4 adds optional pilots and entity/mount manifests.
+Active version-3/4 records remain readable. Version 4 added optional pilots and entity/mount
+manifests; version 5 extends pose validation from the old upper patch to physical positions within
+100 km of the origin in either frame. Snapshot creation and journal decode share that bound.
+Legacy version-3/4 records retain their original bounds; unknown journal versions remain rejected.
 
 The retired `flight_test`, `orbit_test` and `space_test` dimensions are no longer registered. Their
 save directories are not deleted or converted. Legacy version-1/2 journals and version-3/4 diagnostic
@@ -165,7 +169,7 @@ offsets are relative, so they remain exact. Other saved fields are retained verb
 absolute references beyond these native coordinates may require an integration adapter; there is no
 generic recursive rewrite of arbitrary NBT integers. Exact payload reconstruction detects data changes,
 not the semantic validity of every third-party reference.
-Active version-3/4 journals store independent source and destination plot snapshots; recovery uses
+Active version-3/4/5 journals store independent source and destination plot snapshots; recovery uses
 each recorded address. Plot relocation requires no schema change.
 
 ## Evidence and remaining work
@@ -216,4 +220,4 @@ Transfer stage costs are logged as `ORBITALIS_TRANSFER_TIMING`, including asynch
 native checkpoints and total paused duration. ETA-based terrain preparation does not remove this
 transaction's physics pause or prove seamless client rendering. Live player handoff preserves the
 controlling client's captured velocity through a bounded custom payload; durable recovery instead
-uses the recorded server velocity. The fixed +4096 frame and version-four journal layout are retained.
+uses the recorded server velocity. The fixed +4096 frame and passenger/checkpoint layout are retained; version-five records admit edge/underside positions.

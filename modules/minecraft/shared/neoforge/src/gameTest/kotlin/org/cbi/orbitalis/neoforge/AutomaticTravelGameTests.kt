@@ -81,12 +81,41 @@ object AutomaticTravelGameTests {
 
     @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "automatic_player", timeoutTicks = 12000)
-    fun independentSurvivalPlayerRoundTrip(helper: GameTestHelper) {
+    fun independentSurvivalPlayerRoundTrip(helper: GameTestHelper) = player(helper, false)
+
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "automatic_edge_player", timeoutTicks = 12000)
+    fun independentSurvivalPlayerEdgeRoundTrip(helper: GameTestHelper) = player(helper, true)
+
+    private fun player(
+        helper: GameTestHelper,
+        edge: Boolean,
+    ) {
         val packets = mutableListOf<net.minecraft.network.protocol.Packet<*>>()
         val p = GameTestPlayers.create(helper) { packets.add(it) }
         p.setGameMode(GameType.SURVIVAL)
         val surface = helper.level.server.overworld()
-        check(p.teleportTo(surface, 100.0, (FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ASCENT_HEIGHT + 1.0), 100.0, emptySet(), 31f, -12f))
+        val initial =
+            if (edge) {
+                Vector3(8001.0, 80.0, 100.0)
+            } else {
+                Vector3(
+                    100.0,
+                    FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ASCENT_HEIGHT + 1.0,
+                    100.0,
+                )
+            }
+        val returningPosition =
+            if (edge) {
+                Vector3(6980.0, -200.0, 100.0)
+            } else {
+                Vector3(
+                    100.0,
+                    FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.DESCENT_HEIGHT - 1.0,
+                    100.0,
+                )
+            }
+        check(p.teleportTo(surface, initial.x, initial.y, initial.z, emptySet(), 31f, -12f))
         p.deltaMovement = Vec3(8.0, 0.4, -7.0)
         packets.clear()
         var returning = false
@@ -101,7 +130,7 @@ object AutomaticTravelGameTests {
                 }
                 helper.assertTrue(
                     p.level().dimension() == FlatPlanetSpace.SPACE &&
-                        abs(p.y - (4096.0 + FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ASCENT_HEIGHT + 1.0)) < 1e-6,
+                        abs(p.y - (4096.0 + initial.y)) < 1e-6 && abs(p.x - initial.x) < 1e-6,
                     "Player mapping incorrect",
                 )
                 helper.assertTrue(p.deltaMovement.distanceTo(Vec3(8.0, 0.4, -7.0)) < 1e-8 && !p.isCreative, "Player motion/mode changed")
@@ -143,7 +172,7 @@ object AutomaticTravelGameTests {
                     buffer.release()
                 }
                 helper.assertTrue(!PlayerSpaceTravel.transfer(p), "Player bounced back at ascent boundary")
-                p.setPos(100.0, (4096.0 + FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.DESCENT_HEIGHT - 1.0), 100.0)
+                p.setPos(returningPosition.x, 4096.0 + returningPosition.y, returningPosition.z)
                 p.deltaMovement = Vec3(0.1, -0.4, 0.2)
                 returning = true
                 return@onEachTick
@@ -155,7 +184,7 @@ object AutomaticTravelGameTests {
                 return@onEachTick
             }
             helper.assertTrue(
-                p.level() === surface && abs(p.y - (FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.DESCENT_HEIGHT - 1.0)) < 1e-6 &&
+                p.level() === surface && abs(p.y - returningPosition.y) < 1e-6 && abs(p.x - returningPosition.x) < 1e-6 &&
                     p.deltaMovement.y == -0.4,
                 "Return mapping changed motion",
             )
@@ -204,16 +233,49 @@ object AutomaticTravelGameTests {
             }
     }
 
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "automatic_edge_empty", timeoutTicks = 12000)
+    fun automaticEmptyShipEdgeRoundTrip(helper: GameTestHelper) = ship(helper, false, true)
+
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "automatic_edge_mounted", timeoutTicks = 12000)
+    fun automaticMountedEdgeRoundTrip(helper: GameTestHelper) = ship(helper, true, true)
+
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "automatic_under_empty", timeoutTicks = 12000)
+    fun automaticEmptyShipUnderRoundTrip(helper: GameTestHelper) = ship(helper, false, under = true)
+
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "automatic_under_mounted", timeoutTicks = 12000)
+    fun automaticMountedUnderRoundTrip(helper: GameTestHelper) = ship(helper, true, under = true)
+
     private fun ship(
         helper: GameTestHelper,
         mounted: Boolean,
+        edge: Boolean = false,
+        under: Boolean = false,
     ) {
         val server = helper.level.server
         val surface = server.overworld()
         val space = checkNotNull(server.getLevel(FlatPlanetSpace.SPACE))
         val from = checkNotNull(SubLevelContainer.getContainer(surface))
         val to = checkNotNull(SubLevelContainer.getContainer(space))
-        val pose = Pose3d().also { it.position().set(-4500.0, FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ASCENT_HEIGHT + 36.0, -500.0) }
+        val pose =
+            Pose3d().also {
+                it.position().set(
+                    if (edge) -8036.0 else -4500.0,
+                    if (under) {
+                        -3100.0
+                    } else if (edge) {
+                        200.0
+                    } else {
+                        FlatPlanetSpace.SEA_LEVEL +
+                            FlatPlanetSpace.ASCENT_HEIGHT +
+                            36.0
+                    },
+                    -500.0,
+                )
+            }
         val source = from.allocateNewSubLevel(pose) as ServerSubLevel
         val id = source.uniqueId
         val owner = Any()
@@ -300,7 +362,18 @@ object AutomaticTravelGameTests {
             if (phase == 0 && !manager.busy && source.massTracker.centerOfMass != null) {
                 val reading = SableFlightGravity.reading(source)
                 val handle = SubLevelPhysicsSystem.require(surface).getPhysicsHandle(source)
-                handle.addLinearAndAngularVelocity(Vector3d(1.0, 20.0, 2.0).sub(reading.velocity), Vector3d())
+                handle.addLinearAndAngularVelocity(
+                    (
+                        if (edge) {
+                            Vector3d(-20.0, 1.0, 2.0)
+                        } else if (under) {
+                            Vector3d(1.0, -20.0, 2.0)
+                        } else {
+                            Vector3d(1.0, 20.0, 2.0)
+                        }
+                    ).sub(reading.velocity),
+                    Vector3d(),
+                )
                 val b = source.boundingBox()
                 val local = source.plot.centerBlock
                 cart =
@@ -320,7 +393,7 @@ object AutomaticTravelGameTests {
                         )
                         check(surface.addFreshEntity(c))
                         if (player != null) {
-                            check(player.teleportTo(surface, -4500.0, b.maxY() + 0.5, -500.0, emptySet(), 0f, 0f))
+                            check(player.teleportTo(surface, pose.position().x, b.maxY() + 0.5, -500.0, emptySet(), 0f, 0f))
                             check(player.startRiding(c, true))
                         }
                         expectedCart = c.uuid
@@ -358,13 +431,24 @@ object AutomaticTravelGameTests {
                     helper.assertTrue(surface.getEntity(expectedCart!!) == null, "Source cart was duplicated")
                 }
                 val s = SableFlightGravity.reading(body)
-                val dy = 4096.0 + FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.DESCENT_HEIGHT - 14.0 - s.position.y
+                val displacement =
+                    if (under) {
+                        Vector3d(0.0, 4096.0 - FlatPlanetSpace.SEA_LEVEL - FlatPlanetSpace.DESCENT_HEIGHT + 14.0 - s.position.y, 0.0)
+                    } else if (edge) {
+                        Vector3d(-6980.0 - s.position.x, 0.0, 0.0)
+                    } else {
+                        Vector3d(
+                            0.0,
+                            4096.0 + FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.DESCENT_HEIGHT - 14.0 - s.position.y,
+                            0.0,
+                        )
+                    }
                 val handle = SubLevelPhysicsSystem.require(space).getPhysicsHandle(body)
-                handle.teleport(Vector3d(body.logicalPose().position()).add(0.0, dy, 0.0), body.logicalPose().orientation())
+                handle.teleport(Vector3d(body.logicalPose().position()).add(displacement), body.logicalPose().orientation())
                 handle.addLinearAndAngularVelocity(Vector3d(1.0, -10.0, 2.0).sub(s.velocity), Vector3d())
                 val c = checkNotNull(space.getEntity(expectedCart!!))
-                if (!body.plot.contains(c.position())) c.setPos(c.x, c.y + dy, c.z)
-                player?.setPos(player.x, player.y + dy, player.z)
+                if (!body.plot.contains(c.position())) c.setPos(c.x + displacement.x, c.y + displacement.y, c.z + displacement.z)
+                player?.setPos(player.x + displacement.x, player.y + displacement.y, player.z + displacement.z)
                 expectedVelocity = SableFlightGravity.reading(body).velocity
                 phase = 11
             } else if (phase == 11) {

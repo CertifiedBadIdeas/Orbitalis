@@ -22,8 +22,8 @@ import net.minecraft.resources.ResourceKey
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.level.Level
+import org.cbi.orbitalis.core.planet.PlanetFlightEnvelope
 import org.cbi.orbitalis.core.planet.Vector3
-import kotlin.math.abs
 
 /** Native player travel, independent of optional Sable classes and test guidance. */
 object PlayerSpaceTravel {
@@ -53,22 +53,12 @@ object PlayerSpaceTravel {
     fun destination(
         level: Level,
         position: Vector3,
-        verticalSpeed: Double,
     ): ResourceKey<Level>? {
-        if (!FlatPlanetSpace.contains(level) || abs(position.x) >= FlatPlanetSpace.HALF_SIZE ||
-            abs(position.z) >= FlatPlanetSpace.HALF_SIZE
-        ) {
-            return null
-        }
-        val p = FlightSpaceCoordinates.globalPosition(level, position)
+        if (!FlatPlanetSpace.contains(level)) return null
+        val distance = PlanetFlightEnvelope.distance(FlightSpaceCoordinates.globalPosition(level, position))
         return when {
-            level.dimension() == Level.OVERWORLD &&
-                p.y >= FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ASCENT_HEIGHT && verticalSpeed >= 0 -> FlatPlanetSpace.SPACE
-
-            level.dimension() == FlatPlanetSpace.SPACE &&
-                p.y in FlatPlanetSpace.SEA_LEVEL..(FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.DESCENT_HEIGHT) &&
-                verticalSpeed <= 0 -> Level.OVERWORLD
-
+            level.dimension() == Level.OVERWORLD && distance >= FlatPlanetSpace.ASCENT_HEIGHT -> FlatPlanetSpace.SPACE
+            level.dimension() == FlatPlanetSpace.SPACE && distance <= FlatPlanetSpace.DESCENT_HEIGHT -> Level.OVERWORLD
             else -> null
         }
     }
@@ -85,8 +75,7 @@ object PlayerSpaceTravel {
         }
         preload(player)
         val current = Vector3(player.x, player.y, player.z)
-        val sampledVerticalSpeed = preloads[player]?.sampledVelocity?.y ?: (velocity.y * 20.0)
-        val key = destination(player.level(), current, sampledVerticalSpeed) ?: return false
+        val key = destination(player.level(), current) ?: return false
         val target = player.server.getLevel(key) ?: return false
         val p = FlightSpaceCoordinates.localPosition(key, FlightSpaceCoordinates.globalPosition(player.level(), current))
         if (preloads[player]?.ready != true) return false

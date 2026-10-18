@@ -45,6 +45,14 @@ class FlightAtmosphereTest {
         }
     }
 
+    @Test fun edgeAndUndersideReachVacuumWithoutChangingTheGround() {
+        assertEquals(0f, FlightAtmosphere.vacuum(Vector3(4999.0, 64.0, 4999.0)))
+        for (point in listOf(Vector3(5300.0, 64.0, 0.0), Vector3(-5300.0, 64.0, -5300.0), Vector3(0.0, -400.0, 0.0))) {
+            assertEquals(1f, FlightAtmosphere.vacuum(point))
+            assertEquals(FlightAtmosphere.vacuum(point), FlightAtmosphere.vacuum(FlatPlanetFrame.toSurface(FlatPlanetFrame.toSpace(point))))
+        }
+    }
+
     @Test fun blendIsMonotonicAndFlatAtBothEndpoints() {
         val values =
             (0..100).map {

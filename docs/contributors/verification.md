@@ -37,10 +37,10 @@ production archive inspection. Core tests cover finite rectangular-body potentia
 orbits, spherical/two-body fields and flight/frame math. This is mathematical coverage, not evidence of Minecraft/Sable gameplay. NO-SOURCE is not coverage.
 Run `:v1_21_1-neoforge:runGameTestServer` separately. The focused `terrain` suite checks four native partially intersecting corners, exterior empty/full/light
 completion, void biomes and heightmaps, feature/entity rejection and ordinary runtime writes.
-The default `all` suite also includes these two scenarios and requires four surface-atlas sampling/persistence/backfill/packet scenarios, nine surface
-border/persistence/preload/void-floor/player-motion scenarios, six finite-orbit/ship-transfer/retirement/travel scenarios, two navigation scenarios, five sparse-vacuum scenarios and four orbital-object/clock scenarios, with no
-failed, skipped or error results in a fresh XML report. `-PorbitalisGameTestSuite=surface` runs the nine
-surface cases alone; `-PorbitalisGameTestSuite=transfer` runs the five native transfer/recovery/retirement/travel cases
+The default `all` suite also includes these two scenarios and requires four surface-atlas sampling/persistence/backfill/packet scenarios, ten surface
+border/footprint-persistence/preload/void-floor/player-motion scenarios, eleven finite-orbit/ship-transfer/retirement/travel scenarios, two navigation scenarios, five sparse-vacuum scenarios and four orbital-object/clock scenarios, with no
+failed, skipped or error results in a fresh XML report. `-PorbitalisGameTestSuite=surface` runs the ten
+surface cases alone; `-PorbitalisGameTestSuite=transfer` runs the ten native transfer/recovery/retirement/travel cases
 without the full-orbit performance cost. See [flat surface](flat-surface.md), [flight gravity](flight-gravity.md) and
 [ship transfer](ship-transfer.md). Use `-PorbitalisGameTestSuite=flat` for the inert finite-body native orbit alone. The consumer separately
 requires fifteen native flight scenarios, including remote multi-ship commands without added loading tickets; `-PorbitalisConsumerGameTestSuite=flat` runs its low-orbit
@@ -85,10 +85,13 @@ The occupied-plot fixture releases its reservation body and force-load ticket im
 outbound relocation assertion; it must not continue falling or trigger unrelated automatic travel
 while the real rocket completes its mission.
 
-The `-PorbitalisGameTestSuite=travel` suite requires all three automatic travel scenarios: an
+The `-PorbitalisGameTestSuite=travel` suite requires all eight automatic travel scenarios: an
 unmanned ship roundtrip plus interrupted committed recovery with no pilot, a seated survival player
 in a plot-space minecart travelling both ways plus interrupted recovery and deferred login, and an
-independent survival player preserving native velocity and mode in both directions. The unmanned
+independent survival player preserving native velocity and mode in both directions. Each also has
+a lateral roundtrip variant outside the terrain footprint, including return below sea level for
+the independent player. The two ship variants additionally travel out below the body and back,
+including a mounted passenger and native journal recovery at negative physical Y. The unmanned
 case includes a chest minecart, checks for dropped-item duplication, and reads its freshly flushed
 native entity-region file to establish container persistence. The default suite includes these cases. It does not establish
 client rendering or a real logged-in riding handshake.

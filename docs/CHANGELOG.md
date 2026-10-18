@@ -41,6 +41,14 @@ limitations under the License.
 - Add core rotating-frame mathematics for the planned Earth–Moon system: surface rotation velocity,
   acceleration transport and body angular velocity. This foundation is not yet wired into world physics
   or Sun rendering.
+- Refine the shared orbital/map surface LOD from 32 to 16 metres per cell, retaining the existing
+  atlas/network formats. Rebuild/upload independently dirty 512-metre sectors with local boundary
+  snapshots and bounded background work; read saved terrain on two dedicated read-only workers.
+
+- Allow flight beyond the finite Overworld edge and underneath it. Persist generation bounds separately
+  from the distant movement border; prepare and transfer players/ships by distance to the body in all
+  directions, with hysteresis. Keep native terrain/bedrock and ordinary damage; remove the managed
+  below-world flight floor and extend atmospheric presentation around the edges.
 
 - Show a finite drifting cloud layer over the planet in space and the orbital map, using the native
   Minecraft texture, cloud setting and renderer clock. Preserve terrain occlusion without loading

@@ -33,13 +33,20 @@ class SurfaceAtlasService(
     private val server: MinecraftServer,
     private val mapViewer: (ServerPlayer) -> Boolean = { false },
     private val send: (ServerPlayer, SurfaceAtlasPayload) -> Unit,
-) {
+) : AutoCloseable {
     private val queue = linkedSetOf<Long>()
     private val cursors = mutableMapOf<UUID, Long>()
     private val session = UUID.randomUUID()
     private val data by lazy { SurfaceAtlasData.get(server.overworld()) }
 
-    private val backfill by lazy { SurfaceAtlasBackfill(server.overworld(), data) }
+    private val backfillDelegate = lazy { SurfaceAtlasBackfill(server.overworld(), data) }
+    private val backfill by backfillDelegate
+
+    override fun close() {
+        if (backfillDelegate.isInitialized()) backfill.close()
+        queue.clear()
+        cursors.clear()
+    }
 
     fun loaded(chunk: LevelChunk) {
         val x = chunk.pos.x
@@ -79,7 +86,12 @@ class SurfaceAtlasService(
         backfill.tick()
         for (player in server.playerList.players) {
             val dimension = player.level().dimension()
-            val approaching = dimension == Level.OVERWORLD && player.y >= FlightAtmosphere.START
+            val approaching =
+                dimension == Level.OVERWORLD &&
+                    FlightAtmosphere.vacuum(
+                        org.cbi.orbitalis.core.planet
+                            .Vector3(player.x, player.y, player.z),
+                    ) > 0f
             if (dimension != FlatPlanetSpace.SPACE && !approaching && !mapViewer(player)) continue
             val cursor = cursors[player.uuid]
             val (revision, samples) = data.atlas.after(cursor ?: 0L, 256)

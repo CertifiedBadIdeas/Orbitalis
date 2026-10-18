@@ -38,6 +38,10 @@ object TerrainGameTests {
         val level = helper.level.server.overworld()
         val bounds = FiniteSurfaceTerrain.bounds(level)!!
         helper.assertTrue(bounds.minX == -5000 && bounds.maxX == 5000, "Generation missed early border initialization")
+        val settings = level.worldBorder.createSettings()
+        level.worldBorder.size = 200000.0
+        helper.assertTrue(FiniteSurfaceTerrain.bounds(level) == bounds, "Movement border resized terrain")
+        level.worldBorder.applySettings(settings)
         // Both signs, all four corners and both axes; the default border bisects these chunks.
         for ((x, z) in listOf(4999 to 4999, 4999 to -5000, -5000 to 4999, -5000 to -5000)) {
             val chunk = level.getChunk(x shr 4, z shr 4)

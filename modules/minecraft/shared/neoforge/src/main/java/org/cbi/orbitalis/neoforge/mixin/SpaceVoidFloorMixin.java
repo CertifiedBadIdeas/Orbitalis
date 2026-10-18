@@ -25,13 +25,13 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** Empty orbital space has no terrain void floor. All other entity hazards remain native. */
+/** Exterior flight around the finite body has no terrain void floor. Other hazards remain native. */
 @Mixin(Entity.class)
 public abstract class SpaceVoidFloorMixin {
     @Inject(method = "checkBelowWorld", at = @At("HEAD"), cancellable = true)
     private void orbitalisNoSpaceVoidFloor(CallbackInfo callback) {
         Entity entity = (Entity) (Object) this;
-        if (entity.level().dimension().equals(FlatPlanetSpace.INSTANCE.getSPACE())) {
+        if (FlatPlanetSpace.INSTANCE.contains(entity.level())) {
             callback.cancel();
         }
     }

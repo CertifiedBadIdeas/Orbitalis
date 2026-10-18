@@ -372,9 +372,9 @@ object SableOrbitalObjects {
                     }
                 val p = record.state.position
                 val approachingSurface =
-                    abs(p.x) < FlatPlanetSpace.HALF_SIZE + record.radius + 256 &&
-                        abs(p.z) < FlatPlanetSpace.HALF_SIZE + record.radius + 256 &&
-                        p.y < FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ASCENT_HEIGHT + record.radius + 256 && p.y > 0
+                    org.cbi.orbitalis.core.planet.PlanetFlightEnvelope
+                        .distance(p) <
+                        FlatPlanetSpace.ASCENT_HEIGHT + record.radius + 256
                 if (!nearbyPlayer && !nearbyShip && !approachingSurface) continue
                 requestNativeLoad(level, record.id)
                 (container.getSubLevel(record.id) as? ServerSubLevel)?.let { body ->

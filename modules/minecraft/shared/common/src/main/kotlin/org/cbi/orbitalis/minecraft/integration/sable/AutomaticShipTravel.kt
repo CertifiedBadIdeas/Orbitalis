@@ -96,7 +96,7 @@ class AutomaticShipTravel(
                     continue
                 }
                 tickets.source.update(world, reading.position)
-                val destination = PlayerSpaceTravel.destination(world, reading.position, reading.velocity.y) ?: continue
+                val destination = PlayerSpaceTravel.destination(world, reading.position) ?: continue
                 if (!tickets.destination.ready) continue
                 val b = body.boundingBox()
                 if (b.maxX() - b.minX() > 32 || b.maxZ() - b.minZ() > 32) continue

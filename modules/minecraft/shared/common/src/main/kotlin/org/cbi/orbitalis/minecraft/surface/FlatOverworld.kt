@@ -20,30 +20,61 @@ package org.cbi.orbitalis.minecraft.surface
 
 import net.minecraft.core.HolderLookup
 import net.minecraft.nbt.CompoundTag
+import net.minecraft.nbt.Tag
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.world.level.Level
+import net.minecraft.world.level.border.WorldBorder
 import net.minecraft.world.level.saveddata.SavedData
 import net.minecraft.world.level.storage.DimensionDataStorage
 import net.minecraft.world.level.storage.ServerLevelData
+import kotlin.math.ceil
+import kotlin.math.floor
 
-/** Native border settings remain authoritative; the marker only records that defaults were installed. */
+/** Persisted terrain extent is independent of the native administrative movement border. */
 object FlatOverworld {
     const val SIZE = org.cbi.orbitalis.core.planet.FlatPlanetDefinition.SIZE
     const val DATA_NAME = "orbitalis_flat_surface"
+    private val defaultBounds = (SIZE / 2.0).toInt().let { FiniteSurfaceTerrain.Bounds(-it, -it, it, it) }
 
     private class Initialized(
-        val version: Int = 2,
+        val version: Int = 3,
+        val bounds: FiniteSurfaceTerrain.Bounds? = defaultBounds,
     ) : SavedData() {
         override fun save(
             tag: CompoundTag,
             registries: HolderLookup.Provider,
-        ): CompoundTag = tag.apply { putInt("Version", version) }
+        ): CompoundTag =
+            tag.apply {
+                putInt("Version", version)
+                bounds?.let { putIntArray("Bounds", intArrayOf(it.minX, it.minZ, it.maxX, it.maxZ)) }
+            }
     }
 
-    // Future versions and administrator customizations retain native authority.
-    private val factory = SavedData.Factory({ Initialized() }, { tag, _ -> Initialized(tag.getInt("Version")) }, null)
+    private val factory =
+        SavedData.Factory(
+            { Initialized() },
+            { tag, _ ->
+                val raw = if (tag.contains("Bounds", Tag.TAG_INT_ARRAY.toInt())) tag.getIntArray("Bounds") else intArrayOf()
+                val bounds =
+                    if (raw.size == 4 && raw.all { it in -30000000..30000000 } && raw[0] <= raw[2] && raw[1] <= raw[3]) {
+                        FiniteSurfaceTerrain.Bounds(raw[0], raw[1], raw[2], raw[3])
+                    } else {
+                        null
+                    }
+                Initialized(tag.getInt("Version"), bounds)
+            },
+            null,
+        )
 
-    /** Level-load precedes Minecraft applying saved settings again; keep that later application consistent. */
+    fun footprint(
+        level: ServerLevel,
+        storage: DimensionDataStorage = level.dataStorage,
+    ): FiniteSurfaceTerrain.Bounds {
+        val data = storage.get(factory, DATA_NAME)
+        return if (data?.version == 3) data.bounds ?: defaultBounds else defaultBounds
+    }
+
+    /** Native startup reapplies saved settings later; keep that application consistent. */
     fun prepare(level: ServerLevel) {
         val saved = level.levelData as ServerLevelData
         level.worldBorder.applySettings(saved.worldBorder)
@@ -58,15 +89,28 @@ object FlatOverworld {
     ) {
         require(level.dimension() == Level.OVERWORLD)
         val marker = storage.get(factory, DATA_NAME)
-        if (marker != null && marker.version != 1) return
+        // Future or malformed records are read-only: use bounded fallback without changing native settings.
+        if (marker != null && marker.version !in 1..2) return
         val border = level.worldBorder
-        val legacyDefault =
-            marker?.version == 1 && border.centerX == 0.0 && border.centerZ == 0.0 &&
-                border.size == 2000.0 && border.lerpTarget == 2000.0 && border.lerpRemainingTime <= 0L
-        if (marker == null || legacyDefault) {
+        val stationaryDefault =
+            border.centerX == 0.0 && border.centerZ == 0.0 &&
+                border.size == border.lerpTarget && border.lerpRemainingTime <= 0L &&
+                (border.size == SIZE || (marker?.version == 1 && border.size == 2000.0))
+        val bounds =
+            if (marker == null || stationaryDefault) {
+                defaultBounds
+            } else {
+                FiniteSurfaceTerrain.Bounds(
+                    ceil(border.minX).toInt(),
+                    ceil(border.minZ).toInt(),
+                    floor(border.maxX).toInt(),
+                    floor(border.maxZ).toInt(),
+                )
+            }
+        if (marker == null || stationaryDefault) {
             border.setCenter(0.0, 0.0)
-            border.size = SIZE
+            border.size = WorldBorder.MAX_SIZE
         }
-        storage.set(DATA_NAME, Initialized().apply { setDirty() })
+        storage.set(DATA_NAME, Initialized(bounds = bounds).apply { setDirty() })
     }
 }

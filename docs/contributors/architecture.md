@@ -36,21 +36,22 @@ Gradle runs on JDK 25, while shared/domain and 1.21.1 code compiles to Java 21.
 | build-scripts | JVM conventions and canonical shared source wiring | Gradle plugins |
 | tools | Isolated builds, cache publication, worktree lifecycle and verification | Python, Git and GNU tools |
 
-The surface is an ordinary finite flat Overworld with a native square world border, initially
-10,000 by 10,000 blocks centred at (0,0). Minecraft and other mods retain normal coordinates,
+The surface is an ordinary finite flat Overworld with a saved 10,000-by-10,000-block terrain
+footprint centred at (0,0), independent of its distant native movement border. Minecraft and other mods retain normal coordinates,
 block storage, fluids and neighbour logic. No projection, rotated player frame or Sable
 planet chart is installed. The cube experiment, its dimension `orbitalis:planet_lab`, commands,
 resources and compatibility mixins have been retired. Old save directories are never deleted or
 converted. Start a new world; opening an old cube save with this version is unsupported.
 See [flat surface](flat-surface.md) for border initialization, finite terrain generation and persistence.
 
-`FlatOverworld` in shared/common initializes the native border once per save. NeoForge invokes it
-before initial spawn generation. The native world border remains the only authority for centre, size and lerp;
-a small SavedData marker prevents startup from overriding administrator changes. Two narrow loader
+`FlatOverworld` in shared/common initializes the saved terrain footprint and distant movement border
+before initial spawn generation. Version-three SavedData owns generation bounds; native world data
+owns administrative border centre, size and lerp. Legacy default walls migrate outward; custom walls
+and future/malformed records are preserved. Two narrow loader
 hooks omit vanilla border delegation into Orbitalis diagnostic dimensions and stop surface-border
 broadcasts reaching their players. Vanilla Nether/End delegation and recipients remain unchanged.
 
-`FiniteSurfaceTerrain` in shared/common bounds new Overworld terrain against immutable native-border
+`FiniteSurfaceTerrain` in shared/common bounds new Overworld terrain against immutable saved-footprint
 snapshots. Two loader mixins adapt native `ChunkStep` work and `WorldGenRegion` writes/spawns. They
 preserve native dependency/status/light completion, allow empty exterior chunks and leave runtime
 placement and completed terrain untouched. Other dimensions and Sable plot generation stay native.
@@ -75,8 +76,11 @@ Surface block/fluid logic and native Sable settings remain unchanged. The space 
 flat-body [space presentation](space-visuals.md), combining a persisted
 server-owned coarse Overworld surface atlas with illustrative fallback for unknown cells. Shared/common
 owns native sampling, SavedData, bounded packets and the client relief renderer; NeoForge owns chunk/
-player/tick lifecycle and network wiring. This presentation never requests terrain loads or generation; bounded asynchronous native storage reads
-backfill already saved terrain without installing chunks, and CPU overview meshing runs off the render thread.
+player/tick lifecycle and network wiring. This presentation never requests terrain loads or generation.
+Two dedicated read-only region workers backfill saved terrain without installing chunks; native
+compression/palette codecs and server-thread colour hooks preserve Minecraft ownership. Independent
+512-metre sector meshes use local immutable halos, bounded background CPU jobs and incremental GPU
+uploads; map and orbital rendering share their cached buffers.
 The former `flight_test`, `orbit_test` and
 `space_test` IDs, their resources and spherical mission have been retired; save directories remain
 untouched. Completed old receipts are ignored; unfinished old transfers require previous-version
@@ -92,8 +96,8 @@ worker, narrow loader hooks connect native holding-map persistence, and core own
 This introduces frame hierarchy foundations without adding another celestial body or dimension.
 
 The `SableShipTransfer` coordinator reconstructs one independent ship and an optional pilot on the explicit
-Overworld/`orbitalis:space` route. Journal version 4 names both dimensions, an optional pilot and bounded entity/mount manifests;
-active version-3 records remain readable. `FlatPlanetFrame` owns
+Overworld/`orbitalis:space` route. Journal version 5 names both dimensions, an optional pilot and bounded entity/mount manifests;
+active version-3/4 records remain readable. Version five admits bounded side/underside physical coordinates. `FlatPlanetFrame` owns
 the fixed translation. Common owns native snapshots, exact-motion restoration and the versioned asynchronous
 journal and plot-chunk block-entity tick leases; NeoForge owns startup/tick/interaction wiring and
 a narrow Minecraft ticker hook that honors those leases without loading optional Sable classes.
@@ -101,7 +105,8 @@ A second loader hook exposes vanilla's pending teleport acknowledgment without r
 acknowledgment protocol. Separate clientbound payloads synchronize surface gravity and
 preserve exact local-player velocity across the native respawn/teleport reset. The native short motion
 packet alone clamps each component to about 78 m/s.
-Common owns automatic height triggers, guidance reservations and independent native player travel.
+Core owns distance/arrival bands around the reference volume; common owns automatic multidirectional
+triggers, guidance reservations and independent native player travel.
 Source entity chunks are loaded before participant selection. The transfer orders source tracking removal before dimension travel, then waits for the destination ship bundle,
 a subsequent teleport acknowledgment and native deck contact (or available vehicle plus restored
 passenger seat) before releasing physics. Travelling entities use a native entity-only checkpoint
