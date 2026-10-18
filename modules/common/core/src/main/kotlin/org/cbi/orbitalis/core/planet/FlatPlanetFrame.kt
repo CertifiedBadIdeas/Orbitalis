@@ -18,11 +18,24 @@
 
 package org.cbi.orbitalis.core.planet
 
-/** Fixed inertial representation for low finite-body orbits. */
+import org.cbi.orbitalis.core.orbit.InertialFrame
+import org.cbi.orbitalis.core.orbit.InertialFrames
+
+/** Current native worlds are leaves of a reusable inertial frame graph. */
 object FlatPlanetFrame {
     val origin = Vector3(0.0, -4096.0, 0.0)
 
-    fun toSpace(position: Vector3): Vector3 = position - origin
+    const val BODY = "orbitalis:overworld_body"
+    const val SPACE = "orbitalis:space"
+    val frames =
+        InertialFrames(
+            listOf(
+                InertialFrame(BODY, null, CartesianState(Vector3.ZERO, Vector3.ZERO)),
+                InertialFrame(SPACE, BODY, CartesianState(origin, Vector3.ZERO)),
+            ),
+        )
 
-    fun toSurface(position: Vector3): Vector3 = position + origin
+    fun toSpace(position: Vector3): Vector3 = frames.transform(CartesianState(position, Vector3.ZERO), BODY, SPACE, 0).position
+
+    fun toSurface(position: Vector3): Vector3 = frames.transform(CartesianState(position, Vector3.ZERO), SPACE, BODY, 0).position
 }

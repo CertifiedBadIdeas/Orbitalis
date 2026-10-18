@@ -50,7 +50,9 @@ a small SavedData marker prevents startup from overriding administrator changes.
 hooks omit vanilla border delegation into Orbitalis diagnostic dimensions and stop surface-border
 broadcasts reaching their players. Vanilla Nether/End delegation and recipients remain unchanged.
 
-The sole surface/orbital pair is ordinary Overworld and `orbitalis:space`. `FlatPlanetFrame` adds
+The current surface/orbital pair is ordinary Overworld and `orbitalis:space`. Core `InertialFrames`
+provides hierarchical position/velocity transforms; `FlatPlanetFrame` represents the current two
+frames through that graph and adds
 4096 to physical Y, preserving axes and inertial velocity. `SableFlightGravity` applies core
 rectangular-body gravity and a conservative surface compatibility layer to constructions and players.
 Gravity is vertical through Y=320 within the initial footprint and finite-body gravity above Y=3064.
@@ -72,7 +74,10 @@ New orbital worlds use [sparse vacuum](sparse-orbital-world.md): the dedicated `
 generator, a versioned objects/legacy world model, construction restricted to native Sable plots,
 and native terrain collision tickets disabled only in objects mode. A narrow region-worker hook omits
 new, known regenerable vacuum while preserving existing entries and unknown mod data. Legacy saves
-keep terrain collision and storage. Entities and native Sable storage remain authoritative.
+keep terrain collision and storage. Entities and native Sable storage remain authoritative. Independent constructions can retain
+[unloaded orbital motion](unloaded-orbital-objects.md): common owns the versioned motion index and
+worker, narrow loader hooks connect native holding-map persistence, and core owns numerical evolution.
+This introduces frame hierarchy foundations without adding another celestial body or dimension.
 
 The `SableShipTransfer` coordinator reconstructs one independent ship and an optional pilot on the explicit
 Overworld/`orbitalis:space` route. Journal version 4 names both dimensions, an optional pilot and bounded entity/mount manifests;

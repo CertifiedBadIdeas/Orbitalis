@@ -119,3 +119,9 @@ The `-PorbitalisGameTestSuite=atlas` suite requires `nativesurfaceatlaspersisten
 reload, unknown-version preservation, malformed records and bounded packet roundtrips/rejection.
 Both are included in `all`. Client framebuffer composition and relief appearance require the separate
 manual scenario in [space presentation](space-visuals.md).
+
+The `-PorbitalisGameTestSuite=objects` suite requires `nativeunloadedstation` and
+`orbitalmetadatacompatibility`, also included by `all`. It checks native unloading without a terrain
+trail, numerical motion, fresh disk reads of both motion index and native payload, exact velocity and
+cargo restoration, plus conservative schema handling. See [unloaded stations](unloaded-orbital-objects.md)
+for the distinction between storage-boundary coverage and an observed second-process restart.

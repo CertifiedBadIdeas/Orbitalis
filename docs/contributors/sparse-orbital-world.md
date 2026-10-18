@@ -21,7 +21,8 @@ limitations under the License.
 `orbitalis:space` is a native Minecraft dimension used for players, networking and Sable's
 physical constructions. In new worlds its ordinary terrain is regenerable vacuum, rather than
 an invisible landscape that follows each ship. The surface remains a normal finite Overworld.
-Asteroid generation and simulation of unloaded objects remain future work.
+Asteroid generation remains future work. Independent ballistic constructions now have a separate
+[unloaded motion index](unloaded-orbital-objects.md) over native Sable storage.
 
 ## Construction and collision
 

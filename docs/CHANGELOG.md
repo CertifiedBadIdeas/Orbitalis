@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Add hierarchical inertial frame transforms and a persisted game-time motion index for unloaded,
+  independent Sable stations in sparse space. Evolve ballistic motion without terrain tickets and
+  restore the native station's position, exact velocity and existing cargo through its holding map.
+
 - Allow up to three concurrent development tasks in separate worktrees. Managed Gradle launches
   share three workspace slots while keeping each worktree, including its consumer, exclusive until
   the build or client exits. Preserve compatibility with older single-slot checkouts.

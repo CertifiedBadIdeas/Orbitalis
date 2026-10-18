@@ -43,6 +43,7 @@ import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.flight.PlayerSpaceTravel
 import org.cbi.orbitalis.minecraft.integration.sable.AutomaticShipTravel
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
+import org.cbi.orbitalis.minecraft.integration.sable.SableOrbitalObjects
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipContact
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipTransfer
 import org.cbi.orbitalis.minecraft.integration.sable.SableVacuumWorld
@@ -60,6 +61,7 @@ object SableFlightIntegration {
 
     fun install() {
         SableVacuumWorld.installPlotLookup()
+        SableOrbitalObjects.mayAdvance = { server -> transfers[server]?.busy == false }
         // Apply before Sable compiles and sends its native dimension-physics packet.
         NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST) { event: OnDatapackSyncEvent ->
             event.playerList.server
@@ -88,6 +90,7 @@ object SableFlightIntegration {
                 }
         }
         NeoForge.EVENT_BUS.addListener { event: ServerTickEvent.Post ->
+            event.server.getLevel(FlatPlanetSpace.SPACE)?.let(SableOrbitalObjects::tick)
             transfers[event.server]?.let { manager ->
                 manager.tick()
                 if (!manager.busy) {
@@ -143,6 +146,7 @@ object SableFlightIntegration {
         NeoForge.EVENT_BUS.addListener { event: ServerStoppedEvent ->
             automatic.remove(event.server)?.close()
             transfers.remove(event.server)?.close()
+            SableOrbitalObjects.close(event.server)
             SableVacuumWorld.close(event.server)
         }
     }
