@@ -23,8 +23,8 @@ limitations under the License.
 rain rendering and sunrise/sunset gradients are suppressed. Exposed skylight has constant daytime
 brightness; native sky occlusion and warm block lights remain, followed by vanilla gamma, night vision
 and darkness handling. Minecraft's ordinary face shading remains: this is not directional shadow
-mapping or a physical sunlight simulation. Server time, surface weather and the ordinary Overworld
-sky are unchanged.
+mapping or a physical sunlight simulation. Server time and weather simulation are unchanged. The ordinary ground-level Overworld sky remains
+native; high-altitude presentation blends towards the same orbital scene before dimension travel.
 
 A single client-only `ClientLevel.effects()` selector supplies NeoForge's native dimension-effects
 extension for this dimension ID. NeoForge owns the hook and effects adapter; shared/common owns the actual sky and body mesh. No Sable
@@ -64,7 +64,7 @@ produce an empty cache. An unsupported version is read-only and presents fallbac
 file. Missing data starts empty. This cache never edits terrain or physics.
 
 Clientbound `orbitalis:surface_atlas`, registrar version 1, carries a server-session UUID, reset bit,
-nonnegative revision and at most 256 validated samples. Only orbital players receive it, with at
+nonnegative revision and at most 256 validated samples. Orbital players, surface players at or above the visual transition start, and leased map viewers receive it, with at
 most one packet/player/server tick. The server retains only each cell's current revision, not an
 unbounded history; a cursor streams current values and later replacements. Login/reconnection
 starts a reset; disconnect clears client data and GPU resources. Data survives dimension travel on
@@ -75,10 +75,12 @@ The camera position is converted through `FlightSpaceCoordinates.globalPosition`
 frame translations as transfer and force evaluation. Body vertices and the observer use surface
 coordinates. A single uniform scale fits the entire camera-relative mesh within a 60-unit sky shell,
 preserving every viewing angle and perspective size. The model therefore remains visible beyond
-chunk render distance and shrinks naturally with distance. A private colour/depth render target resolves terrain self-occlusion without putting compressed
-sky depth in front of ships. Its transparent result is composited over the stars. Stars and Sun are drawn first, the body afterward, and normal
-world geometry afterward, so ships occlude the background. The renderer restores its shader,
-shader colour, framebuffer and incoming depth/culling/blend state. Overview geometry is cached in a
+chunk render distance and shrinks naturally with distance. A private opaque sky colour/depth target resolves terrain self-occlusion without putting compressed
+sky depth in front of ships. Stars and Sun are drawn first, the body afterward, and the whole sky is
+composited once with the visual blend weight. Normal world geometry draws afterward, so ships occlude
+the background. Shared map rendering continues to use the same cached body mesh with its own camera.
+The renderer restores incoming read/draw framebuffers, viewport, clear colour, shader, shader colour
+and depth/culling/blend state. Overview geometry is cached in a
 GPU vertex buffer. At most one CPU mesh job is pending, started at most twice per second on an immutable
 sample snapshot; only upload/compositing run on the render thread. Session generations reject stale jobs
 and disconnect releases completed/pending CPU buffers without waiting. The top is bounded to 98,596
@@ -87,8 +89,10 @@ medium-specific fog is retained.
 
 The new [finite-body route](flat-gravity.md) uses `orbitalis:space`, with represented Y equal to
 physical Y+4096. Its geometry shares the initial surface size and sea-level constants with this mesh.
-The ship can view the slab from above, alongside and below. Higher-resolution terrain textures, atmosphere transitions, eclipses
-and directional ship shadows remain separate work.
+The ship can view the slab from above, alongside and below. Higher-resolution terrain textures, physical atmospheric scattering, eclipses
+and directional ship shadows remain separate work. Physical illumination is intended to share the
+future solar-system light source; this transition does not introduce a star, inverse-square lighting
+or planet shadows.
 
 ## Verification
 
@@ -117,3 +121,52 @@ client world; compilation alone does not demonstrate appearance. Suggested manua
 - `/execute in orbitalis:space run tp @s 0 9160 0 0 90` shows the body from 5000 m above sea level
   through the new low frame.
 - Return to `minecraft:overworld` to confirm the ordinary sky still follows time and weather.
+
+## Surface/space presentation transition
+
+`FlightAtmosphere` defines a smooth height weight in physical surface coordinates. It starts at
+Y=364 and reaches full vacuum at Y=1564 for the current planet size, before both the descent (2064)
+and ascent (3064) triggers. Both frames therefore show the same sky at their handoff. The weight
+uses the existing route coordinate transform and scale constants, not distance from a dimension's
+native Y origin. At and below the start, native sky rendering remains unchanged. Fog, native cloud
+opacity, rendered rain strength and exposed lightmap colours approach the orbital presentation with
+the same weight. Fluid and effect-specific sky restrictions remain. A lightmap adapter wraps only
+the native Overworld effects and delegates its render hooks; unrelated effects implementations stay
+native. Custom sky/weather renderers which bypass these hooks require their own verification.
+
+Client skylight sampling above the native building ceiling returns full sky in this route, where
+static terrain cannot occlude it. Native chunk-light storage may be absent there, producing zero
+light for both standalone players and Sable hulls. The correction applies before Sable combines its
+external scene light with plot light, preserving native cabin occlusion and block lights. Queries
+inside the building range, server lighting and other dimensions remain native. It is not a physical
+sunlight or directional-shadow simulation. Physical lighting is deferred to the solar-system model:
+light direction, distance and planetary occlusion must derive from an explicit shared light source
+and celestial reference frames, rather than another local day/night override.
+
+`FlightTransitionView` owns at most one full-resolution colour texture of the last rendered frame.
+A bounded three-second altitude-arrival estimate enables GPU copies near the appropriate boundary;
+there is no CPU pixel readback, terrain load or network request. An unused capture expires after one
+second. Native respawn destination observation arms a hold only for the explicit Overworld/space
+pair, on the same live connection with a fresh source image. Unexpected travel without a fresh
+capture retains ordinary loading.
+
+The native `ReceivingLevelScreen` continues ticking, closing itself and driving normal readiness;
+only its rendering is suppressed while a valid hold exists. All native network acknowledgments,
+ship transfer journals/checkpoints, physics pauses and player input authority are unchanged. A
+travelling Sable passenger also waits for contact with the same finalized UUID and a drawable native
+scene with compiled geometry. Invisible sections need not all compile. Once readiness remains stable
+for 200 ms, the old frame fades over the live destination for 250 ms. This deliberately freezes the
+picture; it does not simulate continuous motion or retain a second ClientLevel.
+
+A ten-second deadline, another respawn/recovery, unrelated screens, death, connection changes and
+framebuffer resize cancel the hold and expose native presentation. Disconnect releases frame and sky
+GPU resources. Readiness loss restarts the settle interval without extending the deadline. A future
+continuous handoff remains a separate transfer/renderer design, not a guarantee of this bridge.
+
+`FlightAtmosphereTest` checks the blend endpoints, monotonicity and invariance at both frame handoffs.
+`HeldFrameTimingTest` checks stable readiness, fade, readiness loss, timeout and cancellation. Client
+acceptance additionally needs a real mounted round trip and independent-player travel in both
+directions, with the native loading screen still closing itself. Check an exposed passenger and a
+sealed, unlit cabin separately: fixing absent external light must not illuminate cabin interiors.
+Observe ground weather/time, intermediate sky, full vacuum and disconnect resource cleanup. The
+optional-mod-absent startup check remains separate from flight-client visual acceptance.

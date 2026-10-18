@@ -18,6 +18,8 @@
 
 package org.cbi.orbitalis.minecraft.client.space
 
+import com.mojang.blaze3d.pipeline.TextureTarget
+import com.mojang.blaze3d.platform.GlStateManager
 import com.mojang.blaze3d.systems.RenderSystem
 import com.mojang.blaze3d.vertex.BufferBuilder
 import com.mojang.blaze3d.vertex.BufferUploader
@@ -25,6 +27,7 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat
 import com.mojang.blaze3d.vertex.Tesselator
 import com.mojang.blaze3d.vertex.VertexFormat
 import net.minecraft.client.Camera
+import net.minecraft.client.Minecraft
 import net.minecraft.client.multiplayer.ClientLevel
 import net.minecraft.client.renderer.GameRenderer
 import net.minecraft.world.effect.MobEffects
@@ -34,10 +37,18 @@ import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
 import org.joml.Matrix4f
 import org.lwjgl.opengl.GL11
+import org.lwjgl.opengl.GL30
 import kotlin.random.Random
 
 /** Distant presentation mesh; no remote chunks, block entities or optional mod APIs are loaded. */
 object SpaceSkyRenderer {
+    private var target: TextureTarget? = null
+
+    fun clear() {
+        target?.destroyBuffers()
+        target = null
+    }
+
     private data class Star(
         val vertices: List<Vector3>,
         val brightness: Int,
@@ -72,19 +83,38 @@ object SpaceSkyRenderer {
         camera: Camera,
         matrix: Matrix4f,
         foggy: Boolean,
+        opacity: Float = 1f,
     ) {
+        if (opacity <= 0f) return
         if (foggy || camera.fluidInCamera != FogType.NONE) return
         val entity = camera.entity
         if (entity is LivingEntity && (entity.hasEffect(MobEffects.BLINDNESS) || entity.hasEffect(MobEffects.DARKNESS))) return
         val position = camera.position
         val observer = FlightSpaceCoordinates.globalPosition(level, Vector3(position.x, position.y, position.z))
         val scale = SpaceScene.scale(observer, 4096.0)
+        val minecraft = Minecraft.getInstance()
+        val width = minecraft.mainRenderTarget.width
+        val height = minecraft.mainRenderTarget.height
+        val drawFramebuffer = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING)
+        val readFramebuffer = GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING)
+        val viewport = IntArray(4).also { GL11.glGetIntegerv(GL11.GL_VIEWPORT, it) }
+        val clearColor = FloatArray(4).also { GL11.glGetFloatv(GL11.GL_COLOR_CLEAR_VALUE, it) }
+        val depthFunction = GL11.glGetInteger(GL11.GL_DEPTH_FUNC)
         val previousColor = RenderSystem.getShaderColor().copyOf()
         val previousShader = RenderSystem.getShader()
         val depthTest = GL11.glIsEnabled(GL11.GL_DEPTH_TEST)
         val depthWrite = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK)
         val cull = GL11.glIsEnabled(GL11.GL_CULL_FACE)
         val blend = GL11.glIsEnabled(GL11.GL_BLEND)
+        val surface =
+            target ?: TextureTarget(width, height, true, Minecraft.ON_OSX).also {
+                it.setClearColor(0f, 0f, 0f, 1f)
+                target = it
+            }
+        if (surface.width != width || surface.height != height) surface.resize(width, height, Minecraft.ON_OSX)
+        RenderSystem.depthMask(true)
+        surface.clear(Minecraft.ON_OSX)
+        surface.bindWrite(true)
         RenderSystem.depthMask(false)
         RenderSystem.disableDepthTest()
         RenderSystem.disableCull()
@@ -98,8 +128,20 @@ object SpaceSkyRenderer {
             }
             for (vertex in sun) add(buffer, matrix, vertex, 255, 247, 220)
             BufferUploader.drawWithShader(buffer.buildOrThrow())
-            SurfacePlanetRenderer.render(observer, matrix, scale)
+            RenderSystem.enableDepthTest()
+            RenderSystem.depthMask(true)
+            RenderSystem.depthFunc(GL11.GL_LEQUAL)
+            SurfacePlanetRenderer.renderScene(observer, matrix, RenderSystem.getProjectionMatrix(), scale)
+            GlStateManager._glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, drawFramebuffer)
+            GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, readFramebuffer)
+            RenderSystem.viewport(viewport[0], viewport[1], viewport[2], viewport[3])
+            ScreenTexture.draw(surface.colorTextureId, opacity)
         } finally {
+            GlStateManager._glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, drawFramebuffer)
+            GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, readFramebuffer)
+            RenderSystem.viewport(viewport[0], viewport[1], viewport[2], viewport[3])
+            RenderSystem.clearColor(clearColor[0], clearColor[1], clearColor[2], clearColor[3])
+            RenderSystem.depthFunc(depthFunction)
             RenderSystem.setShader { previousShader }
             RenderSystem.setShaderColor(previousColor[0], previousColor[1], previousColor[2], previousColor[3])
             if (cull) RenderSystem.enableCull() else RenderSystem.disableCull()

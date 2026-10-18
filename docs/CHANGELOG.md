@@ -39,6 +39,12 @@ limitations under the License.
   acceleration transport and body angular velocity. This foundation is not yet wired into world physics
   or Sun rendering.
 
+- Blend high-altitude Overworld sky, fog, clouds, rain and exposed light towards the shared orbital
+  scene before travel, streaming the existing bounded terrain atlas on ascent. Hold a fresh gameplay
+  frame through native Overworld/space loading and fade into the ready destination; pauses remain,
+  with ordinary-loading fallbacks. Preserve player and ship skylight above the terrain ceiling without
+  changing plot light or introducing a physical Sun/shadow model.
+
 - Add personal timed maneuver nodes with prograde/normal/radial delta-v, a map editor and separate
   real-field impulse previews. Persist revisioned plans in Orbitalis; the removable flight consumer
   executes loaded orbital ships using native Propulsion engines and measured delta-v feedback.

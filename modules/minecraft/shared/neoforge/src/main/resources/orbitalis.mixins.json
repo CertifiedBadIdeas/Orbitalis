@@ -25,6 +25,9 @@
   },
   "client": [
     "ClientLevelSpaceEffectsMixin",
+    "FlightSkyRendererMixin",
+    "FlightTransitionPacketMixin",
+    "FlightSkyLightMixin",
     "ShipCameraMixin",
     "ShipViewRendererMixin",
     "ShipViewMouseMixin"
