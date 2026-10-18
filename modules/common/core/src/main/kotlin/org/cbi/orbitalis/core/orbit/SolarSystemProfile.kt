@@ -19,6 +19,7 @@
 package org.cbi.orbitalis.core.orbit
 
 import org.cbi.orbitalis.core.planet.FlatPlanetDefinition
+import org.cbi.orbitalis.core.planet.LunarSurface
 import org.cbi.orbitalis.core.planet.RectangularGravity
 import kotlin.math.PI
 
@@ -49,6 +50,24 @@ data class SolarSystemProfile(
             ),
         )
 
+    /** Top (+Y) faces Earth. Circular orbit: one prograde spin per revolution, in Earth axes. */
+    fun lunarSurfaceFrame(tick: Long): FrameKinematics {
+        val orbit = moonOrbit.sample(tick)
+        val angle = kotlin.math.atan2(orbit.origin.position.y, orbit.origin.position.x) + PI / 2.0
+        val omega =
+            orbit.origin.position.cross(orbit.origin.velocity) *
+                (1.0 / orbit.origin.position.dot(orbit.origin.position))
+        return orbit.copy(
+            orientation =
+                Rotation3.axisAngle(
+                    org.cbi.orbitalis.core.planet
+                        .Vector3(0.0, 0.0, 1.0),
+                    angle,
+                ),
+            angularVelocity = omega,
+        )
+    }
+
     /** Preserve the current positions when native gravity changes; velocities follow the new mass. */
     fun retune(
         gravity: Double,
@@ -65,7 +84,7 @@ data class SolarSystemProfile(
         const val MOON = "orbitalis:moon"
         const val EARTH_ORBIT_RADIUS = 2000000.0
         const val MOON_ORBIT_RADIUS = 20000.0
-        const val MOON_HALF_SIZE = 1400.0
+        val MOON_HALF_SIZE = LunarSurface.HALF_SIZE.toDouble()
         const val SUN_VISUAL_RADIUS = 30000.0
     }
 }

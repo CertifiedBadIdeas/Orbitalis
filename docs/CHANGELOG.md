@@ -20,6 +20,9 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Add deterministic finite lunar relief and a tidally locked surface-frame model. The lunar top
+  faces Earth throughout its prescribed orbit; native lunar arrival remains under development.
+
 - Show the synchronized Sun/Earth/Moon catalogue and closed celestial orbit curves on the orbital map.
   Add Earth, Moon, Earth–Moon and solar-system views, with relief occluding far-side orbit lines.
   The map uses the server's saved simulation epoch; lunar forces and surface travel remain pending.

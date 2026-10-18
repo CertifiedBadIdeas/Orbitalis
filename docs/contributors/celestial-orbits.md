@@ -62,7 +62,11 @@ ephemerides, not to vessel trajectories, which may escape.
 
 The orbital plane starts in XY, with periapsis on positive X and prograde motion toward positive Y.
 The plane rotation maps this orbit into parent axes. It does not rotate the body's surface axes:
-orientation stays identity and angular velocity stays zero in this stage.
+orbital frames keep identity orientation and zero angular velocity. `lunarSurfaceFrame(tick)`
+adds the accepted synchronous surface spin separately: local +Y points at Earth, +Z follows the
+orbital angular-momentum axis, and one prograde rotation occurs per circular orbit. Its origin,
+velocity and acceleration come from the same lunar ephemeris. Frame transport includes spin speed,
+Coriolis and centrifugal terms; the native lunar route is still under development.
 
 ## Hierarchy and relative coordinates
 
@@ -141,3 +145,14 @@ The map catalogue is active independently of lunar vessel physics. Vessel coast/
 still use the existing Earth field. Clock-domain migration for old maneuver plans, moving-source
 forces, multiple-body encounter prediction and native lunar handoffs remain required before lunar
 flight can be advertised. Opening the map creates no terrain tickets and wakes no constructions.
+
+## Lunar terrain foundation
+
+`LunarSurface` version one samples deterministic finite heights from a saved generator seed, with
+low rolling relief and crater bowls/rims. The footprint is [-1400,1400) on X/Z, the reference top
+is Y=64 and the underside is Y=-64. Exterior columns are absent, rather than capped by an invisible
+floor. The generator adapter and actual ship arrival/departure are the next integration steps.
+
+Core tests cover seed/query-order reproducibility, finite edges, negative-coordinate/chunk seams,
+Earth-facing normal through a full orbit, rigid-state round trips and independent finite-difference
+checks of the velocity/acceleration of a point fixed to the spinning surface.
