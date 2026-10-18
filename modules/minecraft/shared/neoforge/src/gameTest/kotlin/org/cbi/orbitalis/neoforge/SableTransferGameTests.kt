@@ -51,6 +51,7 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.flight.SpaceTravelReservations
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
+import org.cbi.orbitalis.minecraft.integration.sable.SableHoldingMapAccess
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipSnapshot
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipTransfer
 import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferJournal
@@ -419,7 +420,9 @@ object SableTransferGameTests {
                 val map = container.holdingChunkMap
                 val holding = map.getHoldingSubLevel(old.uniqueId)
                 if (holding != null) {
-                    map.loadHoldingSubLevel(holding)
+                    val p = holding.data().pose().position()
+                    val owner = holding.data().originLoadedChunk ?: ChunkPos(BlockPos.containing(p.x, p.y, p.z))
+                    (map as SableHoldingMapAccess).orbitalisTakeAndLoad(owner, old.uniqueId)
                 } else {
                     val anchor = ChunkPos(BlockPos.containing(old.logicalPose().position().x, 0.0, old.logicalPose().position().z))
                     for (pointer in checkNotNull(map.storage.attemptLoadHoldingChunk(anchor)).subLevelPointers.toList()) {
