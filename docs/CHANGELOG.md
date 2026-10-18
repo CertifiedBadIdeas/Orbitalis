@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Retain already loaded ships while consumer autopilots are active, including uncrewed flight and
+  orbital coast. Follow native bodies across handoffs and release session tickets on stop/landing/error;
+  listing and commands for unloaded UUIDs still do not wake ships or load orbital terrain.
+
 - Show ballistic trajectories on the orbital map, highlighting the selected construction. Extend coast
   forecasts beyond the former 120-second limit through a full revolution: periodic orbits close,
   precessing turns remain open and suborbital arcs end on the reference body. Map previews use native

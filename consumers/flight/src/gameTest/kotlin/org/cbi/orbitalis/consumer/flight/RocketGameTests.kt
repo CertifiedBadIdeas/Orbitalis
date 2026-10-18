@@ -137,6 +137,7 @@ object RocketGameTests {
         var returnDeltaV = 0.0
         var returnDirection: Vector3? = null
         var maximumPadOvershoot = 0.0
+        var flightLoading: AutopilotFlightLoading? = null
         val trace = StringBuilder("tick,phase,x,y,z,vx,vy,vz,nx,ny,nz,mainImpulse,rcsImpulse,angularTravel\n")
         val forced = mutableListOf<Long>()
         for (x in ((origin.x - 7) shr 4)..((origin.x + 7) shr 4)) {
@@ -158,6 +159,7 @@ object RocketGameTests {
             java.nio.file.Files
                 .writeString(evidence, trace.toString())
             mission?.close()
+            flightLoading?.close()
             transfer.close()
             pilot.close()
             releaseRelocationBlocker()
@@ -207,7 +209,7 @@ object RocketGameTests {
                 for (world in worlds) {
                     val c = checkNotNull(SubLevelContainer.getContainer(world))
                     val b = c.getSubLevel(body!!.uniqueId) as? ServerSubLevel ?: continue
-                    c.addForceLoadTicket(b, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
+                    if (!uncrewed || mission == null) c.addForceLoadTicket(b, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
                     if (!uncrewed && pilot.player.level() === world) pilot.attach(b)
                 }
             }
@@ -304,11 +306,17 @@ object RocketGameTests {
                     }
                 }
                 mission = RocketMission(pilot.player, b, site!!, transfer, false)
-                if (uncrewed) pilot.player.discard()
+                if (uncrewed) {
+                    flightLoading = AutopilotFlightLoading(checkNotNull(mission).body)
+                    container.removeForceLoadTicket(b, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
+                    pilot.player.discard()
+                }
             }
             mission?.let { active ->
                 val before = active.phase
+                flightLoading?.follow(active.body)
                 val landed = active.tick(if (uncrewed) null else pilot.player)
+                flightLoading?.follow(active.body)
                 if (!active.body.isRemoved && active.phase != RocketMission.Phase.TRANSFER) {
                     val b = active.body
                     val p =
