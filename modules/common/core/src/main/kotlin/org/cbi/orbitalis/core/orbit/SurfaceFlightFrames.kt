@@ -21,9 +21,8 @@ package org.cbi.orbitalis.core.orbit
 import org.cbi.orbitalis.core.planet.CartesianState
 import org.cbi.orbitalis.core.planet.FlatPlanetDefinition
 import org.cbi.orbitalis.core.planet.FlatPlanetFrame
-import org.cbi.orbitalis.core.planet.LunarSurface
+import org.cbi.orbitalis.core.planet.PlanetFlightEnvelope
 import org.cbi.orbitalis.core.planet.Vector3
-import kotlin.math.abs
 
 /** One sampled catalogue/epoch for positions, derivatives and rigid orientation at a native handoff. */
 class SurfaceFlightFrames(
@@ -63,43 +62,24 @@ class SurfaceFlightFrames(
         to: World,
     ): Vector3 = frame(to).fromParentAngularVelocity(frame(from).toParentAngularVelocity(value))
 
-    /** Local top-patch handoffs with separate entry/exit bands. No nearest-body teleport selection. */
+    /** All-face volume handoffs with separate entry/exit bands. No nearest-body teleport selection. */
     fun destination(
         value: CartesianState,
         from: World,
     ): World? {
         if (from == World.MOON) {
-            val p = value.position
-            return if ((p.y >= LunarSurface.SEA_LEVEL + LunarSurface.ASCENT_HEIGHT && value.velocity.y >= 0.0) ||
-                abs(p.x) >= LunarSurface.HALF_SIZE + 128.0 || abs(p.z) >= LunarSurface.HALF_SIZE + 128.0 || p.y < -192.0
-            ) {
-                World.SPACE
-            } else {
-                null
-            }
+            val envelope = PlanetFlightEnvelope.moon
+            return if (envelope.distance(value.position) >= envelope.ascentDistance) World.SPACE else null
         }
         if (from == World.EARTH) {
-            return if (abs(value.position.x) < FlatPlanetDefinition.HALF_SIZE && abs(value.position.z) < FlatPlanetDefinition.HALF_SIZE &&
-                value.position.y >= FlatPlanetDefinition.SEA_LEVEL + FlatPlanetDefinition.ASCENT_HEIGHT && value.velocity.y >= 0.0
-            ) {
-                World.SPACE
-            } else {
-                null
-            }
+            return if (PlanetFlightEnvelope.distance(value.position) >= FlatPlanetDefinition.ASCENT_HEIGHT) World.SPACE else null
         }
         val lunar = state(value, World.SPACE, World.MOON)
-        if (abs(lunar.position.x) < LunarSurface.HALF_SIZE && abs(lunar.position.z) < LunarSurface.HALF_SIZE &&
-            lunar.position.y in LunarSurface.SEA_LEVEL.toDouble()..(LunarSurface.SEA_LEVEL + LunarSurface.DESCENT_HEIGHT) &&
-            lunar.velocity.y <= 0.0
-        ) {
+        if (PlanetFlightEnvelope.moon.distance(lunar.position) <= PlanetFlightEnvelope.moon.descentDistance) {
             return World.MOON
         }
         val terrestrial = state(value, World.SPACE, World.EARTH)
-        val earthEntryTop = FlatPlanetDefinition.SEA_LEVEL + FlatPlanetDefinition.DESCENT_HEIGHT
-        if (abs(terrestrial.position.x) < FlatPlanetDefinition.HALF_SIZE && abs(terrestrial.position.z) < FlatPlanetDefinition.HALF_SIZE &&
-            terrestrial.position.y in FlatPlanetDefinition.SEA_LEVEL..earthEntryTop &&
-            terrestrial.velocity.y <= 0.0
-        ) {
+        if (PlanetFlightEnvelope.distance(terrestrial.position) <= FlatPlanetDefinition.DESCENT_HEIGHT) {
             return World.EARTH
         }
         return null

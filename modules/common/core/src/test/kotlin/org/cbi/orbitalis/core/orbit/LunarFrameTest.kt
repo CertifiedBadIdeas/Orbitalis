@@ -72,4 +72,50 @@ class LunarFrameTest {
         assertTrue((restored.position - ground.position).length() < 1e-8)
         assertTrue((restored.velocity - ground.velocity).length() < 1e-8)
     }
+
+    @Test
+    fun `every lunar face and rounded corner uses the same moving entry exit envelope`() {
+        val envelope = org.cbi.orbitalis.core.planet.PlanetFlightEnvelope.moon
+        val normals =
+            listOf(
+                Vector3(1.0, 0.0, 0.0),
+                Vector3(-1.0, 0.0, 0.0),
+                Vector3(0.0, 1.0, 0.0),
+                Vector3(0.0, -1.0, 0.0),
+                Vector3(0.0, 0.0, 1.0),
+                Vector3(0.0, 0.0, -1.0),
+                Vector3(1.0, -1.0, 1.0).normalized(),
+            )
+        for (tick in listOf(0L, 6000L, 30000L)) {
+            val frames = SurfaceFlightFrames(SolarSystemProfile(11.0), tick)
+            for (normal in normals) {
+                val surface = Vector3(normal.x.signExtent(1400.0), normal.y.signExtent(64.0), normal.z.signExtent(1400.0))
+
+                fun local(distance: Double) = CartesianState(surface + normal * distance, normal * -100.0)
+
+                fun route(distance: Double) =
+                    frames.destination(
+                        frames.state(
+                            local(distance),
+                            SurfaceFlightFrames.World.MOON,
+                            SurfaceFlightFrames.World.SPACE,
+                        ),
+                        SurfaceFlightFrames.World.SPACE,
+                    )
+                kotlin.test.assertEquals(SurfaceFlightFrames.World.MOON, route(399.0))
+                kotlin.test.assertNull(route(401.0))
+                kotlin.test.assertNull(frames.destination(local(599.0), SurfaceFlightFrames.World.MOON))
+                kotlin.test.assertEquals(SurfaceFlightFrames.World.SPACE, frames.destination(local(601.0), SurfaceFlightFrames.World.MOON))
+                kotlin.test.assertEquals(1.0, envelope.arrival(local(500.0).position, normal * -100.0, Vector3.ZERO, false, 5.0)!!, 1e-5)
+                kotlin.test.assertEquals(1.0, envelope.arrival(local(500.0).position, normal * 100.0, Vector3.ZERO, true, 5.0)!!, 1e-5)
+            }
+        }
+    }
+
+    private fun Double.signExtent(extent: Double): Double =
+        when {
+            this > 0.0 -> extent
+            this < 0.0 -> -extent
+            else -> 0.0
+        }
 }
