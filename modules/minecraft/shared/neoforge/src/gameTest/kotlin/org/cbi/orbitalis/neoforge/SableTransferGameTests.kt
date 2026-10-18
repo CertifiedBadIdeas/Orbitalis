@@ -49,6 +49,7 @@ import net.minecraft.world.level.block.entity.ChestBlockEntity
 import net.minecraft.world.level.block.entity.TickingBlockEntity
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
+import org.cbi.orbitalis.minecraft.flight.SpaceTravelReservations
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipSnapshot
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipTransfer
@@ -250,6 +251,10 @@ object SableTransferGameTests {
             surfaceContainer.allocateSubLevel(UUID.randomUUID(), sourceAddress % sourceSide, sourceAddress / sourceSide, pose)
                 as ServerSubLevel
         val ship = source.uniqueId
+        // The private recovery manager owns this UUID even while native bodies are recreated.
+        // Keep the production automatic coordinator out of this fixture's asynchronous journal.
+        val owner = Any()
+        SpaceTravelReservations.reserve(ship, owner)
         var sourceRemovedBeforeTravel = false
         surfaceContainer.addObserver(
             object : SubLevelObserver {
@@ -392,6 +397,7 @@ object SableTransferGameTests {
             val container = checkNotNull(SubLevelContainer.getContainer(world))
             val pose = Pose3d().also { it.position().set(1804.0 + 32 * foreign.size, 1000.0, 1804.0) }
             val body = container.allocateSubLevel(UUID.randomUUID(), x, z, pose) as ServerSubLevel
+            SpaceTravelReservations.reserve(body.uniqueId, owner)
             body.plot.newEmptyChunk(body.plot.centerChunk)
             body.plot.embeddedLevelAccessor.setBlock(BlockPos.ZERO, Blocks.CHEST.defaultBlockState(), 3)
             chest(body).setItem(0, ItemStack(Items.DIAMOND, 7))
@@ -435,6 +441,7 @@ object SableTransferGameTests {
                 runCatching { restoreForeign(world, old) }.getOrNull()?.let { body ->
                     container.removeForceLoadTicket(body, SubLevelLoadingTicketType.COMMAND_FORCED, MinecraftUnit.INSTANCE)
                     container.removeSubLevel(body, SubLevelRemovalReason.REMOVED)
+                    SpaceTravelReservations.release(body.uniqueId, owner)
                 }
             }
             for (container in listOf(surfaceContainer, orbitContainer)) {
@@ -443,6 +450,7 @@ object SableTransferGameTests {
                     container.removeSubLevel(body, SubLevelRemovalReason.REMOVED)
                 }
             }
+            SpaceTravelReservations.release(ship, owner)
             manager.close()
             journal.close()
             player.discard()
