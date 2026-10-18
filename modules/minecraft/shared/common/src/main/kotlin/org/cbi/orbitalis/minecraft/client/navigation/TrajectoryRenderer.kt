@@ -46,8 +46,17 @@ object TrajectoryRenderer {
         val end = snapshot.prediction.end
         val warning = end == CoastPrediction.End.SURFACE_ENTRY || end == CoastPrediction.End.BODY_INTERSECTION
         if (points.size < 2 && marker == null && !warning) return
+        if (level.dimension() == org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY &&
+            !org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                .available(level)
+        ) {
+            return
+        }
         val c = camera.position
         val observer = FlightSpaceCoordinates.globalPosition(level, Vector3(c.x, c.y, c.z))
+        val rootView =
+            org.cbi.orbitalis.minecraft.client.space.CelestialView
+                .rootView(level, matrix)
         val previousColor = RenderSystem.getShaderColor().copyOf()
         val previousShader = RenderSystem.getShader()
         val depthTest = GL11.glIsEnabled(GL11.GL_DEPTH_TEST)
@@ -68,7 +77,7 @@ object TrajectoryRenderer {
                 val relative = p - observer
                 // Preserve direction while keeping distant navigation lines inside the native far plane.
                 val v = relative * minOf(1.0, 128.0 / maxOf(128.0, relative.length()))
-                buffer.addVertex(matrix, v.x.toFloat(), v.y.toFloat(), v.z.toFloat()).setColor(red, green, blue, 255)
+                buffer.addVertex(rootView, v.x.toFloat(), v.y.toFloat(), v.z.toFloat()).setColor(red, green, blue, 255)
             }
             val elapsed = maxOf(0.0, (level.gameTime - snapshot.sampledTick) / 20.0)
             for (index in 1 until points.size) {

@@ -67,7 +67,7 @@ class LunarDynamicsTest {
                 )
             assertTrue(result.end == CoastPrediction.End.BODY_INTERSECTION)
             val impact = profile.lunarSurfaceFrame(epoch, result.terminal.seconds).fromParent(result.terminal.state)
-            assertTrue(kotlin.math.abs(impact.position.y - 88.0) < 0.1)
+            assertTrue(kotlin.math.abs(impact.position.y - 89.0) < 0.1)
         }
     }
 }

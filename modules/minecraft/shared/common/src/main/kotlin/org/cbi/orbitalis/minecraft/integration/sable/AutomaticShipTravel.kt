@@ -23,9 +23,10 @@ import dev.ryanhcode.sable.api.sublevel.SubLevelContainer
 import dev.ryanhcode.sable.sublevel.ServerSubLevel
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerPlayer
-import net.minecraft.world.level.ChunkPos
 import net.minecraft.world.level.Level
+import org.cbi.orbitalis.core.planet.CartesianState
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.flight.CelestialFlight
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
 import org.cbi.orbitalis.minecraft.flight.PlayerSpaceTravel
@@ -33,7 +34,6 @@ import org.cbi.orbitalis.minecraft.flight.ShipDestinationPreload
 import org.cbi.orbitalis.minecraft.flight.SpaceTravelReservations
 import org.slf4j.LoggerFactory
 import java.util.UUID
-import kotlin.math.floor
 
 /** One server coordinator owns all native ship transfers; guidance may reserve its own handoff. */
 class AutomaticShipTravel(
@@ -65,17 +65,29 @@ class AutomaticShipTravel(
         ticks++
         retry.entries.removeIf { it.value <= ticks }
         if (transfers.busy) return
+        if (CelestialFlight.trySample(server) == null) {
+            loading.values.forEach { it.close() }
+            loading.clear()
+            return
+        }
         val seen = mutableSetOf<UUID>()
-        for (key in listOf(Level.OVERWORLD, FlatPlanetSpace.SPACE)) {
+        for (key in CelestialFlight.dimensions) {
             val world = server.getLevel(key) ?: continue
             val container = SubLevelContainer.getContainer(world) ?: continue
             for (body in container.allSubLevels.filterIsInstance<ServerSubLevel>().toList()) {
                 if (body.isRemoved || SpaceTravelReservations.reserved(body.uniqueId, owner) || body.uniqueId in retry) continue
                 if (body.massTracker.centerOfMass == null || body.massTracker.mass <= 0) continue
                 val reading = SableFlightGravity.reading(body)
-                val global =
-                    FlightSpaceCoordinates
-                        .globalPosition(world, reading.position)
+                val physical =
+                    CelestialFlight
+                        .sample(
+                            server,
+                        ).state(
+                            CartesianState(reading.position, Vector3(reading.velocity.x, reading.velocity.y, reading.velocity.z)),
+                            key,
+                            Level.OVERWORLD,
+                        )
+                val global = physical.position
                 seen.add(body.uniqueId)
                 if (body.uniqueId !in loading && loading.size >= 256) {
                     // Resting ships must not permanently occupy all motion-history slots.
@@ -88,31 +100,35 @@ class AutomaticShipTravel(
                 if (!tickets.destination.approach(
                         world,
                         global,
-                        Vector3(reading.velocity.x, reading.velocity.y, reading.velocity.z),
+                        physical.velocity,
                         mayLoad,
                     )
                 ) {
                     tickets.source.close()
                     continue
                 }
-                tickets.source.update(world, reading.position)
-                val destination = PlayerSpaceTravel.destination(world, reading.position) ?: continue
+                val needsSourceTerrain =
+                    !org.cbi.orbitalis.minecraft.space.SpaceWorlds
+                        .objects(world)
+                if (needsSourceTerrain) {
+                    tickets.source.update(
+                        world,
+                        reading.position,
+                        reading.velocity.length(),
+                    )
+                } else {
+                    tickets.source.close()
+                }
+                val destination =
+                    PlayerSpaceTravel.destination(
+                        world,
+                        reading.position,
+                        Vector3(reading.velocity.x, reading.velocity.y, reading.velocity.z),
+                    )
+                        ?: continue
                 if (!tickets.destination.ready) continue
                 val b = body.boundingBox()
                 if (b.maxX() - b.minX() > 32 || b.maxZ() - b.minZ() > 32) continue
-                val chunks = (floor(b.minX() - 1).toInt() shr 4)..(floor(b.maxX() + 1).toInt() shr 4)
-                val rows = (floor(b.minZ() - 1).toInt() shr 4)..(floor(b.maxZ() + 1).toInt() shr 4)
-                if (chunks.any { x ->
-                        rows.any { z ->
-                            !world.areEntitiesLoaded(
-                                ChunkPos
-                                    .asLong(x, z),
-                            )
-                        }
-                    }
-                ) {
-                    continue
-                }
                 try {
                     val participants = ShipTransferPassengers.nearby(body)
                     val player = participants.filterIsInstance<ServerPlayer>().singleOrNull()

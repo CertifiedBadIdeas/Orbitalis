@@ -22,12 +22,19 @@ import net.minecraft.network.FriendlyByteBuf
 import net.minecraft.network.codec.StreamCodec
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload
 import net.minecraft.resources.ResourceLocation
+import org.cbi.orbitalis.core.orbit.SolarSystemProfile
 
 /** Server-selected mass-model surface strength, used to build the identical client field. */
 data class PlayerGravityPayload(
     val acceleration: Double,
+    val simulationTick: Long = 0,
+    val profile: SolarSystemProfile? = null,
+    val lunarSeed: Long = 0,
+    val advancing: Boolean = true,
 ) : CustomPacketPayload {
     init {
+        require(simulationTick >= 0 && (profile == null || profile.epochTick <= simulationTick))
+        require(profile == null || profile.surfaceGravity == acceleration)
         require(acceleration.isFinite() && acceleration > 0.0 && acceleration <= 1000.0)
     }
 
@@ -42,9 +49,32 @@ data class PlayerGravityPayload(
                     payload: PlayerGravityPayload,
                 ) {
                     buffer.writeDouble(payload.acceleration)
+                    buffer.writeLong(payload.simulationTick)
+                    buffer.writeLong(payload.lunarSeed)
+                    buffer.writeBoolean(payload.advancing)
+                    buffer.writeBoolean(payload.profile != null)
+                    payload.profile?.let {
+                        buffer.writeVarInt(SolarSystemProfile.VERSION)
+                        buffer.writeLong(it.epochTick)
+                        buffer.writeDouble(it.earthPhase)
+                        buffer.writeDouble(it.moonPhase)
+                    }
                 }
 
-                override fun decode(buffer: FriendlyByteBuf) = PlayerGravityPayload(buffer.readDouble())
+                override fun decode(buffer: FriendlyByteBuf): PlayerGravityPayload {
+                    val acceleration = buffer.readDouble()
+                    val tick = buffer.readLong()
+                    val lunarSeed = buffer.readLong()
+                    val advancing = buffer.readBoolean()
+                    val profile =
+                        if (buffer.readBoolean()) {
+                            require(buffer.readVarInt() == SolarSystemProfile.VERSION)
+                            SolarSystemProfile(acceleration, buffer.readLong(), buffer.readDouble(), buffer.readDouble())
+                        } else {
+                            null
+                        }
+                    return PlayerGravityPayload(acceleration, tick, profile, lunarSeed, advancing)
+                }
             }
     }
 }

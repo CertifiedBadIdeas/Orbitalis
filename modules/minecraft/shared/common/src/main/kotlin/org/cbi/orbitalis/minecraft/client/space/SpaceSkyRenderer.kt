@@ -34,7 +34,9 @@ import net.minecraft.world.effect.MobEffects
 import net.minecraft.world.entity.LivingEntity
 import net.minecraft.world.level.material.FogType
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.flight.CelestialFlight
 import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
+import org.cbi.orbitalis.minecraft.moon.MoonWorld
 import org.joml.Matrix4f
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL30
@@ -85,7 +87,8 @@ object SpaceSkyRenderer {
         foggy: Boolean,
         opacity: Float = 1f,
     ) {
-        if (opacity <= 0f) return
+        if (opacity <= 0f || (level.dimension() == MoonWorld.KEY && !CelestialFlight.available(level))) return
+        val sceneMatrix = CelestialView.rootView(level, matrix)
         if (foggy || camera.fluidInCamera != FogType.NONE) return
         val entity = camera.entity
         if (entity is LivingEntity && (entity.hasEffect(MobEffects.BLINDNESS) || entity.hasEffect(MobEffects.DARKNESS))) return
@@ -124,18 +127,32 @@ object SpaceSkyRenderer {
         try {
             val buffer = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR)
             for (star in stars) {
-                for (vertex in star.vertices) add(buffer, matrix, vertex, star.brightness, star.brightness, star.brightness)
+                for (vertex in star.vertices) add(buffer, sceneMatrix, vertex, star.brightness, star.brightness, star.brightness)
             }
-            for (vertex in sun) add(buffer, matrix, vertex, 255, 247, 220)
+            for (vertex in sun) add(buffer, sceneMatrix, vertex, 255, 247, 220)
             BufferUploader.drawWithShader(buffer.buildOrThrow())
             RenderSystem.enableDepthTest()
             RenderSystem.depthMask(true)
             RenderSystem.depthFunc(GL11.GL_LEQUAL)
-            SurfacePlanetRenderer.renderScene(observer, matrix, RenderSystem.getProjectionMatrix(), scale, clouds = false)
+            SurfacePlanetRenderer.renderScene(observer, sceneMatrix, RenderSystem.getProjectionMatrix(), scale, clouds = false)
+            val sample = if (CelestialFlight.available(level)) CelestialFlight.sample(level) else null
+            val lunarVisible =
+                level.dimension() != MoonWorld.KEY || LunarPlanetMesh.visibleFromSurface(Vector3(position.x, position.y, position.z))
+            if (sample != null && lunarVisible) {
+                LunarPlanetRenderer.render(
+                    sample.frames.profile,
+                    sample.frames.tick,
+                    CelestialFlight.lunarSeed,
+                    observer,
+                    sceneMatrix,
+                    RenderSystem.getProjectionMatrix(),
+                    scale,
+                )
+            }
             PlanetCloudRenderer.prepareWorld(
                 level,
                 observer,
-                matrix,
+                sceneMatrix,
                 RenderSystem.getProjectionMatrix(),
                 scale,
                 surface.depthTextureId,

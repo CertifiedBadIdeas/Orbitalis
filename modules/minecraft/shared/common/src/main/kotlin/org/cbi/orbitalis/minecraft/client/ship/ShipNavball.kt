@@ -63,11 +63,27 @@ object ShipNavball {
         val minecraft = Minecraft.getInstance()
         if (minecraft.options.hideGui || minecraft.screen != null) return
         val body = SableShipView.contact() ?: return
-        if (!FlatPlanetSpace.contains(body.level)) return
+        if (!FlatPlanetSpace.contains(body.level) ||
+            !org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                .available(body.level)
+        ) {
+            return
+        }
         val pose = body.renderPose(partialTick)
         val position = pose.position()
         val global = FlightSpaceCoordinates.globalPosition(body.level, Vector3(position.x(), position.y(), position.z()))
-        val acceleration = gravity.acceleration(global)
+        val sample =
+            org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                .sample(body.level)
+        val acceleration =
+            if (body.level.dimension() == org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY) {
+                sample.dynamics.lunarAcceleration(
+                    org.cbi.orbitalis.core.planet
+                        .CartesianState(Vector3(position.x(), position.y(), position.z()), Vector3.ZERO),
+                )
+            } else {
+                sample.dynamics.acceleration(global)
+            }
         if (acceleration.length() < 1e-8) return
         val upWorld = acceleration.normalized() * -1.0
 

@@ -58,6 +58,23 @@ import java.util.UUID
 
 @PrefixGameTestTemplate(false)
 object OrbitalObjectGameTests {
+    private fun evolved(
+        level: net.minecraft.server.level.ServerLevel,
+        initial: org.cbi.orbitalis.core.planet.CartesianState,
+        epoch: Long,
+        ticks: Long,
+    ): org.cbi.orbitalis.core.planet.CartesianState {
+        val sample =
+            org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                .sample(level.server)
+        return OrbitalEvolution.advanceTimed(initial, epoch, ticks) { p, tick ->
+            sample.dynamics.acceleration(
+                p,
+                (tick - sample.frames.tick) / 20.0,
+            )
+        }
+    }
+
     @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 100, batch = "orbital_clock")
     fun celestialClockAndDaylight(helper: GameTestHelper) {
@@ -179,6 +196,11 @@ object OrbitalObjectGameTests {
     @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 400, batch = "orbital_station")
     fun nativeUnloadedStation(helper: GameTestHelper) {
+        // The headless server runs unpaced: yield to the real catch-up worker during accelerated ticks.
+        helper.onEachTick {
+            java.util.concurrent.locks.LockSupport
+                .parkNanos(10_000_000L)
+        }
         val level = checkNotNull(helper.level.server.getLevel(FlatPlanetSpace.SPACE))
         val container = checkNotNull(SubLevelContainer.getContainer(level))
         val physics = SubLevelPhysicsSystem.require(level)
@@ -278,11 +300,7 @@ object OrbitalObjectGameTests {
                     "Orbital registry did not survive a fresh disk read",
                 )
                 val expected =
-                    OrbitalEvolution.advance(
-                        initial.state,
-                        fresh.clock - initial.tick,
-                        SableFlightGravity.flatField(level)::acceleration,
-                    )
+                    evolved(level, initial.state, initial.tick, fresh.clock - initial.tick)
                 SableOrbitalObjects.close(level.server)
                 level.dataStorage.set(OrbitalObjectData.NAME, fresh)
                 val nativePointer =
@@ -354,11 +372,7 @@ object OrbitalObjectGameTests {
                     )
                 helper.assertTrue(retained.uuid() == id, "Deferred snatch lost native ownership before saving")
                 val projected =
-                    OrbitalEvolution.advance(
-                        OrbitalEvolution.advance(freshAnchor.state, 1200, SableFlightGravity.flatField(level)::acceleration),
-                        160,
-                        SableFlightGravity.flatField(level)::acceleration,
-                    )
+                    evolved(level, evolved(level, freshAnchor.state, freshAnchor.tick, 1200), freshAnchor.tick + 1200, 160)
                 val observerPose =
                     Pose3d().also {
                         val native =

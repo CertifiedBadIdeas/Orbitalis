@@ -301,10 +301,21 @@ object SableShipSnapshot {
         handle.addLinearAndAngularVelocity(linear, angular)
         physics.pipeline.prePhysicsTicks()
         body.updateLastPose()
-        check(handle.getLinearVelocity(Vector3d()).distance(linear) < 1e-8) { "Linear velocity was not restored" }
-        check(handle.getAngularVelocity(Vector3d()).distance(angular) < 1e-8) { "Angular velocity was not restored" }
+        check(matchesNativeVelocity(handle.getLinearVelocity(Vector3d()), linear)) { "Linear velocity was not restored" }
+        check(matchesNativeVelocity(handle.getAngularVelocity(Vector3d()), angular)) { "Angular velocity was not restored" }
         return body
     }
+
+    /** Rapier's observed velocity is float precision. Accept only exact double or exact float rounding. */
+    fun matchesNativeVelocity(
+        actual: org.joml.Vector3dc,
+        expected: org.joml.Vector3dc,
+    ): Boolean =
+        actual.distance(expected) < 1e-8 ||
+            (
+                actual.x() == expected.x().toFloat().toDouble() && actual.y() == expected.y().toFloat().toDouble() &&
+                    actual.z() == expected.z().toFloat().toDouble()
+            )
 
     fun entitiesReady(body: ServerSubLevel): Boolean = body.plot.loadedChunks.all { body.level.areEntitiesLoaded(it.chunk.pos.toLong()) }
 

@@ -38,7 +38,23 @@ object PlayerGravityEvents {
         player: ServerPlayer,
         gravity: Double,
     ) {
-        player.connection.send(ClientboundCustomPayloadPacket(PlayerGravityPayload(gravity)))
+        player.connection.send(
+            ClientboundCustomPayloadPacket(
+                PlayerGravityPayload(
+                    gravity,
+                    org.cbi.orbitalis.minecraft.orbit.OrbitalSimulation
+                        .data(player.server)
+                        ?.clock ?: 0L,
+                    org.cbi.orbitalis.minecraft.orbit.OrbitalSimulation
+                        .profile(player.server),
+                    player.server.getLevel(org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY)?.let { level ->
+                        (level.chunkSource.generator as? org.cbi.orbitalis.minecraft.moon.LunarChunkGenerator)?.terrain?.seed
+                    } ?: 0L,
+                    org.cbi.orbitalis.minecraft.orbit.OrbitalSimulation
+                        .mayAdvance(player.server),
+                ),
+            ),
+        )
     }
 
     @JvmStatic @SubscribeEvent
@@ -49,7 +65,7 @@ object PlayerGravityEvents {
     @JvmStatic @SubscribeEvent
     fun tick(event: ServerTickEvent.Post) {
         val gravity = PlayerGravity.serverAcceleration(event.server.overworld())
-        if (sent.put(event.server, gravity) != gravity) {
+        if (sent.put(event.server, gravity) != gravity || event.server.tickCount % 10 == 0) {
             event.server.playerList.players
                 .forEach { send(it, gravity) }
         }

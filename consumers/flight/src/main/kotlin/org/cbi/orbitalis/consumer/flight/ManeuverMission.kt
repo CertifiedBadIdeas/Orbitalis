@@ -79,7 +79,13 @@ internal class ManeuverMission(
             .reserve(body.uniqueId, this)
         future =
             try {
-                worker.submit<ManeuverPlan.Prediction> { plan.predict(field, initial, now) }
+                run {
+                    val sources =
+                        org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                            .sample(body.level.server)
+                            .dynamics
+                    worker.submit<ManeuverPlan.Prediction> { plan.predict(field, initial, now, sources) }
+                }
             } catch (
                 failure: RuntimeException,
             ) {
@@ -119,6 +125,10 @@ internal class ManeuverMission(
         ) { "Maneuver ship unloaded, removed or changed frame" }
         check(!SubLevelPhysicsSystem.require(body.level).paused) { "Maneuver physics paused" }
         val now = server.overworld().gameTime
+        val forces =
+            org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                .sample(server)
+                .dynamics
         if (stage == "PLANNING") {
             if (!future.isDone) return false
             val prediction =
@@ -162,8 +172,8 @@ internal class ManeuverMission(
             control.observe(
                 checkNotNull(previous).velocity,
                 current.velocity,
-                field.acceleration(checkNotNull(previous).position),
-                field.acceleration(current.position),
+                forces.acceleration(checkNotNull(previous).position, -dt),
+                forces.acceleration(current.position),
                 dt,
             )
             previous = current
@@ -196,9 +206,9 @@ internal class ManeuverMission(
             require(along >= -0.5 && (control.remaining - axis * along).length() < maxOf(1.0, node.magnitude * 0.1)) {
                 "Burn deviated from its planned direction"
             }
-            rocketDrive!!.update(field.acceleration(current.position) + axis * (along * 0.5).coerceIn(0.0, 3.0), axis)
+            rocketDrive!!.update(forces.acceleration(current.position) + axis * (along * 0.5).coerceIn(0.0, 3.0), axis)
         } else {
-            shuttle!!.update(field.acceleration(current.position) + thrust)
+            shuttle!!.update(forces.acceleration(current.position) + thrust)
         }
         return false
     }

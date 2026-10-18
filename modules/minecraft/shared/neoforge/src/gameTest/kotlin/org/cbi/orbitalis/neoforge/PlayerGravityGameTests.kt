@@ -75,7 +75,14 @@ class PlayerGravityGameTests {
         try {
             val payload =
                 org.cbi.orbitalis.minecraft.flight
-                    .PlayerGravityPayload(11.0)
+                    .PlayerGravityPayload(
+                        11.0,
+                        500,
+                        org.cbi.orbitalis.core.orbit
+                            .SolarSystemProfile(11.0, 400),
+                        42,
+                        false,
+                    )
             org.cbi.orbitalis.minecraft.flight.PlayerGravityPayload.CODEC
                 .encode(buffer, payload)
             helper.assertTrue(
@@ -84,6 +91,10 @@ class PlayerGravityGameTests {
                 "Gravity strength changed in transit",
             )
             buffer.clear().writeDouble(Double.NaN)
+            buffer.writeLong(0)
+            buffer.writeLong(0)
+            buffer.writeBoolean(true)
+            buffer.writeBoolean(false)
             helper.assertTrue(
                 runCatching {
                     org.cbi.orbitalis.minecraft.flight.PlayerGravityPayload.CODEC

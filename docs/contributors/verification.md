@@ -156,3 +156,12 @@ native chunk stages or direct-write outside their generation region.
 The focused `-PorbitalisGameTestSuite=map` suite requires two [orbital map](orbital-map.md) packet,
 subscription and native object-sampling scenarios. `MapCameraTest` compares marker projection with
 the actual rendering matrices; screen layout and GPU/input behavior require a separate client preview.
+
+## Lunar surface
+
+Use `-PorbitalisGameTestSuite=moon` with `:v1_21_1-neoforge:runGameTestServer`. It requires
+`nativelunarterrain`, `nativelunargroundcontact`, `lunarshiproundtrip`, `lunarsideroundtrip` and `lunarundersideroundtrip`: finite native generation/heightmaps,
+a verified 44 m/s native impact, automatic descent
+with a seated survival player and chest cargo, real lunar ground contact and automatic ascent back
+to space, plus real seated/cargo entry and departure beside and underneath the Moon. The default suite includes all five. Core checks cover moving-frame/force/hysteresis behavior.
+These scenarios do not prove client rendering or third-party engine compatibility.

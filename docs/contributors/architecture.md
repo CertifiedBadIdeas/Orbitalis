@@ -62,17 +62,19 @@ provides hierarchical position/velocity transforms; `FlatPlanetFrame` represents
 frames through that graph and adds
 4096 to physical Y, preserving axes and inertial velocity. Independent core `Rotation3`/`FrameKinematics` now provide
 [tested rotating-frame transforms](rotating-frames.md) for subsequent Earth–Moon integration; the
-current native route still uses the established fixed frame. Core also provides
+Earth route retains the established fixed frame; the Moon route uses the sampled rotating frame. Core also provides
 [prescribed celestial ephemerides](celestial-orbits.md) and sampled body hierarchies. Common lifecycle
 advances the existing persisted orbital clock and stores a versioned compact catalogue with that
-index; the orbital map displays its synchronized bodies and orbit curves. They do not yet install
-moving gravity sources, a lunar surface or a new native frame interpretation. `SableFlightGravity` applies core
+index; the orbital map displays its synchronized bodies and orbit curves. The [lunar surface](lunar-surface.md) adds a tidally locked native Moon dimension and shared moving
+force samples for physics, unloaded evolution and forecasts. `SableFlightGravity` applies core
 rectangular-body gravity and a conservative surface compatibility layer to constructions and players.
 Gravity is vertical through Y=320 within the initial footprint and finite-body gravity above Y=3064.
 Players retain native jumps with 32 m/s² at the surface; the exterior field shares the ship mass
 model. Native collisions remain, with split field impulses and vacuum inertia above the atmosphere.
 Atmospheric drag and elytra lift fade to zero at ascent altitude; creative flight coasts in vacuum.
-Surface block/fluid logic and native Sable settings remain unchanged. The space frame uses the
+Surface block/fluid logic remains native. A temporary per-tick contact-step budget raises Sable precision
+near terrain for fast hulls, restoring configured values afterward. A narrow orbital cleanup hook admits
+the supported physical flight volume below the native surface-oriented Y cutoff. The space frame uses the
 flat-body [space presentation](space-visuals.md), combining a persisted
 server-owned coarse Overworld surface atlas with illustrative fallback for unknown cells. Shared/common
 owns native sampling, SavedData, bounded packets and the client relief renderer; NeoForge owns chunk/
@@ -93,11 +95,12 @@ new, known regenerable vacuum while preserving existing entries and unknown mod 
 keep terrain collision and storage. Entities and native Sable storage remain authoritative. Independent constructions can retain
 [unloaded orbital motion](unloaded-orbital-objects.md): common owns the versioned motion index and
 worker, narrow loader hooks connect native holding-map persistence, and core owns numerical evolution.
-This introduces frame hierarchy foundations without adding another celestial body or dimension.
+The same persisted index/clock now supports the moving lunar force source; saved station coordinates remain Earth-relative.
 
 The `SableShipTransfer` coordinator reconstructs one independent ship and an optional pilot on the explicit
-Overworld/`orbitalis:space` route. Journal version 5 names both dimensions, an optional pilot and bounded entity/mount manifests;
-active version-3/4 records remain readable. Version five admits bounded side/underside physical coordinates. `FlatPlanetFrame` owns
+Overworld/`orbitalis:space` and Moon/`orbitalis:space` routes. Lunar journal version 6 stores a frozen
+rotating frame; Earth journal version 5 names both dimensions, an optional pilot and bounded entity/mount manifests;
+active version-3 records remain readable. `FlatPlanetFrame` owns
 the fixed translation. Common owns native snapshots, exact-motion restoration and the versioned asynchronous
 journal and plot-chunk block-entity tick leases; NeoForge owns startup/tick/interaction wiring and
 a narrow Minecraft ticker hook that honors those leases without loading optional Sable classes.

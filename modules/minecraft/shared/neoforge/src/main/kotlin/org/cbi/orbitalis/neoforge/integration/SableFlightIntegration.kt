@@ -100,6 +100,14 @@ object SableFlightIntegration {
                             .AutomaticShipTravel(event.server, it)
                 }
         }
+        NeoForge.EVENT_BUS.addListener { event: ServerTickEvent.Pre ->
+            org.cbi.orbitalis.minecraft.integration.sable.SableSurfaceCollisionSteps
+                .begin(event.server)
+        }
+        NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST) { event: ServerTickEvent.Post ->
+            org.cbi.orbitalis.minecraft.integration.sable.SableSurfaceCollisionSteps
+                .end(event.server)
+        }
         NeoForge.EVENT_BUS.addListener { event: ServerTickEvent.Post ->
             event.server.getLevel(FlatPlanetSpace.SPACE)?.let(SableOrbitalObjects::tick)
             transfers[event.server]?.let { manager ->
@@ -157,6 +165,8 @@ object SableFlightIntegration {
         NeoForge.EVENT_BUS.addListener { event: ServerStoppedEvent ->
             automatic.remove(event.server)?.close()
             transfers.remove(event.server)?.close()
+            org.cbi.orbitalis.minecraft.integration.sable.SableSurfaceCollisionSteps
+                .end(event.server)
             SableOrbitalObjects.close(event.server)
             SableVacuumWorld.close(event.server)
         }

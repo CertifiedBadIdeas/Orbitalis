@@ -375,6 +375,19 @@ class OrbitalMapScreen(
                 projection,
                 1.0 / camera.range,
             )
+            snapshot?.let { data ->
+                data.celestialProfile?.let { profile ->
+                    org.cbi.orbitalis.minecraft.client.space.LunarPlanetRenderer.render(
+                        profile,
+                        data.simulationTick,
+                        org.cbi.orbitalis.minecraft.flight.CelestialFlight.lunarSeed,
+                        camera.focus,
+                        view,
+                        projection,
+                        1.0 / camera.range,
+                    )
+                }
+            }
             if (Util.getMillis() - receivedAt <= 3000L) {
                 pathRenderer?.render(camera, view, projection, trajectories?.paths.orEmpty(), selected, celestialBodies)
             }

@@ -1,0 +1,6 @@
+{
+  "dimension": "orbitalis:moon",
+  "universal_drag": 0.0,
+  "base_gravity": [0.0, -1.8333333333333333, 0.0],
+  "base_pressure": 0.0
+}

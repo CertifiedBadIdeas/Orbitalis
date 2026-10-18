@@ -25,12 +25,11 @@ Physical sunlight, platform spin and sleep-driven system acceleration remain def
 
 ## Current scope
 
-Core now provides `KeplerOrbit`, `CelestialBody`, `CelestialSystem` and `CelestialSnapshot`. These
-now have a native clock/catalogue adapter. The existing orbital index owns the shared simulation
-clock and the compact profile is persisted alongside it. Native gravity, saved frames, ship handoffs
-and sky still use the existing single-Earth route. The orbital map now displays this catalogue,
-including celestial markers and closed parent-relative orbit curves. There is no lunar dimension or
-active lunar force.
+Core provides `KeplerOrbit`, `CelestialBody`, `CelestialSystem` and `CelestialSnapshot`, backed by
+the persisted native clock/catalogue. Loaded and unloaded flight, coast/maneuver forecasts and
+[lunar surface travel](lunar-surface.md) now sample this model. The map displays synchronized bodies,
+closed parent-relative celestial curves and seeded lunar relief. Earth coordinates and old saved
+orbital-frame identifiers retain their established meanings.
 
 The accepted scale is a compact gameplay system with transfers lasting several minutes. A preliminary
 Earth–Moon centre separation of 20 km gives a point-mass transfer estimate of about 5.5 minutes from
@@ -66,7 +65,7 @@ orbital frames keep identity orientation and zero angular velocity. `lunarSurfac
 adds the accepted synchronous surface spin separately: local +Y points at Earth, +Z follows the
 orbital angular-momentum axis, and one prograde rotation occurs per circular orbit. Its origin,
 velocity and acceleration come from the same lunar ephemeris. Frame transport includes spin speed,
-Coriolis and centrifugal terms; the native lunar route is still under development.
+Coriolis and centrifugal terms; the native lunar route uses this sampled frame.
 
 ## Hierarchy and relative coordinates
 
@@ -100,17 +99,13 @@ coordinates are unchanged. Unknown/malformed profile or index versions preserve 
 and disable its simulation. Changing native gravity rebases current phases before retuning masses,
 avoiding an immediate position jump. Historical mass-change force replay is not implemented.
 
-Legacy maneuver-plan epochs/consumer execution still use Minecraft game time. They require an
-explicit migration before enabling moving-field vessel predictions; this metadata stage does not
-reinterpret those saved plans. Moving-source gravity, loaded and unloaded vessels, previews and visual snapshots
-must share that clock and catalogue. `OrbitalEvolution.advanceTimed` can evaluate deterministic
-position/time forces at each endpoint; no native caller has switched to it yet.
-
-When evaluating motion in a body's translating frame, subtract its origin acceleration consistently.
-A sum of source forces in solar axes cannot be used unchanged in Earth-relative coordinates. Surface
-compatibility gravity and existing transfers also need explicit adaptation. These requirements must
-be resolved together before activating moving bodies; this stage does not silently reinterpret the
-existing `FlatPlanetFrame` or persisted states.
+Maneuver-plan epochs and consumer execution retain Minecraft game-time semantics. Prediction offsets
+are anchored explicitly to the current simulation epoch, rather than migrating or reinterpreting saved
+node times. `OrbitalEvolution.advanceTimed` samples moving forces at absolute integration times;
+loaded physics samples each native substep. `CelestialDynamics` supplies the same Earth-relative field
+to live/unloaded vessels and previews. Its differential lunar/solar terms preserve the prescribed
+Earth origin; surface compatibility and rotating local dynamics are described in
+[lunar surface](lunar-surface.md).
 
 ## Evidence
 
@@ -118,7 +113,8 @@ existing `FlatPlanetFrame` or persisted states.
 momentum, analytic derivatives against independent finite differences, epochs/query order, near-
 parabolic bound cases and invalid parameters. `CelestialSystemTest` covers a three-level hierarchy,
 relative accelerations, distant-origin precision, input isolation and invalid graphs/mass parameters.
-These tests establish domain behavior, not Minecraft lunar travel, rendering or native force agreement.
+These tests establish domain behavior. Separate native lunar/force scenarios cover game integration;
+visual correctness still requires an observed client.
 
 Native `celestialClockAndDaylight` checks `/time set`, pause gating and exactly one increment per
 server tick. `celestialProfilePersistence` checks version-one migration, fresh disk restoration of
@@ -141,17 +137,17 @@ occludes far-side arc segments. Celestial markers/names remain readable overlays
 Earth–Moon and solar-system framing buttons cover surface, satellite and astronomical scales. Moon
 and solar focus follow their body as new snapshots arrive; Home restores the Earth overview.
 
-The map catalogue is active independently of lunar vessel physics. Vessel coast/maneuver previews
-still use the existing Earth field. Clock-domain migration for old maneuver plans, moving-source
-forces, multiple-body encounter prediction and native lunar handoffs remain required before lunar
-flight can be advertised. Opening the map creates no terrain tickets and wakes no constructions.
+Vessel coast/maneuver previews use the same time-dependent field as native flight. Opening the map
+creates no terrain tickets and wakes no constructions. The rendered Moon has the same seed-owned
+relief as its native surface; far-side paths share the scene depth buffer.
 
 ## Lunar terrain foundation
 
 `LunarSurface` version one samples deterministic finite heights from a saved generator seed, with
 low rolling relief and crater bowls/rims. The footprint is [-1400,1400) on X/Z, the reference top
 is Y=64 and the underside is Y=-64. Exterior columns are absent, rather than capped by an invisible
-floor. The generator adapter and actual ship arrival/departure are the next integration steps.
+floor. The native generator and automatic ship arrival/departure use this definition; see
+[lunar surface](lunar-surface.md).
 
 Core tests cover seed/query-order reproducibility, finite edges, negative-coordinate/chunk seams,
 Earth-facing normal through a full orbit, rigid-state round trips and independent finite-difference

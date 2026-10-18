@@ -158,7 +158,7 @@ object CoastPrediction {
                         after.orientation.inverse(next.position - after.origin.position),
                         Vector3(
                             it.moon.body.halfWidth + limits.hullRadius,
-                            88.0 + limits.hullRadius,
+                            89.0 + limits.hullRadius,
                             it.moon.body.halfDepth + limits.hullRadius,
                         ),
                     )
