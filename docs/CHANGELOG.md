@@ -20,6 +20,12 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Blend high-altitude Overworld sky, fog, clouds, rain and exposed light towards the shared orbital
+  scene before travel, streaming the existing bounded terrain atlas on ascent. Hold a fresh gameplay
+  frame through native Overworld/space loading and fade into the ready destination; pauses remain,
+  with ordinary-loading fallbacks. Preserve player and ship skylight above the terrain ceiling without
+  changing plot light or introducing a physical Sun/shadow model.
+
 - Keep the F6 observation camera at its last view while the same ship is being received after an
   Overworld/space handoff. Rebase the held position into the destination frame instead of briefly
   falling back to the passenger camera. Native loading screens and transfer checkpoints remain.

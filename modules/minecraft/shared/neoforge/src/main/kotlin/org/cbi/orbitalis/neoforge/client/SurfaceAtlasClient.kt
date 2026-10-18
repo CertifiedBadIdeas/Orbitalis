@@ -40,5 +40,7 @@ object SurfaceAtlasClientLifecycle {
     @JvmStatic @SubscribeEvent
     fun logout(event: ClientPlayerNetworkEvent.LoggingOut) {
         SurfacePlanetRenderer.clear()
+        org.cbi.orbitalis.minecraft.client.space.SpaceSkyRenderer
+            .clear()
     }
 }

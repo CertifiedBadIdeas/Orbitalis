@@ -21,6 +21,7 @@ package org.cbi.orbitalis.neoforge.mixin;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.DimensionSpecialEffects;
 import org.cbi.orbitalis.neoforge.client.SpaceEffects;
+import org.cbi.orbitalis.neoforge.client.SurfaceFlightEffects;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -34,5 +35,10 @@ public abstract class ClientLevelSpaceEffectsMixin {
         if (SpaceEffects.applies((ClientLevel) (Object) this)) {
             callback.setReturnValue(SpaceEffects.INSTANCE);
         }
+    }
+
+    @Inject(method = "effects", at = @At("RETURN"), cancellable = true)
+    private void orbitalis$surfaceEffects(CallbackInfoReturnable<DimensionSpecialEffects> callback) {
+        callback.setReturnValue(SurfaceFlightEffects.select((ClientLevel) (Object) this, callback.getReturnValue()));
     }
 }

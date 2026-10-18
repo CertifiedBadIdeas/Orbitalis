@@ -44,6 +44,10 @@ object ShipViewRegistration {
     fun keys(event: RegisterKeyMappingsEvent) {
         if (!ModList.get().isLoaded("sable")) return
         ShipViewHooks.controller = SableShipView
+        org.cbi.orbitalis.minecraft.client.space.FlightTransitionContact.ship =
+            org.cbi.orbitalis.minecraft.client.ship.SableFlightPresentation::ship
+        org.cbi.orbitalis.minecraft.client.space.FlightTransitionContact.ready =
+            org.cbi.orbitalis.minecraft.client.ship.SableFlightPresentation::ready
         event.register(camera)
         event.register(axes)
     }

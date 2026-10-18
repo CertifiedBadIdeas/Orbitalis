@@ -105,7 +105,10 @@ selects destination authority, and DONE follows a verified native checkpoint. Co
 receipts rather than stale ship payloads. Recovery does not make the journal a permanent ship store.
 See [ship transfer](ship-transfer.md) for limits, failure handling and the server-thread checkpoint cost.
 Block-entity types are not allowlisted: native serialization and exact staged reconstruction validate
-saved payloads. Optional client [ship observation](ship-camera.md) uses native contact/interpolation,
+saved payloads. Client [surface/space presentation](space-visuals.md) blends the same sky by physical altitude and
+holds one fresh frame through native loading, then reveals the ready destination. Client-only hooks
+observe respawn destinations and suppress loading-screen drawing without replacing ticks, receipts or
+acknowledgments. Optional client [ship observation](ship-camera.md) uses native contact/interpolation,
 a shared gravity-field factory and client-only input/render hooks; it never controls ship physics.
 
 The [flight consumer](flight-consumer.md) is an independent Gradle composite build, included only when

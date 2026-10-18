@@ -25,6 +25,7 @@ import net.neoforged.bus.api.SubscribeEvent
 import net.neoforged.fml.common.EventBusSubscriber
 import net.neoforged.neoforge.client.event.ViewportEvent
 import org.cbi.orbitalis.core.Orbitalis
+import org.cbi.orbitalis.minecraft.client.space.FlightSky
 
 @EventBusSubscriber(modid = Orbitalis.MOD_ID, value = [Dist.CLIENT])
 object SpaceViewportEvents {
@@ -32,9 +33,10 @@ object SpaceViewportEvents {
     @SubscribeEvent
     fun fogColor(event: ViewportEvent.ComputeFogColor) {
         val level = Minecraft.getInstance().level ?: return
-        if (!SpaceEffects.applies(level) || event.camera.fluidInCamera != FogType.NONE) return
-        event.red = 0f
-        event.green = 0f
-        event.blue = 0f
+        if (event.camera.fluidInCamera != FogType.NONE) return
+        val weight = FlightSky.weight(level, event.camera)
+        event.red *= 1f - weight
+        event.green *= 1f - weight
+        event.blue *= 1f - weight
     }
 }

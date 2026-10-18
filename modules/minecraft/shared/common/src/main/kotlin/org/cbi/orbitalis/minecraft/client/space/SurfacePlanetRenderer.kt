@@ -18,7 +18,6 @@
 
 package org.cbi.orbitalis.minecraft.client.space
 
-import com.mojang.blaze3d.pipeline.TextureTarget
 import com.mojang.blaze3d.systems.RenderSystem
 import com.mojang.blaze3d.vertex.BufferBuilder
 import com.mojang.blaze3d.vertex.ByteBufferBuilder
@@ -27,14 +26,11 @@ import com.mojang.blaze3d.vertex.MeshData
 import com.mojang.blaze3d.vertex.VertexBuffer
 import com.mojang.blaze3d.vertex.VertexFormat
 import net.minecraft.Util
-import net.minecraft.client.Minecraft
 import net.minecraft.client.renderer.GameRenderer
 import org.cbi.orbitalis.core.planet.SurfaceAtlas
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.surface.SurfaceAtlasPayload
 import org.joml.Matrix4f
-import org.lwjgl.opengl.GL11
-import org.lwjgl.opengl.GL14
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 
@@ -46,7 +42,6 @@ object SurfacePlanetRenderer {
     private var meshRevision = -1L
     private var lastBuild = 0L
     private var mesh: VertexBuffer? = null
-    private var target: TextureTarget? = null
     private var generation = 0L
     private var pending: CompletableFuture<PreparedMesh>? = null
 
@@ -125,8 +120,6 @@ object SurfacePlanetRenderer {
         meshRevision = -1L
         mesh?.close()
         mesh = null
-        target?.destroyBuffers()
-        target = null
     }
 
     private fun updateMesh() {
@@ -162,45 +155,6 @@ object SurfacePlanetRenderer {
             checkNotNull(mesh).drawWithShader(modelView, projection, checkNotNull(GameRenderer.getPositionColorShader()))
         } finally {
             VertexBuffer.unbind()
-        }
-    }
-
-    fun render(
-        observer: Vector3,
-        matrix: Matrix4f,
-        scale: Double,
-    ) {
-        val minecraft = Minecraft.getInstance()
-        val width = minecraft.mainRenderTarget.width
-        val height = minecraft.mainRenderTarget.height
-        if (target == null) target = TextureTarget(width, height, true, Minecraft.ON_OSX).also { it.setClearColor(0f, 0f, 0f, 0f) }
-        val surface = checkNotNull(target)
-        if (surface.width != width || surface.height != height) surface.resize(width, height, Minecraft.ON_OSX)
-        val src = GL11.glGetInteger(GL14.GL_BLEND_SRC_RGB)
-        val dst = GL11.glGetInteger(GL14.GL_BLEND_DST_RGB)
-        val srcAlpha = GL11.glGetInteger(GL14.GL_BLEND_SRC_ALPHA)
-        val dstAlpha = GL11.glGetInteger(GL14.GL_BLEND_DST_ALPHA)
-        val depthFunction = GL11.glGetInteger(GL11.GL_DEPTH_FUNC)
-        try {
-            RenderSystem.depthMask(true)
-            surface.clear(Minecraft.ON_OSX)
-            surface.bindWrite(true)
-            RenderSystem.enableDepthTest()
-            RenderSystem.depthFunc(GL11.GL_LEQUAL)
-            RenderSystem.disableBlend()
-            renderScene(observer, matrix, RenderSystem.getProjectionMatrix(), scale)
-            minecraft.mainRenderTarget.bindWrite(true)
-            RenderSystem.enableBlend()
-            RenderSystem.defaultBlendFunc()
-            surface.blitToScreen(width, height, false)
-        } finally {
-            VertexBuffer.unbind()
-            minecraft.mainRenderTarget.bindWrite(true)
-            RenderSystem.blendFuncSeparate(src, dst, srcAlpha, dstAlpha)
-            RenderSystem.depthFunc(depthFunction)
-            RenderSystem.disableBlend()
-            RenderSystem.disableDepthTest()
-            RenderSystem.depthMask(false)
         }
     }
 }

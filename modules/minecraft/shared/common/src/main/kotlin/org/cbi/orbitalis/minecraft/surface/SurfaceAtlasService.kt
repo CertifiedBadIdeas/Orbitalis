@@ -21,9 +21,11 @@ package org.cbi.orbitalis.minecraft.surface
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.level.ChunkPos
+import net.minecraft.world.level.Level
 import net.minecraft.world.level.chunk.LevelChunk
 import org.cbi.orbitalis.core.planet.SurfaceAtlas
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
+import org.cbi.orbitalis.minecraft.flight.FlightAtmosphere
 import java.util.UUID
 
 /** Server-thread owner: live lifecycle snapshots, bounded refresh/backfill and orbital packets. */
@@ -76,7 +78,9 @@ class SurfaceAtlasService(
         }
         backfill.tick()
         for (player in server.playerList.players) {
-            if (player.level().dimension() != FlatPlanetSpace.SPACE && !mapViewer(player)) continue
+            val dimension = player.level().dimension()
+            val approaching = dimension == Level.OVERWORLD && player.y >= FlightAtmosphere.START
+            if (dimension != FlatPlanetSpace.SPACE && !approaching && !mapViewer(player)) continue
             val cursor = cursors[player.uuid]
             val (revision, samples) = data.atlas.after(cursor ?: 0L, 256)
             if (cursor == null || samples.isNotEmpty()) {
