@@ -38,7 +38,7 @@ object OrbitalisGameTests {
             GlobalTestReporter.replaceWith(JUnitLikeTestReporter(File(path)))
         }
         val suite = System.getProperty("orbitalis.gameTestSuite", "all")
-        require(suite in setOf("all", "surface", "transfer", "flat", "travel", "navigation", "sparse", "atlas", "objects")) {
+        require(suite in setOf("all", "surface", "transfer", "flat", "travel", "navigation", "sparse", "atlas", "objects", "terrain")) {
             "Unknown GameTest suite: $suite"
         }
         if (suite == "objects") {
@@ -46,6 +46,8 @@ object OrbitalisGameTests {
             return
         }
         if (suite == "all") event.register(OrbitalObjectGameTests::class.java)
+        if (suite == "all" || suite == "terrain") event.register(TerrainGameTests::class.java)
+        if (suite == "terrain") return
         if (suite == "atlas") {
             event.register(SurfaceAtlasGameTests::class.java)
             return

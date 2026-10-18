@@ -8,6 +8,8 @@
     "OrbitalHoldingMapMixin",
     "OrbitalHoldingChunkMixin",
     "VacuumRegionStorageMixin",
+    "FiniteSurfaceGenerationMixin",
+    "FiniteSurfaceFeatureMixin",
     "VacuumBlockPlacementMixin",
     "SpaceVoidFloorMixin",
     "PlayerGravityMixin",

@@ -24,6 +24,9 @@ limitations under the License.
   independent Sable stations in sparse space. Evolve ballistic motion without terrain tickets and
   restore the native station's position, exact velocity and existing cargo through its holding map.
 
+- Bound new Overworld terrain to the native world border, including partial edge chunks and
+  generation-time structures/spawns. Keep empty technical neighbours loadable and limit the flight
+  consumer's optional WorldGenV2 search to the surface footprint. Existing worlds and caches are not trimmed.
 - Allow up to three concurrent development tasks in separate worktrees. Managed Gradle launches
   share three workspace slots while keeping each worktree, including its consumer, exclusive until
   the build or client exits. Preserve compatibility with older single-slot checkouts.
