@@ -32,7 +32,8 @@ import org.joml.Vector3f
 /** Native NeoForge sky hooks selected by dimension ID, including existing diagnostic saves. */
 object SpaceEffects : DimensionSpecialEffects(Float.NaN, false, SkyType.NONE, false, false) {
     @JvmStatic
-    fun applies(level: ClientLevel): Boolean = FlightSpaceCoordinates.isOrbital(level.dimension())
+    fun applies(level: ClientLevel): Boolean =
+        FlightSpaceCoordinates.isOrbital(level.dimension()) || level.dimension() == org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY
 
     override fun getBrightnessDependentFogColor(
         color: Vec3,

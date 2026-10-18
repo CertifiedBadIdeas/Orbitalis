@@ -49,17 +49,23 @@ object PlanetRockShell {
     ) = SpaceScene.Face(listOf(a, b, c, c), rgb, (b - a).cross(c - a).normalized(), 0.42)
 
     /** Only this immutable underside belongs to the static body buffer; walls belong to LOD sectors. */
-    val faces: List<SpaceScene.Face> =
+    val faces: List<SpaceScene.Face> = underside(SpaceScene.HALF_SIZE, SpaceScene.BOTTOM)
+
+    fun underside(
+        halfSize: Double,
+        bottom: Double,
+        baseColor: Int = 0x7f807c,
+    ): List<SpaceScene.Face> =
         buildList {
             fun vertex(
                 i: Int,
                 j: Int,
             ): Vector3 {
-                val step = SpaceScene.HALF_SIZE * 2.0 / CELLS
+                val step = halfSize * 2.0 / CELLS
                 val interior = i in 1 until CELLS && j in 1 until CELLS
-                val x = -SpaceScene.HALF_SIZE + i * step + if (interior) sin(i * 19.31 + j * 7.13) * step * 0.28 else 0.0
-                val z = -SpaceScene.HALF_SIZE + j * step + if (interior) cos(i * 3.17 - j * 17.91) * step * 0.28 else 0.0
-                return Vector3(x, SpaceScene.BOTTOM, z)
+                val x = -halfSize + i * step + if (interior) sin(i * 19.31 + j * 7.13) * step * 0.28 else 0.0
+                val z = -halfSize + j * step + if (interior) cos(i * 3.17 - j * 17.91) * step * 0.28 else 0.0
+                return Vector3(x, bottom, z)
             }
             val grid = Array(CELLS + 1) { i -> Array(CELLS + 1) { j -> vertex(i, j) } }
             for (i in 0 until CELLS) {
@@ -68,7 +74,7 @@ object PlanetRockShell {
                     val b = grid[i + 1][j]
                     val c = grid[i + 1][j + 1]
                     val d = grid[i][j + 1]
-                    val rgb = color(0x7f807c, 1.0 + noise(a.x * 2.7, a.z * 2.7) * 0.13)
+                    val rgb = color(baseColor, 1.0 + noise(a.x * 2.7, a.z * 2.7) * 0.13)
                     if ((i + j) % 2 == 0) {
                         add(triangle(a, b, c, rgb))
                         add(triangle(a, c, d, color(rgb, 0.98)))
@@ -88,15 +94,18 @@ object PlanetRockShell {
         z1: Double,
         height: Double,
         surfaceColor: Int,
+        halfSize: Double = SpaceScene.HALF_SIZE,
+        bottomY: Double = SpaceScene.BOTTOM,
+        strata: List<Int> = listOf(0x64686a, 0x7d7f7d, 0x8f887c, 0x8a8274),
     ): Sequence<SpaceScene.Face> =
         sequence {
-            if (height <= SpaceScene.BOTTOM) return@sequence
-            val h = SpaceScene.HALF_SIZE
+            if (height <= bottomY) return@sequence
+            val h = halfSize
             if (x0 != -h && x1 != h && z0 != -h && z1 != h) return@sequence
             // Absolute layer levels align along adjacent cells; the thin top band carries the sampled surface tone.
             val cuts =
-                (listOf(SpaceScene.BOTTOM, -32.0, 0.0, 32.0, height - 2.0, height))
-                    .filter { it >= SpaceScene.BOTTOM && it <= height }
+                (listOf(bottomY, -32.0, 0.0, 32.0, height - 2.0, height))
+                    .filter { it >= bottomY && it <= height }
                     .distinct()
                     .sorted()
             val sides =
@@ -111,10 +120,10 @@ object PlanetRockShell {
                     val base =
                         when {
                             top == height -> surfaceColor
-                            top <= -32.0 -> 0x64686a
-                            top <= 0.0 -> 0x7d7f7d
-                            top <= 32.0 -> 0x8f887c
-                            else -> 0x8a8274
+                            top <= -32.0 -> strata[0]
+                            top <= 0.0 -> strata[1]
+                            top <= 32.0 -> strata[2]
+                            else -> strata[3]
                         }
                     val tone = color(base, 1.0 + noise(a.x * 4.0, a.z * 4.0) * 0.12)
                     val normal = (b - a).cross(Vector3(0.0, -1.0, 0.0)).normalized()

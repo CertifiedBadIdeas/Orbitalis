@@ -19,6 +19,7 @@
 package org.cbi.orbitalis.minecraft.client.map
 
 import net.minecraft.Util
+import org.cbi.orbitalis.core.orbit.CelestialDynamics
 import org.cbi.orbitalis.core.planet.CartesianState
 import org.cbi.orbitalis.core.planet.CoastPrediction
 import org.cbi.orbitalis.core.planet.FlatPlanetDefinition
@@ -96,6 +97,7 @@ class MapTrajectories : AutoCloseable {
         if (pending != null || inputs.isEmpty() || (requested != Long.MIN_VALUE && now - requested < 1000)) return
         requested = now
         val field = FlatPlanetDefinition.gravity(data.gravity)
+        val sources = data.celestialProfile?.let { CelestialDynamics(it, data.simulationTick) }
         pending =
             worker.submit<Preview> {
                 val coastPaths =
@@ -107,6 +109,7 @@ class MapTrajectories : AutoCloseable {
                                     field,
                                     CartesianState(item.position, item.velocity),
                                     CoastPrediction.Limits(range = 100000.0),
+                                    sources,
                                 ),
                             )
                         } catch (_: IllegalArgumentException) {
@@ -117,7 +120,7 @@ class MapTrajectories : AutoCloseable {
                 val prediction =
                     if (chosen != null && draft?.nodes?.isNotEmpty() == true) {
                         try {
-                            draft.predict(field, CartesianState(chosen.position, chosen.velocity), gameTick)
+                            draft.predict(field, CartesianState(chosen.position, chosen.velocity), gameTick, sources)
                         } catch (
                             _: IllegalArgumentException,
                         ) {

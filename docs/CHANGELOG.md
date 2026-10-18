@@ -20,6 +20,28 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Apply all-face flight envelopes to the moving Moon, including side/underside chunk preloading and
+  unloaded ship wake-up. Share Earth's 16-metre sector LOD, stepped relief, layered cliffs and shaded
+  underside with the gray cratered Moon; prepare sectors in the background without generating chunks.
+  Keep the lunar overview visible from the native world's sides and underside. Prepare source entity
+  data while the durable transfer is paused, rather than chasing a moving ship; retain loose-entity checks.
+
+- Add a finite native lunar surface with seeded craters, all-face ship arrival and departure,
+  seated passenger/cargo transport, and a tidally locked frame facing Earth. Share moving gravity
+  between live/unloaded ships and trajectory previews, and draw seeded lunar relief in space/map.
+  Lunar transfer receipts persist their frozen frame; Earth receipt and coordinate formats remain readable.
+
+- Show the synchronized Sun/Earth/Moon catalogue and closed celestial orbit curves on the orbital map.
+  Add Earth, Moon, Earth–Moon and solar-system views, with relief occluding far-side orbit lines.
+  The map uses the server's saved simulation epoch.
+
+- Persist a compact Sun/Earth/Moon catalogue alongside the existing orbital simulation clock. Migrate
+  version-one indexes in place, preserve unknown data, and keep celestial phases independent of
+  daylight commands. Share one tick advance with unloaded stations.
+
+- Add prescribed elliptic ephemerides, hierarchical and rotating-frame transforms, and numerical
+  evolution with time-dependent forces. Keep native daylight and `/time set` behavior unchanged.
+
 - Pan the orbital map with middle-button drag, Shift+left drag or held WASD/arrow keys, using
   camera-relative movement at the current zoom. Preserve ordinary rotation, selection and text input.
 

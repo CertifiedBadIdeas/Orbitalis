@@ -20,10 +20,13 @@ package org.cbi.orbitalis.minecraft.integration.sable
 
 import dev.ryanhcode.sable.sublevel.ServerSubLevel
 import net.minecraft.resources.ResourceLocation
+import net.minecraft.world.level.Level
+import org.cbi.orbitalis.core.orbit.CelestialDynamics
 import org.cbi.orbitalis.core.planet.CartesianState
 import org.cbi.orbitalis.core.planet.CoastPrediction
 import org.cbi.orbitalis.core.planet.SurfaceGravityLayer
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.flight.CelestialFlight
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.navigation.TrajectorySnapshot
 import java.util.UUID
@@ -36,24 +39,38 @@ class ShipCoastForecast private constructor(
     private val state: CartesianState,
     private val field: SurfaceGravityLayer,
     private val limits: CoastPrediction.Limits,
+    private val sources: CelestialDynamics,
 ) {
-    fun calculate(): TrajectorySnapshot = TrajectorySnapshot(ship, dimension, sampledTick, CoastPrediction.orbit(field, state, limits))
+    fun calculate(): TrajectorySnapshot =
+        TrajectorySnapshot(ship, dimension, sampledTick, CoastPrediction.orbit(field, state, limits, sources))
 
     companion object {
         /** Call only on the server thread, after native mass initialization. */
         fun capture(body: ServerSubLevel): ShipCoastForecast? {
-            if (body.isRemoved || !FlatPlanetSpace.contains(body.level) || body.massTracker.centerOfMass == null) return null
+            if (body.isRemoved || !CelestialFlight.available(body.level) || !FlatPlanetSpace.contains(body.level) ||
+                body.massTracker.centerOfMass == null
+            ) {
+                return null
+            }
             val sample = SableFlightGravity.reading(body)
-            val global = SableFlightGravity.globalPosition(body.level, sample.position)
+            val celestial = CelestialFlight.sample(body.level.server)
+            val state =
+                celestial.state(
+                    CartesianState(sample.position, Vector3(sample.velocity.x, sample.velocity.y, sample.velocity.z)),
+                    body.level.dimension(),
+                    Level.OVERWORLD,
+                )
+            val global = state.position
             if (global.length() > 30000.0 || sample.velocity.length() > 9990.0) return null
             return ShipCoastForecast(
                 body.uniqueId,
                 body.level.dimension().location(),
                 body.level.gameTime,
-                CartesianState(global, Vector3(sample.velocity.x, sample.velocity.y, sample.velocity.z)),
+                state,
                 SableFlightGravity.flatField(body.level),
                 // Dimension handoff is a change of representation, not the end of a ballistic path.
                 CoastPrediction.Limits(detectEntry = false),
+                celestial.dynamics,
             )
         }
     }

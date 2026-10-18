@@ -30,6 +30,7 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent
 import net.neoforged.neoforge.registries.DeferredRegister
 import org.cbi.orbitalis.core.Orbitalis
 import org.cbi.orbitalis.minecraft.flight.PlayerSpaceTravel
+import org.cbi.orbitalis.minecraft.moon.LunarChunkGenerator
 import org.cbi.orbitalis.minecraft.space.VacuumChunkGenerator
 import org.cbi.orbitalis.neoforge.integration.SableFlightIntegration
 
@@ -41,6 +42,7 @@ class OrbitalisMod(
     init {
         val generators = DeferredRegister.create(Registries.CHUNK_GENERATOR, Orbitalis.MOD_ID)
         generators.register("vacuum", java.util.function.Supplier { VacuumChunkGenerator.CODEC })
+        generators.register("lunar_surface", java.util.function.Supplier { LunarChunkGenerator.CODEC })
         generators.register(modBus)
         NeoForge.EVENT_BUS.addListener { event: PlayerEvent.PlayerLoggedOutEvent ->
             (event.entity as? ServerPlayer)?.let { PlayerSpaceTravel.close(it) }

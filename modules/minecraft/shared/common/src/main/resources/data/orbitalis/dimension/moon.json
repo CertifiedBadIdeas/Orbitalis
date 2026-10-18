@@ -1,0 +1,7 @@
+{
+  "type": "orbitalis:moon",
+  "generator": {
+    "type": "orbitalis:lunar_surface",
+    "biome": "orbitalis:lunar_surface"
+  }
+}

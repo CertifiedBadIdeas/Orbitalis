@@ -45,30 +45,48 @@ object SurfacePlanetMesh {
     ) = Sector(Math.floorDiv(x, SECTOR_CHUNKS), Math.floorDiv(z, SECTOR_CHUNKS))
 
     /** Preserve the existing fallback coast pattern with clipped macro cells while fine sectors build. */
-    fun coarse(sector: Sector): Sequence<SpaceScene.Face> =
+    fun coarse(
+        sector: Sector,
+        halfSize: Double = SpaceScene.HALF_SIZE,
+        top: Double = SpaceScene.TOP,
+        surfaceColor: Int? = null,
+        strata: List<Int> = listOf(0x64686a, 0x7d7f7d, 0x8f887c, 0x8a8274),
+    ): Sequence<SpaceScene.Face> =
         sequence {
-            val x0 = maxOf(-SpaceScene.HALF_SIZE, sector.x * SECTOR_CHUNKS * STEP)
-            val x1 = minOf(SpaceScene.HALF_SIZE, (sector.x + 1) * SECTOR_CHUNKS * STEP)
-            val z0 = maxOf(-SpaceScene.HALF_SIZE, sector.z * SECTOR_CHUNKS * STEP)
-            val z1 = minOf(SpaceScene.HALF_SIZE, (sector.z + 1) * SECTOR_CHUNKS * STEP)
-            val macro = SpaceScene.HALF_SIZE * 2.0 / 32.0
-            val xs = (listOf(x0, x1) + (1..31).map { -SpaceScene.HALF_SIZE + it * macro }.filter { it > x0 && it < x1 }).sorted()
-            val zs = (listOf(z0, z1) + (1..31).map { -SpaceScene.HALF_SIZE + it * macro }.filter { it > z0 && it < z1 }).sorted()
+            val x0 = maxOf(-halfSize, sector.x * SECTOR_CHUNKS * STEP)
+            val x1 = minOf(halfSize, (sector.x + 1) * SECTOR_CHUNKS * STEP)
+            val z0 = maxOf(-halfSize, sector.z * SECTOR_CHUNKS * STEP)
+            val z1 = minOf(halfSize, (sector.z + 1) * SECTOR_CHUNKS * STEP)
+            val macro = halfSize * 2.0 / 32.0
+            val xs = (listOf(x0, x1) + (1..31).map { -halfSize + it * macro }.filter { it > x0 && it < x1 }).sorted()
+            val zs = (listOf(z0, z1) + (1..31).map { -halfSize + it * macro }.filter { it > z0 && it < z1 }).sorted()
             for ((a, b) in xs.zipWithNext()) {
                 for ((c, d) in zs.zipWithNext()) {
                     yield(
                         SpaceScene.Face(
                             listOf(
-                                Vector3(a, SpaceScene.TOP, c),
-                                Vector3(b, SpaceScene.TOP, c),
-                                Vector3(b, SpaceScene.TOP, d),
-                                Vector3(a, SpaceScene.TOP, d),
+                                Vector3(a, top, c),
+                                Vector3(b, top, c),
+                                Vector3(b, top, d),
+                                Vector3(a, top, d),
                             ),
-                            fallback((a + b) / 2, (c + d) / 2),
+                            (surfaceColor ?: fallback((a + b) / 2, (c + d) / 2)),
                             Vector3(0.0, 1.0, 0.0),
                         ),
                     )
-                    yieldAll(PlanetRockShell.walls(a, b, c, d, SpaceScene.TOP, fallback((a + b) / 2, (c + d) / 2)))
+                    yieldAll(
+                        PlanetRockShell.walls(
+                            a,
+                            b,
+                            c,
+                            d,
+                            top,
+                            (surfaceColor ?: fallback((a + b) / 2, (c + d) / 2)),
+                            halfSize,
+                            SpaceScene.BOTTOM,
+                            strata,
+                        ),
+                    )
                 }
             }
         }
@@ -76,8 +94,13 @@ object SurfacePlanetMesh {
     fun faces(
         atlas: SurfaceAtlas,
         sector: Sector? = null,
+        halfSize: Double = SpaceScene.HALF_SIZE,
+        bottom: Double = SpaceScene.BOTTOM,
+        strata: List<Int> = listOf(0x64686a, 0x7d7f7d, 0x8f887c, 0x8a8274),
     ): Sequence<SpaceScene.Face> =
         sequence {
+            val low = floor(-halfSize / STEP).toInt()
+            val high = floor((halfSize - 1.0) / STEP).toInt()
             val cells = atlas.overview()
 
             fun height(
@@ -107,10 +130,10 @@ object SurfacePlanetMesh {
                 }
             for (x in xs) {
                 for (z in zs) {
-                    val x0 = maxOf(-SpaceScene.HALF_SIZE, x * STEP)
-                    val x1 = minOf(SpaceScene.HALF_SIZE, (x + 1) * STEP)
-                    val z0 = maxOf(-SpaceScene.HALF_SIZE, z * STEP)
-                    val z1 = minOf(SpaceScene.HALF_SIZE, (z + 1) * STEP)
+                    val x0 = maxOf(-halfSize, x * STEP)
+                    val x1 = minOf(halfSize, (x + 1) * STEP)
+                    val z0 = maxOf(-halfSize, z * STEP)
+                    val z1 = minOf(halfSize, (z + 1) * STEP)
                     val h = height(x, z)
                     val rgb = color(x, z)
                     yield(
@@ -156,11 +179,11 @@ object SurfacePlanetMesh {
                         )
                     }
                     if (x == low || x == high || z == low || z == high) {
-                        yieldAll(PlanetRockShell.walls(x0, x1, z0, z1, h, rgb))
+                        yieldAll(PlanetRockShell.walls(x0, x1, z0, z1, h, rgb, halfSize, bottom, strata))
                     }
                 }
             }
-            if (sector == null) yieldAll(SpaceScene.body.filter { it.normal.y <= 0.0 })
+            if (sector == null) yieldAll(PlanetRockShell.underside(halfSize, bottom))
         }
 
     private fun fallback(

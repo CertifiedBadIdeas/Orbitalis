@@ -19,7 +19,7 @@ limitations under the License.
 # Surface/orbit ship transfer
 
 The optional Sable adapter transfers one independent construction and an optional pilot, including a seated survival player
-between ordinary Overworld and `orbitalis:space`. Use a disposable world and the isolated flight
+between ordinary Overworld or the [lunar surface](lunar-surface.md) and `orbitalis:space`. Use a disposable world and the isolated flight
 consumer. See [finite-body flight](flat-gravity.md) for gravity, altitude-triggered mission handoffs
 and the current low orbit. Journal staging pauses physics; this does not establish seamless rendering.
 
@@ -45,7 +45,7 @@ handoffs use distance to the reference body from above, beside or below, with 30
 2000 m inward thresholds. Plot size, cargo and passenger limits still apply. The consumer calls
 `SableFlightIntegration.transferService(server).begin(player, body, targetDimension)` on the server
 thread. It releases engine inputs and waits for fade, remains idle while `busy`, fails on `error` and
-reacquires the ship by UUID after readiness. Both overloads select only the Overworld/space pair.
+reacquires the ship by UUID after readiness. The explicit-target overload also accepts the Moon/space route; automatic lunar handoffs use local relative altitude and velocity.
 Guidance remains consumer-owned.
 
 ## Supported boundary
@@ -85,19 +85,19 @@ of external mod networks, world references or unsaved state.
 
 ## Authority and persistence
 
-`ShipTransferJournal` writes version 5 compressed NBT records to
+`ShipTransferJournal` writes version 5 Earth or version 6 lunar compressed NBT records to
 `<save>/data/orbitalis-transfers/<ship-uuid>.nbt`. A record contains transaction/ship/pilot UUIDs, source
 side, native source/destination snapshots (including glue metadata), exact linear/angular velocities, pilot pose/motion, the
 source's previous native save pointer, phase, orbital dimension and offline-pilot recovery flags. Unknown versions,
 missing state, identity mismatches and invalid numeric state fail closed. Compressed and decompressed
 records are bounded to 16 MiB. Native payloads remain tied to the pinned Sable serialization format;
 future Sable/Orbitalis migrations must handle unfinished records before changing that format.
-Version 5 requires explicit `surface_dimension=minecraft:overworld` and
-`orbital_dimension=orbitalis:space`. The 4096-m translation remains unchanged.
-Active version-3/4 records remain readable. Version 4 added optional pilots and entity/mount
-manifests; version 5 extends pose validation from the old upper patch to physical positions within
-100 km of the origin in either frame. Snapshot creation and journal decode share that bound.
-Legacy version-3/4 records retain their original bounds; unknown journal versions remain rejected.
+Version 4 requires explicit `surface_dimension=minecraft:overworld` and
+`orbital_dimension=orbitalis:space`. The 4096-m Earth translation remains unchanged.
+Version 6 requires `surface_dimension=orbitalis:moon` and a versioned frozen celestial profile/epoch.
+It transports full rigid motion and validates recovery against that persisted sample.
+Active version-3/4 Earth records remain readable; version 4 adds optional pilots and entity/mount manifests.
+Version 5 extends Earth physical coordinate bounds for edge/underside flight. Version 6 adds the lunar route.
 
 The retired `flight_test`, `orbit_test` and `space_test` dimensions are no longer registered. Their
 save directories are not deleted or converted. Legacy version-1/2 journals and version-3/4 diagnostic
@@ -108,7 +108,7 @@ rename an old dimension or edit its journal into the active pair. Unknown routes
 
 Journal compression, reads and atomic file replacement/fsync run on one dedicated worker. Only copied
 NBT crosses threads. Minecraft world, player, plot and native storage calls remain on the server thread.
-Both participating levels' native physics are paused while a transaction is active. Existing pause states
+Native physics in all three managed levels is paused while a transaction is active. Existing pause states
 are restored afterward. Player interactions are blocked during the operation and source content/pilot
 position are revalidated after asynchronous preparation. Block-entity ticks in the held source/staged
 plot chunks are suspended by the loader's Minecraft ticker hook. This includes persisted engine counters;
@@ -125,7 +125,10 @@ Ordinary scheduled/random block ticks are not globally stopped; a changed payloa
 Cancellation reports distinguish block-data changes, native save-pointer changes and pilot movement.
 Transfer-specific native loading tickets and block-entity tick leases are released on completion.
 
-1. `PREPARED`: the source remains authoritative. A full durable snapshot precedes staging. Reconstruct
+1. `PREPARED`: the source remains authoritative. A full durable snapshot precedes staging. Where
+   source-world entity data is required, warm its now-stationary chunk area and repeat preflight before
+   reconstruction; a fast ship must not outrun this load. Objects-mode vacuum omits fixed-terrain
+   readiness, while plot and explicit world-space passenger/recovery data still load normally. Reconstruct
    the destination with the same ship UUID and verify block/cargo data. Restore exact motion separately
    from Sable's save/load retention and small-velocity thresholds. Preparation failures retain the source.
 2. `COMMITTED`: durable destination authority precedes deleting the source and moving the pilot. Native
@@ -169,7 +172,7 @@ offsets are relative, so they remain exact. Other saved fields are retained verb
 absolute references beyond these native coordinates may require an integration adapter; there is no
 generic recursive rewrite of arbitrary NBT integers. Exact payload reconstruction detects data changes,
 not the semantic validity of every third-party reference.
-Active version-3/4/5 journals store independent source and destination plot snapshots; recovery uses
+Active version-3/4/5/6 journals store independent source and destination plot snapshots; recovery uses
 each recorded address. Plot relocation requires no schema change.
 
 ## Evidence and remaining work

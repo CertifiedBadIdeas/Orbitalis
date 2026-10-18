@@ -38,6 +38,7 @@ import org.cbi.orbitalis.core.orbit.OrbitalEvolution
 import org.cbi.orbitalis.core.planet.CartesianState
 import org.cbi.orbitalis.core.planet.FlatPlanetFrame
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.flight.CelestialFlight
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.orbit.OrbitalObjectData
 import org.cbi.orbitalis.minecraft.orbit.OrbitalObjectData.Record
@@ -182,7 +183,11 @@ object SableOrbitalObjects {
             current =
                 current.copy(
                     tick = service.data.clock,
-                    state = OrbitalEvolution.advance(current.state, ticks, SableFlightGravity.flatField(level)::acceleration),
+                    state =
+                        OrbitalEvolution.advanceTimed(current.state, current.tick, ticks) { p, tick ->
+                            val sample = CelestialFlight.sample(level.server)
+                            sample.dynamics.acceleration(p, (tick - sample.frames.tick) / 20.0)
+                        },
                 )
         }
         val pose = SableNBTUtils.readPose3d(holding.data().fullTag().getCompound("pose"))
@@ -330,7 +335,6 @@ object SableOrbitalObjects {
                     container.removeForceLoadTicket(body, wakeTicket, Unit.INSTANCE)
                 }
             }
-            data.advanceClock()
             pending?.takeIf { it.isDone }?.let { completed ->
                 pending = null
                 try {
@@ -358,7 +362,7 @@ object SableOrbitalObjects {
                 }
             }
             if (data.clock % 20L != 0L) return
-            val field = SableFlightGravity.flatField(level)
+            val sample = CelestialFlight.sample(level.server)
             for (record in data.records.values.toList()) {
                 if (container.getSubLevel(record.id) != null || data.clock - record.tick > 40) continue
                 val nativePosition = FlatPlanetFrame.toSpace(record.state.position)
@@ -376,7 +380,15 @@ object SableOrbitalObjects {
                     org.cbi.orbitalis.core.planet.PlanetFlightEnvelope
                         .distance(p) <
                         FlatPlanetSpace.ASCENT_HEIGHT + record.radius + 256
-                if (!nearbyPlayer && !nearbyShip && !approachingSurface) continue
+                val moonLocal =
+                    sample.frames.profile
+                        .lunarSurfaceFrame(data.clock)
+                        .fromParent(record.state)
+                val approachingMoon =
+                    org.cbi.orbitalis.core.planet.PlanetFlightEnvelope.moon.let { envelope ->
+                        envelope.distance(moonLocal.position) < envelope.ascentDistance + record.radius + 256.0
+                    }
+                if (!nearbyPlayer && !nearbyShip && !approachingSurface && !approachingMoon) continue
                 requestNativeLoad(level, record.id)
                 (container.getSubLevel(record.id) as? ServerSubLevel)?.let { body ->
                     // Only add/remove our ticket if no other owner already holds this native key.
@@ -401,7 +413,10 @@ object SableOrbitalObjects {
                                     Propagation(
                                         record.copy(
                                             tick = record.tick + ticks,
-                                            state = OrbitalEvolution.advance(record.state, ticks, field::acceleration),
+                                            state =
+                                                OrbitalEvolution.advanceTimed(record.state, record.tick, ticks) { p, tick ->
+                                                    sample.dynamics.acceleration(p, (tick - sample.frames.tick) / 20.0)
+                                                },
                                         ),
                                     )
                                 } catch (failure: IllegalArgumentException) {

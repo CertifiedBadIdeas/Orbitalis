@@ -75,7 +75,7 @@ data class FlightMotionPayload(
     val token: UUID = UUID(0L, 0L),
 ) : CustomPacketPayload {
     init {
-        require(dimension.toString() in setOf("minecraft:overworld", "orbitalis:space"))
+        require(CelestialFlight.dimensions.any { it.location() == dimension })
         require(velocity.length() <= 500.0) { "Player transfer velocity exceeds 10 km/s" }
     }
 

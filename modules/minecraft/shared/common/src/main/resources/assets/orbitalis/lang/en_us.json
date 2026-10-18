@@ -47,5 +47,11 @@
   "map.orbitalis.plan.running": "Engine control active",
   "map.orbitalis.plan.no_executor": "Preview only: no engine executor",
   "map.orbitalis.plan.node": "Node %s / %s",
-  "map.orbitalis.plan.change_selection": "Save or reload your changes before selecting another ship."
+  "map.orbitalis.plan.change_selection": "Save or reload your changes before selecting another ship.",
+  "map.orbitalis.view.earth": "Earth",
+  "map.orbitalis.view.moon": "Moon",
+  "map.orbitalis.view.earth_moon": "Earth–Moon",
+  "map.orbitalis.view.system": "Solar system",
+  "body.orbitalis.sun": "Sun",
+  "body.orbitalis.moon": "Moon"
 }

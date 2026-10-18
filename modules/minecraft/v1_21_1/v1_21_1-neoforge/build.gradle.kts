@@ -144,7 +144,8 @@ val generateGameTestResources = tasks.register("generateGameTestResources") {
     val template = generatedGameTestResources.map { it.file("data/orbitalis/structure/lab_empty.nbt") }
     val preset = generatedGameTestResources.map { it.file("data/minecraft/worldgen/world_preset/flat.json") }
     val flatSpace = rootProject.file("modules/minecraft/shared/common/src/main/resources/data/orbitalis/dimension/space.json")
-    inputs.file(flatSpace)
+    val lunarSurface = rootProject.file("modules/minecraft/shared/common/src/main/resources/data/orbitalis/dimension/moon.json")
+    inputs.files(flatSpace, lunarSurface)
     outputs.files(template, preset)
     doLast {
         // GameTestServer bakes the flat preset against an empty dimension registry in 1.21.1.
@@ -161,7 +162,8 @@ val generateGameTestResources = tasks.register("generateGameTestResources") {
                     {"height": 1, "block": "minecraft:grass_block"}]}}},
               "minecraft:the_nether": ${flatSpace.readText().replace("minecraft:overworld", "minecraft:the_nether")},
               "minecraft:the_end": ${flatSpace.readText().replace("minecraft:overworld", "minecraft:the_end")},
-              "orbitalis:space": ${flatSpace.readText()}
+              "orbitalis:space": ${flatSpace.readText()},
+              "orbitalis:moon": ${lunarSurface.readText()}
             }}
         """.trimIndent())
         val file = template.get().asFile
@@ -195,7 +197,7 @@ val generateGameTestResources = tasks.register("generateGameTestResources") {
 gameTest.resources.srcDir(generateGameTestResources.map { generatedGameTestResources.get() })
 
 val gameTestSuite = providers.gradleProperty("orbitalisGameTestSuite").orElse("all").get()
-require(gameTestSuite in setOf("all", "surface", "transfer", "flat", "travel", "navigation", "sparse", "atlas", "objects", "terrain", "map")) { "Unknown GameTest suite: $gameTestSuite" }
+require(gameTestSuite in setOf("all", "surface", "transfer", "flat", "travel", "navigation", "sparse", "atlas", "objects", "terrain", "map", "moon")) { "Unknown GameTest suite: $gameTestSuite" }
 apply(from = "${rootProject.projectDir}/gradle/gametest-lifecycle.gradle.kts")
 val gameTestReport = layout.buildDirectory.file("test-results/gameTestServer/results.xml")
 loom.runs.register("gameTestServer") {
@@ -248,10 +250,11 @@ tasks.configureEach {
             val navigationNames = setOf("nativecoastforecastandpacket", "navigationbookmarkpersistence")
             val sparseNames = setOf("nativeterrainloadingcontrol", "nativevacuumflightwithoutterrain", "nativevacuumshipcollision", "vacuumstorageandconstruction", "vacuummetadatacompatibility")
             val atlasNames = setOf("nativesurfaceatlaspersistence", "surfaceatlaspacketbounds", "savedsurfaceatlasbackfill", "surfaceatlaslifecycleburst")
-            val objectNames = setOf("nativeunloadedstation", "orbitalmetadatacompatibility")
+            val objectNames = setOf("nativeunloadedstation", "orbitalmetadatacompatibility", "celestialclockanddaylight", "celestialprofilepersistence")
             val terrainNames = setOf("finiteterrainedges", "finitefeaturewrites")
             val mapNames = setOf("mappacketandlease", "mapnativeorbitalobjects")
             val requiredNames = when (gameTestSuite) {
+                "moon" -> setOf("nativelunarterrain", "nativelunargroundcontact", "lunarshiproundtrip", "lunarsideroundtrip", "lunarundersideroundtrip")
                 "map" -> mapNames
                 "objects" -> objectNames
                 "terrain" -> terrainNames
@@ -262,7 +265,7 @@ tasks.configureEach {
                 "flat" -> setOf("nativefinitebodyfreeorbit")
                 "surface" -> surfaceNames
                 "transfer" -> transferNames + travelNames
-                else -> mapNames + objectNames + terrainNames + atlasNames + surfaceNames + transferNames + travelNames + navigationNames + sparseNames + setOf("nativefinitebodyfreeorbit")
+                else -> setOf("nativelunarterrain", "nativelunargroundcontact", "lunarshiproundtrip", "lunarsideroundtrip", "lunarundersideroundtrip") + mapNames + objectNames + terrainNames + atlasNames + surfaceNames + transferNames + travelNames + navigationNames + sparseNames + setOf("nativefinitebodyfreeorbit")
             }
             check(names.containsAll(requiredNames)) {
                 "GameTest run did not execute its required $gameTestSuite scenarios: $names"

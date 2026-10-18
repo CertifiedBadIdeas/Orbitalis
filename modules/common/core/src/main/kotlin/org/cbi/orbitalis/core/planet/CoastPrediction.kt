@@ -18,6 +18,7 @@
 
 package org.cbi.orbitalis.core.planet
 
+import org.cbi.orbitalis.core.orbit.CelestialDynamics
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.atan2
@@ -71,6 +72,14 @@ object CoastPrediction {
         field: SurfaceGravityLayer,
         initial: CartesianState,
         limits: Limits = Limits(),
+    ): Result = orbit(field, initial, limits, null, 0.0)
+
+    fun orbit(
+        field: SurfaceGravityLayer,
+        initial: CartesianState,
+        limits: Limits,
+        sources: CelestialDynamics?,
+        startSeconds: Double = 0.0,
     ): Result {
         val energy = field.specificEnergy(initial)
         val period = if (energy < 0.0) 2 * PI * field.body.mu / (-2 * energy).pow(1.5) else 120.0
@@ -84,6 +93,8 @@ object CoastPrediction {
                 sampleInterval = max(limits.sampleInterval, horizon / 599.0),
                 stopAfterRevolution = true,
             ),
+            sources,
+            startSeconds,
         )
     }
 
@@ -92,6 +103,14 @@ object CoastPrediction {
         field: SurfaceGravityLayer,
         initial: CartesianState,
         limits: Limits = Limits(),
+    ): Result = predict(field, initial, limits, null, 0.0)
+
+    fun predict(
+        field: SurfaceGravityLayer,
+        initial: CartesianState,
+        limits: Limits,
+        sources: CelestialDynamics?,
+        startSeconds: Double = 0.0,
     ): Result {
         require(limits.entryHeight >= field.body.halfHeight)
         require(initial.position.length() <= 100000.0 && initial.velocity.length() <= 10000.0)
@@ -120,16 +139,31 @@ object CoastPrediction {
         var state = initial
         var time = 0.0
         var nextSample = limits.sampleInterval
-        var acceleration = field.acceleration(state.position)
+        var acceleration = sources?.acceleration(state.position, startSeconds) ?: field.acceleration(state.position)
         while (time < limits.horizon) {
             if (Thread.currentThread().isInterrupted) throw InterruptedException("Coast prediction cancelled")
             val dt = min(limits.step, limits.horizon - time)
             val half = state.velocity + acceleration * (dt * 0.5)
             val position = state.position + half * dt
-            val nextAcceleration = field.acceleration(position)
+            val nextAcceleration = sources?.acceleration(position, startSeconds + time + dt) ?: field.acceleration(position)
             val next = CartesianState(position, half + nextAcceleration * (dt * 0.5))
             entryArmed = entryArmed || position.y >= limits.entryArmHeight
-            val bodyHit = intersection(state.position, next.position, extent)
+            val earthHit = intersection(state.position, next.position, extent)
+            val moonHit =
+                sources?.let {
+                    val before = it.profile.lunarSurfaceFrame(it.epochTick, startSeconds + time)
+                    val after = it.profile.lunarSurfaceFrame(it.epochTick, startSeconds + time + dt)
+                    intersection(
+                        before.orientation.inverse(state.position - before.origin.position),
+                        after.orientation.inverse(next.position - after.origin.position),
+                        Vector3(
+                            it.moon.body.halfWidth + limits.hullRadius,
+                            89.0 + limits.hullRadius,
+                            it.moon.body.halfDepth + limits.hullRadius,
+                        ),
+                    )
+                }
+            val bodyHit = listOfNotNull(earthHit, moonHit).minOrNull()
             val entryHit = if (limits.detectEntry && entryArmed) entryFraction(state, next, field.body.halfHeight, limits) else null
             val event =
                 when {

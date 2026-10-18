@@ -23,15 +23,18 @@ import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.ListTag
 import net.minecraft.nbt.Tag
 import net.minecraft.world.level.saveddata.SavedData
+import org.cbi.orbitalis.core.orbit.SolarSystemProfile
 import org.cbi.orbitalis.core.planet.CartesianState
 import org.cbi.orbitalis.core.planet.Vector3
 import java.util.UUID
 
-/** Motion index only. Native Sable storage remains the sole owner of blocks and inventories. */
+/** Simulation metadata only. Native Sable storage remains the sole owner of blocks and inventories. */
 class OrbitalObjectData private constructor(
     private val original: CompoundTag?,
 ) : SavedData() {
     var clock = 0L
+        private set
+    var profile: SolarSystemProfile? = null
         private set
     val records = linkedMapOf<UUID, Record>()
     var readable = true
@@ -60,6 +63,16 @@ class OrbitalObjectData private constructor(
         }
     }
 
+    fun configureCelestials(gravity: Double): SolarSystemProfile {
+        check(readable) { "Unknown or malformed orbital simulation data" }
+        val previous = profile
+        if (previous == null || previous.surfaceGravity != gravity) {
+            profile = previous?.retune(gravity, clock) ?: SolarSystemProfile(gravity, clock)
+            setDirty()
+        }
+        return checkNotNull(profile)
+    }
+
     fun advanceClock() {
         if (readable) {
             clock = Math.addExact(clock, 1)
@@ -83,8 +96,20 @@ class OrbitalObjectData private constructor(
         registries: HolderLookup.Provider,
     ): CompoundTag {
         if (!readable) return tag.merge(checkNotNull(original).copy())
-        tag.putInt("Version", 1)
+        tag.putInt("Version", 2)
         tag.putLong("Clock", clock)
+        profile?.let { value ->
+            tag.put(
+                "Celestial",
+                CompoundTag().apply {
+                    putInt("Version", SolarSystemProfile.VERSION)
+                    putLong("EpochTick", value.epochTick)
+                    putDouble("Gravity", value.surfaceGravity)
+                    putDouble("EarthPhase", value.earthPhase)
+                    putDouble("MoonPhase", value.moonPhase)
+                },
+            )
+        }
         tag.put("Objects", ListTag().also { list -> records.values.forEach { list.add(write(it)) } })
         return tag
     }
@@ -100,8 +125,21 @@ class OrbitalObjectData private constructor(
         fun load(tag: CompoundTag): OrbitalObjectData {
             val result = OrbitalObjectData(tag.copy())
             try {
-                require(tag.getInt("Version") == 1 && tag.contains("Clock", Tag.TAG_LONG.toInt()))
+                require(tag.getInt("Version") in 1..2 && tag.contains("Clock", Tag.TAG_LONG.toInt()))
                 result.clock = tag.getLong("Clock").also { require(it >= 0) }
+                if (tag.getInt("Version") == 2 && tag.contains("Celestial")) {
+                    require(tag.contains("Celestial", Tag.TAG_COMPOUND.toInt()))
+                    val celestial = tag.getCompound("Celestial")
+                    require(celestial.getInt("Version") == SolarSystemProfile.VERSION && celestial.contains("EpochTick", 4))
+                    require(listOf("Gravity", "EarthPhase", "MoonPhase").all { celestial.contains(it, 6) })
+                    result.profile =
+                        SolarSystemProfile(
+                            celestial.getDouble("Gravity"),
+                            celestial.getLong("EpochTick"),
+                            celestial.getDouble("EarthPhase"),
+                            celestial.getDouble("MoonPhase"),
+                        ).also { require(it.epochTick <= result.clock) }
+                }
                 require(tag.contains("Objects", Tag.TAG_LIST.toInt()))
                 val list = tag.getList("Objects", Tag.TAG_COMPOUND.toInt())
                 require(list.size <= MAX_OBJECTS && list.size == (tag.get("Objects") as ListTag).size)
@@ -111,6 +149,7 @@ class OrbitalObjectData private constructor(
                 }
             } catch (_: IllegalArgumentException) {
                 result.records.clear()
+                result.profile = null
                 result.readable = false
             }
             return result

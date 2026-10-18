@@ -23,11 +23,11 @@ import net.minecraft.server.level.ServerPlayer
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
+import org.cbi.orbitalis.minecraft.orbit.OrbitalSimulation
 import java.util.UUID
 
 /** Optional native adapters are installed without making client/server map code load Sable classes. */
 object OrbitalMapHooks {
-    var gravity: (MinecraftServer) -> Double = { 11.0 }
     var objects: (MinecraftServer) -> List<MapObject> = { emptyList() }
     var playerPosition: (ServerPlayer) -> Vector3 = { player ->
         FlightSpaceCoordinates.globalPosition(player.level(), Vector3(player.x, player.y, player.z))
@@ -95,6 +95,9 @@ class OrbitalMapService(
         val recipients = viewers.keys.mapNotNull(findPlayer).filter { tick - (sent[it.uuid] ?: -10L) >= 10L }
         if (recipients.isEmpty()) return
         val objects = OrbitalMapHooks.objects(server).distinctBy { it.id }
+        val celestial = OrbitalSimulation.profile(server)
+        val simulationTick = OrbitalSimulation.data(server)?.clock ?: 0L
+        val gravity = celestial?.surfaceGravity ?: OrbitalSimulation.surfaceGravity(server)
         for (player in recipients) {
             val position = OrbitalMapHooks.playerPosition(player)
             if (position.length() > 1e8) continue
@@ -111,7 +114,9 @@ class OrbitalMapService(
                     position,
                     selected,
                     objects.size.coerceAtMost(1000000),
-                    OrbitalMapHooks.gravity(server),
+                    gravity,
+                    simulationTick,
+                    celestial,
                 ),
             )
             sent[player.uuid] = tick

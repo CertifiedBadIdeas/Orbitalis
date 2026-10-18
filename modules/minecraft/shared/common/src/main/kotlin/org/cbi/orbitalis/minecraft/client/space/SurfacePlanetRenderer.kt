@@ -19,17 +19,15 @@
 package org.cbi.orbitalis.minecraft.client.space
 
 import com.mojang.blaze3d.systems.RenderSystem
-import com.mojang.blaze3d.vertex.BufferBuilder
-import com.mojang.blaze3d.vertex.ByteBufferBuilder
-import com.mojang.blaze3d.vertex.DefaultVertexFormat
-import com.mojang.blaze3d.vertex.MeshData
 import com.mojang.blaze3d.vertex.VertexBuffer
-import com.mojang.blaze3d.vertex.VertexFormat
 import com.mojang.logging.LogUtils
 import net.minecraft.Util
 import net.minecraft.client.renderer.GameRenderer
 import org.cbi.orbitalis.core.planet.SurfaceAtlas
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.client.space.PlanetMeshBuffers.PreparedMesh
+import org.cbi.orbitalis.minecraft.client.space.PlanetMeshBuffers.prepare
+import org.cbi.orbitalis.minecraft.client.space.PlanetMeshBuffers.upload
 import org.cbi.orbitalis.minecraft.surface.SurfaceAtlasPayload
 import org.joml.Matrix4f
 import java.util.UUID
@@ -47,59 +45,6 @@ object SurfacePlanetRenderer {
     private var generation = 0L
     private var retryAfter = 0L
     private var nextSector = 0
-
-    private class PreparedMesh(
-        val storage: ByteBufferBuilder,
-        val data: MeshData,
-        val revision: Long,
-        val generation: Long,
-    ) : AutoCloseable {
-        override fun close() {
-            data.close()
-            storage.close()
-        }
-    }
-
-    private fun prepare(
-        faces: Sequence<SpaceScene.Face>,
-        revision: Long,
-        generation: Long,
-    ): PreparedMesh {
-        val storage = ByteBufferBuilder(1 shl 16)
-        try {
-            val buffer = BufferBuilder(storage, VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR)
-            for (face in faces) {
-                val light = face.ambient + (1.0 - face.ambient) * maxOf(0.0, face.normal.dot(SpaceScene.SUN_DIRECTION))
-                val r = ((face.color shr 16 and 255) * light).toInt()
-                val g = ((face.color shr 8 and 255) * light).toInt()
-                val b = ((face.color and 255) * light).toInt()
-                for (v in face.vertices) buffer.addVertex(v.x.toFloat(), v.y.toFloat(), v.z.toFloat()).setColor(r, g, b, 255)
-            }
-            return PreparedMesh(storage, buffer.buildOrThrow(), revision, generation)
-        } catch (error: Throwable) {
-            storage.close()
-            throw error
-        }
-    }
-
-    private fun upload(
-        prepared: PreparedMesh,
-        existing: VertexBuffer? = null,
-    ): VertexBuffer {
-        prepared.use {
-            val gpu = existing ?: VertexBuffer(VertexBuffer.Usage.STATIC)
-            gpu.bind()
-            try {
-                gpu.upload(it.data)
-            } catch (error: Throwable) {
-                if (existing == null) gpu.close()
-                throw error
-            } finally {
-                VertexBuffer.unbind()
-            }
-            return gpu
-        }
-    }
 
     private fun discard() {
         generation++
@@ -131,6 +76,7 @@ object SurfacePlanetRenderer {
         PlanetCloudRenderer.clear()
         PlanetLimbRenderer.clear()
         discard()
+        LunarPlanetRenderer.clear()
         session = null
         receivedRevision = -1L
     }

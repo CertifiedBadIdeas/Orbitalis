@@ -176,13 +176,21 @@ object SableShipView : ShipViewHooks.Controller {
         val target = minecraft.level?.dimension() ?: return
         var position = lastPosition ?: return
         if (source != target) {
-            if ((source != Level.OVERWORLD && source != FlatPlanetSpace.SPACE) ||
-                (target != Level.OVERWORLD && target != FlatPlanetSpace.SPACE)
+            if (!org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                    .available(checkNotNull(minecraft.level))
             ) {
                 return
             }
-            val global = FlightSpaceCoordinates.globalPosition(source, Vector3(position.x, position.y, position.z))
-            val local = FlightSpaceCoordinates.localPosition(target, global)
+            if (source !in org.cbi.orbitalis.minecraft.flight.CelestialFlight.dimensions ||
+                target !in org.cbi.orbitalis.minecraft.flight.CelestialFlight.dimensions
+            ) {
+                return
+            }
+            val local =
+                org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                    .sample(
+                        checkNotNull(minecraft.level),
+                    ).point(Vector3(position.x, position.y, position.z), source, target)
             position = Vec3(local.x, local.y, local.z)
         }
         (camera as ShipCameraAccess).orbitalisSetView(position, yaw, pitch)

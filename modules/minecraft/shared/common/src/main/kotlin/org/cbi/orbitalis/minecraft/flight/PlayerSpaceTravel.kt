@@ -42,7 +42,7 @@ object PlayerSpaceTravel {
 
     private fun preload(player: ServerPlayer) {
         val level = player.level()
-        if (!FlatPlanetSpace.contains(level)) {
+        if (!FlatPlanetSpace.contains(level) || !CelestialFlight.available(level)) {
             close(player)
             return
         }
@@ -53,14 +53,29 @@ object PlayerSpaceTravel {
     fun destination(
         level: Level,
         position: Vector3,
+    ): ResourceKey<Level>? = destination(level, position, Vector3.ZERO)
+
+    fun destination(
+        level: Level,
+        position: Vector3,
+        verticalSpeed: Double,
+    ): ResourceKey<Level>? = destination(level, position, Vector3(0.0, verticalSpeed, 0.0))
+
+    fun destination(
+        level: Level,
+        position: Vector3,
+        velocity: Vector3,
     ): ResourceKey<Level>? {
-        if (!FlatPlanetSpace.contains(level)) return null
-        val distance = PlanetFlightEnvelope.distance(FlightSpaceCoordinates.globalPosition(level, position))
-        return when {
-            level.dimension() == Level.OVERWORLD && distance >= FlatPlanetSpace.ASCENT_HEIGHT -> FlatPlanetSpace.SPACE
-            level.dimension() == FlatPlanetSpace.SPACE && distance <= FlatPlanetSpace.DESCENT_HEIGHT -> Level.OVERWORLD
-            else -> null
+        if (level !is net.minecraft.server.level.ServerLevel || !FlatPlanetSpace.contains(level) ||
+            !CelestialFlight.available(level)
+        ) {
+            return null
         }
+        return CelestialFlight.sample(level.server).destination(
+            level,
+            org.cbi.orbitalis.core.planet
+                .CartesianState(position, velocity),
+        )
     }
 
     fun transfer(player: ServerPlayer): Boolean {
@@ -75,14 +90,47 @@ object PlayerSpaceTravel {
         }
         preload(player)
         val current = Vector3(player.x, player.y, player.z)
-        val key = destination(player.level(), current) ?: return false
+        val sampledVerticalSpeed =
+            if (player.level().dimension() ==
+                org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY
+            ) {
+                velocity.y * 20.0
+            } else {
+                preloads[player]?.sampledVelocity?.y
+                    ?: (velocity.y * 20.0)
+            }
+        val key = destination(player.level(), current, Vector3(velocity.x * 20.0, sampledVerticalSpeed, velocity.z * 20.0)) ?: return false
         val target = player.server.getLevel(key) ?: return false
-        val p = FlightSpaceCoordinates.localPosition(key, FlightSpaceCoordinates.globalPosition(player.level(), current))
+        val sample = CelestialFlight.sample(player.server)
+        val state =
+            sample.state(
+                org.cbi.orbitalis.core.planet
+                    .CartesianState(current, Vector3(velocity.x, velocity.y, velocity.z) * 20.0),
+                player.level().dimension(),
+                key,
+            )
+        val p = state.position
+        val direction =
+            sample.direction(
+                Vector3(player.lookAngle.x, player.lookAngle.y, player.lookAngle.z),
+                player.level().dimension(),
+                key,
+            )
+        val yaw = Math.toDegrees(kotlin.math.atan2(-direction.x, direction.z)).toFloat()
+        val pitch = Math.toDegrees(kotlin.math.asin((-direction.y).coerceIn(-1.0, 1.0))).toFloat()
         if (preloads[player]?.ready != true) return false
         val motionToken = PlayerFlightMotion.capture(player)
-        if (!player.teleportTo(target, p.x, p.y, p.z, emptySet(), player.yRot, player.xRot)) return false
+        if (!player.teleportTo(target, p.x, p.y, p.z, emptySet(), yaw, pitch)) return false
         player.fallDistance = 0f
-        PlayerFlightMotion.restore(player, velocity, motionToken)
+        PlayerFlightMotion.restore(
+            player,
+            net.minecraft.world.phys.Vec3(
+                state.velocity.x / 20.0,
+                state.velocity.y / 20.0,
+                state.velocity.z / 20.0,
+            ),
+            motionToken,
+        )
         close(player)
         return true
     }

@@ -43,19 +43,25 @@ object FlatPlanetSpace {
 
     fun gravityField(surfaceGravity: Double): SurfaceGravityLayer = FlatPlanetDefinition.gravity(surfaceGravity)
 
-    fun contains(level: Level): Boolean = level.dimension() == Level.OVERWORLD || level.dimension() == SPACE
+    fun contains(level: Level): Boolean = level.dimension() in CelestialFlight.dimensions
 }
 
 /** Physical Overworld coordinates and the sole orbital representation. */
 object FlightSpaceCoordinates {
     fun isOrbital(dimension: ResourceKey<Level>): Boolean = dimension == FlatPlanetSpace.SPACE
 
-    fun hasIndependentBorder(level: Level): Boolean = isOrbital(level.dimension())
+    fun hasIndependentBorder(level: Level): Boolean =
+        isOrbital(level.dimension()) || level.dimension() == org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY
 
     fun globalPosition(
         level: Level,
         position: Vector3,
-    ): Vector3 = globalPosition(level.dimension(), position)
+    ): Vector3 =
+        if (level.dimension() == org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY) {
+            CelestialFlight.sample(level).point(position, level.dimension(), Level.OVERWORLD)
+        } else {
+            globalPosition(level.dimension(), position)
+        }
 
     fun globalPosition(
         dimension: ResourceKey<Level>,

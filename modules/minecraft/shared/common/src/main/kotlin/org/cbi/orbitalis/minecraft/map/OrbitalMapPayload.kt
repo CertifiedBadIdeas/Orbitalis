@@ -22,6 +22,7 @@ import net.minecraft.network.FriendlyByteBuf
 import net.minecraft.network.codec.StreamCodec
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload
 import net.minecraft.resources.ResourceLocation
+import org.cbi.orbitalis.core.orbit.SolarSystemProfile
 import org.cbi.orbitalis.core.planet.Vector3
 import java.util.UUID
 
@@ -71,10 +72,13 @@ data class MapSnapshot(
     val objects: List<MapObject>,
     val total: Int,
     val gravity: Double = 11.0,
+    val simulationTick: Long = 0,
+    val celestialProfile: SolarSystemProfile? = null,
 ) : CustomPacketPayload {
     init {
         require(gravity.isFinite() && gravity in 1e-6..1e6)
-        require(tick >= 0 && player.length() <= 1e8)
+        require(tick >= 0 && simulationTick >= 0 && player.length() <= 1e8)
+        celestialProfile?.let { require(it.epochTick <= simulationTick && it.surfaceGravity == gravity) }
         require(objects.size <= MAX_OBJECTS && total in objects.size..1000000)
         require(objects.map { it.id }.toSet().size == objects.size)
     }
@@ -104,6 +108,16 @@ data class MapSnapshot(
                         buffer.writeBoolean(item.loaded)
                         buffer.writeLong(item.epoch)
                     }
+                    buffer.writeLong(value.simulationTick)
+                    val profile = value.celestialProfile
+                    buffer.writeBoolean(profile != null)
+                    if (profile != null) {
+                        buffer.writeVarInt(SolarSystemProfile.VERSION)
+                        buffer.writeDouble(profile.surfaceGravity)
+                        buffer.writeLong(profile.epochTick)
+                        buffer.writeDouble(profile.earthPhase)
+                        buffer.writeDouble(profile.moonPhase)
+                    }
                 }
 
                 override fun decode(buffer: FriendlyByteBuf): MapSnapshot {
@@ -115,10 +129,7 @@ data class MapSnapshot(
                     val total = buffer.readVarInt()
                     val count = buffer.readVarInt()
                     require(count in 0..MAX_OBJECTS && total in count..1000000)
-                    return MapSnapshot(
-                        token,
-                        tick,
-                        player,
+                    val objects =
                         List(count) {
                             MapObject(
                                 buffer.readUUID(),
@@ -128,10 +139,16 @@ data class MapSnapshot(
                                 buffer.readBoolean(),
                                 buffer.readLong(),
                             )
-                        },
-                        total,
-                        gravity,
-                    )
+                        }
+                    val simulationTick = buffer.readLong()
+                    val profile =
+                        if (buffer.readBoolean()) {
+                            require(buffer.readVarInt() == SolarSystemProfile.VERSION) { "Unknown celestial profile version" }
+                            SolarSystemProfile(buffer.readDouble(), buffer.readLong(), buffer.readDouble(), buffer.readDouble())
+                        } else {
+                            null
+                        }
+                    return MapSnapshot(token, tick, player, objects, total, gravity, simulationTick, profile)
                 }
             }
 

@@ -38,7 +38,7 @@ orbits, spherical/two-body fields and flight/frame math. This is mathematical co
 Run `:v1_21_1-neoforge:runGameTestServer` separately. The focused `terrain` suite checks four native partially intersecting corners, exterior empty/full/light
 completion, void biomes and heightmaps, feature/entity rejection and ordinary runtime writes.
 The default `all` suite also includes these two scenarios and requires four surface-atlas sampling/persistence/backfill/packet scenarios, ten surface
-border/footprint-persistence/preload/void-floor/player-motion scenarios, eleven finite-orbit/ship-transfer/retirement/travel scenarios, two navigation scenarios, five sparse-vacuum scenarios and two unloaded-orbital-object scenarios, with no
+border/footprint-persistence/preload/void-floor/player-motion scenarios, eleven finite-orbit/ship-transfer/retirement/travel scenarios, two navigation scenarios, five sparse-vacuum scenarios and four orbital-object/clock scenarios, with no
 failed, skipped or error results in a fresh XML report. `-PorbitalisGameTestSuite=surface` runs the ten
 surface cases alone; `-PorbitalisGameTestSuite=transfer` runs the ten native transfer/recovery/retirement/travel cases
 without the full-orbit performance cost. See [flat surface](flat-surface.md), [flight gravity](flight-gravity.md) and
@@ -156,3 +156,12 @@ native chunk stages or direct-write outside their generation region.
 The focused `-PorbitalisGameTestSuite=map` suite requires two [orbital map](orbital-map.md) packet,
 subscription and native object-sampling scenarios. `MapCameraTest` compares marker projection with
 the actual rendering matrices; screen layout and GPU/input behavior require a separate client preview.
+
+## Lunar surface
+
+Use `-PorbitalisGameTestSuite=moon` with `:v1_21_1-neoforge:runGameTestServer`. It requires
+`nativelunarterrain`, `nativelunargroundcontact`, `lunarshiproundtrip`, `lunarsideroundtrip` and `lunarundersideroundtrip`: finite native generation/heightmaps,
+a verified 44 m/s native impact, automatic descent
+with a seated survival player and chest cargo, real lunar ground contact and automatic ascent back
+to space, plus real seated/cargo entry and departure beside and underneath the Moon. The default suite includes all five. Core checks cover moving-frame/force/hysteresis behavior.
+These scenarios do not prove client rendering or third-party engine compatibility.

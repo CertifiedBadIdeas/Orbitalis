@@ -40,8 +40,10 @@ import net.minecraft.world.level.Level
 import net.minecraft.world.phys.AABB
 import net.minecraft.world.phys.Vec3
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.flight.CelestialFlight
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
+import org.cbi.orbitalis.minecraft.moon.MoonWorld
 import org.joml.Vector3d
 import java.nio.file.Path
 import java.util.UUID
@@ -83,7 +85,7 @@ class SableShipTransfer(
         record: ShipTransferRecord,
     ): ServerLevel = checkNotNull(server.getLevel(if (orbit) record.orbitalDimension else record.surfaceDimension))
 
-    private fun worlds(): List<ServerLevel> = listOf(Level.OVERWORLD, FlatPlanetSpace.SPACE).map { checkNotNull(server.getLevel(it)) }
+    private fun worlds(): List<ServerLevel> = CelestialFlight.dimensions.mapNotNull { server.getLevel(it) }
 
     private fun pause() {
         val required = worlds().map(SubLevelPhysicsSystem::require).toSet()
@@ -288,25 +290,41 @@ class SableShipTransfer(
         }
         val sourceDimension = body.level.dimension()
         val sourceOrbit = FlightSpaceCoordinates.isOrbital(sourceDimension)
-        val surfaceDimension = Level.OVERWORLD
+        val surfaceDimension = if (sourceOrbit) targetDimension ?: Level.OVERWORLD else sourceDimension
         val orbitalDimension = FlatPlanetSpace.SPACE
+        require(surfaceDimension in setOf(Level.OVERWORLD, MoonWorld.KEY)) { "Unsupported surface route" }
         val destinationDimension = if (sourceOrbit) surfaceDimension else orbitalDimension
-        require(targetDimension == null || targetDimension == destinationDimension) { "Only Overworld/space transfers are supported" }
+        require(targetDimension == null || targetDimension == destinationDimension) { "Unsupported transfer route" }
+        val lunarTransform =
+            if (surfaceDimension ==
+                MoonWorld.KEY
+            ) {
+                ShipFrameTransform(CelestialFlight.sample(server), sourceDimension, destinationDimension)
+            } else {
+                null
+            }
+        // Freeze bounds at the same current pose as the snapshot, after native drift.
+        body.updateBoundingBox()
         val participants = ShipTransferPassengers.preflight(body, player)
         val passengers = participants.data
         val travellerIds = ShipTransferPassengers.ids(passengers)
         val source = SableShipSnapshot.capture(body, travellerIds)
         val delta =
-            FlightSpaceCoordinates
-                .localPosition(
-                    destinationDimension,
-                    FlightSpaceCoordinates.globalPosition(sourceDimension, Vector3.ZERO),
-                ).y
+            if (lunarTransform != null) {
+                0.0
+            } else {
+                FlightSpaceCoordinates
+                    .localPosition(
+                        destinationDimension,
+                        FlightSpaceCoordinates.globalPosition(sourceDimension, Vector3.ZERO),
+                    ).y
+            }
         val target = checkNotNull(server.getLevel(destinationDimension))
         require(participants.entities.all { it.canChangeDimensions(body.level, target) }) { "A travelling entity rejects dimension travel" }
         val destination =
             SableShipSnapshot.forDestination(
-                SableShipSnapshot.translated(source, delta, destinationDimension),
+                lunarTransform?.ship(source, SableFlightGravity.reading(body).position)
+                    ?: SableShipSnapshot.translated(source, delta, destinationDimension),
                 body.level,
                 target,
             )
@@ -318,13 +336,26 @@ class SableShipTransfer(
                 Vector3(sourcePilot.getDouble("vx"), sourcePilot.getDouble("vy"), sourcePilot.getDouble("vz")),
             )
         }
-        val destinationPilot = sourcePilot.copy().also { it.putDouble("y", it.getDouble("y") + delta) }
-        if (player != null) {
+        val destinationPassengers =
+            lunarTransform?.passengers(passengers, source, destination)
+                ?: ShipTransferPassengers.translated(passengers, source, destination)
+        val destinationPilot =
+            if (lunarTransform != null && player != null) {
+                destinationPassengers
+                    .filterIsInstance<CompoundTag>()
+                    .single { it.getBoolean("player") }
+                    .getCompound("state")
+                    .copy()
+            } else {
+                sourcePilot.copy().also { it.putDouble("y", it.getDouble("y") + delta) }
+            }
+        if (player != null &&
+            !destinationPassengers.filterIsInstance<CompoundTag>().single { it.getBoolean("player") }.getBoolean("plot")
+        ) {
+            val native = Vector3(destinationPilot.getDouble("x"), destinationPilot.getDouble("y"), destinationPilot.getDouble("z"))
             val physical =
-                FlightSpaceCoordinates.globalPosition(
-                    target,
-                    Vector3(destinationPilot.getDouble("x"), destinationPilot.getDouble("y"), destinationPilot.getDouble("z")),
-                )
+                lunarTransform?.sample?.point(native, destinationDimension, Level.OVERWORLD)
+                    ?: FlightSpaceCoordinates.globalPosition(target, native)
             require(FlatPlanetSpace.validTransferPosition(physical)) { "Pilot outside bounded physical flight coordinates" }
         }
         val record =
@@ -342,7 +373,8 @@ class SableShipTransfer(
                 orbitalDimension = orbitalDimension,
                 surfaceDimension = surfaceDimension,
                 sourcePassengers = passengers,
-                destinationPassengers = ShipTransferPassengers.translated(passengers, source, destination),
+                lunarFrame = lunarTransform?.sample,
+                destinationPassengers = destinationPassengers,
             )
         player?.closeContainer()
         active = record
@@ -350,7 +382,40 @@ class SableShipTransfer(
         pause()
         retain(body)
         pilot = player
-        persist(record) { stage(record, body, player) }
+        val sourceDataRequired =
+            !org.cbi.orbitalis.minecraft.space.SpaceWorlds
+                .objects(body.level) ||
+                passengers.filterIsInstance<CompoundTag>().any { !it.getBoolean("player") && !it.getBoolean("plot") }
+        if (sourceDataRequired) {
+            val bounds = SableNBTUtils.readBoundingBox(source.getCompound("world_bounds"))
+            val chunks =
+                ((kotlin.math.floor(bounds.minX() - 1).toInt() shr 4)..(kotlin.math.floor(bounds.maxX() + 1).toInt() shr 4)).flatMap { x ->
+                    ((kotlin.math.floor(bounds.minZ() - 1).toInt() shr 4)..(kotlin.math.floor(bounds.maxZ() + 1).toInt() shr 4)).map { z ->
+                        ChunkPos(x, z)
+                    }
+                }
+            val preload =
+                org.cbi.orbitalis.minecraft.flight
+                    .ShipDestinationPreload()
+            preload.update(
+                body.level,
+                Vector3(
+                    (bounds.minX() + bounds.maxX()) * 0.5,
+                    (bounds.minY() + bounds.maxY()) * 0.5,
+                    (bounds.minZ() + bounds.maxZ()) * 0.5,
+                ),
+            )
+            entityPreloads.add(preload)
+            persist(record) {
+                // Hold the durable PREPARED source still, then repeat preflight after loading
+                // so newly loaded loose entities cannot be discarded during authority change.
+                awaitCondition("Source entity data loading timed out", {
+                    chunks.all { body.level.areEntitiesLoaded(it.toLong()) }
+                }) { stage(record, body, player) }
+            }
+        } else {
+            persist(record) { stage(record, body, player) }
+        }
     }
 
     private fun stage(

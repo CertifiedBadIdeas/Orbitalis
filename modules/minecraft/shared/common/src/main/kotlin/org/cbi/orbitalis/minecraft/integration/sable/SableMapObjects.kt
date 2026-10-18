@@ -22,9 +22,13 @@ import dev.ryanhcode.sable.api.sublevel.SubLevelContainer
 import dev.ryanhcode.sable.sublevel.ServerSubLevel
 import dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem
 import net.minecraft.server.MinecraftServer
+import net.minecraft.world.level.Level
+import org.cbi.orbitalis.core.planet.CartesianState
 import org.cbi.orbitalis.core.planet.FlatPlanetFrame
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.flight.CelestialFlight
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
+import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
 import org.cbi.orbitalis.minecraft.map.MapObject
 import org.cbi.orbitalis.minecraft.map.OrbitalMapHooks
 import org.cbi.orbitalis.minecraft.orbit.OrbitalObjectData
@@ -33,18 +37,24 @@ import org.joml.Vector3d
 object SableMapObjects {
     fun install() {
         OrbitalMapHooks.objects = ::snapshot
-        OrbitalMapHooks.gravity = { SableFlightGravity.flatField(it.overworld()).body.surfaceAcceleration }
     }
 
     fun snapshot(server: MinecraftServer): List<MapObject> {
         val level = server.getLevel(FlatPlanetSpace.SPACE) ?: return emptyList()
         val data = level.dataStorage.get(OrbitalObjectData.FACTORY, OrbitalObjectData.NAME)
+        val sample = CelestialFlight.trySample(server)
         val live =
-            SubLevelContainer
-                .getContainer(level)
-                ?.allSubLevels
-                ?.filterIsInstance<ServerSubLevel>()
-                ?.filter { !it.isRemoved } ?: emptyList()
+            CelestialFlight.dimensions.filter { sample != null || it != org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY }.flatMap { key ->
+                server
+                    .getLevel(key)
+                    ?.let { world ->
+                        SubLevelContainer
+                            .getContainer(world)
+                            ?.allSubLevels
+                            ?.filterIsInstance<ServerSubLevel>()
+                            ?.filter { !it.isRemoved }
+                    }.orEmpty()
+            }
         val liveIds = live.map { it.uniqueId }.toSet()
         val result = mutableListOf<MapObject>()
         // Read the existing motion index only. Do not open a holding chunk or create an orbital service.
@@ -60,18 +70,23 @@ object SableMapObjects {
         for (body in live) {
             val centre = body.massTracker.centerOfMass ?: continue
             if (body.massTracker.mass <= 0.0) continue
-            val native = SubLevelPhysicsSystem.require(level).getPhysicsHandle(body)
+            val native = SubLevelPhysicsSystem.require(body.level).getPhysicsHandle(body)
             val worldPosition = body.logicalPose().transformPosition(centre, Vector3d())
             if (!worldPosition.isFinite) continue
-            val pos = FlatPlanetFrame.toSurface(Vector3(worldPosition.x, worldPosition.y, worldPosition.z))
+            val nativePosition = Vector3(worldPosition.x, worldPosition.y, worldPosition.z)
             val v = native.getLinearVelocity(Vector3d())
-            if (!v.isFinite || pos.length() > 1e8 || v.length() > 10000.0) continue
+            if (!v.isFinite) continue
+            val state =
+                sample?.state(CartesianState(nativePosition, Vector3(v.x, v.y, v.z)), body.level.dimension(), Level.OVERWORLD)
+                    ?: CartesianState(FlightSpaceCoordinates.globalPosition(body.level, nativePosition), Vector3(v.x, v.y, v.z))
+            val pos = state.position
+            if (pos.length() > 1e8 || v.length() > 10000.0) continue
             val name =
                 body.name
                     .orEmpty()
                     .filterNot { it.isISOControl() }
                     .take(32)
-            result.add(MapObject(body.uniqueId, name, pos, Vector3(v.x, v.y, v.z), true, data?.clock ?: 0L))
+            result.add(MapObject(body.uniqueId, name, pos, state.velocity, true, data?.clock ?: 0L))
         }
         return result
     }

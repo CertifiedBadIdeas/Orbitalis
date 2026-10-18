@@ -39,10 +39,13 @@ object OrbitalisGameTests {
         }
         val suite = System.getProperty("orbitalis.gameTestSuite", "all")
         require(
-            suite in setOf("all", "surface", "transfer", "flat", "travel", "navigation", "sparse", "atlas", "objects", "terrain", "map"),
+            suite in
+                setOf("all", "surface", "transfer", "flat", "travel", "navigation", "sparse", "atlas", "objects", "terrain", "map", "moon"),
         ) {
             "Unknown GameTest suite: $suite"
         }
+        if (suite == "all" || suite == "moon") event.register(LunarGameTests::class.java)
+        if (suite == "moon") return
         if (suite == "objects") {
             event.register(OrbitalObjectGameTests::class.java)
             return

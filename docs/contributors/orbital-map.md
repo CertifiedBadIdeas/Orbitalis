@@ -164,3 +164,24 @@ and purple far-side arcs hidden by the actual relief mesh, with near-side arcs r
 map released its worker/GPU buffers; owned fixtures were removed and the client saved/exited normally.
 Headless native engine scenarios separately verify actual execution; index fixtures here only verify
 presentation and command rejection. Logs, actions and framebuffer captures are retained as task evidence.
+
+## Celestial system views
+
+The map receives the persisted simulation epoch and compact Sun/Earth/Moon profile with the native
+ship directory. The shared [celestial model](celestial-orbits.md) derives positions and closed parent
+orbit curves; daylight and `/time` commands do not set their phase. Use Earth, Moon, Earth–Moon or
+Solar system above the scene to frame the corresponding scale. Wheel zoom and drag orbit remain
+available; Home restores the Earth view. Celestial orbit lines share the relief depth test.
+
+These celestial views do not yet enable lunar forces or a lunar surface. Existing vessel predictions
+and flight/transfer behavior remain Earth-only until the moving-field integration is complete.
+Network negotiation is version four; model parameters/epoch are bounded and older peers do not
+silently decode the changed snapshot layout.
+
+Verification on 2026-10-18 covered native map codec/lease GameTests, pure celestial scene/framing
+tests and `verifyLocalFull`. A disposable flight-consumer world showed closed lunar and terrestrial
+orbit curves, Moon focus tracking and separate view/flight-plan controls in portrait and landscape
+windows. Captures and client logs are retained with task evidence. The first preview encountered a
+Voxy shutdown stall after all dimensions were saved; its thread dump was retained and that client
+was terminated. The subsequent preview saved and exited normally. Lunar markers are presentation
+placeholders; this observation does not verify lunar terrain or vessel encounters.

@@ -23,10 +23,12 @@ import net.minecraft.world.effect.MobEffects
 import net.minecraft.world.entity.LivingEntity
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.phys.Vec3
+import org.cbi.orbitalis.core.planet.CartesianState
 import org.cbi.orbitalis.core.planet.FlatPlanetDefinition
 import org.cbi.orbitalis.core.planet.PlanetAtmosphere
 import org.cbi.orbitalis.core.planet.SurfaceGravityLayer
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.moon.MoonWorld
 
 /** Player acceleration uses native world coordinates, including while tracking a Sable deck. */
 object PlayerGravity {
@@ -46,7 +48,7 @@ object PlayerGravity {
     @JvmStatic
     fun active(entity: LivingEntity): Boolean =
         entity is Player &&
-            FlatPlanetSpace.contains(entity.level()) && entity.isControlledByLocalInstance &&
+            FlatPlanetSpace.contains(entity.level()) && CelestialFlight.available(entity.level()) && entity.isControlledByLocalInstance &&
             !entity.isPassenger && !entity.isInWater && !entity.isInLava && !entity.onClimbable() &&
             !entity.isNoGravity && !entity.hasEffect(MobEffects.LEVITATION)
 
@@ -59,13 +61,38 @@ object PlayerGravity {
     @JvmStatic
     fun acceleration(entity: LivingEntity): Vec3 {
         val field = field((entity.level() as? ServerLevel)?.let(serverAcceleration) ?: clientAcceleration)
-        val acceleration = field.acceleration(position(entity))
+        val sample = CelestialFlight.sample(entity.level())
+        val local = Vector3(entity.x, entity.y, entity.z)
+        val velocity = Vector3(entity.deltaMovement.x, entity.deltaMovement.y, entity.deltaMovement.z) * 20.0
+        val acceleration =
+            if (entity.level().dimension() == MoonWorld.KEY) {
+                val lunarField =
+                    SurfaceGravityLayer(
+                        sample.frames.profile.moonGravity,
+                        maxOf(32.0, field.nativeAcceleration) / 6.0,
+                        nearHeight = 128.0,
+                        fullHeight = 600.0,
+                        edgeWidth = 128.0,
+                    )
+                sample.dynamics.lunarAcceleration(CartesianState(local, velocity)) + lunarField.acceleration(local) -
+                    sample.dynamics.moon.acceleration(local)
+            } else {
+                val physical = position(entity)
+                sample.dynamics.acceleration(physical) + field.acceleration(physical) - sample.dynamics.earth.acceleration(physical)
+            }
         // m/s² -> blocks/tick². Native travel owns collisions and displacement.
         return Vec3(acceleration.x / 400.0, acceleration.y / 400.0, acceleration.z / 400.0)
     }
 
     @JvmStatic
-    fun vacuum(entity: LivingEntity): Double = PlanetAtmosphere.vacuum(position(entity))
+    fun vacuum(entity: LivingEntity): Double =
+        if (entity.level().dimension() ==
+            MoonWorld.KEY
+        ) {
+            1.0
+        } else {
+            PlanetAtmosphere.vacuum(position(entity))
+        }
 
     @JvmStatic
     fun creative(entity: LivingEntity): Boolean = entity is Player && entity.abilities.flying

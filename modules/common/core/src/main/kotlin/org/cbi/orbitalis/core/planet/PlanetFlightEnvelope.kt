@@ -22,11 +22,46 @@ import kotlin.math.abs
 
 /** Rounded distance bands around the reference body's volume, shared by travel and preloading. */
 object PlanetFlightEnvelope {
+    val earth =
+        BodyFlightEnvelope(
+            Vector3(FlatPlanetDefinition.HALF_SIZE, FlatPlanetDefinition.SEA_LEVEL, FlatPlanetDefinition.HALF_SIZE),
+            FlatPlanetDefinition.ASCENT_HEIGHT,
+            FlatPlanetDefinition.DESCENT_HEIGHT,
+        )
+    val moon =
+        BodyFlightEnvelope(
+            Vector3(LunarSurface.HALF_SIZE.toDouble(), LunarSurface.SEA_LEVEL.toDouble(), LunarSurface.HALF_SIZE.toDouble()),
+            LunarSurface.ASCENT_HEIGHT.toDouble(),
+            LunarSurface.DESCENT_HEIGHT.toDouble(),
+        )
+
+    fun distance(position: Vector3): Double = earth.distance(position)
+
+    fun arrival(
+        position: Vector3,
+        velocity: Vector3,
+        acceleration: Vector3,
+        outward: Boolean,
+        horizon: Double,
+    ): Double? = earth.arrival(position, velocity, acceleration, outward, horizon)
+}
+
+/** A body's rounded entry/exit bands, expressed in its own moving surface frame. */
+class BodyFlightEnvelope(
+    val halfExtents: Vector3,
+    val ascentDistance: Double,
+    val descentDistance: Double,
+) {
+    init {
+        require(listOf(halfExtents.x, halfExtents.y, halfExtents.z).all { it.isFinite() && it > 0.0 })
+        require(ascentDistance.isFinite() && descentDistance.isFinite() && ascentDistance > descentDistance && descentDistance > 0.0)
+    }
+
     fun distance(position: Vector3): Double =
         Vector3(
-            (abs(position.x) - FlatPlanetDefinition.HALF_SIZE).coerceAtLeast(0.0),
-            (abs(position.y) - FlatPlanetDefinition.SEA_LEVEL).coerceAtLeast(0.0),
-            (abs(position.z) - FlatPlanetDefinition.HALF_SIZE).coerceAtLeast(0.0),
+            (abs(position.x) - halfExtents.x).coerceAtLeast(0.0),
+            (abs(position.y) - halfExtents.y).coerceAtLeast(0.0),
+            (abs(position.z) - halfExtents.z).coerceAtLeast(0.0),
         ).length()
 
     /** Earliest crossing under constant net acceleration; bounded search, not a collision solver. */
@@ -38,7 +73,7 @@ object PlanetFlightEnvelope {
         horizon: Double,
     ): Double? {
         require(horizon.isFinite() && horizon >= 0.0)
-        val boundary = if (outward) FlatPlanetDefinition.ASCENT_HEIGHT else FlatPlanetDefinition.DESCENT_HEIGHT
+        val boundary = if (outward) ascentDistance else descentDistance
         val sign = if (outward) -1.0 else 1.0
 
         fun point(t: Double) = position + velocity * t + acceleration * (t * t * 0.5)

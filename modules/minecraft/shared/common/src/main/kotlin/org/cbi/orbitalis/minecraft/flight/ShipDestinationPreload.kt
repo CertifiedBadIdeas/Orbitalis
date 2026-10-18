@@ -22,15 +22,28 @@ import net.minecraft.core.BlockPos
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.server.level.TicketType
 import net.minecraft.world.level.ChunkPos
+import org.cbi.orbitalis.core.orbit.SurfaceFlightFrames
+import org.cbi.orbitalis.core.planet.CartesianState
 import org.cbi.orbitalis.core.planet.PlanetFlightEnvelope
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.moon.MoonWorld
+import org.cbi.orbitalis.minecraft.space.SpaceWorlds
 import java.util.UUID
 import java.util.WeakHashMap
 
 /** Bounded native terrain ticket with a measured time budget and an immutable arrival forecast. */
 class ShipDestinationPreload : AutoCloseable {
     private val token = UUID.randomUUID()
-    private var target: Pair<ServerLevel, ChunkPos>? = null
+
+    private data class Target(
+        val level: ServerLevel,
+        val chunk: ChunkPos,
+        val radius: Int,
+        var touched: Long,
+    )
+
+    private var target: Target? = null
+    private val recent = linkedMapOf<Pair<ChunkPos, Int>, Target>()
     private var started = 0L
     private var measured = false
     private var previousLevel: ServerLevel? = null
@@ -42,7 +55,8 @@ class ShipDestinationPreload : AutoCloseable {
     val active: Boolean get() = target != null
     val ready: Boolean get() =
         target?.let { (level, chunk) ->
-            level.chunkSource.getChunkNow(chunk.x, chunk.z) != null && level.areEntitiesLoaded(chunk.toLong())
+            target?.radius == 0 ||
+                (level.chunkSource.getChunkNow(chunk.x, chunk.z) != null && level.areEntitiesLoaded(chunk.toLong()))
         } == true
 
     /** All positions are physical Overworld axes, velocities are m/s. Null velocity samples player movement. */
@@ -64,6 +78,10 @@ class ShipDestinationPreload : AutoCloseable {
             } else {
                 Vector3.ZERO
             }
+        if (!physicalPosition.length().isFinite() || !observed.length().isFinite()) {
+            close()
+            return false
+        }
         if (dt > 0.0 && dt <= 1.0 && previousVelocity != null) {
             val measuredAcceleration = (observed - checkNotNull(previousVelocity)) * (1.0 / dt)
             acceleration =
@@ -75,32 +93,95 @@ class ShipDestinationPreload : AutoCloseable {
         previousTick = tick
         previousPosition = physicalPosition
         previousVelocity = if (velocity != null || dt > 0.0) observed else null
+        val sample = CelestialFlight.sample(level.server)
+        val nativeMoon = sample.state(CartesianState(physicalPosition, observed), net.minecraft.world.level.Level.OVERWORLD, MoonWorld.KEY)
+        val fromMoon = level.dimension() == MoonWorld.KEY
+        val lunarAcceleration = sample.dynamics.lunarAcceleration(nativeMoon)
+        val moonEta = PlanetFlightEnvelope.moon.arrival(nativeMoon.position, nativeMoon.velocity, lunarAcceleration, fromMoon, 30.0)
         val ascending = level.dimension() == net.minecraft.world.level.Level.OVERWORLD
+        val earthEta = if (fromMoon) null else PlanetFlightEnvelope.arrival(physicalPosition, observed, acceleration, ascending, 30.0)
+        if (fromMoon || (level.dimension() == FlatPlanetSpace.SPACE && moonEta != null && (earthEta == null || moonEta <= earthEta))) {
+            val key = if (fromMoon) FlatPlanetSpace.SPACE else MoonWorld.KEY
+            val destination = level.server.getLevel(key) ?: return false
+            val lead = (budgets.getOrPut(destination, ::Budget).seconds * 2.0 + 1.0).coerceIn(2.0, 21.0)
+            if (moonEta == null || moonEta > lead || (!allowNewTicket && !active)) {
+                close()
+                return false
+            }
+            val delay = moonEta
+            val crossing = nativeMoon.position + nativeMoon.velocity * delay + lunarAcceleration * (delay * delay * 0.5)
+            val future = CelestialFlight(SurfaceFlightFrames(sample.frames.profile, sample.frames.tick + (delay * 20.0).toLong()))
+            forecastDestination(destination, if (fromMoon) future.point(crossing, MoonWorld.KEY, key) else crossing, observed.length())
+            return true
+        }
         val other = if (ascending) FlatPlanetSpace.SPACE else net.minecraft.world.level.Level.OVERWORLD
         val destination = level.server.getLevel(other) ?: return false
         val budget = budgets.getOrPut(destination, ::Budget)
         val lead = (budget.seconds * 2.0 + 1.0).coerceIn(2.0, 21.0)
-        val eta = PlanetFlightEnvelope.arrival(physicalPosition, observed, acceleration, ascending, 30.0)
+        val eta = earthEta
         if (eta == null || eta > lead || (!allowNewTicket && !active)) {
             close()
             return false
         }
         val crossing = physicalPosition + observed * eta + acceleration * (eta * eta * 0.5)
-        update(destination, FlightSpaceCoordinates.localPosition(other, crossing))
+        forecastDestination(destination, FlightSpaceCoordinates.localPosition(other, crossing), observed.length())
         return true
     }
 
+    private fun forecastDestination(
+        level: ServerLevel,
+        position: Vector3,
+        speed: Double,
+    ) {
+        if (SpaceWorlds.objects(level)) {
+            close()
+            // Forecast readiness concerns fixed terrain only. Explicit update() leases are
+            // still real entity/data loads, including recovery of world-space passengers.
+            target = Target(level, ChunkPos(BlockPos.containing(position.x, position.y, position.z)), 0, level.gameTime)
+        } else {
+            update(level, position, speed)
+        }
+    }
+
+    @JvmOverloads
     fun update(
         level: ServerLevel,
         position: Vector3,
+        speed: Double = 0.0,
     ) {
+        require(speed.isFinite() && speed >= 0.0)
+        // Radius two entity-ticks only the centre and can strand a hull straddling a chunk
+        // boundary. Cover the supported small hull plus a bounded high-speed ticking margin.
+        val radius =
+            4 +
+                kotlin.math
+                    .ceil((speed - 128.0).coerceAtLeast(0.0) * 0.2 / 16.0)
+                    .coerceIn(0.0, 2.0)
+                    .toInt()
         val chunk = ChunkPos(BlockPos.containing(position.x, position.y, position.z))
-        if (target?.first !== level || target?.second != chunk) {
-            close()
-            target = level to chunk
+        if (target?.level !== level) close()
+        if (target?.chunk != chunk || target?.radius != radius) {
+            // Install the next centre before retiring old roots. A moving one-ticket lease
+            // can repeatedly drop entity visibility while asynchronous chunk data is loading.
+            level.chunkSource.addRegionTicket(TYPE, chunk, radius, token)
+            recent.remove(chunk to radius)
+            target?.let { previous ->
+                previous.touched = level.gameTime
+                recent[previous.chunk to previous.radius] = previous
+            }
+            target = Target(level, chunk, radius, level.gameTime)
+            measured = false
             started = System.nanoTime()
+        } else {
+            level.chunkSource.addRegionTicket(TYPE, chunk, radius, token)
         }
-        level.chunkSource.addRegionTicket(TYPE, chunk, 2, token)
+        val iterator = recent.entries.iterator()
+        while (iterator.hasNext()) {
+            val old = iterator.next().value
+            if (recent.size <= 8 && level.gameTime - old.touched <= 20) break
+            if (old.radius > 0) old.level.chunkSource.removeRegionTicket(TYPE, old.chunk, old.radius, token)
+            iterator.remove()
+        }
         if (!measured && ready) {
             val elapsed = ((System.nanoTime() - started) * 1e-9).coerceIn(0.25, 10.0)
             val budget = budgets.getOrPut(level, ::Budget)
@@ -110,7 +191,9 @@ class ShipDestinationPreload : AutoCloseable {
     }
 
     override fun close() {
-        target?.let { (level, chunk) -> level.chunkSource.removeRegionTicket(TYPE, chunk, 2, token) }
+        target?.let { (level, chunk, radius) -> if (radius > 0) level.chunkSource.removeRegionTicket(TYPE, chunk, radius, token) }
+        for (old in recent.values) if (old.radius > 0) old.level.chunkSource.removeRegionTicket(TYPE, old.chunk, old.radius, token)
+        recent.clear()
         target = null
         measured = false
     }
