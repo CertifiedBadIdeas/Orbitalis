@@ -43,9 +43,9 @@ Do not automatically rename branches, push, tag, publish, or open PRs.
 Verify effective Git author and committer before committing; never invent an agent identity.
 Use focused Conventional Commits and rewrite only unpublished commits belonging to the task.
 
-Do not spawn agents unless the user explicitly requests delegation or parallel agent involvement
-for the task. A request for a multi-agent-capable environment alone is not a request to spawn.
-For authorized delegation, assign independent worktrees, bounded ownership, interfaces and checks.
+Up to three independent implementation tasks may run concurrently across agents and dialogs, each
+on its own task branch and worktree. Parallel agent work within the user-authorized scope is allowed;
+do not invent unrelated tasks to fill the slots. Assign bounded ownership, interfaces and checks.
 Agents must not share a writable Gradle home or edit the same files concurrently. The coordinator
 owns common build configuration, integration and final verification. Read the collaboration guide.
 
@@ -55,8 +55,10 @@ Run Gradle on JDK 25; common and 1.21.1 bytecode targets Java 21. Kotlin is pinn
  gradle/libs.versions.toml. Use ./worktree-task doctor before builds.
 For noninteractive tasks use ./gradlew-sandbox-dev-parallel-summary <tasks>; full output is
 retained in build/agent-logs. For interactive runClient/runServer use
-./gradlew-sandbox-dev-parallel. A live client holds the workspace slot; stop it before building.
-The wrappers serialize heavy builds across worktrees, with eight workers by default;
+./gradlew-sandbox-dev-parallel. The wrappers allow three simultaneous heavy launches across separate
+worktrees and only one launch per worktree, including its consumer modules. A live client holds one
+workspace slot and its own worktree; stop it before building that checkout. Other worktrees may proceed.
+Each build uses eight workers by default;
 ORBITALIS_GRADLE_WORKERS or --max-workers overrides the limit.
 Use only the cache helper for independent reflink homes; no hardlinks, manual cache copies or
 writable-home symlinks. Do not seed an unmanaged active cache.

@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Allow up to three concurrent development tasks in separate worktrees. Managed Gradle launches
+  share three workspace slots while keeping each worktree, including its consumer, exclusive until
+  the build or client exits. Preserve compatibility with older single-slot checkouts.
+
 - Increase orbital surface detail to 32-block cells. Backfill existing saved terrain without loading
   chunks, retain samples during chunk lifecycle bursts, and prepare updated overview meshes in the background.
 - Let the flight consumer cancel WorldGenV2 2.4.2's interrupted graph search during world shutdown;

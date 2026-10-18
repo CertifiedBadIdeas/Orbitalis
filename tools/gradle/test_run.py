@@ -1,6 +1,7 @@
 # The Compukters Developers
 #
 # Copyright 2026 The Compukters Developers
+# Copyright 2026 Vsevolod Petrov (lazyhat)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,8 +16,10 @@
 # limitations under the License.
 
 # Adapted for Orbitalis: independent tooling namespace and repository prerequisites.
+import fcntl
 import json
 import os
+import select
 from pathlib import Path
 import subprocess
 import sys
@@ -40,39 +43,118 @@ class BuildGateTest(unittest.TestCase):
                        check=True, stdout=subprocess.DEVNULL)
         self.probe = Path(self.temp.name) / 'probe'
         self.probe.write_text('''#!/usr/bin/env python3
-import json,sys,time
+import json,os,sys,time
 from pathlib import Path
 log=Path(sys.argv[-2]); label=sys.argv[-1]
 with log.open('a') as f: f.write(json.dumps([label,'start',sys.argv[1:]])+'\\n')
-time.sleep(0.4)
+if os.environ.get('BUILD_GATE_HOLD'):
+    deadline=time.monotonic()+15
+    while not (log.parent/(label+'.release')).exists():
+        if time.monotonic()>deadline: sys.exit(99)
+        time.sleep(0.01)
 with log.open('a') as f: f.write(json.dumps([label,'end'])+'\\n')
 ''')
         self.probe.chmod(0o755)
         self.log = Path(self.temp.name) / 'events'
         self.env = dict(os.environ, ORBITALIS_GRADLE_WORKERS='8')
 
-    def launch(self, root, label, *args):
-        return subprocess.Popen([sys.executable, str(RUNNER), '--root', str(root), str(self.probe),
-                                 *args, str(self.log), label], env=self.env,
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    def launch(self, root, label, *args, hold=False):
+        env = dict(self.env)
+        if hold:
+            env['BUILD_GATE_HOLD'] = '1'
+        process = subprocess.Popen(
+            [sys.executable, str(RUNNER), '--root', str(root), str(self.probe),
+             *args, str(self.log), label], env=env,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        )
+        self.addCleanup(self.stop, process)
+        return process
 
-    def test_worktrees_share_slot_and_keep_explicit_limits(self):
-        first = self.launch(self.root, 'first')
+    @staticmethod
+    def stop(process):
+        if process.poll() is None:
+            process.kill()
+        process.communicate(timeout=5)
+
+    def rows(self):
+        return [json.loads(line) for line in self.log.read_text().splitlines()] if self.log.exists() else []
+
+    def wait_for_start(self, label):
         deadline = time.monotonic() + 5
-        while not self.log.exists() and time.monotonic() < deadline:
+        while time.monotonic() < deadline:
+            if any(row[:2] == [label, 'start'] for row in self.rows()):
+                return
             time.sleep(0.01)
-        self.assertTrue(self.log.exists())
-        second = self.launch(self.linked, 'second', '--max-workers=2')
-        first.communicate(timeout=10)
-        self.assertEqual(first.returncode, 0)
-        _, stderr = second.communicate(timeout=10)
-        self.assertEqual(second.returncode, 0)
-        self.assertIn('Waiting', stderr)
-        rows = [json.loads(line) for line in self.log.read_text().splitlines()]
-        self.assertEqual([(r[0], r[1]) for r in rows],
-                         [('first', 'start'), ('first', 'end'), ('second', 'start'), ('second', 'end')])
-        self.assertEqual(rows[2][2][:1], ['--max-workers=2'])
-        self.assertEqual(rows[0][2][:1], ['--max-workers=8'])
+        self.fail(f'{label} did not start: {self.rows()}')
+
+    def wait_for_queue(self, process):
+        ready, _, _ = select.select([process.stderr], [], [], 5)
+        self.assertTrue(ready, 'Build never reported queueing')
+        self.assertIn('Waiting', process.stderr.readline())
+
+    def release(self, label):
+        (Path(self.temp.name) / (label + '.release')).touch()
+
+    def finish(self, process):
+        _, stderr = process.communicate(timeout=10)
+        self.assertEqual(process.returncode, 0, stderr)
+
+    def test_three_distinct_worktrees_run_and_fourth_waits(self):
+        roots = [self.root, self.linked]
+        for index in range(2):
+            linked = Path(self.temp.name) / f'linked-{index}'
+            subprocess.run(['git', '-C', str(self.root), 'worktree', 'add', '-qb',
+                            f'task-{index}', str(linked)], check=True, stdout=subprocess.DEVNULL)
+            roots.append(linked)
+        processes = []
+        for index, root in enumerate(roots[:3]):
+            label = str(index)
+            args = ['--max-workers=2'] if index == 1 else []
+            processes.append(self.launch(root, label, *args, hold=True))
+            self.wait_for_start(label)
+        fourth = self.launch(roots[3], 'fourth', hold=True)
+        self.wait_for_queue(fourth)
+        self.assertFalse(any(row[0] == 'fourth' for row in self.rows()))
+        self.release('0')
+        self.finish(processes[0])
+        self.wait_for_start('fourth')
+        for label in ('1', '2', 'fourth'):
+            self.release(label)
+        for process in [*processes[1:], fourth]:
+            self.finish(process)
+        starts = {row[0]: row[2] for row in self.rows() if row[1] == 'start'}
+        self.assertEqual(starts['0'][:1], ['--max-workers=8'])
+        self.assertEqual(starts['1'][:1], ['--max-workers=2'])
+
+    def test_nested_consumer_waits_for_same_worktree_only(self):
+        nested = self.root / 'consumers/flight'
+        nested.mkdir(parents=True)
+        first = self.launch(self.root, 'first', hold=True)
+        self.wait_for_start('first')
+        duplicate = self.launch(nested, 'duplicate', hold=True)
+        self.wait_for_queue(duplicate)
+        independent = self.launch(self.linked, 'independent', hold=True)
+        self.wait_for_start('independent')
+        self.assertFalse(any(row[0] == 'duplicate' for row in self.rows()))
+        self.release('first')
+        self.finish(first)
+        self.wait_for_start('duplicate')
+        for label in ('duplicate', 'independent'):
+            self.release(label)
+        self.finish(duplicate)
+        self.finish(independent)
+
+    def test_legacy_exclusive_build_blocks_new_slots(self):
+        lock = self.root / '.toolchain/gradle-build.lock'
+        lock.parent.mkdir()
+        with lock.open('a+b') as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX)
+            process = self.launch(self.linked, 'new', hold=True)
+            self.wait_for_queue(process)
+            self.assertEqual(self.rows(), [])
+        self.wait_for_start('new')
+        self.release('new')
+        self.finish(process)
 
     def test_failure_releases_slot_and_preserves_status(self):
         failure = Path(self.temp.name) / 'failure'

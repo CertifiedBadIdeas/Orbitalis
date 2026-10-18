@@ -2,6 +2,7 @@
 # The Compukters Developers
 #
 # Copyright 2026 The Compukters Developers
+# Copyright 2026 Vsevolod Petrov (lazyhat)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +17,7 @@
 # limitations under the License.
 
 # Adapted for Orbitalis: independent tooling namespace and repository prerequisites.
-"""Serialize managed builds across worktrees and bound their internal parallelism."""
+"""Allow three managed worktree builds, with one launch per checkout."""
 
 import argparse
 import fcntl
@@ -24,6 +25,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import time
 
 
 def positive_setting(name):
@@ -46,16 +48,55 @@ def main():
             ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
             cwd=args.root, text=True,
         ).strip()
-        lock = Path(common).parent / ".toolchain" / "gradle-build.lock"
-        lock.parent.mkdir(parents=True, exist_ok=True)
-        handle = lock.open("a+b")
+        checkout = Path(subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"], cwd=args.root, text=True,
+        ).strip()).resolve()
+        workspace_tools = Path(common).parent / ".toolchain"
+        checkout_tools = checkout / ".toolchain"
+        workspace_tools.mkdir(parents=True, exist_ok=True)
+        checkout_tools.mkdir(parents=True, exist_ok=True)
+
+        # A consumer and the main build mutate the same checkout outputs. Acquire this
+        # before a workspace slot so a queued duplicate cannot occupy a second slot.
+        checkout_lock = (checkout_tools / "gradle-worktree.lock").open("a+b")
         try:
-            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(checkout_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            print("Waiting for the workspace Gradle build slot...", file=sys.stderr, flush=True)
-            fcntl.flock(handle, fcntl.LOCK_EX)
-        # The build inherits the lock; process exit releases it, including on failure.
-        os.set_inheritable(handle.fileno(), True)
+            print("Waiting for this worktree's Gradle build...", file=sys.stderr, flush=True)
+            fcntl.flock(checkout_lock, fcntl.LOCK_EX)
+
+        # Old checkouts still take this lock exclusively. Shared ownership keeps new
+        # launches compatible with them while the workspace transitions to three slots.
+        legacy_lock = (workspace_tools / "gradle-build.lock").open("a+b")
+        try:
+            fcntl.flock(legacy_lock, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print("Waiting for a legacy workspace Gradle build...", file=sys.stderr, flush=True)
+            fcntl.flock(legacy_lock, fcntl.LOCK_SH)
+
+        slots = workspace_tools / "gradle-build-slots"
+        slots.mkdir(exist_ok=True)
+        waiting = False
+        while True:
+            slot = None
+            for index in range(3):
+                candidate = (slots / f"{index}.lock").open("a+b")
+                try:
+                    fcntl.flock(candidate, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    slot = candidate
+                    break
+                except BlockingIOError:
+                    candidate.close()
+            if slot is not None:
+                break
+            if not waiting:
+                print("Waiting for one of three workspace Gradle build slots...", file=sys.stderr, flush=True)
+                waiting = True
+            time.sleep(0.1)
+
+        # Keep every lease across exec and release it on actual build/client exit.
+        for handle in (checkout_lock, legacy_lock, slot):
+            os.set_inheritable(handle.fileno(), True)
         # Explicit command-line limits take precedence over wrapper defaults.
         supplied = args.command[1:]
         defaults = []

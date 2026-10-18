@@ -141,8 +141,9 @@ their outputs are absent from ordinary client/server runs. Run `./gradlew runGam
 cases without failures, errors or skipped results. Root `verifyLocalFull` independently checks Orbitalis, including production
 archive rejection of consumer mod dependencies and bundled external implementation classes.
 
-Agent-operated builds and launches use the consumer wrapper with the repository's managed build slot;
-see [development](development.md). A live consumer client holds the same workspace build slot.
+Agent-operated builds and launches use the consumer wrapper with the repository's three managed
+workspace slots; see [development](development.md). A live consumer client holds one slot and its
+worktree, including the main build; clients or verification in two other worktrees can proceed.
 A successful launch establishes loading compatibility only. Ship thrust, control, landing and persistence
 must be observed in a disposable ordinary-terrain world before being described as verified gameplay.
 

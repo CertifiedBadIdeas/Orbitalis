@@ -1,6 +1,7 @@
 # The Compukters Developers
 #
 # Copyright 2026 The Compukters Developers
+# Copyright 2026 Vsevolod Petrov (lazyhat)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -107,6 +108,16 @@ class LifecycleTest(unittest.TestCase):
         lock.parent.mkdir()
         with lock.open('wb') as handle:
             fcntl.flock(handle, fcntl.LOCK_SH)
+            self.assertIn('build is active', self.lifecycle('finish', 'feat/example').stderr)
+        self.assertTrue(checkout.exists())
+        self.check_success(self.lifecycle('finish', 'feat/example'))
+
+    def test_finish_refuses_launch_holding_worktree_before_cache_preparation(self):
+        checkout = self.ready_task()
+        lock = checkout / '.toolchain/gradle-worktree.lock'
+        lock.parent.mkdir(exist_ok=True)
+        with lock.open('a+b') as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX)
             self.assertIn('build is active', self.lifecycle('finish', 'feat/example').stderr)
         self.assertTrue(checkout.exists())
         self.check_success(self.lifecycle('finish', 'feat/example'))

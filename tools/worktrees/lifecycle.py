@@ -1,6 +1,7 @@
 # The Compukters Developers
 #
 # Copyright 2026 The Compukters Developers
+# Copyright 2026 Vsevolod Petrov (lazyhat)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -162,6 +163,15 @@ def idle_builds(roots):
         wrappers = git(root, 'ls-files', '-z', '--', 'gradlew-sandbox', '*/gradlew-sandbox')
         build_roots.update((root / path).parent for path in wrappers.split('\0') if path)
     with contextlib.ExitStack() as stack:
+        # Includes clients and launches waiting for a global slot, before cache preparation.
+        for root in roots:
+            lock = root / '.toolchain/gradle-worktree.lock'
+            if lock.exists():
+                handle = stack.enter_context(lock.open('a+b'))
+                try:
+                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError as error:
+                    raise RuntimeError(f'Managed Gradle build is active: {root}') from error
         for root in sorted(build_roots):
             home = root / '.gradle-sandbox'
             if home.is_symlink() or (home.exists() and not home.is_dir()):

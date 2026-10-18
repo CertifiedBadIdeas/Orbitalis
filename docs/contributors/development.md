@@ -50,10 +50,18 @@ parent pin. Use ./worktree-task doctor --path <checkout> before building.
 
 For noninteractive Gradle use ./gradlew-sandbox-dev-parallel-summary <tasks>. The log is stored in
 build/agent-logs and failures return Gradle's actual status with a diagnostic tail. For runClient or
-runServer use ./gradlew-sandbox-dev-parallel. Managed builds across worktrees share one workspace slot;
-each build uses up to eight workers, configurable via ORBITALIS_GRADLE_WORKERS or --max-workers.
-A live managed client holds that slot, so stop it before verification. Dedicated server EULA acceptance
+runServer use ./gradlew-sandbox-dev-parallel. Managed launches share three workspace slots, with at
+most one launch per worktree, including its consumer modules. A fourth launch waits for a free slot;
+a second launch in the same worktree waits for that checkout without occupying another workspace slot.
+Each build uses up to eight workers, configurable via ORBITALIS_GRADLE_WORKERS or --max-workers.
+A live managed client holds one slot and its worktree until exit. Stop it before verifying that
+checkout; launches in two other worktrees can continue. Dedicated server EULA acceptance
 is manual. Run directories are isolated by checkout and target. Never open a user's existing world for a preview.
+
+Older checkouts with the single-slot runner remain compatible: their exclusive legacy lock pauses
+new launches until they exit, and they wait for newer launches before starting. Update those task
+branches from local `dev` to enable concurrent launches there. Never bypass the wrappers or stop
+another task's process to obtain a slot.
 
 ## Gradle caches
 
@@ -72,11 +80,13 @@ change Gradle's status. See the cache tests for concurrent publication and inter
 
 ## Multi-agent work
 
-Delegate only when requested for the current task. Assign every implementation agent its own task branch
+Up to three independent implementation tasks may run concurrently across agents and dialogs within
+the user-authorized scope. Parallel delegation is allowed; do not start unrelated tasks to fill slots.
+Assign every implementation task its own task branch
 and worktree, a bounded feature/area, expected interface, dependencies and verification. The coordinator
 owns shared Gradle configuration and cross-module contracts; settle those before parallel dependent edits.
 Do not share worktrees, writable caches or game directories. Concurrent lightweight investigation is fine;
-heavy Gradle builds are serialized by the shared slot. Agents report actual revision, changed paths, checks
+heavy Gradle launches use the three workspace slots and the exclusive worktree gate. Agents report actual revision, changed paths, checks
 and remaining evidence. One coordinator reviews and performs authorized integration, then checks the
 combined result. Preserve other agents' branches, worktrees, processes and uncommitted changes.
 
@@ -159,7 +169,7 @@ For the combined Create/Sable/Aeronautics/Propulsion runtime, use the independen
 [flight consumer](flight-consumer.md). From this checkout, agent builds use
 the managed entry point below from **inside `consumers/flight`**; it selects that module's own wrapper.
 Use `check runGameTestServer` for noninteractive verification, or `runClient` / `runServer` for an
-interactive launch. The same workspace build slot applies.
+interactive launch. The same three workspace slots and exclusive worktree gate apply.
 
 ```sh
 cd consumers/flight
