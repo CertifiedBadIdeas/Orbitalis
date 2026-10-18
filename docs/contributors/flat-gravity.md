@@ -36,9 +36,13 @@ Near the body the implementation evaluates the analytic eight-corner primitive. 
 and [acceleration](https://www.fatiando.org/choclo/latest/api/generated/choclo.prism.gravity_e.html)
 document the underlying integrals and safe logarithm/principal-arctangent branches. The Orbitalis
 implementation is independent; no library code or dependency is included. Dimensionless evaluation
-reduces scaling errors. Beyond eight maximum half-extents it transitions to 8-point tensor
-Gauss-Legendre volume integration, fully selected at twelve half-extents, avoiding distant corner
-subtraction. Both evaluations represent the same mass integral, not a switch to a point planet.
+reduces scaling errors. Between eight and twelve maximum half-extents it blends the analytic
+rectangular potential into `-mu/r` with the same total mass. At the current Earth scale this is
+40–60 km from the centre; Moon uses its own half-extent scale. The C2 quintic weight contributes
+`-(Phi_point-Phi_rect)*gradient(w)` to acceleration. Beyond twelve half-extents the field is exactly
+central and inverse-square, allowing Kepler orbits for an isolated body; shape multipoles are
+intentionally discarded. No distant numerical volume quadrature remains. Other celestial bodies
+and rotating near-field geometry can still perturb vessel orbits.
 
 A finite slab pulls sideways near its edges. `SurfaceGravityLayer` supplies the explicitly artificial
 Minecraft compatibility region: vertical native construction gravity throughout the initial surface

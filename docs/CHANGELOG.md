@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Replace distant rectangular-volume quadrature with an exact point-mass field of the same total
+  mass. Blend scalar potentials conservatively at 8–12 maximum half-extents (40–60 km for Earth),
+  including the blend gradient in acceleration; retain the analytic rectangular near field.
+
 - Interpolate the moving Moon, lunar camera frame and map focus between client ticks to prevent
   visible 20 Hz stepping during approach. Raise lunar entry/exit clearance to 1500/1800 metres,
   with shared minimum native approach and hysteresis distances for small bodies.
