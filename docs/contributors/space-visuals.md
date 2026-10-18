@@ -31,13 +31,28 @@ extension for this dimension ID. NeoForge owns the hook and effects adapter; sha
 or Create APIs participate in rendering, and the selector never loads on a dedicated server.
 
 The reference body remains a 10,000-by-10,000-block flat slab centred at surface X/Z zero,
-with a fallback top at Y=64 and underside at Y=-64. Its orbital top now uses a server-owned
+with a fallback top at Y=64 and a decorative rocky underside bounded above Y=-2600.
+Its orbital top now uses a server-owned
 surface atlas: each naturally loaded Overworld chunk contributes sixteen height/map-colour probes,
 averaged to one chunk sample. Water, grass and leaves use native biome colours. The client combines
 known samples into 32-metre overview cells, including large terrain changes and buildings; this is
 an overview, not block-resolution geometry or a collision surface. Vertical skirts join differing
-heights, unknown neighbours and the slab edge. Side strata and the underside remain illustrative.
-Administrator border changes do not resize the physical reference body or its atlas.
+heights, unknown neighbours and the slab edge. Administrator border changes do not resize the
+physical reference body or its atlas. Side strata and the underside remain illustrative.
+
+`PlanetRockShell` closes the underside with a deterministic jittered 64-by-64 triangulated grid,
+thickening towards the centre, and eight uneven rock strata around the exact square top perimeter.
+Its 12,288 triangle faces use degenerate fourth vertices in the existing quad buffer. Shared vertices
+close every join except the intended top boundary. Rock uses a modest illustrative ambient fill so
+its unlit underside retains readable facets; this is not new stellar lighting. The cached mesh and
+existing asynchronous rebuild budget are retained. No bitmap assets or runtime rock textures are added.
+
+`PlanetLimbRenderer` adds a low-opacity blue feathered upper-edge halo to the shared map/world scene
+after opaque geometry, preserving destination alpha for the later sky composite. It tests existing
+scene depth without writing depth; clouds remain a separate
+pass and foreground ships still draw against the normal world. This bounded geometric halo is not
+physical atmospheric scattering. The shell is decoration, with no collision or terrain generation;
+it does not change the mass model, gravity field, coordinate frames or transfer altitudes.
 
 Unknown overview cells keep the existing deterministic water/coast/land mosaic. Any known samples
 in a cell provide its overview; a partially sampled cell is approximate until its other chunks load.
@@ -133,16 +148,17 @@ should retain location, height and map colours after unload and dimension travel
 roof while loaded and verify the next pass updates its orbital overview. Compilation does not prove
 framebuffer compositing or actual client receipt.
 
-`SpaceSceneTest` exercises angular preservation at near/far and opposite-side viewpoints, side and
-underside visibility, and distance-dependent apparent size. Run target checks and inspect a disposable
+`SpaceSceneTest` exercises angular preservation at near/far and opposite-side viewpoints, the rock
+shell's manifold joins, anchored top perimeter, outward unit normals, depth/geometry bounds and
+distance-dependent apparent size. Run target checks and inspect a disposable
 client world; compilation alone does not demonstrate appearance. Suggested manual views:
 
 - `/gamemode spectator`, then `/execute in orbitalis:space run tp @s 0 6160 0 0 90`
   shows the surface from physical Y=2064.
 - `/execute in orbitalis:space run tp @s 6500 10160 6500 135 15`
   shows the top and two sides.
-- `/execute in orbitalis:space run tp @s 0 2032 0 0 -90`
-  shows the underside from physical Y=-2064.
+- `/execute in orbitalis:space run tp @s 0 -1904 0 0 -90`
+  shows the underside from physical Y=-6000.
 - Compare `/time set noon` and `/time set midnight`: vacuum sky, Sun, body and skylight stay fixed.
 - `/execute in orbitalis:space run tp @s 0 9160 0 0 90` shows the body from 5000 m above sea level
   through the new low frame.

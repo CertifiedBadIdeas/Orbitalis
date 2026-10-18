@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Replace the orbital planet's dark flat underside with a faceted rocky mass, irregular layered
+  cliffs and a feathered blue upper rim. Share the appearance with the orbital map; surface terrain,
+  gravity, collision and travel remain unchanged.
+
 - Show a finite drifting cloud layer over the planet in space and the orbital map, using the native
   Minecraft texture, cloud setting and renderer clock. Preserve terrain occlusion without loading
   surface chunks or adding weather/lighting simulation. Replace the elevated native/Sodium layer

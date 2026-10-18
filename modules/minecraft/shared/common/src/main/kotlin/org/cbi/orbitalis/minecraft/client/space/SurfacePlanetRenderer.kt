@@ -68,7 +68,7 @@ object SurfacePlanetRenderer {
         try {
             val buffer = BufferBuilder(storage, VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR)
             for (face in SurfacePlanetMesh.faces(snapshot)) {
-                val light = 0.18 + 0.82 * maxOf(0.0, face.normal.dot(SpaceScene.SUN_DIRECTION))
+                val light = face.ambient + (1.0 - face.ambient) * maxOf(0.0, face.normal.dot(SpaceScene.SUN_DIRECTION))
                 val r = ((face.color shr 16 and 255) * light).toInt()
                 val g = ((face.color shr 8 and 255) * light).toInt()
                 val b = ((face.color and 255) * light).toInt()
@@ -158,6 +158,7 @@ object SurfacePlanetRenderer {
         } finally {
             VertexBuffer.unbind()
         }
+        PlanetLimbRenderer.render(observer, view, projection, scale)
         if (clouds) PlanetCloudRenderer.render(observer, view, projection, scale)
     }
 }

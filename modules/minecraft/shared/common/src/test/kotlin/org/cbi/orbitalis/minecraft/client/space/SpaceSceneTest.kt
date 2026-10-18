@@ -50,19 +50,46 @@ class SpaceSceneTest {
     }
 
     @Test
-    fun undersideAndEdgesOccludeFarFaces() {
-        fun normals(observer: Vector3) =
-            SpaceScene.body
-                .filter { SpaceScene.visible(it, observer) }
-                .map { it.normal }
-                .toSet()
-        assertEquals(setOf(Vector3(0.0, 1.0, 0.0)), normals(Vector3(0.0, 1064.0, 0.0)))
-        assertEquals(setOf(Vector3(0.0, -1.0, 0.0)), normals(Vector3(0.0, -1064.0, 0.0)))
-        assertEquals(setOf(Vector3(1.0, 0.0, 0.0)), normals(Vector3(10000.0, 0.0, 0.0)))
-        assertEquals(
-            setOf(Vector3(0.0, 1.0, 0.0), Vector3(1.0, 0.0, 0.0), Vector3(0.0, 0.0, -1.0)),
-            normals(Vector3(10000.0, 10000.0, -10000.0)),
+    fun rockShellHasOnlyTheIntendedOpenTopAndOutwardNormals() {
+        data class Edge(
+            val a: Vector3,
+            val b: Vector3,
         )
+
+        fun edge(
+            a: Vector3,
+            b: Vector3,
+        ): Edge {
+            val ordered = compareValuesBy(a, b, { it.x }, { it.y }, { it.z }) <= 0
+            return if (ordered) Edge(a, b) else Edge(b, a)
+        }
+        val edges = mutableMapOf<Edge, Int>()
+        for (face in PlanetRockShell.faces) {
+            val vertices = face.vertices.distinct()
+            assertEquals(3, vertices.size)
+            assertEquals(1.0, face.normal.length(), 1e-10)
+            assertTrue(face.normal.dot((vertices[1] - vertices[0]).cross(vertices[2] - vertices[0])) > 0)
+            for (i in vertices.indices) {
+                val key = edge(vertices[i], vertices[(i + 1) % vertices.size])
+                edges[key] = (edges[key] ?: 0) + 1
+            }
+            assertTrue(vertices.all { it.x in -5000.0..5000.0 && it.z in -5000.0..5000.0 })
+            assertTrue(vertices.all { it.y in SpaceScene.BOTTOM..SpaceScene.TOP })
+            if (vertices.all { it.y < 0 }) assertTrue(face.normal.y <= 0.0)
+        }
+        val open = edges.filterValues { it == 1 }.keys
+        assertEquals(256, open.size)
+        assertTrue(edges.values.all { it in 1..2 }, "No holes or non-manifold joins")
+        assertTrue(open.all { it.a.y == SpaceScene.TOP && it.b.y == SpaceScene.TOP })
+        assertTrue(
+            open.all { edge ->
+                listOf(edge.a, edge.b).all { kotlin.math.abs(it.x) == 5000.0 || kotlin.math.abs(it.z) == 5000.0 }
+            },
+        )
+        val lowest = PlanetRockShell.faces.flatMap { it.vertices }.minBy { it.y }
+        assertTrue(lowest.y < -1700.0)
+        assertTrue(kotlin.math.abs(lowest.x) < 2000.0 && kotlin.math.abs(lowest.z) < 2000.0)
+        assertTrue(PlanetRockShell.faces.size <= 13000)
     }
 
     @Test
