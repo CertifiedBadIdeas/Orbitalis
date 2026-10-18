@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Move optional Voxy WorldGenV2 finite-terrain search and shutdown compatibility into the main mod.
+  Keep Voxy and WorldGenV2 separately installed, with optional client dependency declarations;
+  the flight consumer no longer owns these compatibility hooks.
+
 - Replace distant rectangular-volume quadrature with an exact point-mass field of the same total
   mass. Blend scalar potentials conservatively at 8–12 maximum half-extents (40–60 km for Earth),
   including the blend gradient in acceleration; retain the analytic rectangular near field.

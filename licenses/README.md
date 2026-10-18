@@ -52,3 +52,7 @@ and models verify their own licenses independently of the repository code licens
 not evidence of permission. If adding a bundled dependency, inspect its transitive contents and verify
 archive/license composition; preserve upstream META-INF notices. Do not copy another project's complete
 licenses tree for components that Orbitalis does not distribute.
+
+Optional Voxy/WorldGenV2 compatibility in Orbitalis uses string-targeted hooks and Minecraft APIs only.
+No upstream implementation is copied, compiled against or nested. The independently installed
+pinned preview stack and upstream terms remain documented in [the client inventory](flight-consumer/PROVENANCE.md).
