@@ -66,8 +66,9 @@ class MapCamera {
     ): Point? {
         if (width <= 0 || height <= 0) return null
         val relative = position - focus
-        val x = relative.dot(right) / range * height * 0.5 + width * 0.5
-        val y = -relative.dot(up) / range * height * 0.5 + height * 0.5
+        val point = projectRaw(position, width, height)
+        val x = point.x
+        val y = point.y
         return if (x in 0.0..width.toDouble() && y in 0.0..height.toDouble() &&
             kotlin.math.abs(relative.dot(direction) / range - 1.0) < 99.0
         ) {
@@ -75,5 +76,18 @@ class MapCamera {
         } else {
             null
         }
+    }
+
+    /** Unclipped coordinates for GPU-scissored segments, including crossings with both ends outside. */
+    fun projectRaw(
+        position: Vector3,
+        width: Int,
+        height: Int,
+    ): Point {
+        val relative = position - focus
+        return Point(
+            relative.dot(right) / range * height * 0.5 + width * 0.5,
+            -relative.dot(up) / range * height * 0.5 + height * 0.5,
+        )
     }
 }

@@ -27,6 +27,7 @@ import java.util.UUID
 
 /** Optional native adapters are installed without making client/server map code load Sable classes. */
 object OrbitalMapHooks {
+    var gravity: (MinecraftServer) -> Double = { 11.0 }
     var objects: (MinecraftServer) -> List<MapObject> = { emptyList() }
     var playerPosition: (ServerPlayer) -> Vector3 = { player ->
         FlightSpaceCoordinates.globalPosition(player.level(), Vector3(player.x, player.y, player.z))
@@ -86,7 +87,14 @@ class OrbitalMapService(
                     ).take(MapSnapshot.MAX_OBJECTS)
             publish(
                 player,
-                MapSnapshot(checkNotNull(viewers[player.uuid]).token, tick, position, selected, objects.size.coerceAtMost(1000000)),
+                MapSnapshot(
+                    checkNotNull(viewers[player.uuid]).token,
+                    tick,
+                    position,
+                    selected,
+                    objects.size.coerceAtMost(1000000),
+                    OrbitalMapHooks.gravity(server),
+                ),
             )
             sent[player.uuid] = tick
         }

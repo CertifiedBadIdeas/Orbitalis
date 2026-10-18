@@ -18,5 +18,13 @@
   "map.orbitalis.altitude": "Высота (Y): %s",
   "map.orbitalis.speed": "Скорость: %s м/с",
   "map.orbitalis.distance": "Расстояние: %s",
-  "map.orbitalis.object": "Объект %s"
+  "map.orbitalis.object": "Объект %s",
+  "map.orbitalis.forecast.pending": "Расчёт траектории…",
+  "map.orbitalis.forecast.orbit": "Замкнутая орбита · %s с",
+  "map.orbitalis.forecast.revolution": "Виток с прецессией · %s с",
+  "map.orbitalis.forecast.body_intersection": "Удар о поверхность · %s с",
+  "map.orbitalis.forecast.surface_entry": "Вход к поверхности · %s с",
+  "map.orbitalis.forecast.horizon": "Предел прогноза · %s с",
+  "map.orbitalis.forecast.range": "Предел дальности · %s с",
+  "map.orbitalis.forecast.unavailable": "Прогноз вне расчётного диапазона"
 }

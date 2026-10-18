@@ -20,6 +20,11 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Show ballistic trajectories on the orbital map, highlighting the selected construction. Extend coast
+  forecasts beyond the former 120-second limit through a full revolution: periodic orbits close,
+  precessing turns remain open and suborbital arcs end on the reference body. Map previews use native
+  gravity, run on a bounded screen worker and never load orbital objects or terrain.
+
 - Keep WorldGenV2 searches moving past exhausted partial batches at the finite surface border and
   circular generation radius, without changing completion records or generating exterior terrain.
 

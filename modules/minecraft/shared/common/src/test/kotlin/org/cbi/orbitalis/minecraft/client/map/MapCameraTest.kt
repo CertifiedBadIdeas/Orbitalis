@@ -54,6 +54,16 @@ class MapCameraTest {
         assertNull(camera.project(Vector3.ZERO, 0, 400))
     }
 
+    @Test fun trajectoryEndpointsOutsideViewportKeepTheirProjection() {
+        val camera = MapCamera()
+        val inside = camera.focus + camera.right * 500.0
+        assertEquals(camera.project(inside, 600, 400), camera.projectRaw(inside, 600, 400))
+        val outside = camera.focus + camera.right * 50000.0
+        assertNull(camera.project(outside, 600, 400))
+        assertTrue(camera.projectRaw(outside, 600, 400).x > 600)
+        assertEquals(200.0, camera.projectRaw(outside, 600, 400).y, 0.001)
+    }
+
     @Test fun zoomAndPolesStayBoundedAndResetRestoresOverview() {
         val camera = MapCamera()
         repeat(100) {

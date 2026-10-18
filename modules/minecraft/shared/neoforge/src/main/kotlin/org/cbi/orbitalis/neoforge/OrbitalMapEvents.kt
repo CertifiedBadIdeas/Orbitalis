@@ -69,7 +69,7 @@ object OrbitalMapEvents {
 object OrbitalMapNetwork {
     @JvmStatic @SubscribeEvent
     fun register(event: RegisterPayloadHandlersEvent) {
-        val registrar = event.registrar("1")
+        val registrar = event.registrar("2")
         registrar.playToServer(MapRequest.TYPE, MapRequest.CODEC) { request, context ->
             context.enqueueWork { (context.player() as? ServerPlayer)?.let { OrbitalMapEvents.request(it, request) } }
         }

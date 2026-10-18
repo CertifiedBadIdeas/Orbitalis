@@ -43,6 +43,7 @@ class OrbitalMapScreen(
 ) : Screen(Component.translatable("map.orbitalis.title")) {
     private val token = UUID.randomUUID()
     private val camera = MapCamera()
+    private var trajectories: MapTrajectories? = null
     private var snapshot: MapSnapshot? = null
     private var receivedAt = 0L
     private var selected: UUID? = null
@@ -59,7 +60,7 @@ class OrbitalMapScreen(
     private val viewWidth get() = (width - panelWidth - 36).coerceAtLeast(1)
     private val viewHeight get() = (height - 92).coerceAtLeast(1)
     private val panelX get() = viewX + viewWidth + 12
-    private val listY get() = viewY + 112
+    private val listY get() = viewY + 126
     private val listRows get() = ((height - 32 - listY) / 20).coerceIn(0, 12)
     private var items = emptyList<MapObject>()
 
@@ -73,11 +74,12 @@ class OrbitalMapScreen(
                 Button
                     .builder(Component.translatable("map.orbitalis.focus")) {
                         snapshot?.objects?.find { it.id == selected }?.let { camera.focus = it.position }
-                    }.bounds(panelX, viewY + 90, panelWidth - 12, 20)
+                    }.bounds(panelX, viewY + 104, panelWidth - 12, 20)
                     .build(),
             )
         addRenderableWidget(Button.builder(Component.translatable("gui.done")) { onClose() }.bounds(width - 76, 9, 64, 20).build())
         if (!subscribed) {
+            trajectories = MapTrajectories()
             subscribed = true
             send(MapRequest(token, true))
         }
@@ -110,6 +112,7 @@ class OrbitalMapScreen(
             heartbeat = 0
             send(MapRequest(token, true))
         }
+        trajectories?.update(snapshot, selected, camera.focus)
         focusButton?.active = snapshot?.objects?.any { it.id == selected } == true
     }
 
@@ -124,6 +127,8 @@ class OrbitalMapScreen(
     override fun isPauseScreen() = false
 
     override fun removed() {
+        trajectories?.close()
+        trajectories = null
         if (subscribed) {
             send(MapRequest(token, false))
             subscribed = false
@@ -161,6 +166,11 @@ class OrbitalMapScreen(
         graphics.flush()
         drawPlanet()
         graphics.enableScissor(viewX, viewY, viewX + viewWidth, viewY + viewHeight)
+        if (Util.getMillis() - receivedAt <=
+            3000L
+        ) {
+            MapTrajectoryRenderer.render(graphics, camera, trajectories?.paths.orEmpty(), selected, viewX, viewY, viewWidth, viewHeight)
+        }
         snapshot?.let { data ->
             for (item in data.objects) {
                 marker(
@@ -313,6 +323,29 @@ class OrbitalMapScreen(
             )
             line(64, Component.translatable("map.orbitalis.speed", number(item.velocity.length())))
             line(76, Component.translatable("map.orbitalis.distance", metric((item.position - data.player).length())))
+            val path =
+                trajectories
+                    ?.paths
+                    .orEmpty()
+                    .firstOrNull { it.source.id == selected }
+                    ?.prediction
+            line(
+                88,
+                if (item.position.length() >
+                    100000.0
+                ) {
+                    Component.translatable("map.orbitalis.forecast.unavailable")
+                } else if (path ==
+                    null
+                ) {
+                    Component.translatable("map.orbitalis.forecast.pending")
+                } else {
+                    Component.translatable(
+                        "map.orbitalis.forecast." + path.end.name.lowercase(Locale.ROOT),
+                        number(path.terminal.seconds),
+                    )
+                },
+            )
         }
         for ((index, entry) in items.drop(listOffset).take(listRows).withIndex()) {
             val y = listY + index * 20

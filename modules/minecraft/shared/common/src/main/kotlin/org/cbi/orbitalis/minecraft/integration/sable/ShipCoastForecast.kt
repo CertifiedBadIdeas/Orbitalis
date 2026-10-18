@@ -37,7 +37,7 @@ class ShipCoastForecast private constructor(
     private val field: SurfaceGravityLayer,
     private val limits: CoastPrediction.Limits,
 ) {
-    fun calculate(): TrajectorySnapshot = TrajectorySnapshot(ship, dimension, sampledTick, CoastPrediction.predict(field, state, limits))
+    fun calculate(): TrajectorySnapshot = TrajectorySnapshot(ship, dimension, sampledTick, CoastPrediction.orbit(field, state, limits))
 
     companion object {
         /** Call only on the server thread, after native mass initialization. */

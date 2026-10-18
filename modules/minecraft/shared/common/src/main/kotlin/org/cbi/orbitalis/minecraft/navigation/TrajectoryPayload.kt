@@ -26,7 +26,7 @@ import org.cbi.orbitalis.core.planet.CartesianState
 import org.cbi.orbitalis.core.planet.CoastPrediction
 import org.cbi.orbitalis.core.planet.Vector3
 
-/** Version-one clientbound, bounded and validated snapshot; null explicitly clears the path. */
+/** Version-two clientbound, bounded and validated snapshot; null explicitly clears the path. */
 data class TrajectoryPayload(
     val snapshot: TrajectorySnapshot?,
     val marker: Vector3? = null,

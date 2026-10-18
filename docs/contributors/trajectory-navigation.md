@@ -41,10 +41,12 @@ consumer's autopilot launch bookmark and does not retarget its controller. The m
 the trajectory subscription does not. One marker per player, at most 1024 markers per save.
 
 After `trajectory on`, stay in native contact with a loaded Sable construction (or a tracked vehicle
-on board). A cyan line shows the next 120 seconds of coast. A yellow cross is the first predicted
+on board). A cyan line shows a full ballistic turn when it fits the calculation budget. A yellow cross is the first predicted
 entry into the Overworld return region when that diagnostic is explicitly requested by code; the live
 coast forecast instead continues across the dimension boundary. A red cross is intersection of the
-centre of mass with the uniform reference body. A green cross marks your personal saved location. The live line ends at body intersection, a 30 km range bound or the forecast horizon. A horizon/range termination does not
+centre of mass with the uniform reference body. A green cross marks your personal saved location.
+The live line ends at body intersection, a complete turn, a 30 km range bound or the forecast horizon.
+Periodic paths close at the starting state; precessing full turns remain open. A horizon/range termination does not
 prove a stable orbit or escape. Use `status` for terminal event, time and physical coordinates.
 F1 hides the overlay. The line is a navigation overlay visible through geometry, not a rendered ship
 trail. Distant vertices preserve viewing direction inside the native far plane.
@@ -58,11 +60,17 @@ the line can therefore extend into terrain before the reference-body warning.
 
 ## Ownership and budgets
 
-`CoastPrediction` in core uses velocity Verlet with 0.05 s integration steps, 0.5 s output samples,
+`CoastPrediction` in core uses velocity Verlet, normally with 0.05 s integration steps and 0.5 s output samples,
 swept line/box clipping and finite limits. It accepts the same immutable `SurfaceGravityLayer` that
 supplies live construction forces. It is a general initial-state forecast, independent of the periodic
 meridian shooting in `BallisticOrbit`. No spherical Kepler fit or autopilot route is used. A suborbital arc ends on the reference body;
-a bound orbit is integrated through its future revolution without artificially closing the line.
+a bound orbit is integrated through its future revolution. A far-field energy estimate only budgets
+integration time; it does not replace the actual field. Forecasts stop at one signed revolution about
+the initial angular-momentum axis. A path closes only when its final position and velocity return
+within 0.5% (at least 2 m) and 1% (at least 0.1 m/s) of the initial state, respectively. Other full
+turns are labelled REVOLUTION rather than ORBIT. There is no forced geometric ellipse.
+Work remains bounded to 12,000 steps and 602 output samples; the horizon is capped at 3,600 seconds,
+with steps/output spacing increased for longer periods. Incomplete long-period paths retain HORIZON.
 The finite nonspherical field can precess and does not generally produce an exact ellipse.
 A new velocity sample after a burn changes the forecast; future thrust and planned burns are omitted. The pure API optionally expands
 the reference body by a conservative hull radius; the live display uses the centre of mass only.
@@ -83,13 +91,13 @@ client subscribers. Presentation uses the camera position and works independentl
 
 ## Contracts
 
-The clientbound `orbitalis:coast_trajectory` play payload uses registrar version `1`. There is no
+The clientbound `orbitalis:coast_trajectory` play payload uses registrar version `2`. There is no
 serverbound packet; commands are the sole subscription input. It contains an optional personal marker,
 an optional forecast (null clears), ship UUID, source dimension ID, source game tick, terminal event
 and bounded time/position/velocity samples. Decode validates enum, count (1..602), finite vectors,
-physical position/speed bounds, increasing time (0..300 s), time-zero initial sample and supported
-frames. The configured live horizon normally emits at most 242 points. Wrong protocol versions are
-rejected by NeoForge negotiation. This is a new protocol, with no existing client migration.
+physical position/speed bounds, increasing time (0..3600 s), time-zero initial sample and supported
+frames. The ORBIT and REVOLUTION events distinguish periodic closure from precession. Wrong protocol versions are
+rejected by NeoForge negotiation. Version two expands forecast time and terminal events; SavedData is unchanged.
 
 `orbitalis_navigation_markers` SavedData in Overworld writes version `1`, an NBT list of player UUIDs
 and finite physical surface coordinates. Missing data creates an empty store. Unknown versions,

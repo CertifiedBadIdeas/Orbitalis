@@ -119,7 +119,9 @@ Sable-only laboratory runs.
 The [orbital map](orbital-map.md) uses the shared planet scene with an independent screen camera.
 Leased server subscriptions provide bounded atlas/object snapshots from the surface or space, without
 loading orbital bodies or terrain. Its optional Sable adapter reads native live state and the existing
-motion index; no second simulation or native payload cache is created.
+motion index; no second simulation or native payload cache is created. A screen-owned worker derives
+bounded coast previews from immutable motion snapshots and native gravity using core's real-field
+predictor; periodic paths close after one revolution, while precessing or truncated paths remain open.
 
 Independent [coast trajectory navigation](trajectory-navigation.md) copies native Sable state on the server,
 forecasts with the same finite field on a bounded worker and sends validated physical path samples

@@ -72,9 +72,13 @@ object TrajectoryRenderer {
             }
             val elapsed = maxOf(0.0, (level.gameTime - snapshot.sampledTick) / 20.0)
             for (index in 1 until points.size) {
-                if (points[index].seconds < elapsed) continue
+                if (end != CoastPrediction.End.ORBIT && points[index].seconds < elapsed) continue
                 vertex(points[index - 1].state.position, 70, 220, 255)
                 vertex(points[index].state.position, 70, 220, 255)
+            }
+            if (end == CoastPrediction.End.ORBIT && points.size > 1) {
+                vertex(points.last().state.position, 70, 220, 255)
+                vertex(points.first().state.position, 70, 220, 255)
             }
             if (marker != null) {
                 for (axis in listOf(Vector3(8.0, 0.0, 0.0), Vector3(0.0, 16.0, 0.0), Vector3(0.0, 0.0, 8.0))) {

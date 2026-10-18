@@ -31,7 +31,22 @@ for navigation and are selectable through it. The sidebar reports native name (o
 state, signed vertical altitude relative to reference sea level Y=64, speed and physical distance from
 the viewer. Unloaded names are UUID labels because the motion index does not own native names. The
 scene is an overview: it shares the actual 32-metre planet relief/fallback mesh, not live ship block
-geometry. Trajectory lines, manoeuvres, ship commands and a multi-body selector are separate work.
+geometry. Cyan lines show ballistic forecasts; the selected object's line is gold. Manoeuvres, ship
+commands and a multi-body selector are separate work.
+
+Forecasts use each object's current physical position and velocity and the server's actual surface
+gravity. They omit thrust, future autopilot actions, drag, terrain and hull extent. A suborbital arc
+ends on the uniform reference slab. A periodic orbit is traced for a complete turn and joined at its
+start; a nonspherical-field orbit that precesses remains open after a complete turn. The sidebar
+reports that distinction, impact, range termination or the time budget. These are numerical paths in
+the real reference field, not fitted Kepler ellipses or autopilot routes.
+
+A screen-owned worker updates up to eight nearby trajectories once per second, prioritizing the
+selected object. It receives immutable snapshots and never touches a world or native physics handle.
+Each forecast has at most 12,000 integration steps and 602 samples, with a 3,600-second maximum
+horizon and a 100 km radius limit. Longer periods may remain incomplete; objects beyond that radius
+remain selectable but have no preview. The worker is interrupted and discarded on screen close.
+Lines share marker projection, viewport clipping and overlay visibility through the planet.
 
 ## Ownership and lifecycle
 
@@ -48,7 +63,7 @@ culling enables after drawing. Marker projection uses the same camera basis as t
 map admits that player to the existing bounded atlas stream; closing leaves the shared client atlas
 cache available for later map/orbital views. Atlas SavedData and its existing protocol are unchanged.
 
-## Version-one network contract
+## Version-two network contract
 
 `orbitalis:map_request` carries a screen-local random UUID token and an open/close flag. The native
 connection supplies player identity. Only Overworld/space subscribers are admitted. A 100-server-tick
@@ -56,22 +71,24 @@ lease is refreshed every 40 client ticks; close/logout/unsupported-dimension tra
 An old token cannot close a newer screen. Server ticks send at most one `orbitalis:map_snapshot` per
 viewer per ten ticks, even across rapid reopening. Expired subscriptions cause no object sampling.
 
-A snapshot carries that token, a monotonic service tick, physical viewer position, total count and at
+A snapshot carries that token, a monotonic service tick, physical viewer position, native surface gravity, total count and at
 most 4096 distinct object records. Records contain UUID, a plain name of at most 32 UTF-16 characters,
 physical position, velocity, loaded flag and motion epoch. No native NBT, inventories or storage
 addresses are sent. Finite position magnitude is bounded to 100 million metres and speed to 10,000
 m/s. Counts are validated before list allocation; duplicate identities and control characters are
-rejected. The maximum valid encoded snapshot fits Minecraft's one-megabyte client payload limit.
+rejected. Gravity must be finite and within 0.000001..1,000,000 m/s². The maximum valid encoded snapshot fits Minecraft's one-megabyte client payload limit.
 For overflow, nearest objects are retained and shown count differs from total. The client accepts only
 the current screen token and nondecreasing snapshot ticks. It marks missing/stale responses after
-three seconds; it does not invent motion or extrapolate the orbit. Screen state is discarded on close.
+three seconds and hides stale trajectory previews. Forecasts do not move the authoritative object
+markers. Screen state is discarded on close. Version two adds gravity to the snapshot; mismatched
+clients are rejected during native protocol negotiation, with no SavedData migration.
 
 ## Verification
 
 `MapCameraTest` checks actual scene-matrix agreement at different aspect ratios/rotations, distant
-focus and zoom/pole limits. `-PorbitalisGameTestSuite=map` requires `mappacketandlease` and
+focus, unclipped line endpoints and zoom/pole limits. `-PorbitalisGameTestSuite=map` requires `mappacketandlease` and
 `mapnativeorbitalobjects`: native buffer roundtrips and maximum payload size, malformed counts,
-duplicate UUID rejection, lease expiry/close/logout/token isolation/rate limiting, native Sable live
+duplicate UUID/gravity rejection, lease expiry/close/logout/token isolation/rate limiting, native Sable live
 state overriding a stale record and unloaded-state reads without terrain/body loading. Native test
 players deliberately have no real login; client receipt, GPU state, pointer input and visual layout
 require the isolated client scenario as well.
@@ -87,3 +104,12 @@ the client exited normally. The unloaded client fixture exercised index presenta
 GameTest separately proves reads without loading its native body. Marker hit projection is covered
 by the camera tests; this client run selected objects through the sidebar. Logs and screenshots are
 retained with the task's archived verification evidence.
+
+Trajectory preview verification on 2026-10-18 used a separate new flight-consumer world and native
+framebuffer captures at GUI scales 1 and 2. A periodic motion-index fixture produced a continuous
+228.9-second, 459-point closed loop, and a suborbital fixture produced an open impact arc. Sidebar
+selection changed line colour/status; native screen drag and wheel handlers preserved projection and
+clipping. Zoom-out fitted the full loop in the portrait viewport. Closing with the map key terminated
+the screen worker, restored world/menu rendering, and reopening allowed fixture cleanup. These
+fixtures verify client presentation of received orbital state; native body ownership and no-loading
+behavior are covered separately by the GameTests. Temporary preview probes are not shipped.

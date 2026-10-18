@@ -18,5 +18,13 @@
   "map.orbitalis.altitude": "Altitude (Y): %s",
   "map.orbitalis.speed": "Speed: %s m/s",
   "map.orbitalis.distance": "Distance: %s",
-  "map.orbitalis.object": "Object %s"
+  "map.orbitalis.object": "Object %s",
+  "map.orbitalis.forecast.pending": "Calculating trajectory…",
+  "map.orbitalis.forecast.orbit": "Closed orbit · %s s",
+  "map.orbitalis.forecast.revolution": "Full turn · precessing · %s s",
+  "map.orbitalis.forecast.body_intersection": "Surface impact · %s s",
+  "map.orbitalis.forecast.surface_entry": "Surface entry · %s s",
+  "map.orbitalis.forecast.horizon": "Forecast limit · %s s",
+  "map.orbitalis.forecast.range": "Range limit · %s s",
+  "map.orbitalis.forecast.unavailable": "Forecast outside supported range"
 }

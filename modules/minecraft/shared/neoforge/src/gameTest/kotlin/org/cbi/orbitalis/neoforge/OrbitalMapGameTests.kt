@@ -51,14 +51,24 @@ object OrbitalMapGameTests {
                 List(
                     MapSnapshot.MAX_OBJECTS,
                 ) { MapObject(UUID.randomUUID(), "界".repeat(32), Vector3(1.0, 8000.0, 3.0), Vector3.ZERO, false, 0) }
-            val value = MapSnapshot(token, 0, Vector3.ZERO, objects, objects.size)
+            val value = MapSnapshot(token, 0, Vector3.ZERO, objects, objects.size, 7.5)
             MapSnapshot.CODEC.encode(buffer, value)
             helper.assertTrue(buffer.writerIndex() < 1048576, "Snapshot exceeded native client payload budget")
             helper.assertTrue(MapSnapshot.CODEC.decode(buffer) == value, "Object snapshot roundtrip changed")
+            for (gravity in listOf(Double.NaN, -1.0, 0.0, Double.POSITIVE_INFINITY)) {
+                var rejectedGravity = false
+                try {
+                    value.copy(gravity = gravity)
+                } catch (_: IllegalArgumentException) {
+                    rejectedGravity = true
+                }
+                helper.assertTrue(rejectedGravity, "Invalid gravity accepted: $gravity")
+            }
             buffer.clear()
             buffer.writeUUID(token)
             buffer.writeLong(0)
             repeat(3) { buffer.writeDouble(0.0) }
+            buffer.writeDouble(11.0)
             buffer.writeVarInt(999999)
             buffer.writeVarInt(999999)
             var rejected = false

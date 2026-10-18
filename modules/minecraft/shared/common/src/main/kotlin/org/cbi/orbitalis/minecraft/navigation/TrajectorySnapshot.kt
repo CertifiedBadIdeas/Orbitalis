@@ -34,7 +34,7 @@ data class TrajectorySnapshot(
         require(sampledTick >= 0 && prediction.points.size in 1..602)
         var previous = -1.0
         for (point in prediction.points) {
-            require(point.seconds.isFinite() && point.seconds in 0.0..300.0 && point.seconds > previous)
+            require(point.seconds.isFinite() && point.seconds in 0.0..3600.0 && point.seconds > previous)
             require(point.state.position.length() <= 100000.0 && point.state.velocity.length() <= 10000.0)
             previous = point.seconds
         }

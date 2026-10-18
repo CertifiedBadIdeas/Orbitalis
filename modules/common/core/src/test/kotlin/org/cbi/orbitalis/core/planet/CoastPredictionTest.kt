@@ -162,6 +162,45 @@ class CoastPredictionTest {
     }
 
     @Test
+    fun `scaled planet forecast completes a full orbit beyond the old half turn horizon`() {
+        val scaled = FlatPlanetDefinition.gravity(11.0)
+        val orbit = BallisticOrbit.plan(scaled, FlatPlanetDefinition.ORBIT_HEIGHT)
+        val result = CoastPrediction.orbit(scaled, orbit.initial)
+        assertEquals(CoastPrediction.End.ORBIT, result.end)
+        assertTrue(result.terminal.seconds > 120.0)
+        assertTrue(abs(result.terminal.seconds - orbit.period) < 1.0)
+        assertTrue(result.points.any { it.state.position.y < -64.0 })
+        assertTrue((result.terminal.state.position - orbit.initial.position).length() < 2.0)
+        assertTrue(result.points.size <= 602)
+        val later = result.points[result.points.size / 3].state
+        val revised = CoastPrediction.orbit(scaled, later)
+        assertEquals(CoastPrediction.End.ORBIT, revised.end)
+        assertTrue((revised.terminal.state.position - later.position).length() < 2.0)
+    }
+
+    @Test
+    fun `complete orbit forecast still stops at impact and leaves escaping paths open`() {
+        val falling = CoastPrediction.orbit(field, CartesianState(Vector3(0.0, 700.0, 0.0), Vector3(10.0, -1.0, 0.0)))
+        assertEquals(CoastPrediction.End.BODY_INTERSECTION, falling.end)
+        val escaping = CoastPrediction.orbit(field, CartesianState(Vector3(0.0, 2000.0, 0.0), Vector3(500.0, 50.0, 0.0)))
+        assertTrue(escaping.end in setOf(CoastPrediction.End.RANGE, CoastPrediction.End.HORIZON))
+        assertTrue(escaping.points.size <= 602)
+    }
+
+    @Test
+    fun `precessing turns remain open and long periods respect the budget`() {
+        val orbit = BallisticOrbit.plan(field, 900.0)
+        val precessing = CoastPrediction.orbit(field, orbit.initial.copy(velocity = orbit.initial.velocity * 1.05))
+        assertEquals(CoastPrediction.End.REVOLUTION, precessing.end)
+        val scaled = FlatPlanetDefinition.gravity(11.0)
+        val distant = CartesianState(Vector3(0.0, 90000.0, 0.0), Vector3(sqrt(scaled.body.mu / 90000.0), 0.0, 0.0))
+        val bounded = CoastPrediction.orbit(scaled, distant, CoastPrediction.Limits(range = 100000.0))
+        assertEquals(CoastPrediction.End.HORIZON, bounded.end)
+        assertEquals(3600.0, bounded.terminal.seconds)
+        assertTrue(bounded.points.size <= 602)
+    }
+
+    @Test
     fun `range horizon and input budgets bound work without claiming escape`() {
         val result =
             CoastPrediction.predict(

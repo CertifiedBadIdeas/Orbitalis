@@ -30,7 +30,7 @@ object TrajectoryNetwork {
     @JvmStatic
     @SubscribeEvent
     fun register(event: RegisterPayloadHandlersEvent) {
-        event.registrar("1").playToClient(TrajectoryPayload.TYPE, TrajectoryPayload.CODEC) { payload, _ ->
+        event.registrar("2").playToClient(TrajectoryPayload.TYPE, TrajectoryPayload.CODEC) { payload, _ ->
             TrajectoryReceiver.accept(payload)
         }
     }

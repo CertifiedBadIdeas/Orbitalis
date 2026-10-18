@@ -37,6 +37,7 @@ import net.minecraft.network.FriendlyByteBuf
 import net.minecraft.util.Unit
 import net.minecraft.world.level.block.Blocks
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
+import org.cbi.orbitalis.core.planet.BallisticOrbit
 import org.cbi.orbitalis.core.planet.CoastPrediction
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
@@ -154,6 +155,31 @@ object TrajectoryGameTests {
                             helper.assertTrue(
                                 TrajectoryPayload.CODEC.decode(buffer) == payload && !buffer.isReadable,
                                 "Forecast packet lost state",
+                            )
+                            buffer.clear()
+                            val field = SableFlightGravity.flatField(helper.level.server.overworld())
+                            val periodic = CoastPrediction.orbit(field, BallisticOrbit.plan(field, FlatPlanetSpace.ORBIT_HEIGHT).initial)
+                            helper.assertTrue(
+                                periodic.end == CoastPrediction.End.ORBIT && periodic.terminal.seconds > 120.0,
+                                "Full orbit truncated",
+                            )
+                            val fullOrbit = TrajectoryPayload(result.copy(prediction = periodic))
+                            TrajectoryPayload.CODEC.encode(buffer, fullOrbit)
+                            helper.assertTrue(
+                                TrajectoryPayload.CODEC.decode(buffer) == fullOrbit && !buffer.isReadable,
+                                "Full-orbit event or extended time lost",
+                            )
+                            buffer.clear()
+                            val budgetPath =
+                                CoastPrediction.Result(
+                                    listOf(periodic.points.first(), periodic.terminal.copy(seconds = 3600.0)),
+                                    CoastPrediction.End.HORIZON,
+                                )
+                            val budgetPayload = TrajectoryPayload(result.copy(prediction = budgetPath))
+                            TrajectoryPayload.CODEC.encode(buffer, budgetPayload)
+                            helper.assertTrue(
+                                TrajectoryPayload.CODEC.decode(buffer) == budgetPayload,
+                                "Extended 3600-second forecast rejected",
                             )
                             buffer.clear()
                             TrajectoryPayload.CODEC.encode(buffer, TrajectoryPayload(null))

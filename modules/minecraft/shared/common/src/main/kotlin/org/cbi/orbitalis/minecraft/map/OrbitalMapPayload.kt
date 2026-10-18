@@ -70,8 +70,10 @@ data class MapSnapshot(
     val player: Vector3,
     val objects: List<MapObject>,
     val total: Int,
+    val gravity: Double = 11.0,
 ) : CustomPacketPayload {
     init {
+        require(gravity.isFinite() && gravity in 1e-6..1e6)
         require(tick >= 0 && player.length() <= 1e8)
         require(objects.size <= MAX_OBJECTS && total in objects.size..1000000)
         require(objects.map { it.id }.toSet().size == objects.size)
@@ -91,6 +93,7 @@ data class MapSnapshot(
                     buffer.writeUUID(value.token)
                     buffer.writeLong(value.tick)
                     vector(buffer, value.player)
+                    buffer.writeDouble(value.gravity)
                     buffer.writeVarInt(value.total)
                     buffer.writeVarInt(value.objects.size)
                     for (item in value.objects) {
@@ -107,6 +110,8 @@ data class MapSnapshot(
                     val token = buffer.readUUID()
                     val tick = buffer.readLong()
                     val player = vector(buffer)
+                    val gravity = buffer.readDouble()
+                    require(gravity.isFinite() && gravity in 1e-6..1e6)
                     val total = buffer.readVarInt()
                     val count = buffer.readVarInt()
                     require(count in 0..MAX_OBJECTS && total in count..1000000)
@@ -125,6 +130,7 @@ data class MapSnapshot(
                             )
                         },
                         total,
+                        gravity,
                     )
                 }
             }

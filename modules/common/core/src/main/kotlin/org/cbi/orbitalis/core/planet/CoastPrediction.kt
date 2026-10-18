@@ -18,14 +18,17 @@
 
 package org.cbi.orbitalis.core.planet
 
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.atan2
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 
 /** Bounded forecast of a construction with all non-gravitational forces omitted. */
 object CoastPrediction {
-    enum class End { HORIZON, SURFACE_ENTRY, BODY_INTERSECTION, RANGE }
+    enum class End { HORIZON, SURFACE_ENTRY, BODY_INTERSECTION, RANGE, ORBIT, REVOLUTION }
 
     data class Point(
         val seconds: Double,
@@ -50,16 +53,38 @@ object CoastPrediction {
         val detectEntry: Boolean = false,
         val entryInitiallyArmed: Boolean = true,
         val entryArmHeight: Double = 664.0,
+        val stopAfterRevolution: Boolean = false,
     ) {
         init {
-            require(horizon.isFinite() && horizon in 0.05..300.0)
-            require(step.isFinite() && step in 0.005..0.1 && ceil(horizon / step) <= 12000)
+            require(horizon.isFinite() && horizon in 0.05..3600.0)
+            require(step.isFinite() && step in 0.005..0.5 && ceil(horizon / step) <= 12000)
             require(sampleInterval.isFinite() && sampleInterval >= step && ceil(horizon / sampleInterval) <= 600)
             require(range.isFinite() && range in 100.0..100000.0)
             require(hullRadius.isFinite() && hullRadius in 0.0..128.0)
             require(entryArmHeight.isFinite() && entryArmHeight >= entryHeight)
             require(entryHeight.isFinite() && footprintHalfSize.isFinite() && footprintHalfSize > 0.0)
         }
+    }
+
+    /** Follow the real field for a full turn, with a bounded far-field period estimate for budgeting. */
+    fun orbit(
+        field: SurfaceGravityLayer,
+        initial: CartesianState,
+        limits: Limits = Limits(),
+    ): Result {
+        val energy = field.specificEnergy(initial)
+        val period = if (energy < 0.0) 2 * PI * field.body.mu / (-2 * energy).pow(1.5) else 120.0
+        val horizon = max(120.0, period * 1.5).coerceAtMost(3600.0)
+        return predict(
+            field,
+            initial,
+            limits.copy(
+                horizon = horizon,
+                step = max(limits.step, horizon / 11999.0),
+                sampleInterval = max(limits.sampleInterval, horizon / 599.0),
+                stopAfterRevolution = true,
+            ),
+        )
     }
 
     /** No game objects, background thread safe. Interruption cancels without publishing a partial path. */
@@ -89,6 +114,9 @@ object CoastPrediction {
         if (limits.detectEntry && entryArmed && entry(initial.position, initial.velocity, field.body.halfHeight, limits)) {
             return Result(points, End.SURFACE_ENTRY)
         }
+        val momentum = initial.position.cross(initial.velocity)
+        val axis = if (limits.stopAfterRevolution && momentum.length() > 1e-6) momentum.normalized() else null
+        var winding = 0.0
         var state = initial
         var time = 0.0
         var nextSample = limits.sampleInterval
@@ -121,6 +149,25 @@ object CoastPrediction {
                     ),
                 )
                 return Result(points.toList(), event.second)
+            }
+            if (axis != null) {
+                val a = state.position - axis * state.position.dot(axis)
+                val b = next.position - axis * next.position.dot(axis)
+                val turn = atan2(axis.dot(a.cross(b)), a.dot(b))
+                if (turn > 0 && winding + turn >= 2 * PI) {
+                    val fraction = ((2 * PI - winding) / turn).coerceIn(0.0, 1.0)
+                    val final =
+                        CartesianState(
+                            state.position + (next.position - state.position) * fraction,
+                            state.velocity + (next.velocity - state.velocity) * fraction,
+                        )
+                    append(Point(time + dt * fraction, final))
+                    val closed =
+                        (final.position - initial.position).length() <= max(2.0, initial.position.length() * 0.005) &&
+                            (final.velocity - initial.velocity).length() <= max(0.1, initial.velocity.length() * 0.01)
+                    return Result(points.toList(), if (closed) End.ORBIT else End.REVOLUTION)
+                }
+                winding += turn
             }
             time = min(limits.horizon, time + dt)
             state = next

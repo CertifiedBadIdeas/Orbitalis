@@ -33,6 +33,7 @@ import org.joml.Vector3d
 object SableMapObjects {
     fun install() {
         OrbitalMapHooks.objects = ::snapshot
+        OrbitalMapHooks.gravity = { SableFlightGravity.flatField(it.overworld()).body.surfaceAcceleration }
     }
 
     fun snapshot(server: MinecraftServer): List<MapObject> {
