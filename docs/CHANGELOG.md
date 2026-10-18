@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Add core prescribed elliptic ephemerides and sampled celestial hierarchies with position, velocity,
+  acceleration and precise relative coordinates. Native gravity, worlds and sky remain on the current
+  single-Earth route pending solar-system integration.
+
 - Add a core orbital evolution entry point that samples time-dependent gravity at absolute simulation
   ticks, preparing moving celestial sources without changing existing static-field flight or daylight.
 
