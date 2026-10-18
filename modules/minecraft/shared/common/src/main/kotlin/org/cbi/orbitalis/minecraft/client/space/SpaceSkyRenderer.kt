@@ -131,7 +131,18 @@ object SpaceSkyRenderer {
             RenderSystem.enableDepthTest()
             RenderSystem.depthMask(true)
             RenderSystem.depthFunc(GL11.GL_LEQUAL)
-            SurfacePlanetRenderer.renderScene(observer, matrix, RenderSystem.getProjectionMatrix(), scale)
+            SurfacePlanetRenderer.renderScene(observer, matrix, RenderSystem.getProjectionMatrix(), scale, clouds = false)
+            PlanetCloudRenderer.prepareWorld(
+                level,
+                observer,
+                matrix,
+                RenderSystem.getProjectionMatrix(),
+                scale,
+                surface.depthTextureId,
+                opacity,
+                width,
+                height,
+            )
             GlStateManager._glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, drawFramebuffer)
             GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, readFramebuffer)
             RenderSystem.viewport(viewport[0], viewport[1], viewport[2], viewport[3])

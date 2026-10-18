@@ -1,0 +1,206 @@
+/*
+ * The Orbitalis Developers
+ *
+ * Copyright 2026 Vsevolod Petrov (lazyhat)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.cbi.orbitalis.minecraft.client.space
+
+import com.mojang.blaze3d.systems.RenderSystem
+import com.mojang.blaze3d.vertex.BufferUploader
+import com.mojang.blaze3d.vertex.DefaultVertexFormat
+import com.mojang.blaze3d.vertex.Tesselator
+import com.mojang.blaze3d.vertex.VertexFormat
+import net.minecraft.client.CloudStatus
+import net.minecraft.client.Minecraft
+import net.minecraft.client.multiplayer.ClientLevel
+import net.minecraft.client.renderer.GameRenderer
+import net.minecraft.client.renderer.ShaderInstance
+import net.minecraft.client.renderer.texture.SimpleTexture
+import net.minecraft.resources.ResourceLocation
+import net.minecraft.server.packs.resources.ResourceManager
+import net.minecraft.world.level.Level
+import net.minecraft.world.phys.Vec3
+import org.cbi.orbitalis.core.planet.Vector3
+import org.joml.Matrix4f
+import org.lwjgl.opengl.GL11
+import org.lwjgl.opengl.GL12
+import org.lwjgl.opengl.GL14
+import org.lwjgl.opengl.GL30
+
+/** Finite cloud overview using the runtime Minecraft texture and the native renderer's phase. */
+object PlanetCloudRenderer {
+    private val texture = ResourceLocation.withDefaultNamespace("textures/environment/clouds.png")
+    private val filtered = ResourceLocation.fromNamespaceAndPath("orbitalis", "planet_clouds")
+    private var registered = false
+    var worldShader: ShaderInstance? = null
+    private var scene: Scene? = null
+
+    private data class Scene(
+        val level: ClientLevel,
+        val observer: Vector3,
+        val view: Matrix4f,
+        val projection: Matrix4f,
+        val scale: Double,
+        val depth: Int,
+        val color: Vec3,
+        val width: Int,
+        val height: Int,
+    )
+
+    private class CloudTexture : SimpleTexture(texture) {
+        override fun load(resources: ResourceManager) {
+            super.load(resources)
+            val filter =
+                com.mojang.blaze3d.pipeline.RenderCall {
+                    bind()
+                    GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL12.GL_TEXTURE_MAX_LEVEL, 8)
+                    GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL11.GL_REPEAT)
+                    GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL11.GL_REPEAT)
+                    GL30.glGenerateMipmap(GL11.GL_TEXTURE_2D)
+                    setFilter(true, true)
+                }
+            if (RenderSystem.isOnRenderThreadOrInit()) filter.execute() else RenderSystem.recordRenderCall(filter)
+        }
+    }
+
+    private fun textureId(): Int {
+        val manager = Minecraft.getInstance().textureManager
+        if (!registered) {
+            manager.register(filtered, CloudTexture())
+            registered = true
+        }
+        return manager.getTexture(filtered).id
+    }
+
+    private var time = 0f
+    private var height = 192f
+    private var nativeColor = Vec3(1.0, 1.0, 1.0)
+
+    /** Called before either world's sky hook; LevelRenderer's clock survives native travel. */
+    fun synchronize(
+        nativeTime: Float,
+        surfaceHeight: Float?,
+        surfaceColor: Vec3,
+    ) {
+        scene = null
+        time = nativeTime
+        if (surfaceHeight != null) height = surfaceHeight
+        nativeColor = surfaceColor
+    }
+
+    fun clear() {
+        time = 0f
+        height = 192f
+        nativeColor = Vec3(1.0, 1.0, 1.0)
+        scene = null
+        if (registered) Minecraft.getInstance().textureManager.release(filtered)
+        registered = false
+    }
+
+    fun prepareWorld(
+        level: ClientLevel,
+        observer: Vector3,
+        view: Matrix4f,
+        projection: Matrix4f,
+        scale: Double,
+        depth: Int,
+        opacity: Float,
+        width: Int,
+        height: Int,
+    ) {
+        val color =
+            if (level.dimension() ==
+                Level.OVERWORLD
+            ) {
+                nativeColor.lerp(Vec3(1.0, 1.0, 1.0), opacity.toDouble())
+            } else {
+                Vec3(1.0, 1.0, 1.0)
+            }
+        scene = Scene(level, observer, Matrix4f(view), Matrix4f(projection), scale, depth, color, width, height)
+    }
+
+    fun renderWorld() {
+        val frame = scene ?: return
+        scene = null
+        if (Minecraft.getInstance().level !== frame.level || worldShader == null) return
+        render(frame.observer, frame.view, frame.projection, frame.scale, frame)
+    }
+
+    fun render(
+        observer: Vector3,
+        view: Matrix4f,
+        projection: Matrix4f,
+        scale: Double,
+    ) = render(observer, view, projection, scale, null)
+
+    private fun render(
+        observer: Vector3,
+        view: Matrix4f,
+        projection: Matrix4f,
+        scale: Double,
+        frame: Scene?,
+    ) {
+        val mc = Minecraft.getInstance()
+        val clouds = mc.options.cloudsType
+        if (clouds == CloudStatus.OFF || !height.isFinite()) return
+        // The distant overview is one masked sheet, matching native FAST or FANCY upper height.
+        val y = height + 0.33f + if (clouds == CloudStatus.FANCY) 4f else 0f
+        val modelView = Matrix4f(view).scale(scale.toFloat()).translate(-observer.x.toFloat(), -observer.y.toFloat(), -observer.z.toFloat())
+        val shader = checkNotNull(if (frame == null) GameRenderer.getPositionTexColorShader() else worldShader)
+        val depth = GL11.glIsEnabled(GL11.GL_DEPTH_TEST)
+        val write = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK)
+        val cull = GL11.glIsEnabled(GL11.GL_CULL_FACE)
+        val blend = GL11.glIsEnabled(GL11.GL_BLEND)
+        val src = GL11.glGetInteger(GL14.GL_BLEND_SRC_RGB)
+        val dst = GL11.glGetInteger(GL14.GL_BLEND_DST_RGB)
+        val srcAlpha = GL11.glGetInteger(GL14.GL_BLEND_SRC_ALPHA)
+        val dstAlpha = GL11.glGetInteger(GL14.GL_BLEND_DST_ALPHA)
+        try {
+            RenderSystem.enableDepthTest()
+            RenderSystem.depthMask(false)
+            RenderSystem.disableCull()
+            RenderSystem.enableBlend()
+            RenderSystem.defaultBlendFunc()
+            shader.MODEL_VIEW_MATRIX?.set(modelView)
+            shader.PROJECTION_MATRIX?.set(projection)
+            val color = frame?.color ?: Vec3(1.0, 1.0, 1.0)
+            shader.COLOR_MODULATOR?.set(color.x.toFloat(), color.y.toFloat(), color.z.toFloat(), 1f)
+            shader.setSampler("Sampler0", textureId())
+            if (frame != null) {
+                shader.setSampler("Sampler1", frame.depth)
+                shader.getUniform("SceneScale")?.set(scale.toFloat())
+                shader.getUniform("Viewport")?.set(frame.width.toFloat(), frame.height.toFloat())
+            }
+            shader.apply()
+            val buffer = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR)
+            val h = SpaceScene.HALF_SIZE.toFloat()
+            for ((x, z) in listOf(-h to -h, h to -h, h to h, -h to h)) {
+                // Native cloud pixels cover 12 metres; texture period is 256 pixels.
+                val u = (x + time * 0.03f) / 3072f
+                val v = (z / 12f + 0.33f) / 256f
+                buffer.addVertex(x, y, z).setUv(u, v).setColor(255, 255, 255, 204)
+            }
+            BufferUploader.draw(buffer.buildOrThrow())
+        } finally {
+            shader.clear()
+            RenderSystem.blendFuncSeparate(src, dst, srcAlpha, dstAlpha)
+            if (depth) RenderSystem.enableDepthTest() else RenderSystem.disableDepthTest()
+            RenderSystem.depthMask(write)
+            if (cull) RenderSystem.enableCull() else RenderSystem.disableCull()
+            if (blend) RenderSystem.enableBlend() else RenderSystem.disableBlend()
+        }
+    }
+}

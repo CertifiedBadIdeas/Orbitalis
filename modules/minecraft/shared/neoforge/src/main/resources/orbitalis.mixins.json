@@ -26,6 +26,7 @@
   "client": [
     "ClientLevelSpaceEffectsMixin",
     "FlightSkyRendererMixin",
+    "PlanetCloudProjectionMixin",
     "FlightTransitionPacketMixin",
     "FlightSkyLightMixin",
     "ShipCameraMixin",
