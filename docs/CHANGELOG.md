@@ -42,6 +42,11 @@ limitations under the License.
   acceleration transport and body angular velocity. This foundation is not yet wired into world physics
   or Sun rendering.
 
+- Show a finite drifting cloud layer over the planet in space and the orbital map, using the native
+  Minecraft texture, cloud setting and renderer clock. Preserve terrain occlusion without loading
+  surface chunks or adding weather/lighting simulation. Replace the elevated native/Sodium layer
+  to prevent overlapping cloud flicker, and keep distant terrain in the same physical depth range.
+
 - Blend high-altitude Overworld sky, fog, clouds, rain and exposed light towards the shared orbital
   scene before travel, streaming the existing bounded terrain atlas on ascent. Hold a fresh gameplay
   frame through native Overworld/space loading and fade into the ready destination; pauses remain,

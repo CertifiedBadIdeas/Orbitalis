@@ -111,6 +111,7 @@ object SurfacePlanetRenderer {
 
     fun clear() {
         RenderSystem.assertOnRenderThread()
+        PlanetCloudRenderer.clear()
         generation++
         pending?.thenAccept { it.close() }
         pending = null
@@ -147,6 +148,7 @@ object SurfacePlanetRenderer {
         view: Matrix4f,
         projection: Matrix4f,
         scale: Double,
+        clouds: Boolean = true,
     ) {
         updateMesh()
         val modelView = Matrix4f(view).scale(scale.toFloat()).translate(-observer.x.toFloat(), -observer.y.toFloat(), -observer.z.toFloat())
@@ -156,5 +158,6 @@ object SurfacePlanetRenderer {
         } finally {
             VertexBuffer.unbind()
         }
+        if (clouds) PlanetCloudRenderer.render(observer, view, projection, scale)
     }
 }

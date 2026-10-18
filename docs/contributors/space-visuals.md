@@ -19,8 +19,8 @@ limitations under the License.
 
 # Space presentation
 
-`orbitalis:space` uses black vacuum fog, a fixed star field and a fixed Sun. Clouds,
-rain rendering and sunrise/sunset gradients are suppressed. Exposed skylight has constant daytime
+`orbitalis:space` uses black vacuum fog, a fixed star field and a fixed Sun. Native nearby clouds,
+rain rendering and sunrise/sunset gradients are suppressed; the planet retains a distant cloud layer. Exposed skylight has constant daytime
 brightness; native sky occlusion and warm block lights remain, followed by vanilla gamma, night vision
 and darkness handling. Minecraft's ordinary face shading remains: this is not directional shadow
 mapping or a physical sunlight simulation. Server time and weather simulation are unchanged. The ordinary ground-level Overworld sky remains
@@ -87,6 +87,32 @@ and disconnect releases completed/pending CPU buffers without waiting. The top i
 quads, with at most two interior skirts per cell and bounded perimeter skirts. Sky is hidden in fluids, powder snow and under blindness/darkness;
 medium-specific fog is retained.
 
+`PlanetCloudRenderer` draws one translucent, alpha-masked sheet over the finite footprint. The map
+uses its existing shared scene depth. In the world, the cloud pass runs after level rendering and
+writes physical projected fragment depth, so clouds can cover detailed terrain below them while ships
+and mountains in front remain visible. The shader additionally samples the private sky depth to
+preserve atlas-relief/underside occlusion. Clouds do not write depth or overwrite the main world's
+projection, framebuffer or viewport.
+
+At transition heights the native camera's far plane grows to enclose the reference body. Keeping clouds
+and distant terrain inside the same physical depth range avoids far-plane saturation, including LOD
+terrain which can remain visible beyond the ordinary chunk far plane. This adjusts camera projection,
+not terrain tickets, chunk generation, fog distance or render-distance settings. Frame matrices and the
+planet depth target are captured together each sky pass and consumed once after that level renders;
+a skipped sky, changed level, fluid/effect restriction or disconnect cannot reuse a stale cloud frame.
+
+The runtime `minecraft:textures/environment/clouds.png` resource supplies native 12-metre pixels,
+texture phase and 0.03-metre/tick drift. A private SimpleTexture generates filtered mipmaps for the
+overview without altering the surface cloud texture. Resource reload rebuilds them, and disconnect
+releases the private texture. No Minecraft asset is copied or bundled. The native OFF option hides
+the overview. FAST uses the native base height and FANCY its upper height; this overview has no
+volumetric sides. The last observed Overworld cloud height is retained through travel (192 by default);
+the same LevelRenderer clock is sampled before either sky pass. Above the visual transition start,
+this height/phase-matched overview replaces the entire native cloud method, including Sodium's
+replacement. A single elevated layer prevents coplanar depth flicker; colour blends from native
+surface cloud colour towards orbital white. The native cloud pass remains below that boundary.
+This is presentation, not weather simulation or cloud shadows.
+
 The new [finite-body route](flat-gravity.md) uses `orbitalis:space`, with represented Y equal to
 physical Y+4096. Its geometry shares the initial surface size and sea-level constants with this mesh.
 The ship can view the slab from above, alongside and below. Higher-resolution terrain textures, physical atmospheric scattering, eclipses
@@ -129,7 +155,7 @@ Y=364 and reaches full vacuum at Y=1564 for the current planet size, before both
 and ascent (3064) triggers. Both frames therefore show the same sky at their handoff. The weight
 uses the existing route coordinate transform and scale constants, not distance from a dimension's
 native Y origin. At and below the start, native sky rendering remains unchanged. Fog, native cloud
-opacity, rendered rain strength and exposed lightmap colours approach the orbital presentation with
+presentation, rendered rain strength and exposed lightmap colours approach the orbital presentation with
 the same weight. Fluid and effect-specific sky restrictions remain. A lightmap adapter wraps only
 the native Overworld effects and delegates its render hooks; unrelated effects implementations stay
 native. Custom sky/weather renderers which bypass these hooks require their own verification.

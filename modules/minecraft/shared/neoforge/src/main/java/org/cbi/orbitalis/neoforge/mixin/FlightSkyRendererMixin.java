@@ -21,15 +21,13 @@ package org.cbi.orbitalis.neoforge.mixin;
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.VertexBuffer;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.LevelRenderer;
-import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.world.level.Level;
 import org.cbi.orbitalis.minecraft.client.space.FlightSky;
+import org.cbi.orbitalis.minecraft.client.space.PlanetCloudRenderer;
 import org.cbi.orbitalis.minecraft.client.space.SpaceSkyRenderer;
 import org.joml.Matrix4f;
 import org.spongepowered.asm.mixin.Mixin;
@@ -40,10 +38,14 @@ import org.spongepowered.asm.mixin.injection.At;
 @Mixin(LevelRenderer.class)
 public abstract class FlightSkyRendererMixin {
     @Shadow private ClientLevel level;
+    @Shadow private int ticks;
 
     @WrapMethod(method = "renderSky")
     private void orbitalis$sky(Matrix4f view, Matrix4f projection, float partialTick, Camera camera,
                                boolean foggy, Runnable setupFog, Operation<Void> original) {
+        PlanetCloudRenderer.INSTANCE.synchronize(ticks + partialTick,
+            level.dimension() == Level.OVERWORLD ? level.effects().getCloudHeight() : null,
+            level.getCloudColor(partialTick));
         float weight = FlightSky.INSTANCE.weight(level, camera);
         if (level.dimension() != Level.OVERWORLD || weight <= 0) {
             original.call(view, projection, partialTick, camera, foggy, setupFog);
@@ -54,18 +56,14 @@ public abstract class FlightSkyRendererMixin {
         SpaceSkyRenderer.INSTANCE.render(level, camera, view, foggy, weight);
     }
 
-    @WrapOperation(method = "renderClouds", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/vertex/VertexBuffer;drawWithShader(Lorg/joml/Matrix4f;Lorg/joml/Matrix4f;Lnet/minecraft/client/renderer/ShaderInstance;)V"))
-    private void orbitalis$clouds(VertexBuffer buffer, Matrix4f view, Matrix4f projection, ShaderInstance shader,
-                                  Operation<Void> original) {
-        float weight = FlightSky.INSTANCE.weight(level, Minecraft.getInstance().gameRenderer.getMainCamera());
-        if (weight >= 1) return;
-        float[] color = RenderSystem.getShaderColor().clone();
-        try {
-            RenderSystem.setShaderColor(color[0], color[1], color[2], color[3] * (1 - weight));
-            original.call(buffer, view, projection, shader);
-        } finally {
-            RenderSystem.setShaderColor(color[0], color[1], color[2], color[3]);
-        }
+    @WrapMethod(method = "renderClouds")
+    private void orbitalis$cloudLayer(com.mojang.blaze3d.vertex.PoseStack poses, Matrix4f view,
+                                      Matrix4f projection, float partialTick, double x, double y, double z,
+                                      Operation<Void> original) {
+        // Wrap the entire method, including renderer replacements injected by Sodium.
+        // One height/phase-matched layer owns the elevated view: coincident sheets would z-fight.
+        if (FlightSky.INSTANCE.weight(level, Minecraft.getInstance().gameRenderer.getMainCamera()) > 0) return;
+        original.call(poses, view, projection, partialTick, x, y, z);
     }
 
     @WrapOperation(method = {"renderSnowAndRain", "tickRain"}, at = @At(value = "INVOKE", target = "Lnet/minecraft/client/multiplayer/ClientLevel;getRainLevel(F)F"))
