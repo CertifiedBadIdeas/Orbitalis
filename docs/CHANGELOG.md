@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Keep Creative free-flight input in the visible lunar horizon across surface/space transitions,
+  retaining orbital transport velocity while Space/Shift and directional steering accelerate in
+  the same local directions. Preserve transported camera roll when looking directly along local up.
+
 - Derive Earth/Moon orbit distances from unchanged mass parameters and physical periods: a 365.24-day
   year and 27.32-day lunar revolution, using 20-minute mean solar days. Define the corresponding
   sidereal spin period without changing vanilla daylight. Migrate existing catalogues at preserved

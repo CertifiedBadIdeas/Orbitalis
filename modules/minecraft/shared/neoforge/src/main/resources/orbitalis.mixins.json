@@ -27,6 +27,8 @@
     "defaultRequire": 1
   },
   "client": [
+    "CreativeFlightLiftMixin",
+    "CreativeFlightMovementMixin",
     "ClientLevelSpaceEffectsMixin",
     "FlightSkyRendererMixin",
     "PlanetCloudProjectionMixin",

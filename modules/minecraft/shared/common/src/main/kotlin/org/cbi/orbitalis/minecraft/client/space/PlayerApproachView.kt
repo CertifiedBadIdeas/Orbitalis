@@ -31,7 +31,58 @@ object PlayerApproachView {
     private val reference = LunarApproachView()
     private var connection: Any? = null
     private var roll = 0.0
+    private var rootScreenUp: Vector3? = null
     private var dimension: net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level>? = null
+
+    /** Only input acceleration changes basis; the existing orbital velocity remains untouched. */
+    private fun creativeAxes(player: net.minecraft.client.player.LocalPlayer): org.cbi.orbitalis.core.orbit.FlightControlAxes? {
+        val level = player.level()
+        if (!player.abilities.flying || player.isPassenger || FlightTransitionContact.ship() != null ||
+            !FlatPlanetSpace.contains(level) || !CelestialFlight.available(level)
+        ) {
+            return null
+        }
+        val up =
+            reference.up(
+                CelestialView.sample().frames,
+                Vector3(player.x, player.y, player.z),
+                CelestialFlight.world(level.dimension()),
+            )
+        if ((up - Vector3(0.0, 1.0, 0.0)).length() < 1e-9) return null
+        val look = player.lookAngle
+        val screenUp =
+            Minecraft
+                .getInstance()
+                .gameRenderer.mainCamera.upVector
+        return org.cbi.orbitalis.core.orbit.FlightControlAxes.fromView(
+            up,
+            Vector3(look.x, look.y, look.z),
+            Vector3(screenUp.x.toDouble(), screenUp.y.toDouble(), screenUp.z.toDouble()),
+        )
+    }
+
+    @JvmStatic
+    fun creativeLift(
+        player: net.minecraft.client.player.LocalPlayer,
+        amount: Double,
+    ): net.minecraft.world.phys.Vec3 {
+        val up = creativeAxes(player)?.up ?: Vector3(0.0, 1.0, 0.0)
+        return net.minecraft.world.phys
+            .Vec3(up.x * amount, up.y * amount, up.z * amount)
+    }
+
+    @JvmStatic
+    fun creativeMove(
+        entity: net.minecraft.world.entity.Entity,
+        speed: Float,
+        input: net.minecraft.world.phys.Vec3,
+    ): Boolean {
+        val player = entity as? net.minecraft.client.player.LocalPlayer ?: return false
+        val axes = creativeAxes(player) ?: return false
+        val delta = axes.acceleration(Vector3(input.x, input.y, input.z), speed.toDouble())
+        player.deltaMovement = player.deltaMovement.add(delta.x, delta.y, delta.z)
+        return true
+    }
 
     fun turn(
         x: Double,
@@ -68,15 +119,33 @@ object PlayerApproachView {
         val level = mc.level
         if (connection !== mc.connection) {
             reference.clear()
+            rootScreenUp = null
             connection = mc.connection
         }
         if (player == null || level == null || camera.entity !== player || player.isPassenger ||
             FlightTransitionContact.ship() != null || !FlatPlanetSpace.contains(level) || !CelestialFlight.available(level)
         ) {
+            rootScreenUp = null
             return
         }
         val p = camera.position
-        val up = reference.up(CelestialView.sample().frames, Vector3(p.x, p.y, p.z), CelestialFlight.world(level.dimension()))
+        val frames = CelestialView.sample().frames
+        val world = CelestialFlight.world(level.dimension())
+        val orientation = frames.frame(world).orientation
+        val desired = reference.up(frames, Vector3(p.x, p.y, p.z), world)
+        val look = camera.lookVector
+        val forward = orientation.apply(Vector3(look.x.toDouble(), look.y.toDouble(), look.z.toDouble()))
+        val up =
+            orientation.inverse(
+                LunarApproachView.stableUp(
+                    orientation.apply(desired),
+                    forward,
+                    rootScreenUp
+                        ?: orientation.apply(
+                            Vector3(camera.upVector.x.toDouble(), camera.upVector.y.toDouble(), camera.upVector.z.toDouble()),
+                        ),
+                ),
+            )
         val nativeUp = camera.upVector
         val nativeLeft = camera.leftVector
         roll =
@@ -84,6 +153,12 @@ object PlayerApproachView {
                 up,
                 Vector3(nativeUp.x.toDouble(), nativeUp.y.toDouble(), nativeUp.z.toDouble()),
                 Vector3(nativeLeft.x.toDouble(), nativeLeft.y.toDouble(), nativeLeft.z.toDouble()),
+            )
+        val radians = Math.toRadians(roll)
+        rootScreenUp =
+            orientation.apply(
+                Vector3(nativeUp.x.toDouble(), nativeUp.y.toDouble(), nativeUp.z.toDouble()) * kotlin.math.cos(radians) -
+                    Vector3(nativeLeft.x.toDouble(), nativeLeft.y.toDouble(), nativeLeft.z.toDouble()) * kotlin.math.sin(radians),
             )
         dimension = level.dimension()
         (camera as ShipCameraAccess).orbitalisRollView(roll.toFloat())
