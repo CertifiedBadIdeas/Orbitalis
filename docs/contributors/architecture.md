@@ -59,7 +59,9 @@ The optional WorldGenV2 search adapter belongs only to the flight consumer.
 The current surface/orbital pair is ordinary Overworld and `orbitalis:space`. Core `InertialFrames`
 provides hierarchical position/velocity transforms; `FlatPlanetFrame` represents the current two
 frames through that graph and adds
-4096 to physical Y, preserving axes and inertial velocity. `SableFlightGravity` applies core
+4096 to physical Y, preserving axes and inertial velocity. Independent core `Rotation3`/`FrameKinematics` now provide
+[tested rotating-frame transforms](rotating-frames.md) for subsequent Earth–Moon integration; the
+current native route still uses the established fixed frame. `SableFlightGravity` applies core
 rectangular-body gravity and a conservative surface compatibility layer to constructions and players.
 Gravity is vertical through Y=320 within the initial footprint and finite-body gravity above Y=3064.
 Players retain native jumps with 32 m/s² at the surface; the exterior field shares the ship mass

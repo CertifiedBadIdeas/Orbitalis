@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Add core rotating-frame mathematics for the planned Earth–Moon system: surface rotation velocity,
+  acceleration transport and body angular velocity. This foundation is not yet wired into world physics
+  or Sun rendering.
+
 - Add personal timed maneuver nodes with prograde/normal/radial delta-v, a map editor and separate
   real-field impulse previews. Persist revisioned plans in Orbitalis; the removable flight consumer
   executes loaded orbital ships using native Propulsion engines and measured delta-v feedback.
