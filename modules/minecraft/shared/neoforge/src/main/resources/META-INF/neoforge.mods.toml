@@ -47,3 +47,18 @@ type="optional"
 versionRange="[2.0.6]"
 ordering="AFTER"
 side="BOTH"
+
+# External client renderers remain separately installed; never nested in Orbitalis.
+[[dependencies.orbitalis]]
+modId="voxy"
+type="optional"
+versionRange="[0.2.16-beta]"
+ordering="AFTER"
+side="CLIENT"
+
+[[dependencies.orbitalis]]
+modId="voxyworldgenv2"
+type="optional"
+versionRange="[2.4.2]"
+ordering="AFTER"
+side="CLIENT"

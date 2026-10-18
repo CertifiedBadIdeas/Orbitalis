@@ -466,22 +466,23 @@ is calculated on the worker. Main engines stay off throughout this ballistic pla
 
 ### WorldGenV2 shutdown compatibility
 
-The consumer has an optional `@Pseudo` hook for the pinned WorldGenV2 2.4.2 `DistanceGraph.findWork`.
+Orbitalis has an optional `@Pseudo` hook for the pinned WorldGenV2 2.4.2 `DistanceGraph.findWork`.
 Its manager interrupts the worker and waits five seconds on shutdown, but graph traversal does not
 observe interruption. The hook returns no work at queue insertion/poll boundaries when interrupted,
 allowing the existing worker loop to terminate before manager cleanup. It does not clear the interrupt
-flag, alter ordinary search, cancel Minecraft saves or remove generation tickets. This hook belongs to
-the development consumer, introduces no WorldGen dependency into Orbitalis, and is absent when the
+flag, alter ordinary search, cancel Minecraft saves or remove generation tickets. This hook belongs to the main mod, introduces no required WorldGen dependency, and is absent when the
 third-party class is unavailable. Recheck these injection points before updating WorldGenV2.
 
 ### WorldGenV2 finite surface search
 
-For pinned WorldGenV2 2.4.2, the consumer scopes `DistanceGraph.findWork` in
+For pinned WorldGenV2 2.4.2, Orbitalis scopes `DistanceGraph.findWork` in
 `ChunkGenerationManager.dispatchGeneration` to the player's saved finite Overworld terrain footprint (independent of the movement border). Search nodes
 wholly outside the footprint are pruned; edge batches retain only intersecting chunks. The native
 Orbitalis generator handles exact columns in partial chunks. Other dimensions and unrelated graph
 callers stay unchanged. The thread-local scope is restored in a `finally` block, including cancellation.
-These optional hooks add no production dependency on Voxy or WorldGenV2. Recheck manager call sites,
+These hooks are packaged by Orbitalis, with optional client dependency metadata for Voxy and
+WorldGenV2. The helpers live in shared/common and target hooks in shared/neoforge; the consumer
+only composes the external client JARs. No Voxy or WorldGenV2 implementation is bundled. Recheck manager call sites,
 local-player capture and the graph's four-chunk batch geometry when updating the pinned mod.
 
 ### Player maneuver-plan execution

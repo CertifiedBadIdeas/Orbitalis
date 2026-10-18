@@ -16,13 +16,13 @@
  * limitations under the License.
  */
 
-package org.cbi.orbitalis.consumer.flight.mixin
+package org.cbi.orbitalis.neoforge.mixin
 
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation
 import net.minecraft.world.level.ChunkPos
-import org.cbi.orbitalis.consumer.flight.WorldgenBorderScope
-import org.cbi.orbitalis.consumer.flight.WorldgenWorkSearch
+import org.cbi.orbitalis.minecraft.compat.voxy.WorldgenBorderScope
+import org.cbi.orbitalis.minecraft.compat.voxy.WorldgenWorkSearch
 import org.spongepowered.asm.mixin.Mixin
 import org.spongepowered.asm.mixin.Pseudo
 import org.spongepowered.asm.mixin.injection.At
@@ -34,7 +34,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable
 @Mixin(targets = ["com.ethan.voxyworldgenv2.core.DistanceGraph"], remap = false)
 internal abstract class VoxyWorldgenCancellationMixin {
     @WrapMethod(method = ["findWork"])
-    private fun flightFindPendingWork(
+    private fun orbitalisFindPendingWork(
         position: ChunkPos,
         radius: Int,
         tracked: MutableSet<Long>,
@@ -52,7 +52,7 @@ internal abstract class VoxyWorldgenCancellationMixin {
     }
 
     @Inject(method = ["getDistSq"], at = [At("HEAD")], cancellable = true)
-    private fun flightPruneOutsideBorder(
+    private fun orbitalisPruneOutsideBorder(
         x: Int,
         z: Int,
         size: Int,
@@ -71,7 +71,7 @@ internal abstract class VoxyWorldgenCancellationMixin {
         ],
         cancellable = true,
     )
-    private fun flightCancelInterruptedSearch(callback: CallbackInfoReturnable<List<ChunkPos>?>) {
+    private fun orbitalisCancelInterruptedSearch(callback: CallbackInfoReturnable<List<ChunkPos>?>) {
         if (Thread.currentThread().isInterrupted) callback.returnValue = null
     }
 }

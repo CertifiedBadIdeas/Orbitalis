@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.cbi.orbitalis.consumer.flight.mixin
+package org.cbi.orbitalis.neoforge.mixin
 
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation
@@ -24,9 +24,9 @@ import com.llamalad7.mixinextras.sugar.Local
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.level.ChunkPos
-import org.cbi.orbitalis.consumer.flight.WORLDGEN_FIND_WORK
-import org.cbi.orbitalis.consumer.flight.WorldgenBorderScope
-import org.cbi.orbitalis.consumer.flight.WorldgenCompletion
+import org.cbi.orbitalis.minecraft.compat.voxy.WORLDGEN_FIND_WORK
+import org.cbi.orbitalis.minecraft.compat.voxy.WorldgenBorderScope
+import org.cbi.orbitalis.minecraft.compat.voxy.WorldgenCompletion
 import org.cbi.orbitalis.minecraft.surface.FiniteSurfaceTerrain
 import org.spongepowered.asm.mixin.Mixin
 import org.spongepowered.asm.mixin.Pseudo
@@ -45,7 +45,7 @@ internal abstract class VoxyWorldgenBorderMixin : WorldgenCompletion {
     ): Boolean
 
     @WrapMethod(method = ["dispatchGeneration"])
-    private fun flightRestoreSearchScope(
+    private fun orbitalisRestoreSearchScope(
         players: List<ServerPlayer>,
         limit: Int,
         original: Operation<Boolean>,
@@ -61,7 +61,7 @@ internal abstract class VoxyWorldgenBorderMixin : WorldgenCompletion {
     }
 
     @Inject(method = ["dispatchGeneration"], at = [At(value = "INVOKE", target = WORLDGEN_FIND_WORK)])
-    private fun flightSelectSearchBorder(
+    private fun orbitalisSelectSearchBorder(
         callback: CallbackInfoReturnable<Boolean>,
         @Local player: ServerPlayer,
     ) {

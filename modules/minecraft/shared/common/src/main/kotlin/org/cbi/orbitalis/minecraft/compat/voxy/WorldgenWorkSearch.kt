@@ -16,12 +16,12 @@
  * limitations under the License.
  */
 
-package org.cbi.orbitalis.consumer.flight
+package org.cbi.orbitalis.minecraft.compat.voxy
 
 import net.minecraft.world.level.ChunkPos
 
 /** A partial native leaf may contain no eligible work without being globally completed. */
-internal object WorldgenWorkSearch {
+object WorldgenWorkSearch {
     fun findPending(
         tracked: MutableSet<Long>,
         find: (MutableSet<Long>) -> List<ChunkPos>?,

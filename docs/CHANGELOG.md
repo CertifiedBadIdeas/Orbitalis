@@ -27,6 +27,9 @@ limitations under the License.
   transfer/trajectory bounds and map framing to the new scale.
 - Begin lunar approach-camera alignment inside the model-derived Hill sphere, matching the local
   surface horizon before entry and retaining inertial orientation outside lunar capture.
+- Move optional Voxy WorldGenV2 finite-terrain search and shutdown compatibility into the main mod.
+  Keep Voxy and WorldGenV2 separately installed, with optional client dependency declarations;
+  the flight consumer no longer owns these compatibility hooks.
 
 - Replace distant rectangular-volume quadrature with an exact point-mass field of the same total
   mass. Blend scalar potentials conservatively at 8–12 maximum half-extents (40–60 km for Earth),
