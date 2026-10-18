@@ -78,6 +78,21 @@ prediction and sky presentation. A changing frame must also transport vessel ori
 persisted states and identifiers need explicit compatibility handling before a new frame interpretation
 is enabled; this foundation does not reinterpret them.
 
+## Time-dependent field evolution
+
+`OrbitalEvolution.advanceTimed` adds an absolute simulation epoch to the existing bounded 20 Hz
+velocity-Verlet integrator. The acceleration callback receives position and simulation tick; the
+initial kick uses the interval's first tick and each final kick samples the next tick. Segmenting a
+long interval must pass the previous segment's end tick as the next epoch, preserving source phase.
+Ticks are nonnegative and intervals that overflow `Long` are rejected before evaluating the field.
+The existing static-field `advance` entry point retains its signature and delegates to this path.
+
+The callback must deterministically sample all source bodies at the supplied instant. This integrator
+accepts position/time forces in inertial Cartesian axes; it does not integrate velocity-dependent
+Coriolis corrections in rotating coordinates. Ephemerides, source ownership, loaded/unloaded clock
+coordination and world handoffs remain caller responsibilities. No native caller has switched to a
+moving field yet, and the new entry point neither changes saved motion data nor activates the Moon.
+
 ## Evidence
 
 `FrameKinematicsTest` checks right-handed rotations/composition, inherited surface velocity, every
@@ -86,3 +101,8 @@ finite differences during translating, accelerating axial spin. The zero-spin ca
 established native space offset. `InertialFramesTest` continues to cover the current hierarchy.
 These tests establish core mathematics; physical world rotation and Sun/daylight behavior require
 later native and isolated-client scenarios.
+
+`TimedOrbitalEvolutionTest` independently checks a translating harmonic source against analytic motion,
+linearly changing uniform acceleration and its sample epochs, identical segmented moving-field
+results, time overflow and cancellation. Existing static-field conservation and coast-predictor
+agreement tests continue to exercise the backwards-compatible entry point.

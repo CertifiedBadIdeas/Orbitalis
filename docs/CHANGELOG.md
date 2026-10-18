@@ -20,6 +20,9 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Add a core orbital evolution entry point that samples time-dependent gravity at absolute simulation
+  ticks, preparing moving celestial sources without changing existing static-field flight or daylight.
+
 - Add core rotating-frame mathematics for the planned Earth–Moon system: surface rotation velocity,
   acceleration transport and body angular velocity. This foundation is not yet wired into world physics
   or Sun rendering.
