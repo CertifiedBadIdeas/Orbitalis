@@ -29,8 +29,11 @@ render FOV and window aspect, including portrait windows, rotated hulls and nati
 can bring the camera closer to avoid clipping; a nearby obstruction can therefore hide part of the
 ship. The observation camera stays world-upright during ship rolls and retrograde turns.
 Press F6 again to restore the previous perspective. F5 deliberately leaves observation mode. Death,
-disconnect and sustained loss of ship contact also leave it. During a handoff the camera only resumes
-on the same ship UUID after native contact returns; it never chooses a nearby replacement ship.
+disconnect and sustained loss of ship contact also leave it. During a handoff the camera holds its last observed position and viewing angles while native contact
+is absent. Overworld/space travel rebases that position with the existing flight coordinate transform.
+Live tracking resumes only on the same ship UUID, within the existing 100-tick contact grace period;
+it never chooses a nearby replacement ship. This
+hold does not predict motion, hide the dimension-loading screen or keep an absent hull rendered.
 
 The navball includes pitch lines every 15 degrees, stronger lines and labels at 30-degree intervals,
 heading meridians and a graduated bank rim. Its grid follows the same local gravity frame as the
@@ -76,3 +79,41 @@ horizon remained visible during the retrograde turn. A separate main-module clie
 screen with only Minecraft, NeoForge and Orbitalis installed, confirming loading without optional Sable.
 Both test clients saved or exited through their normal menus. These observations establish the
 interface behaviour, not the efficiency or smoothness of the consumer's flight guidance.
+
+## Observed handoff continuity check (2026-10-18)
+
+A private flight-consumer world completed an automatic surface/space/surface round trip before and
+after the camera correction. The fixture was a native 5-by-5-block Sable deck, a plot-owned Create
+seat with the real client player, and a chest holding seven diamonds. From physical Y=2800 it received
+one initial linear velocity (8,150,3) m/s and angular velocity (0,0.005,0) rad/s, then coasted back under
+the native gravity field. Autopilot was unused. The source fixture was explicitly kept loaded, so this
+scenario does not establish autonomous ship loading. Voxy rendering was enabled; its background
+world-generation manager was disabled in this disposable world.
+
+Server-tick CSV samples recorded ship identity, frame, centre of mass, linear velocity, quaternion,
+physics pause, transfer activity and passenger mount. Client render-frame samples recorded camera
+position/quaternion, dimension, screen, ship contact and observation mode. A 30-fps window recording
+provided visual context. Runtime probes and buffered recording were test instrumentation, not
+production hooks. Setup samples before launch were excluded from continuity findings.
+
+| Observation | Before | After |
+| --- | --- | --- |
+| Surface to space total transfer time | 545.6 ms | 442.9 ms |
+| Space to surface total transfer time | 450.3 ms | 448.4 ms |
+| Maximum camera displacement while contact was absent, ascent | 3.003 m | below 1e-6 m |
+| Maximum camera displacement while contact was absent, descent | 3.239 m | below 1e-6 m |
+| Maximum change of viewing angle during absent contact, descent | 13.207 degrees | 0 degrees |
+
+Camera comparisons use the last tracked frame and the existing physical-coordinate transform,
+normalizing quaternion signs. Both journeys preserved the sampled linear velocity and quaternion
+exactly across the paused native handoff. The corrected journey returned the same ship UUID with the
+player seated and seven diamonds still in its chest. Changing perspective after return exited F6
+normally. All captured frames without ship contact retained observation mode and the held view.
+
+These two runs establish the camera correction, not a transfer-time improvement or a large-world
+benchmark. Native loading screens, roughly half a second of paused transfer, abrupt sky/planet
+replacement and delayed hull lighting remain visible. Native checkpoint stages alone took 109–129 ms
+in this small world; durable journals and native saves were unchanged. Frame gaps also remain: the
+baseline contained gaps up to 193 ms around the handoffs. Smooth presentation will need separate
+work on dimension presentation, renderer readiness and loading, without weakening transfer recovery.
+CSV, probe sources, timing logs and video are retained in the completed task's verification archive.

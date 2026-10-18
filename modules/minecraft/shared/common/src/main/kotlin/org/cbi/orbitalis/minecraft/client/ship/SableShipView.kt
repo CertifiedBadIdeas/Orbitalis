@@ -23,10 +23,14 @@ import dev.ryanhcode.sable.sublevel.ClientSubLevel
 import net.minecraft.client.Camera
 import net.minecraft.client.CameraType
 import net.minecraft.client.Minecraft
+import net.minecraft.resources.ResourceKey
 import net.minecraft.world.level.ClipContext
+import net.minecraft.world.level.Level
 import net.minecraft.world.phys.HitResult
 import net.minecraft.world.phys.Vec3
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
+import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipContact
 import org.joml.Vector3d
 import java.util.UUID
@@ -44,6 +48,8 @@ object SableShipView : ShipViewHooks.Controller {
     private var zoom = 1.0
     private var distance = 0.0
     private var frameTime = 0L
+    private var lastPosition: Vec3? = null
+    private var lastDimension: ResourceKey<Level>? = null
     private val minecraft get() = Minecraft.getInstance()
     val active get() = shipId != null
 
@@ -62,6 +68,8 @@ object SableShipView : ShipViewHooks.Controller {
         pitch = 20f
         zoom = 1.0
         distance = 0.0
+        lastPosition = null
+        lastDimension = null
         frameTime = 0L
         missingTicks = 0
     }
@@ -89,6 +97,8 @@ object SableShipView : ShipViewHooks.Controller {
         perspective = null
         shipId = null
         distance = 0.0
+        lastPosition = null
+        lastDimension = null
     }
 
     override fun turn(
@@ -113,7 +123,15 @@ object SableShipView : ShipViewHooks.Controller {
         fieldOfView: Double,
     ) {
         if (!active) return
-        val body = contact()?.takeIf { it.uniqueId == shipId } ?: return
+        val contact = contact()
+        val body = contact?.takeIf { it.uniqueId == shipId }
+        if (body == null) {
+            // Native dimension travel briefly drops contact before the destination ship bundle arrives.
+            // Keep the last observed view, rebased through the route's canonical coordinate transform.
+            // Do not extrapolate physics or follow another ship while waiting for the same UUID.
+            if (contact == null) holdView(camera)
+            return
+        }
         val bounds = body.plot.boundingBox
         val centre =
             Vector3d(
@@ -148,6 +166,25 @@ object SableShipView : ShipViewHooks.Controller {
                 val delta = hit.location.subtract(centreVec)
                 centreVec.add(delta.scale(((delta.length() - 0.3).coerceAtLeast(0.0)) / delta.length().coerceAtLeast(1e-6)))
             }
+        (camera as ShipCameraAccess).orbitalisSetView(position, yaw, pitch)
+        lastPosition = position
+        lastDimension = body.level.dimension()
+    }
+
+    private fun holdView(camera: Camera) {
+        val source = lastDimension ?: return
+        val target = minecraft.level?.dimension() ?: return
+        var position = lastPosition ?: return
+        if (source != target) {
+            if ((source != Level.OVERWORLD && source != FlatPlanetSpace.SPACE) ||
+                (target != Level.OVERWORLD && target != FlatPlanetSpace.SPACE)
+            ) {
+                return
+            }
+            val global = FlightSpaceCoordinates.globalPosition(source, Vector3(position.x, position.y, position.z))
+            val local = FlightSpaceCoordinates.localPosition(target, global)
+            position = Vec3(local.x, local.y, local.z)
+        }
         (camera as ShipCameraAccess).orbitalisSetView(position, yaw, pitch)
     }
 }

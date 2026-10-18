@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Keep the F6 observation camera at its last view while the same ship is being received after an
+  Overworld/space handoff. Rebase the held position into the destination frame instead of briefly
+  falling back to the passenger camera. Native loading screens and transfer checkpoints remain.
+
 - Show ballistic trajectories on the orbital map, highlighting the selected construction. Extend coast
   forecasts beyond the former 120-second limit through a full revolution: periodic orbits close,
   precessing turns remain open and suborbital arcs end on the reference body. Map previews use native
