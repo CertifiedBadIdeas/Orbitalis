@@ -43,6 +43,8 @@ class CelestialDynamics(
         position: Vector3,
         seconds: Double = 0.0,
     ): Vector3 {
+        val earthFrame = profile.earthSurfaceFrame(epochTick, seconds)
+        val terrestrial = earthFrame.orientation.inverse(position)
         val frame = profile.lunarSurfaceFrame(epochTick, seconds)
         val local = frame.orientation.inverse(position - frame.origin.position)
         val moonForce = frame.orientation.apply(moon.acceleration(local))
@@ -51,14 +53,27 @@ class CelestialDynamics(
         val earthOrbit = profile.earthOrbit.sample(epochTick, seconds)
         val sunOffset = position + earthOrbit.origin.position
         val sunTide = sunOffset * (-profile.sunMu / sunOffset.length().let { it * it * it }) - earthOrbit.originAcceleration
-        val terrestrialWindow = window(position, FlatPlanetDefinition.HALF_SIZE, 256.0, FlatPlanetDefinition.ASCENT_HEIGHT, 256.0)
-        val field = earth.acceleration(position) + (moonForce - earthOriginMoonForce + sunTide) * (1.0 - terrestrialWindow)
+        val terrestrialWindow = window(terrestrial, FlatPlanetDefinition.HALF_SIZE, 256.0, FlatPlanetDefinition.ASCENT_HEIGHT, 256.0)
+        val terrestrialForce = earthFrame.orientation.apply(earth.acceleration(terrestrial))
+        val supportedEarth = earthFrame.toParentAcceleration(CartesianState(terrestrial, Vector3.ZERO), earth.acceleration(terrestrial))
+        val field =
+            terrestrialForce + (supportedEarth - terrestrialForce) * terrestrialWindow +
+                (moonForce - earthOriginMoonForce + sunTide) * (1.0 - terrestrialWindow)
         val lunarWindow = window(local, SolarSystemProfile.MOON_HALF_SIZE, 128.0, 600.0, 128.0)
         if (lunarWindow == 0.0) return field
         // Surface compatibility includes the acceleration of a fixed ground point in its spinning frame.
         // Dynamic Coriolis terms are still applied by fromParentAcceleration for moving local vessels.
         val supported = frame.toParentAcceleration(CartesianState(local, Vector3.ZERO), moon.acceleration(local))
         return field * (1.0 - lunarWindow) + supported * lunarWindow
+    }
+
+    fun earthAcceleration(
+        state: CartesianState,
+        seconds: Double = 0.0,
+    ): Vector3 {
+        val frame = profile.earthSurfaceFrame(epochTick, seconds)
+        val physical = frame.toParent(state)
+        return frame.fromParentAcceleration(physical, acceleration(physical.position, seconds))
     }
 
     fun lunarAcceleration(

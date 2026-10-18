@@ -29,8 +29,10 @@ data class SolarSystemProfile(
     val epochTick: Long = 0,
     val earthPhase: Double = 0.0,
     val moonPhase: Double = PI / 2.0,
+    val earthSpinEpochTick: Long? = null,
 ) {
     init {
+        require(earthSpinEpochTick == null || earthSpinEpochTick >= 0)
         require(surfaceGravity.isFinite() && surfaceGravity in 1e-6..1e6)
         require(epochTick >= 0 && earthPhase.isFinite() && moonPhase.isFinite())
         require(earthPhase in -PI..PI && moonPhase in -PI..PI)
@@ -49,6 +51,26 @@ data class SolarSystemProfile(
                 CelestialBody(MOON, EARTH, moonGravity.mu, moonOrbit),
             ),
         )
+
+    /** Native Earth axes rotate in the geocentric nonrotating parent; null retains legacy receipts. */
+    fun earthSurfaceFrame(
+        tick: Long,
+        seconds: Double = 0.0,
+    ): FrameKinematics {
+        require(tick >= 0 && seconds.isFinite())
+        val origin =
+            org.cbi.orbitalis.core.planet.CartesianState(
+                org.cbi.orbitalis.core.planet.Vector3.ZERO,
+                org.cbi.orbitalis.core.planet.Vector3.ZERO,
+            )
+        val epoch = earthSpinEpochTick ?: return FrameKinematics(origin)
+        val omega = 2.0 * PI / EARTH_SPIN_PERIOD
+        val elapsed = (tick % EARTH_SPIN_TICKS - epoch % EARTH_SPIN_TICKS) * 0.05 + seconds % EARTH_SPIN_PERIOD
+        val axis =
+            org.cbi.orbitalis.core.planet
+                .Vector3(0.0, 0.0, 1.0)
+        return FrameKinematics(origin, Rotation3.axisAngle(axis, omega * elapsed), axis * omega)
+    }
 
     /** Top (+Y) faces Earth. Circular orbit: one prograde spin per revolution, in Earth axes. */
     @JvmOverloads
@@ -78,11 +100,13 @@ data class SolarSystemProfile(
         tick: Long,
     ): SolarSystemProfile {
         require(tick >= epochTick)
-        return SolarSystemProfile(gravity, tick, earthOrbit.meanAnomaly(tick), moonOrbit.meanAnomaly(tick))
+        return SolarSystemProfile(gravity, tick, earthOrbit.meanAnomaly(tick), moonOrbit.meanAnomaly(tick), earthSpinEpochTick)
     }
 
     companion object {
         const val VERSION = 1
+        const val EARTH_SPIN_TICKS = 24000L
+        const val EARTH_SPIN_PERIOD = 1200.0
         const val SUN = "orbitalis:sun"
         const val EARTH = "orbitalis:overworld"
         const val MOON = "orbitalis:moon"

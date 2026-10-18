@@ -20,6 +20,9 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Add an optional twenty-minute axial spin to celestial surface frames, transport-aware Earth
+  forces and moving-body coast intersections; native-world activation is being integrated.
+
 - Interpolate the moving Moon, lunar camera frame and map focus between client ticks to prevent
   visible 20 Hz stepping during approach. Raise lunar entry/exit clearance to 1500/1800 metres,
   with shared minimum native approach and hysteresis distances for small bodies.

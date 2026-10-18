@@ -34,7 +34,7 @@ class SurfaceFlightFrames(
 
     fun frame(world: World): FrameKinematics =
         when (world) {
-            World.EARTH -> FrameKinematics(CartesianState(Vector3.ZERO, Vector3.ZERO))
+            World.EARTH -> profile.earthSurfaceFrame(tick, seconds)
             World.SPACE -> FrameKinematics(CartesianState(FlatPlanetFrame.origin, Vector3.ZERO))
             World.MOON -> profile.lunarSurfaceFrame(tick, seconds)
         }

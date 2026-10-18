@@ -81,7 +81,8 @@ object CoastPrediction {
         sources: CelestialDynamics?,
         startSeconds: Double = 0.0,
     ): Result {
-        val energy = field.specificEnergy(initial)
+        val terrestrial = sources?.profile?.earthSurfaceFrame(sources.epochTick, startSeconds)?.fromParent(initial) ?: initial
+        val energy = initial.velocity.dot(initial.velocity) * 0.5 + field.potential(terrestrial.position)
         val period = if (energy < 0.0) 2 * PI * field.body.mu / (-2 * energy).pow(1.5) else 120.0
         val horizon = max(120.0, period * 1.5).coerceAtMost(3600.0)
         return predict(
@@ -126,11 +127,18 @@ object CoastPrediction {
                 field.body.halfDepth + limits.hullRadius,
             )
 
+        fun terrestrial(
+            state: CartesianState,
+            seconds: Double,
+        ): CartesianState = sources?.profile?.earthSurfaceFrame(sources.epochTick, startSeconds + seconds)?.fromParent(state) ?: state
+
+        val initialEarth = terrestrial(initial, 0.0)
+
         fun inside(p: Vector3) = abs(p.x) <= extent.x && abs(p.y) <= extent.y && abs(p.z) <= extent.z
-        if (inside(initial.position)) return Result(points, End.BODY_INTERSECTION)
+        if (inside(initialEarth.position)) return Result(points, End.BODY_INTERSECTION)
         if (initial.position.length() >= limits.range) return Result(points, End.RANGE)
-        var entryArmed = limits.entryInitiallyArmed || initial.position.y >= limits.entryArmHeight
-        if (limits.detectEntry && entryArmed && entry(initial.position, initial.velocity, field.body.halfHeight, limits)) {
+        var entryArmed = limits.entryInitiallyArmed || initialEarth.position.y >= limits.entryArmHeight
+        if (limits.detectEntry && entryArmed && entry(initialEarth.position, initialEarth.velocity, field.body.halfHeight, limits)) {
             return Result(points, End.SURFACE_ENTRY)
         }
         val momentum = initial.position.cross(initial.velocity)
@@ -147,8 +155,10 @@ object CoastPrediction {
             val position = state.position + half * dt
             val nextAcceleration = sources?.acceleration(position, startSeconds + time + dt) ?: field.acceleration(position)
             val next = CartesianState(position, half + nextAcceleration * (dt * 0.5))
-            entryArmed = entryArmed || position.y >= limits.entryArmHeight
-            val earthHit = intersection(state.position, next.position, extent)
+            val beforeEarth = terrestrial(state, time)
+            val afterEarth = terrestrial(next, time + dt)
+            entryArmed = entryArmed || afterEarth.position.y >= limits.entryArmHeight
+            val earthHit = intersection(beforeEarth.position, afterEarth.position, extent)
             val moonHit =
                 sources?.let {
                     val before = it.profile.lunarSurfaceFrame(it.epochTick, startSeconds + time)
@@ -164,7 +174,14 @@ object CoastPrediction {
                     )
                 }
             val bodyHit = listOfNotNull(earthHit, moonHit).minOrNull()
-            val entryHit = if (limits.detectEntry && entryArmed) entryFraction(state, next, field.body.halfHeight, limits) else null
+            val entryHit =
+                if (limits.detectEntry &&
+                    entryArmed
+                ) {
+                    entryFraction(beforeEarth, afterEarth, field.body.halfHeight, limits)
+                } else {
+                    null
+                }
             val event =
                 when {
                     bodyHit != null && (entryHit == null || bodyHit <= entryHit) -> bodyHit to End.BODY_INTERSECTION
