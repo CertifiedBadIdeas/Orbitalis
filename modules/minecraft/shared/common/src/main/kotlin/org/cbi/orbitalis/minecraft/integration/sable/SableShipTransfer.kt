@@ -319,7 +319,14 @@ class SableShipTransfer(
             )
         }
         val destinationPilot = sourcePilot.copy().also { it.putDouble("y", it.getDouble("y") + delta) }
-        require(player == null || destinationPilot.getDouble("y") >= 64.0) { "Climb higher before transferring the pilot" }
+        if (player != null) {
+            val physical =
+                FlightSpaceCoordinates.globalPosition(
+                    target,
+                    Vector3(destinationPilot.getDouble("x"), destinationPilot.getDouble("y"), destinationPilot.getDouble("z")),
+                )
+            require(FlatPlanetSpace.validTransferPosition(physical)) { "Pilot outside bounded physical flight coordinates" }
+        }
         val record =
             ShipTransferRecord(
                 UUID.randomUUID(),

@@ -19,13 +19,10 @@
 package org.cbi.orbitalis.minecraft.client.space
 
 import org.cbi.orbitalis.core.planet.Vector3
-import kotlin.math.abs
 import kotlin.math.cos
-import kotlin.math.max
-import kotlin.math.pow
 import kotlin.math.sin
 
-/** Decorative closed-bottom rock shell; the square top boundary stays anchored to surface coordinates. */
+/** Presentation of the real finite slab: flat bedrock boundary and sector-owned perimeter strata. */
 object PlanetRockShell {
     private const val CELLS = 64
 
@@ -33,24 +30,8 @@ object PlanetRockShell {
         x: Double,
         z: Double,
     ): Double =
-        sin(x * 0.0017 + z * 0.0009) * 0.55 +
-            cos(z * 0.0031 - x * 0.0011) * 0.3 + sin(x * 0.0093 + z * 0.0077) * 0.15
-
-    private fun vertex(
-        i: Int,
-        j: Int,
-    ): Vector3 {
-        val step = SpaceScene.HALF_SIZE * 2.0 / CELLS
-        val x = -SpaceScene.HALF_SIZE + i * step
-        val z = -SpaceScene.HALF_SIZE + j * step
-        // Boundary vertices remain exact; jitter only breaks up the interior facet grid.
-        val interior = i in 1 until CELLS && j in 1 until CELLS
-        val px = x + if (interior) sin(i * 19.31 + j * 7.13) * step * 0.28 else 0.0
-        val pz = z + if (interior) cos(i * 3.17 - j * 17.91) * step * 0.28 else 0.0
-        val centre = (1.0 - max(abs(px), abs(pz)) / SpaceScene.HALF_SIZE).coerceIn(0.0, 1.0)
-        val depth = 460.0 + 1730.0 * centre.pow(0.7) + noise(px, pz) * 250.0
-        return Vector3(px, -depth, pz)
-    }
+        sin(x * 0.0017 + z * 0.0009) * 0.55 + cos(z * 0.0031 - x * 0.0011) * 0.3 +
+            sin(x * 0.0093 + z * 0.0077) * 0.15
 
     private fun color(
         base: Int,
@@ -65,10 +46,21 @@ object PlanetRockShell {
         b: Vector3,
         c: Vector3,
         rgb: Int,
-    ): SpaceScene.Face = SpaceScene.Face(listOf(a, b, c, c), rgb, (b - a).cross(c - a).normalized(), 0.42)
+    ) = SpaceScene.Face(listOf(a, b, c, c), rgb, (b - a).cross(c - a).normalized(), 0.42)
 
+    /** Only this immutable underside belongs to the static body buffer; walls belong to LOD sectors. */
     val faces: List<SpaceScene.Face> =
         buildList {
+            fun vertex(
+                i: Int,
+                j: Int,
+            ): Vector3 {
+                val step = SpaceScene.HALF_SIZE * 2.0 / CELLS
+                val interior = i in 1 until CELLS && j in 1 until CELLS
+                val x = -SpaceScene.HALF_SIZE + i * step + if (interior) sin(i * 19.31 + j * 7.13) * step * 0.28 else 0.0
+                val z = -SpaceScene.HALF_SIZE + j * step + if (interior) cos(i * 3.17 - j * 17.91) * step * 0.28 else 0.0
+                return Vector3(x, SpaceScene.BOTTOM, z)
+            }
             val grid = Array(CELLS + 1) { i -> Array(CELLS + 1) { j -> vertex(i, j) } }
             for (i in 0 until CELLS) {
                 for (j in 0 until CELLS) {
@@ -76,48 +68,69 @@ object PlanetRockShell {
                     val b = grid[i + 1][j]
                     val c = grid[i + 1][j + 1]
                     val d = grid[i][j + 1]
-                    val tone = 1.0 + noise(a.x * 2.7, a.z * 2.7) * 0.16
-                    val rgb = color(0x8f887c, tone)
-                    // Alternating diagonals avoid a directional pattern across the underside.
+                    val rgb = color(0x7f807c, 1.0 + noise(a.x * 2.7, a.z * 2.7) * 0.13)
                     if ((i + j) % 2 == 0) {
                         add(triangle(a, b, c, rgb))
-                        add(triangle(a, c, d, color(rgb, 0.97)))
+                        add(triangle(a, c, d, color(rgb, 0.98)))
                     } else {
                         add(triangle(a, b, d, rgb))
-                        add(triangle(b, c, d, color(rgb, 1.03)))
+                        add(triangle(b, c, d, color(rgb, 1.02)))
                     }
                 }
             }
-            val boundary =
-                buildList {
-                    for (i in 0 until CELLS) add(grid[i][0])
-                    for (j in 0 until CELLS) add(grid[CELLS][j])
-                    for (i in CELLS downTo 1) add(grid[i][CELLS])
-                    for (j in CELLS downTo 1) add(grid[0][j])
-                }
-            val strata = intArrayOf(0x858476, 0x919082, 0x7f827f, 0x8c8b80, 0x797f80, 0x89877e, 0x7d8381, 0x88887f)
+        }
 
-            fun band(
-                v: Vector3,
-                layer: Int,
-            ): Vector3 {
-                if (layer == 0) return Vector3(v.x, SpaceScene.TOP, v.z)
-                if (layer == strata.size) return v
-                val fraction = layer.toDouble() / strata.size
-                val ripple = sin(fraction * Math.PI) * noise(v.x * 1.3 + layer * 41, v.z * 1.3) * 0.025
-                return Vector3(v.x, SpaceScene.TOP + (v.y - SpaceScene.TOP) * (fraction + ripple), v.z)
-            }
-            for (i in boundary.indices) {
-                val a = boundary[i]
-                val b = boundary[(i + 1) % boundary.size]
-                for (layer in strata.indices) {
-                    val upperA = band(a, layer)
-                    val upperB = band(b, layer)
-                    val lowerA = band(a, layer + 1)
-                    val lowerB = band(b, layer + 1)
-                    val rgb = color(strata[layer], 1.0 + noise(a.x * 4, a.z * 4) * 0.13)
-                    add(triangle(upperA, upperB, lowerB, rgb))
-                    add(triangle(upperA, lowerB, lowerA, rgb))
+    /** Emit outer walls only, from the local terrain top down to the unchanged native bottom. */
+    fun walls(
+        x0: Double,
+        x1: Double,
+        z0: Double,
+        z1: Double,
+        height: Double,
+        surfaceColor: Int,
+    ): Sequence<SpaceScene.Face> =
+        sequence {
+            if (height <= SpaceScene.BOTTOM) return@sequence
+            val h = SpaceScene.HALF_SIZE
+            if (x0 != -h && x1 != h && z0 != -h && z1 != h) return@sequence
+            // Absolute layer levels align along adjacent cells; the thin top band carries the sampled surface tone.
+            val cuts =
+                (listOf(SpaceScene.BOTTOM, -32.0, 0.0, 32.0, height - 2.0, height))
+                    .filter { it >= SpaceScene.BOTTOM && it <= height }
+                    .distinct()
+                    .sorted()
+            val sides =
+                buildList {
+                    if (x0 == -h) add(Vector3(x0, 0.0, z1) to Vector3(x0, 0.0, z0))
+                    if (x1 == h) add(Vector3(x1, 0.0, z0) to Vector3(x1, 0.0, z1))
+                    if (z0 == -h) add(Vector3(x0, 0.0, z0) to Vector3(x1, 0.0, z0))
+                    if (z1 == h) add(Vector3(x1, 0.0, z1) to Vector3(x0, 0.0, z1))
+                }
+            for ((a, b) in sides) {
+                for ((bottom, top) in cuts.zipWithNext()) {
+                    val base =
+                        when {
+                            top == height -> surfaceColor
+                            top <= -32.0 -> 0x64686a
+                            top <= 0.0 -> 0x7d7f7d
+                            top <= 32.0 -> 0x8f887c
+                            else -> 0x8a8274
+                        }
+                    val tone = color(base, 1.0 + noise(a.x * 4.0, a.z * 4.0) * 0.12)
+                    val normal = (b - a).cross(Vector3(0.0, -1.0, 0.0)).normalized()
+                    yield(
+                        SpaceScene.Face(
+                            listOf(
+                                Vector3(a.x, top, a.z),
+                                Vector3(b.x, top, b.z),
+                                Vector3(b.x, bottom, b.z),
+                                Vector3(a.x, bottom, a.z),
+                            ),
+                            tone,
+                            normal,
+                            0.42,
+                        ),
+                    )
                 }
             }
         }

@@ -19,7 +19,6 @@
 package org.cbi.orbitalis.minecraft.surface
 
 import com.mojang.logging.LogUtils
-import net.minecraft.Util
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.world.level.ChunkPos
@@ -28,26 +27,31 @@ import org.cbi.orbitalis.core.planet.SurfaceAtlas
 import java.nio.ByteBuffer
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.Optional
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.Executors
 
-/** Bounded native asynchronous reads of existing region entries; never asks for a live chunk. */
+/** Two read-only disk workers; all world-dependent decoding and atlas mutations stay on server thread. */
 class SurfaceAtlasBackfill(
     private val level: ServerLevel,
     private val data: SurfaceAtlasData,
-) {
+) : AutoCloseable {
+    private val workers =
+        Executors.newFixedThreadPool(2) { task ->
+            Thread(task, "Orbitalis surface atlas reader").apply { isDaemon = true }
+        }
+    private val directory = level.server.getWorldPath(LevelResource.ROOT).resolve("region")
+    private var closed = false
     private var index: CompletableFuture<List<ChunkPos>>? = null
     private var remaining = emptyList<ChunkPos>().iterator()
-    private val pending = linkedMapOf<ChunkPos, CompletableFuture<Optional<CompoundTag>>>()
+    private val pending = linkedMapOf<ChunkPos, CompletableFuture<CompoundTag?>>()
     private var nextScan = 0
     private var warned = false
 
     fun tick() {
-        if (!data.supported) return
+        if (closed || !data.supported) return
         val tick = level.server.tickCount
         if (index == null && !remaining.hasNext() && pending.isEmpty() && tick >= nextScan) {
-            val directory = level.server.getWorldPath(LevelResource.ROOT).resolve("region")
-            index = CompletableFuture.supplyAsync({ entries(directory) }, Util.ioPool())
+            index = CompletableFuture.supplyAsync({ entries(directory) }, workers)
             nextScan = tick + 1200
         }
         index?.let { future ->
@@ -71,7 +75,7 @@ class SurfaceAtlasBackfill(
             ready.remove()
             decoded++
             try {
-                val tag = future.join().orElse(null)
+                val tag = future.join()
                 if (tag != null && !data.atlas.contains(pos.x, pos.z) && tag.getInt("xPos") == pos.x && tag.getInt("zPos") == pos.z) {
                     SavedSurfaceSampler.sample(level, tag)?.let(data::record)
                 }
@@ -82,8 +86,21 @@ class SurfaceAtlasBackfill(
         var examined = 0
         while (remaining.hasNext() && pending.size < 8 && examined++ < 256) {
             val pos = remaining.next()
-            if (!data.atlas.contains(pos.x, pos.z)) pending[pos] = level.chunkSource.chunkMap.read(pos)
+            if (!data.atlas.contains(pos.x, pos.z)) {
+                pending[pos] =
+                    CompletableFuture.supplyAsync({ SavedSurfaceReader.read(directory, pos) }, workers)
+            }
         }
+    }
+
+    override fun close() {
+        closed = true
+        index?.cancel(true)
+        index = null
+        pending.values.forEach { it.cancel(true) }
+        pending.clear()
+        remaining = emptyList<ChunkPos>().iterator()
+        workers.shutdownNow()
     }
 
     private fun warn(error: Exception) {

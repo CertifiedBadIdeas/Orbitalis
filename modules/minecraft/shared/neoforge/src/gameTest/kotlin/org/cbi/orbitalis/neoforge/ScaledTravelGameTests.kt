@@ -66,8 +66,101 @@ object ScaledTravelGameTests {
                 level.worldBorder.size = if (custom) 1536.0 else 2000.0
                 val fresh = DimensionDataStorage(folder, level.server.fixerUpper, level.registryAccess())
                 FlatOverworld.initialize(level, fresh)
-                helper.assertTrue(level.worldBorder.size == if (custom) 1536.0 else 10000.0, "Border migration lost native authority")
+                helper.assertTrue(
+                    level.worldBorder.size == if (custom) 1536.0 else net.minecraft.world.level.border.WorldBorder.MAX_SIZE,
+                    "Border migration lost native authority",
+                )
                 helper.assertTrue(level.worldBorder.centerX == if (custom) 64.0 else 0.0, "Border migration moved customized centre")
+            }
+        } finally {
+            level.worldBorder.applySettings(settings)
+        }
+        helper.succeed()
+    }
+
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "scaled_surface")
+    fun surfaceFootprintMigration(helper: GameTestHelper) {
+        val level = helper.level.server.overworld()
+        val settings = level.worldBorder.createSettings()
+        try {
+            for ((version, raw) in listOf(
+                2 to intArrayOf(),
+                2 to intArrayOf(0),
+                3 to intArrayOf(0, 0, 0, 0),
+                3 to intArrayOf(-100, -200, 300, 400),
+                3 to intArrayOf(4, 3, 2, 1),
+                77 to intArrayOf(-100, -200, 300, 400),
+                0 to intArrayOf(),
+            )) {
+                val folder =
+                    java.nio.file.Files
+                        .createTempDirectory(level.server.getWorldPath(LevelResource.ROOT), "footprint-")
+                        .toFile()
+                val storage = DimensionDataStorage(folder, level.server.fixerUpper, level.registryAccess())
+                storage.set(
+                    FlatOverworld.DATA_NAME,
+                    object : SavedData() {
+                        override fun save(
+                            tag: CompoundTag,
+                            registries: HolderLookup.Provider,
+                        ): CompoundTag =
+                            tag.apply {
+                                putInt("Version", version)
+                                putIntArray("Bounds", raw)
+                                putString("Sentinel", "preserve")
+                            }
+                    }.apply { setDirty() },
+                )
+                storage.save()
+                net.neoforged.neoforge.common.IOUtilities
+                    .waitUntilIOWorkerComplete()
+                level.worldBorder.setCenter(32.0, 0.0)
+                level.worldBorder.size = if (version == 2 && raw.size == 1) 1.0 else 1536.0
+                val fresh = DimensionDataStorage(folder, level.server.fixerUpper, level.registryAccess())
+                FlatOverworld.initialize(level, fresh)
+                val bounds = FlatOverworld.footprint(level, fresh)
+                val expected =
+                    when {
+                        version == 2 && raw.size == 1 -> intArrayOf(32, 0, 32, 0)
+                        version == 2 -> intArrayOf(-736, -768, 800, 768)
+                        version == 3 && raw[0] <= raw[2] -> raw
+                        else -> intArrayOf(-5000, -5000, 5000, 5000)
+                    }
+                helper.assertTrue(
+                    intArrayOf(bounds.minX, bounds.minZ, bounds.maxX, bounds.maxZ).contentEquals(expected),
+                    "Footprint decode/migration failed: $version",
+                )
+                helper.assertTrue(
+                    level.worldBorder.size == (
+                        if (version == 2 &&
+                            raw.size == 1
+                        ) {
+                            1.0
+                        } else {
+                            1536.0
+                        }
+                    ) && level.worldBorder.centerX == 32.0,
+                    "Custom movement wall overwritten",
+                )
+                fresh.save()
+                net.neoforged.neoforge.common.IOUtilities
+                    .waitUntilIOWorkerComplete()
+                val disk = DimensionDataStorage(folder, level.server.fixerUpper, level.registryAccess())
+                val reloaded = FlatOverworld.footprint(level, disk)
+                helper.assertTrue(bounds == reloaded, "Footprint did not survive disk reload")
+                if (version != 2) {
+                    val tag =
+                        disk
+                            .readTagFromDisk(
+                                FlatOverworld.DATA_NAME,
+                                null,
+                                net.minecraft.SharedConstants
+                                    .getCurrentVersion()
+                                    .dataVersion.version,
+                            ).getCompound("data")
+                    helper.assertTrue(tag.getString("Sentinel") == "preserve", "Read-only record was rewritten")
+                }
             }
         } finally {
             level.worldBorder.applySettings(settings)
@@ -95,8 +188,8 @@ object ScaledTravelGameTests {
         }
         ShipDestinationPreload().use { preload ->
             helper.assertTrue(
-                !preload.approach(level, Vector3(4900.0, boundary - 100.0, 0.0), Vector3(100.0, 100.0, 0.0)),
-                "Forecast outside the open footprint loaded a destination",
+                preload.approach(level, Vector3(7900.0, 64.0, 0.0), Vector3(100.0, 0.0, 0.0)),
+                "Lateral arrival did not load a destination",
             )
         }
         helper.succeed()
@@ -115,7 +208,14 @@ object ScaledTravelGameTests {
         val surfaceItem = ItemEntity(surface, 0.0, -6000.0, 0.0, ItemStack(Items.DIAMOND))
         surface.addFreshEntity(surfaceItem)
         surfaceItem.tick()
-        helper.assertTrue(surfaceItem.isRemoved, "Space void exception leaked into Overworld")
+        helper.assertTrue(!surfaceItem.isRemoved, "Overworld below-body flight hit the old void floor")
+        val nether = checkNotNull(helper.level.server.getLevel(net.minecraft.world.level.Level.NETHER))
+        val netherItem = ItemEntity(nether, 0.0, -6000.0, 0.0, ItemStack(Items.DIAMOND))
+        nether.addFreshEntity(netherItem)
+        netherItem.tick()
+        helper.assertTrue(netherItem.isRemoved, "Finite-flight exception changed another dimension")
+        surfaceItem.hurt(surface.damageSources().generic(), 100.0f)
+        helper.assertTrue(surfaceItem.isRemoved, "Overworld exterior flight suppressed ordinary damage")
         orbitItem.hurt(space.damageSources().generic(), 100.0f)
         helper.assertTrue(orbitItem.isRemoved, "Space void exception suppressed ordinary entity damage")
         helper.succeed()

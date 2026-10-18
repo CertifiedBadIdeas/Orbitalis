@@ -20,9 +20,18 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
-- Replace the orbital planet's dark flat underside with a faceted rocky mass, irregular layered
-  cliffs and a luminous feathered blue upper rim. Share the appearance with the orbital map; surface terrain,
-  gravity, collision and travel remain unchanged.
+- Give the orbital planet layered stone cliffs that follow 16-metre perimeter relief, a shaded
+  underside at the actual Y=-64 boundary and a cached luminous blue atmospheric rim. Share this
+  appearance with the orbital map and rebuild only affected sectors.
+
+- Refine the shared orbital/map surface LOD from 32 to 16 metres per cell, retaining the existing
+  atlas/network formats. Rebuild/upload independently dirty 512-metre sectors with local boundary
+  snapshots and bounded background work; read saved terrain on two dedicated read-only workers.
+
+- Allow flight beyond the finite Overworld edge and underneath it. Persist generation bounds separately
+  from the distant movement border; prepare and transfer players/ships by distance to the body in all
+  directions, with hysteresis. Keep native terrain/bedrock and ordinary damage; remove the managed
+  below-world flight floor and extend atmospheric presentation around the edges.
 
 - Show a finite drifting cloud layer over the planet in space and the orbital map, using the native
   Minecraft texture, cloud setting and renderer clock. Preserve terrain occlusion without loading

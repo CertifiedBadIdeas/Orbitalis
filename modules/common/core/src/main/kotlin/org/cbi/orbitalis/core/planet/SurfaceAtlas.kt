@@ -78,11 +78,12 @@ class SurfaceAtlas {
         val known: Int,
     )
 
-    /** One 32m overview cell combines up to four known chunk samples. */
-    fun overview(): Map<Pair<Int, Int>, Cell> {
+    /** Native 16m cells by default; optional 32m aggregation combines four known chunk samples. */
+    fun overview(chunksPerCell: Int = 1): Map<Pair<Int, Int>, Cell> {
+        require(chunksPerCell in 1..2)
         val groups = hashMapOf<Pair<Int, Int>, LongArray>()
         for (sample in samples.values) {
-            val key = Math.floorDiv(sample.x, 2) to Math.floorDiv(sample.z, 2)
+            val key = Math.floorDiv(sample.x, chunksPerCell) to Math.floorDiv(sample.z, chunksPerCell)
             val sum = groups.getOrPut(key) { LongArray(5) }
             sum[0] += sample.height.toLong()
             sum[1] += (sample.color shr 16 and 255).toLong()

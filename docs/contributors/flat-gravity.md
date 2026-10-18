@@ -89,7 +89,8 @@ and descends. The final metre is an engines-off settling phase; native terrain m
 Ordinary Overworld uses a separate `orbitalis:space` frame. `FlatPlanetFrame` adds 4096 to represented
 Y; axes and velocity are unchanged. The smaller offset preserves more native float precision for
 low orbits. It is a bounded first-body frame, not a floating origin: space has no native terrain void floor, so below-body orbital arcs may have negative represented Y.
-Only orbital below-world removal is suppressed; ordinary damage and surface void rules remain. The former diagnostic frames are removed; old journals are never reinterpreted.
+Below-world removal is suppressed in both managed frames for underside/exterior flight; other
+damage and other dimensions retain native rules. The former diagnostic frames are removed; old journals are never reinterpreted.
 
 In the flight consumer, assemble a supported ship on a flat clear Overworld pad inside |x|,|z|<=4960,
 turn manual inputs off, disable creative flight and stand on board. Run:
@@ -183,3 +184,21 @@ Native server movement validation uses its already accepted client movement as a
 reference (bounded to 10 km/s), retaining speed/collision rejection. Weak-gravity vacuum coast is
 not treated as illegal hovering by the native flight timer. This does not grant survival controls
 or alter the global server flight setting.
+
+## Edge and underside travel
+
+Travel uses core `PlanetFlightEnvelope.distance`: shortest Euclidean distance to the reference
+volume [-5000,5000] x [-64,64] x [-5000,5000], rather than height or an open X/Z footprint gate.
+Overworld exits at 3000 m clearance and Space returns at 2000 m, giving 1000 m hysteresis around
+all faces and rounded edges/corners. Directly above the surface, existing Y=3064/2064 handoffs
+are preserved. Close side/underside views remain native Overworld; no surface projection is installed.
+The illustrative sky underside remains separate from native bedrock and collision.
+
+Destination tickets and optional held-frame capture forecast arrival under sampled three-axis
+velocity and bounded constant net acceleration. A bounded, earliest-first search prunes intervals
+using distance's 1-Lipschitz bound; very brief grazing contacts can exceed its numerical budget,
+so forecasts are preparation hints, never transfer/collision authority. Actual measured position
+and destination readiness decide handoff. Ticket budgets, journal/checkpoint authority and passenger
+restoration are unchanged. Background orbital objects wake near any side of this same volume.
+Atmospheric drag already had lateral/lower falloff; sky and atlas subscriptions now follow those
+regions too, so edge flight does not retain a full daytime sky until a height-only trigger.

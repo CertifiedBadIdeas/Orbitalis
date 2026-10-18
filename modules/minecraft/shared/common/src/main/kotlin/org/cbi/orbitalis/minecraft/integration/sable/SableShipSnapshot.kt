@@ -176,14 +176,7 @@ object SableShipSnapshot {
                     dimension,
                     Vector3(pose.position().x, pose.position().y, pose.position().z),
                 )
-            require(
-                kotlin.math.abs(physical.x) <= FlatPlanetSpace.HALF_SIZE + 32.0 &&
-                    kotlin.math.abs(physical.z) <= FlatPlanetSpace.HALF_SIZE + 32.0 &&
-                    physical.y in 64.0..16000.0,
-            ) {
-                "Transfer outside the supported surface patch or altitude range"
-            }
-            require(pose.position().y >= 64.0) { "Transfer below the safe represented world height" }
+            require(FlatPlanetSpace.validTransferPosition(physical)) { "Transfer outside bounded physical flight coordinates" }
             tag.put("pose", SableNBTUtils.writePose3d(pose))
             val b = SableNBTUtils.readBoundingBox(tag.getCompound("world_bounds"))
             tag.put(

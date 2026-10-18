@@ -27,7 +27,7 @@ import kotlin.math.sin
 object SpaceScene {
     const val HALF_SIZE = FlatPlanetSpace.HALF_SIZE
     const val TOP = FlatPlanetSpace.SEA_LEVEL
-    const val BOTTOM = -2600.0
+    const val BOTTOM = -FlatPlanetSpace.SEA_LEVEL
     val SUN_DIRECTION = Vector3(-0.4, 0.8, -0.3).normalized()
 
     data class Face(

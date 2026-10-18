@@ -31,47 +31,56 @@ extension for this dimension ID. NeoForge owns the hook and effects adapter; sha
 or Create APIs participate in rendering, and the selector never loads on a dedicated server.
 
 The reference body remains a 10,000-by-10,000-block flat slab centred at surface X/Z zero,
-with a fallback top at Y=64 and a decorative rocky underside bounded above Y=-2600.
+with a fallback top at Y=64 and its actual flat lower boundary at Y=-64.
 Its orbital top now uses a server-owned
 surface atlas: each naturally loaded Overworld chunk contributes sixteen height/map-colour probes,
 averaged to one chunk sample. Water, grass and leaves use native biome colours. The client combines
-known samples into 32-metre overview cells, including large terrain changes and buildings; this is
+known samples into 16-metre overview cells, including large terrain changes and buildings; this is
 an overview, not block-resolution geometry or a collision surface. Vertical skirts join differing
 heights, unknown neighbours and the slab edge. Administrator border changes do not resize the
 physical reference body or its atlas. Side strata and the underside remain illustrative.
 
-`PlanetRockShell` closes the underside with a deterministic jittered 64-by-64 triangulated grid,
-thickening towards the centre, and eight uneven rock strata around the exact square top perimeter.
-Its 12,288 triangle faces use degenerate fourth vertices in the existing quad buffer. Shared vertices
-close every join except the intended top boundary. Rock uses a modest illustrative ambient fill so
-its unlit underside retains readable facets; this is not new stellar lighting. The cached mesh and
-existing asynchronous rebuild budget are retained. No bitmap assets or runtime rock textures are added.
+`PlanetRockShell` shades the underside using a deterministic 64-by-64 triangulated grid, flat at
+Y=-64 (8,192 triangle faces encoded as quads with a repeated final vertex). Its jitter is horizontal
+only, so no decorative volume protrudes beyond the real bedrock floor. Independently rebuilt surface
+sectors own their outer cliffs: each 16-metre perimeter cell extends from its known atlas height
+(or fallback Y=64) down to Y=-64. Absolute strata levels align beside neighbouring cells, with a thin
+sample-coloured top band and deterministic stone colour variation. The static body buffer contains
+only the underside; there is no overlapping fixed-sea-level wall. Coarse initial sectors include
+matching fallback walls before their fine replacements arrive. Rock uses modest illustrative ambient
+fill to keep the unlit underside readable; this is not new stellar lighting. No bitmap assets or
+runtime rock textures are added. Cliff interiors/caves/materials remain illustrative: the atlas stores
+only a top height/colour, not a full side scan. Loaded native chunks render in front of the sky model.
 
 `PlanetLimbRenderer` adds a luminous blue feathered upper-edge halo to the shared map/world scene
 after opaque geometry: a narrow pale core fades into a broad blue outer glow, using additive RGB
 blending while preserving destination alpha for the later sky composite. No post-process bloom target
-is allocated. It tests existing
+is allocated. Its static vertex buffer is uploaded once, shared by map/world and released on
+disconnect; rendering does not rebuild or upload the rim each frame. It tests existing
 scene depth without writing depth; clouds remain a separate
 pass and foreground ships still draw against the normal world. This bounded geometric halo is not
 physical atmospheric scattering. The shell is decoration, with no collision or terrain generation;
 it does not change the mass model, gravity field, coordinate frames or transfer altitudes.
 
-Unknown overview cells keep the existing deterministic water/coast/land mosaic. Any known samples
-in a cell provide its overview; a partially sampled cell is approximate until its other chunks load.
+Unknown overview cells keep the existing deterministic water/coast/land mosaic. Each known chunk replaces its 16-metre cell.
 The sampler never requests chunk generation or loading. Each normal full-chunk load/unload captures
 sixteen probes immediately on the server thread, so a lifecycle burst cannot lose chunks behind a
 refresh budget. Two still-loaded chunks per tick are additionally refreshed in round-robin order.
 
 Existing saved terrain is backfilled independently of live chunk loading and Voxy. A background scan
 reads only existing region location tables inside the footprint, nearest the origin first. Up to eight
-native asynchronous chunk-storage reads may be in flight; the server consumes up to eight ready records
+read-only snapshot reads may be pending on two dedicated disk/decompression workers; the server consumes up to eight ready records
 per tick, stopping between records after a two-millisecond decode budget. Native block-state and biome
 palette codecs decode only sampled sections; no live chunk, ticket, entity, POI or lighting is installed.
 The scan repeats at most once per minute after draining, so generation that bypasses full-chunk events
 can still contribute after saving. Complete current-version chunks with a WORLD_SURFACE heightmap are
 eligible; malformed, incomplete and older/newer-version terrain retains fallback until opened normally.
+Readers open only existing Anvil region/external files in READ mode, use native gzip/deflate/plain/LZ4
+codecs and an 8 MiB compressed/allocation bound per entry, and recheck location/timestamp after reading.
+Custom codecs, changed or malformed entries retain fallback and may be retried on a later scan. Native
+chunk writes remain authoritative; the readers never share a writable storage handle or flush world I/O.
 Disk samples only fill unknown entries and cannot overwrite newer live observations. Backfill is
-incremental and may take minutes for a large existing world. Nothing waits for backfill at server stop.
+incremental and may take minutes for a large existing world. Server stopping cancels the bounded queue and interrupts its workers without waiting for disk reads.
 Unloaded terrain retains its saved sample.
 
 The Overworld owns `data/orbitalis_surface_atlas.dat`, SavedData version 1. `Samples` is an int array
@@ -81,7 +90,7 @@ produce an empty cache. An unsupported version is read-only and presents fallbac
 file. Missing data starts empty. This cache never edits terrain or physics.
 
 Clientbound `orbitalis:surface_atlas`, registrar version 1, carries a server-session UUID, reset bit,
-nonnegative revision and at most 256 validated samples. Orbital players, surface players at or above the visual transition start, and leased map viewers receive it, with at
+nonnegative revision and at most 256 validated samples. Orbital players, surface players within the upper/lateral/lower visual transition, and leased map viewers receive it, with at
 most one packet/player/server tick. The server retains only each cell's current revision, not an
 unbounded history; a cursor streams current values and later replacements. Login/reconnection
 starts a reset; disconnect clears client data and GPU resources. Data survives dimension travel on
@@ -97,11 +106,22 @@ sky depth in front of ships. Stars and Sun are drawn first, the body afterward, 
 composited once with the visual blend weight. Normal world geometry draws afterward, so ships occlude
 the background. Shared map rendering continues to use the same cached body mesh with its own camera.
 The renderer restores incoming read/draw framebuffers, viewport, clear colour, shader, shader colour
-and depth/culling/blend state. Overview geometry is cached in a
-GPU vertex buffer. At most one CPU mesh job is pending, started at most twice per second on an immutable
-sample snapshot; only upload/compositing run on the render thread. Session generations reject stale jobs
-and disconnect releases completed/pending CPU buffers without waiting. The top is bounded to 98,596
-quads, with at most two interior skirts per cell and bounded perimeter skirts. Sky is hidden in fluids, powder snow and under blindness/darkness;
+and depth/culling/blend state. Overview geometry is cached in 400 independent 512-by-512-metre
+sectors plus a static body buffer. A changed sample marks its sector and, when needed, the sectors
+owning its negative-X/negative-Z height walls. Each immutable job snapshot includes only local samples
+and the positive-edge halo; unchanged sectors are neither copied nor rebuilt. Up to four CPU jobs
+run on the background executor, with at most two completed sector uploads per rendered frame and fair
+round-robin scheduling. The last complete sector remains visible while its replacement builds; a few
+coarse fallback quads cover each sector before its initial fine mesh is ready. CPU jobs never perform
+OpenGL calls. Session resets/disconnects close old GPU buffers, reject stale jobs and release their CPU
+buffers on completion without blocking. Map and world share these same buffers.
+
+The 16-metre top is bounded to 391,876 quads, with at most two interior skirts per cell and bounded
+perimeter skirts. Persisted atlas and packet formats are unchanged. Base top geometry uses about
+24 MiB of vertex data; a maximal alternating-height surface including skirts is below 1.2 million
+quads (about 74 MiB). A full interior sector has at most 1,024 tops and 2,048 interior walls (roughly
+192 KiB of vertex data), so a local update avoids preparing/uploading the whole planetary mesh.
+No terrain requests are introduced. Sky is hidden in fluids, powder snow and under blindness/darkness;
 medium-specific fog is retained.
 
 `PlanetCloudRenderer` draws one translucent, alpha-masked sheet over the finite footprint. The map
@@ -139,9 +159,12 @@ or planet shadows.
 
 ## Verification
 
+`SurfaceMeshSectorsTest` protects local invalidation, immutable halo snapshots, negative coordinates,
+shared-wall ownership and coarse/fine footprint coverage. `SavedSurfaceReaderTest` covers native
+compression modes, external entries, read-only access and malformed/missing snapshots.
 `SurfaceAtlasTest` protects updates, bounded revision streams, coordinates and mixed known cells.
 `SurfacePlanetMeshTest` verifies complete fallback coverage, real relief replacement, edge/unknown
-skirts and the mesh budget. `-PorbitalisGameTestSuite=atlas` requires native sampling/terrain-change,
+skirts, real-height perimeter wall coverage, coarse exterior walls and the mesh budget. `-PorbitalisGameTestSuite=atlas` requires native sampling/terrain-change,
 real SavedData disk reload, saved-terrain backfill, lifecycle bursts, future/malformed data handling
 and packet bounds/roundtrip scenarios.
 In a disposable client world, inspect generated land from above, then view the slab edges/underside
@@ -151,12 +174,12 @@ roof while loaded and verify the next pass updates its orbital overview. Compila
 framebuffer compositing or actual client receipt.
 
 `SpaceSceneTest` exercises angular preservation at near/far and opposite-side viewpoints, the rock
-shell's manifold joins, anchored top perimeter, outward unit normals, depth/geometry bounds and
+underside's manifold joins, exact lower plane, outward unit normals, area/geometry bounds and
 distance-dependent apparent size. Run target checks and inspect a disposable
 client world; compilation alone does not demonstrate appearance. Suggested manual views:
 
-- `/gamemode spectator`, then `/execute in orbitalis:space run tp @s 0 6160 0 0 90`
-  shows the surface from physical Y=2064.
+- `/gamemode spectator`, then `/execute in orbitalis:space run tp @s 0 7160 0 0 90`
+  shows the surface from physical Y=3064, outside the automatic return band.
 - `/execute in orbitalis:space run tp @s 6500 10160 6500 135 15`
   shows the top and two sides.
 - `/execute in orbitalis:space run tp @s 0 -1904 0 0 -90`
@@ -172,7 +195,9 @@ client world; compilation alone does not demonstrate appearance. Suggested manua
 Y=364 and reaches full vacuum at Y=1564 for the current planet size, before both the descent (2064)
 and ascent (3064) triggers. Both frames therefore show the same sky at their handoff. The weight
 uses the existing route coordinate transform and scale constants, not distance from a dimension's
-native Y origin. At and below the start, native sky rendering remains unchanged. Fog, native cloud
+native Y origin. Side and lower presentation additionally follow the existing compact atmospheric
+falloff, reaching vacuum within 256 m outside the footprint/below the body. Atlas subscriptions and
+held-frame forecasts include these edge/underside approaches. At and below the start, native sky rendering remains unchanged. Fog, native cloud
 presentation, rendered rain strength and exposed lightmap colours approach the orbital presentation with
 the same weight. Fluid and effect-specific sky restrictions remain. A lightmap adapter wraps only
 the native Overworld effects and delegates its render hooks; unrelated effects implementations stay
