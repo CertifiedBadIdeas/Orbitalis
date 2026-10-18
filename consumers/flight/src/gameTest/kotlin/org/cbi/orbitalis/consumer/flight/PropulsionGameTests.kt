@@ -189,6 +189,14 @@ object PropulsionGameTests {
             )
             val container = checkNotNull(SubLevelContainer.getContainer(rigs[0].level))
             val tickets = container.collectForceLoadTickets().values.sumOf { it.size }
+            container.addForceLoadTicket(rigs[0].body, AutopilotFlightLoading.TYPE, java.util.UUID.randomUUID())
+            AutopilotFlightLoading.discardOrphans(server)
+            helper.assertTrue(
+                container.collectForceLoadTickets().values.sumOf {
+                    it.size
+                } == tickets,
+                "Interrupted session ticket survived cleanup or another owner's ticket was removed",
+            )
             helper.assertTrue(
                 command("list") >= 3 &&
                     messages.any {
@@ -204,6 +212,7 @@ object PropulsionGameTests {
             messages.clear()
             command("status ${rigs[1].body.uniqueId}")
             helper.assertTrue(messages.any { it.contains("PLANNING") }, "Addressed stop cancelled another ship")
+            val beforeMissing = container.collectForceLoadTickets().values.sumOf { it.size }
             try {
                 command("land $unknown")
                 helper.fail("Landing silently loaded an unavailable ship")
@@ -212,11 +221,33 @@ object PropulsionGameTests {
             helper.assertTrue(
                 container.getSubLevel(unknown) == null && container.collectForceLoadTickets().values.sumOf {
                     it.size
-                } == tickets,
-                "Commands added native load tickets",
+                } == beforeMissing,
+                "Unavailable UUID lookup added native load tickets",
             )
-            command("stop ${rigs[1].body.uniqueId}")
-            helper.succeed()
+            helper.assertTrue(beforeMissing == tickets + 1, "Active guidance did not retain exactly its remaining ship")
+            container.removeForceLoadTicket(rigs[1].body, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
+            helper.runAfterDelay(80) {
+                helper.assertTrue(
+                    !rigs[1].body.isRemoved && container.getSubLevel(rigs[1].body.uniqueId) === rigs[1].body,
+                    "Uncrewed guided ship unloaded without fixture ticket",
+                )
+                messages.clear()
+                command("status ${rigs[1].body.uniqueId}")
+                helper.assertTrue(
+                    messages.none {
+                        it.contains("not engaged")
+                    } && messages.any { it.contains("mission", ignoreCase = true) },
+                    "Guidance stopped after distant pilot removal",
+                )
+                command("stop ${rigs[1].body.uniqueId}")
+                helper.assertTrue(
+                    container.collectForceLoadTickets().values.sumOf {
+                        it.size
+                    } == tickets - 1,
+                    "Stopping guidance leaked its native ticket or removed another owner's ticket",
+                )
+                helper.succeed()
+            }
         }
     }
 

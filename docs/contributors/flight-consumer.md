@@ -326,9 +326,16 @@ Bare commands select the ship underfoot, or the command owner's sole active cont
 status and stop. With multiple controllers, specify the UUID. Each ship has independent control and
 a remembered pad; landing retains the existing bookmark ownership check.
 
-Directory lookup and UUID selection never load ships or terrain or add keep-loaded tickets.
-Autopilots do not retain distant ships: guidance stops if its native ship unloads or is removed.
-The existing transfer coordinator still prepares its bounded destination before a handoff. Approach it to load it through ordinary game behavior,
+Directory lookup and unavailable UUID selection never load ships or terrain. Starting guidance on an
+already loaded ship retains that native construction with a consumer-owned Sable ticket, including
+unpowered coast; player proximity is no longer required. The controller follows the reconstructed
+native body after a dimension handoff, including its readiness delay, and releases only its own ticket
+on stop, landing, error or server shutdown. It does not retain orbital terrain or wake a dormant UUID. Genuine removal still
+stops guidance. A new run discards native tickets from interrupted consumer sessions; guidance itself
+is not restored. The native ticket type `orbitalis_flight_consumer:active_autopilot` is registered at
+mod construction, before Sable reads its own saved ticket registry; its key is a session UUID.
+The existing transfer coordinator still prepares its bounded destination before a handoff. Approach an
+unloaded ship to load it through ordinary game behavior,
 then issue `land <ship-uuid>` to start new return guidance from its actual state. Ship and passenger
 readiness are still validated by the existing transfer coordinator. The command owner standing elsewhere
 is not teleported with an empty ship. Guidance is not persisted across server shutdown.

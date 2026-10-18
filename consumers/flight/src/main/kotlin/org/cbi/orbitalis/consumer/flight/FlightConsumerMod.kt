@@ -51,15 +51,27 @@ import java.util.UUID
 @Mod(FlightConsumerMod.ID)
 @EventBusSubscriber(modid = FlightConsumerMod.ID)
 class FlightConsumerMod {
+    init {
+        AutopilotFlightLoading.initialize()
+    }
+
     private class Control(
         val owner: UUID,
         val session: AutopilotSession? = null,
         val mission: FlightMission? = null,
     ) {
+        private val loading = AutopilotFlightLoading(mission?.body ?: checkNotNull(session).body)
+
+        fun retainFlight() = loading.follow(mission?.body ?: checkNotNull(session).body)
+
         fun status() = mission?.status() ?: checkNotNull(session).status()
 
         fun close() {
-            if (mission != null) mission.close() else checkNotNull(session).close()
+            try {
+                if (mission != null) mission.close() else checkNotNull(session).close()
+            } finally {
+                loading.close()
+            }
         }
     }
 
@@ -320,13 +332,16 @@ class FlightConsumerMod {
         @JvmStatic
         @SubscribeEvent
         fun tick(event: ServerTickEvent.Pre) {
+            AutopilotFlightLoading.discardOrphans(event.server)
             for ((id, active) in controls[event.server]?.toMap().orEmpty()) {
                 try {
+                    active.retainFlight()
                     val player = event.server.playerList.getPlayer(active.owner)
                     val mission = active.mission
                     if (mission != null) {
                         val previous = mission.stage
                         val landed = mission.tick(player)
+                        active.retainFlight()
                         if (player != null && mission.stage != previous) player.sendSystemMessage(Component.literal(active.status()))
                         if (landed) stop(event.server, "landed at the saved launch site", id)
                     } else {
