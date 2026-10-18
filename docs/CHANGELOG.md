@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Let consumer autopilots fly loaded ships without a player aboard. Add a paginated ship directory
+  and UUID-addressed orbit, landing, status and stop commands with independent controllers and
+  per-ship launch bookmarks. Directory and UUID selection never force-load ships or terrain.
+
 - Separate consumer autopilot orbit insertion from landing: `orbit` coasts until an explicit `land`
   request, and `land` searches the next safe return window without requiring a complete revolution.
 

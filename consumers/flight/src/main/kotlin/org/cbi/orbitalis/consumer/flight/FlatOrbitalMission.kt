@@ -32,7 +32,7 @@ import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
 import org.cbi.orbitalis.minecraft.flight.ShipDestinationPreload
 import org.cbi.orbitalis.minecraft.flight.SpaceTravelReservations
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
-import org.cbi.orbitalis.minecraft.integration.sable.SableShipContact
+import org.cbi.orbitalis.minecraft.integration.sable.SableShipSnapshot
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipTransfer
 import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferPassengers
 import org.joml.Vector3d
@@ -42,8 +42,8 @@ import kotlin.math.floor
 
 /** Real engines capture a numerically predicted trajectory, then disengage for a free coast. */
 internal class FlatOrbitalMission(
-    pilot: ServerPlayer,
-    var body: ServerSubLevel,
+    pilot: ServerPlayer?,
+    override var body: ServerSubLevel,
     private val site: LaunchSites.Site,
     private val transfer: SableShipTransfer,
     land: Boolean,
@@ -65,6 +65,7 @@ internal class FlatOrbitalMission(
     private var coastEnergy = 0.0
     private var braking = false
     private var closed = false
+    private val server = body.level.server
     private val returningAtStart = land
     private val aboveHome = Vector3(site.position.x, FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ORBIT_HEIGHT, site.position.z)
 
@@ -73,10 +74,9 @@ internal class FlatOrbitalMission(
         require(abs(site.position.x) <= FlatPlanetSpace.LAUNCH_LIMIT && abs(site.position.z) <= FlatPlanetSpace.LAUNCH_LIMIT) {
             "Launch pad must leave a 40-metre margin inside the surface footprint"
         }
-        require(pilot.level() === body.level)
         if (!land) {
             require(body.level.dimension() == Level.OVERWORLD) { "Launch from ordinary Overworld terrain" }
-            ShipTransferPassengers.preflight(body, pilot)
+            ShipTransferPassengers.preflight(body, AutopilotPassengers.select(body, pilot))
             val top =
                 body.level.getHeight(
                     Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
@@ -146,7 +146,7 @@ internal class FlatOrbitalMission(
     }
 
     override fun tick(pilot: ServerPlayer?): Boolean {
-        require(!closed && pilot != null && pilot.isAlive) { "Pilot unavailable" }
+        require(!closed) { "Autopilot is closed" }
         // A completed orbit insertion may coast until the pilot explicitly requests landing.
         check(
             phase == Phase.COAST || ++ticks < (16000 * kotlin.math.sqrt(org.cbi.orbitalis.core.planet.FlatPlanetDefinition.SCALE)).toInt(),
@@ -160,19 +160,17 @@ internal class FlatOrbitalMission(
                 return false
             }
             val target = if (afterTransfer == Phase.CLIMB) FlatPlanetSpace.SPACE else Level.OVERWORLD
-            val level = pilot.server.getLevel(target)
+            val level = checkNotNull(server.getLevel(target))
             val restored = checkNotNull(SubLevelContainer.getContainer(level)).getSubLevel(site.ship) as? ServerSubLevel
-            require(restored != null && pilot.level() === level) { "Destination ship/pilot missing" }
-            if (++ready < 5 || SableShipContact.resolve(pilot) !== restored) return false
+            require(restored != null) { "Destination ship missing" }
+            if (++ready < 5 || !SableShipSnapshot.entitiesReady(restored)) return false
             body = restored
             preload.close()
             enter(afterTransfer)
             return false
         }
-        require(!body.isRemoved && pilot.level() === body.level && SableShipContact.resolve(pilot) === body) {
-            "Stay on the mission ship with creative flight disabled"
-        }
-        require(!SubLevelPhysicsSystem.require(body.level).paused) { "Native physics paused outside handoff" }
+        require(!body.isRemoved) { "Ship unavailable" }
+        if (SubLevelPhysicsSystem.require(body.level).paused) return false
         body.level.resetEmptyTime()
         val s = state()
         require(
@@ -198,9 +196,18 @@ internal class FlatOrbitalMission(
 
             Phase.FADE -> {
                 require(ticks < 200) { "Engines failed to fade" }
-                if (AutopilotSession.enginesFaded(body)) {
-                    pilot.closeContainer()
-                    transfer.begin(pilot, body, if (afterTransfer == Phase.CLIMB) FlatPlanetSpace.SPACE else Level.OVERWORLD)
+                if (!transfer.busy && AutopilotSession.enginesFaded(body)) {
+                    transfer.begin(
+                        AutopilotPassengers.select(body, pilot),
+                        body,
+                        if (afterTransfer ==
+                            Phase.CLIMB
+                        ) {
+                            FlatPlanetSpace.SPACE
+                        } else {
+                            Level.OVERWORLD
+                        },
+                    )
                     ready = 0
                     enter(Phase.TRANSFER)
                 }

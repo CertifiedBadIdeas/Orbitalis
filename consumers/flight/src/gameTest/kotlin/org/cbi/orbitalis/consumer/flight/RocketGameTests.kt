@@ -48,7 +48,7 @@ import kotlin.math.abs
 object RocketGameTests {
     @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 40000, batch = "rocket_mission")
-    fun nativeRocketRoundTrip(helper: GameTestHelper) = roundTrip(helper, BlockPos(0, 21, 0), false)
+    fun nativeRocketRoundTrip(helper: GameTestHelper) = roundTrip(helper, BlockPos(0, 21, 0), false, uncrewed = true)
 
     @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 40000, batch = "rocket_offaxis")
@@ -63,6 +63,7 @@ object RocketGameTests {
         origin: BlockPos,
         reload: Boolean,
         seated: Boolean = false,
+        uncrewed: Boolean = false,
     ) {
         val server = helper.level.server
         val level = server.overworld()
@@ -207,7 +208,7 @@ object RocketGameTests {
                     val c = checkNotNull(SubLevelContainer.getContainer(world))
                     val b = c.getSubLevel(body!!.uniqueId) as? ServerSubLevel ?: continue
                     c.addForceLoadTicket(b, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
-                    if (pilot.player.level() === world) pilot.attach(b)
+                    if (!uncrewed && pilot.player.level() === world) pilot.attach(b)
                 }
             }
             if (mission == null && tick >= assembledAt + 120) {
@@ -303,10 +304,11 @@ object RocketGameTests {
                     }
                 }
                 mission = RocketMission(pilot.player, b, site!!, transfer, false)
+                if (uncrewed) pilot.player.discard()
             }
             mission?.let { active ->
                 val before = active.phase
-                val landed = active.tick(pilot.player)
+                val landed = active.tick(if (uncrewed) null else pilot.player)
                 if (!active.body.isRemoved && active.phase != RocketMission.Phase.TRANSFER) {
                     val b = active.body
                     val p =

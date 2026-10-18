@@ -19,6 +19,7 @@
 package org.cbi.orbitalis.consumer.flight
 
 import com.mojang.brigadier.arguments.DoubleArgumentType
+import com.mojang.brigadier.arguments.IntegerArgumentType
 import com.mojang.brigadier.context.CommandContextBuilder
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType
 import dev.propulsionteam.propulsionsimulated.content.thruster.vector_thruster.creative_vector_thruster.CreativeVectorThrusterBlockEntity
@@ -26,6 +27,8 @@ import dev.ryanhcode.sable.sublevel.ServerSubLevel
 import dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem
 import net.minecraft.commands.CommandSourceStack
 import net.minecraft.commands.Commands
+import net.minecraft.commands.SharedSuggestionProvider
+import net.minecraft.commands.arguments.UuidArgument
 import net.minecraft.network.chat.Component
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerPlayer
@@ -62,7 +65,7 @@ class FlightConsumerMod {
 
     companion object {
         const val ID = "orbitalis_flight_consumer"
-        private val controls = mutableMapOf<MinecraftServer, Control>()
+        private val controls = mutableMapOf<MinecraftServer, MutableMap<UUID, Control>>()
 
         private fun ship(player: ServerPlayer): ServerSubLevel {
             val body =
@@ -90,9 +93,9 @@ class FlightConsumerMod {
                 require(player.isCreative) { "Test autopilot requires creative mode" }
                 val body = ship(player)
                 require(!SubLevelPhysicsSystem.require(body.level).paused) { "Wait for transfer/recovery to finish" }
-                val existing = controls[source.server]
+                val existing = controls[source.server]?.get(body.uniqueId)
                 require(existing == null || existing.owner == player.uuid) { "Another pilot owns the test autopilot" }
-                stop(source.server, null)
+                stop(source.server, null, body.uniqueId)
                 var target = AutopilotSession.position(body)
                 if (altitude != null) {
                     val global = FlightSpaceCoordinates.globalPosition(body.level, target)
@@ -105,7 +108,7 @@ class FlightConsumerMod {
                     target = FlightSpaceCoordinates.localPosition(body.level.dimension(), goal)
                 }
                 val session = AutopilotSession(body, target)
-                controls[source.server] = Control(player.uuid, session = session)
+                controls.getOrPut(source.server) { linkedMapOf() }[body.uniqueId] = Control(player.uuid, session = session)
                 source.sendSuccess(
                     { Component.literal("Propulsion autopilot engaged. Leave manual controls off. " + session.status()) },
                     false,
@@ -116,19 +119,20 @@ class FlightConsumerMod {
         private fun mission(
             source: CommandSourceStack,
             land: Boolean,
+            id: UUID? = null,
         ): Int =
             commandResult {
                 val player = source.playerOrException
                 require(player.isCreative) { "Test autopilot requires creative mode" }
-                val current = controls[source.server]
+                val selected = id ?: if (land) selectedId(source) else ship(player).uniqueId
+                val current = controls[source.server]?.get(selected)
                 require(current == null || current.owner == player.uuid) { "Another pilot owns the test autopilot" }
                 if (land && current?.mission != null) {
                     current.mission.requestLanding()
                     source.sendSuccess({ Component.literal(current.status()) }, false)
                     return@commandResult 1
                 }
-                val body = ship(player)
-                stop(source.server, null)
+                val body = FlightShips.loaded(source.server, selected)
                 val sites = LaunchSites.get(source.server)
                 val site =
                     if (land) {
@@ -141,6 +145,7 @@ class FlightConsumerMod {
                             body.level.dimension(),
                         )
                     }
+                stop(source.server, null, body.uniqueId)
                 val manager = SableFlightIntegration.transferService(source.server)
                 val rocket =
                     body.plot.loadedChunks.any { chunk ->
@@ -172,24 +177,89 @@ class FlightConsumerMod {
                     mission.close()
                     throw failure
                 }
-                controls[source.server] = Control(player.uuid, mission = mission)
+                controls.getOrPut(source.server) { linkedMapOf() }[body.uniqueId] = Control(player.uuid, mission = mission)
                 source.sendSuccess({ Component.literal(mission.status()) }, false)
                 1
             }
 
+        private fun selectedId(source: CommandSourceStack): UUID {
+            val player = source.playerOrException
+            (SableShipContact.resolve(player) as? ServerSubLevel)?.let { return it.uniqueId }
+            return controls[source.server]?.filterValues { it.owner == player.uuid }?.keys?.singleOrNull()
+                ?: throw IllegalArgumentException("Specify a ship UUID; use /orbitalis flight autopilot list")
+        }
+
         private fun stop(
             server: MinecraftServer,
             reason: String?,
+            id: UUID? = null,
         ) {
-            val control = controls.remove(server) ?: return
-            control.close()
-            val player = server.playerList.getPlayer(control.owner)
-            if (player != null && reason != null) {
-                player.sendSystemMessage(
-                    Component.literal("Autopilot disengaged: $reason. Native engine fade still applies."),
-                )
+            val ids = id?.let { listOf(it) } ?: controls[server]?.keys?.toList().orEmpty()
+            for (ship in ids) {
+                val control = controls[server]?.remove(ship) ?: continue
+                control.close()
+                if (reason != null) {
+                    server.playerList.getPlayer(control.owner)?.sendSystemMessage(
+                        Component.literal("Autopilot $ship disengaged: $reason. Native engine fade still applies."),
+                    )
+                }
             }
+            if (controls[server]?.isEmpty() == true) controls.remove(server)
         }
+
+        private fun stopCommand(
+            source: CommandSourceStack,
+            id: UUID?,
+        ): Int =
+            commandResult {
+                val selected = id ?: selectedId(source)
+                val active = controls[source.server]?.get(selected)
+                require(active == null || active.owner == source.playerOrException.uuid) { "Another pilot owns this autopilot" }
+                stop(source.server, "manual stop", selected)
+                1
+            }
+
+        private fun status(
+            source: CommandSourceStack,
+            id: UUID?,
+        ): Int =
+            commandResult {
+                val selected = id ?: selectedId(source)
+                val entry = FlightShips.entries(source.server).firstOrNull { it.id == selected }
+                require(entry != null) { "Unknown ship $selected" }
+                source.sendSuccess({
+                    Component.literal(entry.describe() + " | " + (controls[source.server]?.get(selected)?.status() ?: "autopilot off"))
+                }, false)
+                1
+            }
+
+        private fun list(
+            source: CommandSourceStack,
+            page: Int,
+        ): Int =
+            commandResult {
+                val entries = FlightShips.entries(source.server)
+                val pages = maxOf(1, (entries.size + 19) / 20)
+                require(page <= pages) { "There are $pages pages" }
+                source.sendSuccess(
+                    { Component.literal("Ships: ${entries.size}; page $page/$pages; coordinates in the named dimension") },
+                    false,
+                )
+                for (entry in entries.drop((page - 1) * 20).take(20)) {
+                    val stage =
+                        controls[source.server]?.get(entry.id)?.mission?.stage
+                            ?: if (controls[source.server]?.containsKey(entry.id) == true) "HOLD" else "off"
+                    source.sendSuccess({ Component.literal(entry.describe() + " | autopilot " + stage) }, false)
+                }
+                entries.size
+            }
+
+        private fun shipArgument(action: (CommandSourceStack, UUID) -> Int) =
+            Commands
+                .argument("ship", UuidArgument.uuid())
+                .suggests { context, builder ->
+                    SharedSuggestionProvider.suggest(FlightShips.entries(context.source.server).map { it.id.toString() }, builder)
+                }.executes { action(it.source, UuidArgument.getUuid(it, "ship")) }
 
         @JvmStatic
         @SubscribeEvent
@@ -197,9 +267,37 @@ class FlightConsumerMod {
             val command =
                 Commands
                     .literal("autopilot")
-                    .then(Commands.literal("orbit").executes { mission(it.source, false) })
-                    .then(Commands.literal("land").executes { mission(it.source, true) })
-                    .then(Commands.literal("hold").executes { engage(it.source, null) })
+                    .then(
+                        Commands.literal("orbit").executes { mission(it.source, false) }.then(
+                            shipArgument {
+                                source,
+                                id,
+                                ->
+                                mission(source, false, id)
+                            },
+                        ),
+                    ).then(
+                        Commands.literal("land").executes { mission(it.source, true) }.then(
+                            shipArgument {
+                                source,
+                                id,
+                                ->
+                                mission(source, true, id)
+                            },
+                        ),
+                    ).then(
+                        Commands
+                            .literal("list")
+                            .executes {
+                                list(it.source, 1)
+                            }.then(
+                                Commands
+                                    .argument(
+                                        "page",
+                                        IntegerArgumentType.integer(1),
+                                    ).executes { list(it.source, IntegerArgumentType.getInteger(it, "page")) },
+                            ),
+                    ).then(Commands.literal("hold").executes { engage(it.source, null) })
                     .then(
                         Commands.literal("altitude").then(
                             Commands
@@ -207,20 +305,9 @@ class FlightConsumerMod {
                                 .executes { engage(it.source, DoubleArgumentType.getDouble(it, "height")) },
                         ),
                     ).then(
-                        Commands.literal("stop").executes {
-                            val active = controls[it.source.server]
-                            if (active != null && active.owner != it.source.playerOrException.uuid) {
-                                throw SimpleCommandExceptionType(Component.literal("Another pilot owns the test autopilot")).create()
-                            }
-                            stop(it.source.server, "manual stop")
-                            1
-                        },
+                        Commands.literal("stop").executes { stopCommand(it.source, null) }.then(shipArgument(::stopCommand)),
                     ).then(
-                        Commands.literal("status").executes {
-                            val active = controls[it.source.server]
-                            it.source.sendSuccess({ Component.literal(active?.status() ?: "Autopilot is off") }, false)
-                            1
-                        },
+                        Commands.literal("status").executes { status(it.source, null) }.then(shipArgument(::status)),
                     )
             event.dispatcher.register(
                 Commands
@@ -233,29 +320,26 @@ class FlightConsumerMod {
         @JvmStatic
         @SubscribeEvent
         fun tick(event: ServerTickEvent.Pre) {
-            val active = controls[event.server] ?: return
-            try {
-                val player = event.server.playerList.getPlayer(active.owner)
-                val mission = active.mission
-                if (mission != null) {
-                    val previous = mission.stage
-                    val landed = mission.tick(player)
-                    if (player != null && mission.stage != previous) player.sendSystemMessage(Component.literal(active.status()))
-                    if (landed) stop(event.server, "landed at the saved launch site")
-                    return
+            for ((id, active) in controls[event.server]?.toMap().orEmpty()) {
+                try {
+                    val player = event.server.playerList.getPlayer(active.owner)
+                    val mission = active.mission
+                    if (mission != null) {
+                        val previous = mission.stage
+                        val landed = mission.tick(player)
+                        if (player != null && mission.stage != previous) player.sendSystemMessage(Component.literal(active.status()))
+                        if (landed) stop(event.server, "landed at the saved launch site", id)
+                    } else {
+                        val session = checkNotNull(active.session)
+                        if (session.body.isRemoved) {
+                            stop(event.server, "ship unloaded or removed", id)
+                        } else if (!SubLevelPhysicsSystem.require(session.body.level).paused) {
+                            session.update()
+                        }
+                    }
+                } catch (error: RuntimeException) {
+                    stop(event.server, error.message, id)
                 }
-                val session = checkNotNull(active.session)
-                val body = session.body
-                if (player == null || !player.isAlive || player.level() !== body.level ||
-                    SableShipContact.resolve(player) !== body || body.isRemoved ||
-                    SubLevelPhysicsSystem.require(body.level).paused
-                ) {
-                    stop(event.server, "pilot/ship unavailable or physics paused")
-                    return
-                }
-                session.update()
-            } catch (error: RuntimeException) {
-                stop(event.server, error.message)
             }
         }
 

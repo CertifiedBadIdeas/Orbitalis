@@ -40,6 +40,18 @@ object LaunchBookmarkGameTests {
         val site = LaunchSites.Site(ship, Vector3(15.0, 70.0, -10.0), Quaterniond().rotateY(0.2))
         data.put(pilot, site)
         val tag = data.save(CompoundTag(), registries)
+        val second = UUID.randomUUID()
+        data.put(pilot, LaunchSites.Site(second, Vector3(20.0, 71.0, -12.0), Quaterniond()))
+        val multiple = LaunchSites.load(data.save(CompoundTag(), registries), registries)
+        helper.assertTrue(
+            multiple.require(pilot, ship).ship == ship && multiple.require(pilot, second).ship == second,
+            "Second launch overwrote the first ship's pad",
+        )
+        val versionTwo = tag.copy().also { it.putInt("version", 2) }
+        helper.assertTrue(
+            LaunchSites.load(versionTwo, registries).require(pilot, ship).ship == ship,
+            "Version-two bookmark failed migration",
+        )
         val restored = LaunchSites.load(tag, registries).require(pilot, ship)
         helper.assertTrue(
             (restored.position - site.position).length() < 1e-12 &&
@@ -57,6 +69,8 @@ object LaunchBookmarkGameTests {
             } catch (_: IllegalArgumentException) {
             }
         }
+        val duplicateLegacyOwner = data.save(CompoundTag(), registries).also { it.putInt("version", 2) }
+        rejected("Duplicate legacy owner was silently migrated") { LaunchSites.load(duplicateLegacyOwner, registries) }
         helper.assertTrue(restored.surface == Level.OVERWORLD, "Bookmark changed surface")
         val legacy =
             tag.copy().also {

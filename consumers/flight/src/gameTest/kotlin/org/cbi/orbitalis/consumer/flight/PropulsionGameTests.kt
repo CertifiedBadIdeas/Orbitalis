@@ -127,10 +127,97 @@ object PropulsionGameTests {
                 .getChild("flight")
         val autopilot = flight.getChild("autopilot")
         helper.assertTrue(autopilot != null, "Consumer autopilot commands missing")
-        for (name in listOf("hold", "altitude", "orbit", "land", "status", "stop")) {
+        for (name in listOf("hold", "altitude", "orbit", "land", "status", "stop", "list")) {
             helper.assertTrue(autopilot.getChild(name) != null, "Consumer autopilot command missing: $name")
         }
         helper.succeed()
+    }
+
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 300, batch = "autopilot_commands")
+    fun uncrewedAutopilotCommands(helper: GameTestHelper) {
+        val server = helper.level.server
+        val pilot = InertPilot(helper)
+        val rigs =
+            listOf(
+                Rig(helper, 9000.0, dimension = org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace.SPACE, y = 10000.0),
+                Rig(helper, 9300.0, dimension = org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace.SPACE, y = 10000.0),
+            )
+        val messages = mutableListOf<String>()
+        val source =
+            pilot.player.createCommandSourceStack().withPermission(4).withSource(
+                object : net.minecraft.commands.CommandSource {
+                    override fun sendSystemMessage(message: net.minecraft.network.chat.Component) {
+                        messages.add(message.string)
+                    }
+
+                    override fun acceptsSuccess() = true
+
+                    override fun acceptsFailure() = true
+
+                    override fun shouldInformAdmins() = false
+                },
+            )
+
+        fun command(text: String) = server.commands.dispatcher.execute("orbitalis flight autopilot $text", source)
+        onFinished(helper) {
+            rigs.forEach { runCatching { command("stop ${it.body.uniqueId}") } }
+            pilot.close()
+        }
+        helper.runAfterDelay(30) {
+            val sites = LaunchSites.get(server)
+            rigs.forEach {
+                sites.put(
+                    pilot.player.uuid,
+                    LaunchSites.Site(
+                        it.body.uniqueId,
+                        org.cbi.orbitalis.core.planet
+                            .Vector3(0.0, 70.0, 0.0),
+                        org.joml.Quaterniond(),
+                    ),
+                )
+            }
+            val unknown = java.util.UUID.randomUUID()
+            sites.put(
+                pilot.player.uuid,
+                LaunchSites.Site(
+                    unknown,
+                    org.cbi.orbitalis.core.planet
+                        .Vector3(0.0, 70.0, 0.0),
+                    org.joml.Quaterniond(),
+                ),
+            )
+            val container = checkNotNull(SubLevelContainer.getContainer(rigs[0].level))
+            val tickets = container.collectForceLoadTickets().values.sumOf { it.size }
+            helper.assertTrue(
+                command("list") >= 3 &&
+                    messages.any {
+                        it.contains(unknown.toString()) && it.contains("not loaded")
+                    },
+                "Ship directory lost loaded/remembered UUIDs",
+            )
+            for (rig in rigs) helper.assertTrue(command("land ${rig.body.uniqueId}") == 1, "Remote landing command failed")
+            messages.clear()
+            rigs.forEach { command("status ${it.body.uniqueId}") }
+            helper.assertTrue(messages.count { it.contains("PLANNING") } == 2, "One ship's guidance replaced another's")
+            command("stop ${rigs[0].body.uniqueId}")
+            messages.clear()
+            command("status ${rigs[1].body.uniqueId}")
+            helper.assertTrue(messages.any { it.contains("PLANNING") }, "Addressed stop cancelled another ship")
+            try {
+                command("land $unknown")
+                helper.fail("Landing silently loaded an unavailable ship")
+            } catch (_: com.mojang.brigadier.exceptions.CommandSyntaxException) {
+            }
+            helper.assertTrue(
+                container.getSubLevel(unknown) == null && container.collectForceLoadTickets().values.sumOf {
+                    it.size
+                } == tickets,
+                "Commands added native load tickets",
+            )
+            command("stop ${rigs[1].body.uniqueId}")
+            helper.succeed()
+        }
     }
 
     internal class Rig(

@@ -54,13 +54,13 @@ internal class LaunchSites : SavedData() {
         }
     }
 
-    private val sites = mutableMapOf<UUID, Site>()
+    private val sites = mutableMapOf<Pair<UUID, UUID>, Site>()
 
     fun require(
         pilot: UUID,
         ship: UUID,
     ): Site {
-        val site = sites[pilot]
+        val site = sites[pilot to ship]
         require(site != null && site.ship == ship) { "No launch bookmark for this pilot and ship; launch with autopilot orbit first" }
         return site
     }
@@ -69,20 +69,22 @@ internal class LaunchSites : SavedData() {
         pilot: UUID,
         site: Site,
     ) {
-        require(pilot in sites || sites.size < 64) { "Test launch bookmark limit reached" }
-        sites[pilot] = site
+        require((pilot to site.ship) in sites || sites.size < 64) { "Test launch bookmark limit reached" }
+        sites[pilot to site.ship] = site
         setDirty()
     }
+
+    fun ships(): Set<UUID> = sites.keys.map { it.second }.toSet()
 
     override fun save(
         tag: CompoundTag,
         registries: HolderLookup.Provider,
     ): CompoundTag {
-        tag.putInt("version", 2)
+        tag.putInt("version", 3)
         val list = ListTag()
-        sites.forEach { (pilot, site) ->
+        sites.forEach { (key, site) ->
             val entry = CompoundTag()
-            entry.putUUID("pilot", pilot)
+            entry.putUUID("pilot", key.first)
             entry.putString("surface", site.surface.location().toString())
             entry.putUUID("ship", site.ship)
             entry.putDouble("x", site.position.x)
@@ -110,11 +112,12 @@ internal class LaunchSites : SavedData() {
             tag: CompoundTag,
             registries: HolderLookup.Provider,
         ): LaunchSites {
-            require(tag.getInt("version") in 1..2 && tag.contains("sites", 9)) { "Unsupported launch bookmark data" }
+            require(tag.getInt("version") in 1..3 && tag.contains("sites", 9)) { "Unsupported launch bookmark data" }
             val list = tag.get("sites") as ListTag
             require(list.isEmpty() || list.elementType.toInt() == 10) { "Invalid launch bookmark list" }
             require(list.size <= 64) { "Too many launch bookmarks" }
             val data = LaunchSites()
+            val legacyPilots = mutableSetOf<UUID>()
             for (value in list) {
                 val entry = value as CompoundTag
                 for (key in listOf("x", "y", "z", "qx", "qy", "qz", "qw")) {
@@ -130,7 +133,9 @@ internal class LaunchSites : SavedData() {
                         Quaterniond(entry.getDouble("qx"), entry.getDouble("qy"), entry.getDouble("qz"), entry.getDouble("qw")),
                         Level.OVERWORLD,
                     )
-                require(data.sites.put(entry.getUUID("pilot"), site) == null) { "Duplicate launch bookmark" }
+                val owner = entry.getUUID("pilot")
+                require(tag.getInt("version") == 3 || legacyPilots.add(owner)) { "Duplicate legacy launch bookmark" }
+                require(data.sites.put(owner to site.ship, site) == null) { "Duplicate launch bookmark" }
             }
             return data
         }

@@ -32,7 +32,7 @@ import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
 import org.cbi.orbitalis.minecraft.flight.ShipDestinationPreload
 import org.cbi.orbitalis.minecraft.flight.SpaceTravelReservations
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
-import org.cbi.orbitalis.minecraft.integration.sable.SableShipContact
+import org.cbi.orbitalis.minecraft.integration.sable.SableShipSnapshot
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipTransfer
 import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferPassengers
 import org.joml.Vector3d
@@ -44,8 +44,8 @@ import kotlin.math.floor
 
 /** Disposable consumer guidance: every manoeuvre uses native main engines or native RCS. */
 internal class RocketMission(
-    pilot: ServerPlayer,
-    var body: ServerSubLevel,
+    pilot: ServerPlayer?,
+    override var body: ServerSubLevel,
     private val site: LaunchSites.Site,
     private val transfer: SableShipTransfer,
     private val returningAtStart: Boolean,
@@ -94,16 +94,16 @@ internal class RocketMission(
         private set
     private var afterTransfer = Phase.ASCENT
     private var closed = false
+    private val server = body.level.server
 
     init {
         require(site.surface == Level.OVERWORLD && site.ship == body.uniqueId && !transfer.busy)
         require(
             abs(site.position.x) <= field.body.halfWidth - 40.0 && abs(site.position.z) <= field.body.halfDepth - 40.0,
         ) { "Leave a 40-metre launch-pad margin inside the finite surface" }
-        require(pilot.level() === body.level)
         if (!returningAtStart) {
             require(body.level.dimension() == Level.OVERWORLD) { "Launch from ordinary Overworld terrain" }
-            ShipTransferPassengers.preflight(body, pilot)
+            ShipTransferPassengers.preflight(body, AutopilotPassengers.select(body, pilot))
             val top =
                 body.level.getHeight(
                     Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
@@ -168,7 +168,7 @@ internal class RocketMission(
     }
 
     override fun tick(pilot: ServerPlayer?): Boolean {
-        require(!closed && pilot != null && pilot.isAlive) { "Pilot unavailable" }
+        require(!closed) { "Autopilot is closed" }
         // A completed orbit insertion may coast until the pilot explicitly requests landing.
         check(
             phase == Phase.COAST || ++ticks < (16000 * kotlin.math.sqrt(org.cbi.orbitalis.core.planet.FlatPlanetDefinition.SCALE)).toInt(),
@@ -182,20 +182,18 @@ internal class RocketMission(
                 return false
             }
             val target = if (afterTransfer == Phase.ASCENT) FlatPlanetSpace.SPACE else Level.OVERWORLD
-            val level = checkNotNull(pilot.server.getLevel(target))
+            val level = checkNotNull(server.getLevel(target))
             val restored = checkNotNull(SubLevelContainer.getContainer(level)).getSubLevel(site.ship) as? ServerSubLevel
-            require(restored != null && pilot.level() === level) { "Destination rocket/pilot missing" }
-            if (++ready < 5 || SableShipContact.resolve(pilot) !== restored) return false
+            require(restored != null) { "Destination rocket missing" }
+            if (++ready < 5 || !SableShipSnapshot.entitiesReady(restored)) return false
             body = restored
             clock += ready * 0.05
             preload.close()
             enter(afterTransfer)
             return false
         }
-        require(!body.isRemoved && pilot.level() === body.level && SableShipContact.resolve(pilot) === body) {
-            "Stay inside the rocket with creative flight disabled"
-        }
-        require(!SubLevelPhysicsSystem.require(body.level).paused) { "Native physics paused outside handoff" }
+        require(!body.isRemoved) { "Rocket unavailable" }
+        if (SubLevelPhysicsSystem.require(body.level).paused) return false
         body.level.resetEmptyTime()
         val s = state()
         require(
@@ -371,10 +369,9 @@ internal class RocketMission(
             Phase.FADE -> {
                 clock += 0.05
                 require(ticks < 200) { "Rocket engines failed to fade" }
-                if (AutopilotSession.enginesFaded(body)) {
-                    pilot.closeContainer()
+                if (!transfer.busy && AutopilotSession.enginesFaded(body)) {
                     transfer.begin(
-                        pilot,
+                        AutopilotPassengers.select(body, pilot),
                         body,
                         if (afterTransfer ==
                             Phase.ASCENT

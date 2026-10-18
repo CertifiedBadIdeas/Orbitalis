@@ -279,7 +279,9 @@ that predates the shuttle replacement and does not establish its appearance, boa
 
 `/orbitalis flight autopilot orbit` starts the [finite-body mission](flat-gravity.md) from Overworld.
 `/orbitalis flight autopilot land` returns to the saved launch site. Assemble on a clear Overworld pad inside the
-first 10,000-block footprint, leave manual inputs off and stay on deck with creative flight disabled.
+first 10,000-block footprint and leave manual inputs off. Guidance continues without the command
+owner on board or online while the ship remains natively loaded. An occupied ship retains the
+existing one-player passenger validation; an empty ship transfers without a player.
 The target is about 5000 m above sea level; the trajectory circles the finite body and coasts with
 engines fully off. Surface gravity remains native through the build ceiling; a conservative
 compatibility layer connects it to the exterior field. The diagnostic 18 km mission and its dimensions have been removed.
@@ -287,11 +289,12 @@ compatibility layer connects it to the exterior field. The diagnostic 18 km miss
 The new mission uses pure numerical prediction on a worker, real engine capture, ETA-based destination
 terrain preloading, an upward handoff at 3000 m and downward handoff at 2000 m. Its separate space
 frame uses a 4096-m Y translation for native float precision. Journal staging still pauses physics.
-The launch bookmark codec writes version 2 with an explicit Overworld surface ID. Retired diagnostic
+The launch bookmark codec writes version 3 with an explicit Overworld surface ID and independent
+bookmarks for each pilot/ship pair. Version-two Overworld entries migrate on their next save. Retired diagnostic
 bookmarks (all version 1, or version 2 naming `flight_test`) are skipped rather than converted; valid
 Overworld bookmarks in the same file remain available. Saved bookmarks never resume thrust automatically.
 After a restart on the same ship, issue `land` explicitly. A new successful `orbit` preflight replaces
-that pilot's bookmark. The consumer stores at most 64 pilot/ship bookmarks.
+the bookmark for that pilot and ship, preserving their other launch sites. The consumer stores at most 64 pilot/ship bookmarks.
 
 Use `-PorbitalisConsumerGameTestSuite=flat` with `check runGameTestServer` for the focused native
 Overworld/space/free-revolution/return and bookmark migration scenarios. The default suite includes it alongside all retained
@@ -304,6 +307,31 @@ check torque and translated-frame agreement, and retain the real assembled bluep
 Overworld assembly/hold, engine cutoff, unsafe-input/missing-lift rejection and the complete
 Overworld/space mission remain separate scenarios. Historical spherical and cube test results are
 not acceptance data for the finite-body route. Interactive cockpit continuity still needs client evidence.
+
+## Remote ship commands
+
+```
+/orbitalis flight autopilot list [page]
+/orbitalis flight autopilot orbit <ship-uuid>
+/orbitalis flight autopilot land <ship-uuid>
+/orbitalis flight autopilot status <ship-uuid>
+/orbitalis flight autopilot stop <ship-uuid>
+```
+
+The directory includes loaded native constructions, unloaded orbital motion records and remembered
+launch IDs. Pages contain 20 entries with UUID, dimension, native coordinates and guidance stage.
+Unloaded positions are explicitly estimates from the latest published orbital state, not loaded hulls;
+a bookmark without a native motion record has no known current position. UUID arguments support completion.
+Bare commands select the ship underfoot, or the command owner's sole active controller for landing,
+status and stop. With multiple controllers, specify the UUID. Each ship has independent control and
+a remembered pad; landing retains the existing bookmark ownership check.
+
+Directory lookup and UUID selection never load ships or terrain or add keep-loaded tickets.
+Autopilots do not retain distant ships: guidance stops if its native ship unloads or is removed.
+The existing transfer coordinator still prepares its bounded destination before a handoff. Approach it to load it through ordinary game behavior,
+then issue `land <ship-uuid>` to start new return guidance from its actual state. Ship and passenger
+readiness are still validated by the existing transfer coordinator. The command owner standing elsewhere
+is not teleported with an empty ship. Guidance is not persisted across server shutdown.
 
 ## Vector rocket prototype
 
@@ -372,8 +400,8 @@ window immediately; it does not require a full revolution first. After a control
 uses the persisted launch bookmark. It returns to the original launch pad rather than saving the
 current orbital position as a new destination. `stop` releases all inputs and native engine fade still
 applies. The current stand
-requires one creative pilot, standing on the deck or riding a plot-owned seat, an upright rocket, a clear pad and an unobstructed
-approach. It does not plan around arbitrary terrain or buildings. The shuttle fixture and its hold
+requires a creative command owner, an upright rocket at launch, a clear pad and an unobstructed
+approach. A passenger can stand on deck or use a plot-owned seat, but no passenger is required. It does not plan around arbitrary terrain or buildings. The shuttle fixture and its hold
 controller remain separate regression tools.
 
 All guidance, engine allocation, transient gimbal override and fixture resources belong to this removable
