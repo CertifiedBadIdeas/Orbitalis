@@ -31,11 +31,20 @@ object CelestialMapScene {
         val orbit: List<Vector3> = emptyList(),
     )
 
+    fun follow(
+        camera: MapCamera,
+        id: String?,
+        bodies: List<Body>,
+    ) {
+        bodies.firstOrNull { it.id == id }?.let { camera.focus = it.position }
+    }
+
     fun sample(
         profile: SolarSystemProfile,
         tick: Long,
+        seconds: Double = 0.0,
     ): List<Body> {
-        val snapshot = profile.system.sample(tick)
+        val snapshot = profile.system.sample(tick, seconds)
         val sun = snapshot.frame(SolarSystemProfile.SUN, SolarSystemProfile.EARTH).origin.position
         val moon = snapshot.frame(SolarSystemProfile.MOON, SolarSystemProfile.EARTH).origin.position
         return listOf(

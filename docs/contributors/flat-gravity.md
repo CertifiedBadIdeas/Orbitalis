@@ -177,8 +177,10 @@ This is not a pressure, oxygen or heating simulation.
 
 `orbitalis:flight_motion` orders a tokened capture of the controlling client's velocity before
 native dimension travel and restores it afterward; durable recovery uses the recorded server
-fallback rather than a new login's stationary velocity. Vectors are bounded to 10 km/s. The existing
-+4096 coordinate frame and version-four transfer journal schema are unchanged.
+fallback rather than a new login's stationary velocity. Protocol three transforms captured free-player
+motion into destination axes, including lunar transport velocity, before restoration. Vectors are
+bounded to 10 km/s. Earth's +4096 coordinate frame is retained; current Earth/lunar transaction formats
+are documented in [ship transfer](ship-transfer.md).
 
 Native server movement validation uses its already accepted client movement as a vacuum momentum
 reference (bounded to 10 km/s), retaining speed/collision rejection. Weak-gravity vacuum coast is

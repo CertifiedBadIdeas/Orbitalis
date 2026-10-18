@@ -24,6 +24,21 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 class LunarFrameTest {
+    @Test fun `small bodies keep a native approach floor and hysteresis gap`() {
+        val half = Vector3(100.0, 64.0, 100.0)
+        kotlin.test.assertFailsWith<IllegalArgumentException> {
+            org.cbi.orbitalis.core.planet
+                .BodyFlightEnvelope(half, 600.0, 400.0)
+        }
+        kotlin.test.assertFailsWith<IllegalArgumentException> {
+            org.cbi.orbitalis.core.planet
+                .BodyFlightEnvelope(half, 1600.0, 1500.0)
+        }
+        val envelope = org.cbi.orbitalis.core.planet.PlanetFlightEnvelope.moon
+        kotlin.test.assertTrue(envelope.descentDistance >= 1500.0)
+        kotlin.test.assertTrue(envelope.ascentDistance - envelope.descentDistance >= 300.0)
+    }
+
     @Test
     fun `surface normal faces Earth over the complete orbit and native states round trip`() {
         val profile = SolarSystemProfile(11.0)
@@ -60,7 +75,7 @@ class LunarFrameTest {
         val space = frames.state(ground, SurfaceFlightFrames.World.MOON, SurfaceFlightFrames.World.SPACE)
         kotlin.test.assertEquals(SurfaceFlightFrames.World.MOON, frames.destination(space, SurfaceFlightFrames.World.SPACE))
         kotlin.test.assertNull(frames.destination(ground, SurfaceFlightFrames.World.MOON))
-        val rising = ground.copy(position = Vector3(113.0, 665.0, -372.0), velocity = Vector3(0.0, 12.0, 0.0))
+        val rising = ground.copy(position = Vector3(113.0, 1865.0, -372.0), velocity = Vector3(0.0, 12.0, 0.0))
         kotlin.test.assertEquals(SurfaceFlightFrames.World.SPACE, frames.destination(rising, SurfaceFlightFrames.World.MOON))
         kotlin.test.assertNull(
             frames.destination(
@@ -102,12 +117,12 @@ class LunarFrameTest {
                         ),
                         SurfaceFlightFrames.World.SPACE,
                     )
-                kotlin.test.assertEquals(SurfaceFlightFrames.World.MOON, route(399.0))
-                kotlin.test.assertNull(route(401.0))
-                kotlin.test.assertNull(frames.destination(local(599.0), SurfaceFlightFrames.World.MOON))
-                kotlin.test.assertEquals(SurfaceFlightFrames.World.SPACE, frames.destination(local(601.0), SurfaceFlightFrames.World.MOON))
-                kotlin.test.assertEquals(1.0, envelope.arrival(local(500.0).position, normal * -100.0, Vector3.ZERO, false, 5.0)!!, 1e-5)
-                kotlin.test.assertEquals(1.0, envelope.arrival(local(500.0).position, normal * 100.0, Vector3.ZERO, true, 5.0)!!, 1e-5)
+                kotlin.test.assertEquals(SurfaceFlightFrames.World.MOON, route(1499.0))
+                kotlin.test.assertNull(route(1501.0))
+                kotlin.test.assertNull(frames.destination(local(1799.0), SurfaceFlightFrames.World.MOON))
+                kotlin.test.assertEquals(SurfaceFlightFrames.World.SPACE, frames.destination(local(1801.0), SurfaceFlightFrames.World.MOON))
+                kotlin.test.assertEquals(1.0, envelope.arrival(local(1600.0).position, normal * -100.0, Vector3.ZERO, false, 5.0)!!, 1e-5)
+                kotlin.test.assertEquals(1.0, envelope.arrival(local(1700.0).position, normal * 100.0, Vector3.ZERO, true, 5.0)!!, 1e-5)
             }
         }
     }

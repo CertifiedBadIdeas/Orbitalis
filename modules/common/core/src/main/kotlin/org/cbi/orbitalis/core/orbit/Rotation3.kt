@@ -23,7 +23,7 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /** Proper orthonormal rotation; columns are the local basis vectors expressed in parent axes. */
-class Rotation3 private constructor(
+data class Rotation3 private constructor(
     val xAxis: Vector3,
     val yAxis: Vector3,
     val zAxis: Vector3,
@@ -37,6 +37,19 @@ class Rotation3 private constructor(
 
     companion object {
         val IDENTITY = Rotation3(Vector3(1.0, 0.0, 0.0), Vector3(0.0, 1.0, 0.0), Vector3(0.0, 0.0, 1.0))
+
+        /** Validated wire/integration boundary; reject reflections, shear and nonfinite bases. */
+        fun fromAxes(
+            x: Vector3,
+            y: Vector3,
+            z: Vector3,
+        ): Rotation3 {
+            val axes = listOf(x, y, z)
+            require(axes.all { it.length().isFinite() && kotlin.math.abs(it.dot(it) - 1.0) < 1e-8 })
+            require(kotlin.math.abs(x.dot(y)) < 1e-8 && kotlin.math.abs(x.dot(z)) < 1e-8 && kotlin.math.abs(y.dot(z)) < 1e-8)
+            require(x.cross(y).dot(z) > 1.0 - 1e-8)
+            return Rotation3(x, y, z)
+        }
 
         /** Right-handed active rotation by [radians] about [axis]; no game/client math dependency. */
         fun axisAngle(

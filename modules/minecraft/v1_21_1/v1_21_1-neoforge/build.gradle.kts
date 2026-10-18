@@ -254,7 +254,7 @@ tasks.configureEach {
             val terrainNames = setOf("finiteterrainedges", "finitefeaturewrites")
             val mapNames = setOf("mappacketandlease", "mapnativeorbitalobjects")
             val requiredNames = when (gameTestSuite) {
-                "moon" -> setOf("nativelunarterrain", "nativelunargroundcontact", "lunarshiproundtrip", "lunarsideroundtrip", "lunarundersideroundtrip")
+                "moon" -> setOf("nativelunarterrain", "nativelunargroundcontact", "lunarshiproundtrip", "lunarsideroundtrip", "lunarundersideroundtrip", "fastcreativelunarplayer", "fastspectatorlunaredge", "fastsurvivallunarunderside")
                 "map" -> mapNames
                 "objects" -> objectNames
                 "terrain" -> terrainNames
@@ -265,7 +265,7 @@ tasks.configureEach {
                 "flat" -> setOf("nativefinitebodyfreeorbit")
                 "surface" -> surfaceNames
                 "transfer" -> transferNames + travelNames
-                else -> setOf("nativelunarterrain", "nativelunargroundcontact", "lunarshiproundtrip", "lunarsideroundtrip", "lunarundersideroundtrip") + mapNames + objectNames + terrainNames + atlasNames + surfaceNames + transferNames + travelNames + navigationNames + sparseNames + setOf("nativefinitebodyfreeorbit")
+                else -> setOf("nativelunarterrain", "nativelunargroundcontact", "lunarshiproundtrip", "lunarsideroundtrip", "lunarundersideroundtrip", "fastcreativelunarplayer", "fastspectatorlunaredge", "fastsurvivallunarunderside") + mapNames + objectNames + terrainNames + atlasNames + surfaceNames + transferNames + travelNames + navigationNames + sparseNames + setOf("nativefinitebodyfreeorbit")
             }
             check(names.containsAll(requiredNames)) {
                 "GameTest run did not execute its required $gameTestSuite scenarios: $names"

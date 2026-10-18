@@ -19,7 +19,7 @@ limitations under the License.
 
 # Space presentation
 
-`orbitalis:space` uses black vacuum fog, a fixed star field and a fixed Sun. Native nearby clouds,
+`orbitalis:space` uses black vacuum fog and a fixed star field. Native nearby clouds,
 rain rendering and sunrise/sunset gradients are suppressed; the planet retains a distant cloud layer. Exposed skylight has constant daytime
 brightness; native sky occlusion and warm block lights remain, followed by vanilla gamma, night vision
 and darkness handling. Minecraft's ordinary face shading remains: this is not directional shadow
@@ -102,7 +102,7 @@ frame translations as transfer and force evaluation. Body vertices and the obser
 coordinates. A single uniform scale fits the entire camera-relative mesh within a 60-unit sky shell,
 preserving every viewing angle and perspective size. The model therefore remains visible beyond
 chunk render distance and shrinks naturally with distance. A private opaque sky colour/depth target resolves terrain self-occlusion without putting compressed
-sky depth in front of ships. Stars and Sun are drawn first, the body afterward, and the whole sky is
+sky depth in front of ships. Stars are drawn first, the body afterward, and the whole sky is
 composited once with the visual blend weight. Normal world geometry draws afterward, so ships occlude
 the background. Shared map rendering continues to use the same cached body mesh with its own camera.
 The renderer restores incoming read/draw framebuffers, viewport, clear colour, shader, shader colour
@@ -184,7 +184,7 @@ client world; compilation alone does not demonstrate appearance. Suggested manua
   shows the top and two sides.
 - `/execute in orbitalis:space run tp @s 0 -1904 0 0 -90`
   shows the underside from physical Y=-6000.
-- Compare `/time set noon` and `/time set midnight`: vacuum sky, Sun, body and skylight stay fixed.
+- Compare `/time set noon` and `/time set midnight`: vacuum sky, body and skylight stay fixed.
 - `/execute in orbitalis:space run tp @s 0 9160 0 0 90` shows the body from 5000 m above sea level
   through the new low frame.
 - Return to `minecraft:overworld` to confirm the ordinary sky still follows time and weather.
@@ -213,10 +213,10 @@ light direction, distance and planetary occlusion must derive from an explicit s
 and celestial reference frames, rather than another local day/night override.
 
 `FlightTransitionView` owns at most one full-resolution colour texture of the last rendered frame.
-A bounded three-second altitude-arrival estimate enables GPU copies near the appropriate boundary;
+A bounded three-second all-face arrival estimate enables GPU copies near the appropriate boundary;
 there is no CPU pixel readback, terrain load or network request. An unused capture expires after one
 second. Native respawn destination observation arms a hold only for the explicit Overworld/space
-pair, on the same live connection with a fresh source image. Unexpected travel without a fresh
+and Moon/space routes, on the same live connection with a fresh source image. Unexpected travel without a fresh
 capture retains ordinary loading.
 
 The native `ReceivingLevelScreen` continues ticking, closing itself and driving normal readiness;
@@ -239,3 +239,6 @@ directions, with the native loading screen still closing itself. Check an expose
 sealed, unlit cabin separately: fixing absent external light must not illuminate cabin interiors.
 Observe ground weather/time, intermediate sky, full vacuum and disconnect resource cleanup. The
 optional-mod-absent startup check remains separate from flight-client visual acceptance.
+
+The placeholder Sun square is no longer drawn in the flight sky. The prescribed Sun remains part
+of the celestial catalogue and orbital map; physical solar illumination remains deferred.

@@ -62,7 +62,15 @@ object FlightMotionClientState {
             capturedAt = System.nanoTime()
         } else {
             val local = velocity.takeIf { token == packet.token && System.nanoTime() - capturedAt <= 10_000_000_000L }
-            player.deltaMovement = local ?: Vec3(packet.velocity.x, packet.velocity.y, packet.velocity.z)
+            val result =
+                local?.let {
+                    packet.transformCaptured(
+                        org.cbi.orbitalis.core.planet
+                            .Vector3(it.x, it.y, it.z),
+                    )
+                } ?: packet.velocity
+            val safe = result.takeIf { it.length().isFinite() && it.length() <= 500.0 } ?: packet.velocity
+            player.deltaMovement = Vec3(safe.x, safe.y, safe.z)
             token = null
             velocity = null
         }
@@ -70,8 +78,20 @@ object FlightMotionClientState {
 
     @JvmStatic
     @SubscribeEvent
+    fun tick(event: net.neoforged.neoforge.client.event.ClientTickEvent.Post) {
+        val mc = Minecraft.getInstance()
+        if (mc.level != null && !mc.isPaused) {
+            org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                .advanceClient()
+        }
+    }
+
+    @JvmStatic
+    @SubscribeEvent
     fun logout(event: ClientPlayerNetworkEvent.LoggingOut) {
         org.cbi.orbitalis.minecraft.flight.PlayerGravity.clientAcceleration = 11.0
+        org.cbi.orbitalis.minecraft.flight.CelestialFlight
+            .accept(null, 0L)
         token = null
         velocity = null
     }

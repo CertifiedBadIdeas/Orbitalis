@@ -18,22 +18,36 @@
 
 package org.cbi.orbitalis.minecraft.client.space
 
+import net.minecraft.client.Minecraft
 import net.minecraft.world.level.Level
 import org.cbi.orbitalis.core.orbit.SurfaceFlightFrames
+import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.flight.CelestialFlight
+import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
 import org.cbi.orbitalis.minecraft.moon.MoonWorld
 import org.joml.Matrix4f
 
 /** Root-space presentation seen through a camera whose local world rotates with the Moon. */
 object CelestialView {
+    fun sample() = CelestialFlight.sampleClient(Minecraft.getInstance().timer.getGameTimeDeltaPartialTick(false))
+
+    fun globalPosition(
+        level: Level,
+        position: Vector3,
+    ): Vector3 =
+        if (level.dimension() == MoonWorld.KEY) {
+            sample().point(position, MoonWorld.KEY, Level.OVERWORLD)
+        } else {
+            FlightSpaceCoordinates.globalPosition(level.dimension(), position)
+        }
+
     fun rootView(
         level: Level,
         localView: Matrix4f,
     ): Matrix4f {
         if (level.dimension() != MoonWorld.KEY) return Matrix4f(localView)
         val r =
-            CelestialFlight
-                .sample(level)
+            sample()
                 .frames
                 .frame(SurfaceFlightFrames.World.MOON)
                 .orientation

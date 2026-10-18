@@ -28,10 +28,12 @@ import kotlin.math.abs
 class CelestialDynamics(
     val profile: SolarSystemProfile,
     val epochTick: Long,
+    earthCompatibility: Double = profile.surfaceGravity,
+    moonCompatibility: Double = profile.surfaceGravity / 6.0,
 ) {
-    val earth = profile.earthGravity
+    val earth = SurfaceGravityLayer(profile.earthGravity.body, earthCompatibility, fullHeight = FlatPlanetDefinition.ASCENT_HEIGHT)
     val moon =
-        SurfaceGravityLayer(profile.moonGravity, profile.surfaceGravity / 6.0, nearHeight = 128.0, fullHeight = 600.0, edgeWidth = 128.0)
+        SurfaceGravityLayer(profile.moonGravity, moonCompatibility, nearHeight = 128.0, fullHeight = 600.0, edgeWidth = 128.0)
 
     init {
         require(epochTick >= 0)

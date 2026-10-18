@@ -60,6 +60,177 @@ import org.joml.Vector3d
 @PrefixGameTestTemplate(false)
 object LunarGameTests {
     @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "moon_player", timeoutTicks = 1600)
+    fun fastCreativeLunarPlayer(helper: GameTestHelper) =
+        freePlayer(helper, GameType.CREATIVE, Vector3(0.0, 1560.0, 0.0), Vector3(0.0, -400.0, 0.0))
+
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "moon_player", timeoutTicks = 1600)
+    fun fastSpectatorLunarEdge(helper: GameTestHelper) =
+        freePlayer(helper, GameType.SPECTATOR, Vector3(2895.0, 0.0, 0.0), Vector3(-400.0, 0.0, 0.0))
+
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "moon_player", timeoutTicks = 1600)
+    fun fastSurvivalLunarUnderside(helper: GameTestHelper) =
+        freePlayer(helper, GameType.SURVIVAL, Vector3(0.0, -1560.0, 0.0), Vector3(0.0, 400.0, 0.0))
+
+    private fun freePlayer(
+        helper: GameTestHelper,
+        mode: GameType,
+        local: Vector3,
+        localVelocity: Vector3,
+    ) {
+        val packets = mutableListOf<net.minecraft.network.protocol.Packet<*>>()
+        val player = GameTestPlayers.create(helper) { packets.add(it) }
+        player.setGameMode(mode)
+        val space = checkNotNull(helper.level.server.getLevel(FlatPlanetSpace.SPACE))
+        val moon = checkNotNull(helper.level.server.getLevel(MoonWorld.KEY))
+        val travel = org.cbi.orbitalis.minecraft.flight.PlayerSpaceTravel
+        var returning = false
+        var attempts = 0
+        helper.testInfo.addListener(
+            object : GameTestListener {
+                override fun testStructureLoaded(test: GameTestInfo) {}
+
+                override fun testPassed(
+                    test: GameTestInfo,
+                    runner: GameTestRunner,
+                ) {
+                    travel.close(player)
+                    player.discard()
+                }
+
+                override fun testFailed(
+                    test: GameTestInfo,
+                    runner: GameTestRunner,
+                ) {
+                    travel.close(player)
+                    player.discard()
+                }
+
+                override fun testAddedForRerun(
+                    test: GameTestInfo,
+                    retry: GameTestInfo,
+                    runner: GameTestRunner,
+                ) {}
+            },
+        )
+        helper.onEachTick {
+            // Real asynchronous terrain/entity loading must not race thousands of accelerated fixture ticks.
+            Thread.sleep(25)
+            repeat(16) { for (level in helper.level.server.allLevels) level.chunkSource.pollTask() }
+            val sample = CelestialFlight.sample(helper.level.server)
+            val from = if (returning) moon else space
+            val target = if (returning) space else moon
+            val lunarPosition = if (returning) local.normalized() * (if (local.x != 0.0) 3210.0 else 1874.0) else local
+            val state =
+                if (returning) {
+                    CartesianState(lunarPosition, localVelocity * -1.0)
+                } else {
+                    sample.state(CartesianState(lunarPosition, localVelocity), MoonWorld.KEY, FlatPlanetSpace.SPACE)
+                }
+            if (player.level() !==
+                from
+            ) {
+                check(player.teleportTo(from, state.position.x, state.position.y, state.position.z, emptySet(), 31f, -12f))
+            }
+            player.setPos(state.position.x, state.position.y, state.position.z)
+            player.deltaMovement =
+                net.minecraft.world.phys
+                    .Vec3(state.velocity.x / 20.0, state.velocity.y / 20.0, state.velocity.z / 20.0)
+            runCatching { GameTestPlayers.acknowledgeTeleport(player) }
+            val look = Vector3(player.lookAngle.x, player.lookAngle.y, player.lookAngle.z)
+            packets.clear()
+            val expected = sample.state(state, from.dimension(), target.dimension())
+            val a =
+                org.cbi.orbitalis.minecraft.flight.PlayerGravity
+                    .acceleration(player)
+            val beforeForce =
+                sample.frames.frame(CelestialFlight.world(from.dimension())).toParentAcceleration(state, Vector3(a.x, a.y, a.z) * 400.0)
+            if (!travel.transfer(player)) {
+                if (++attempts % 200 == 0) {
+                    val next = travel.destination(player.level(), state.position, state.velocity)
+                    println("LUNAR_PLAYER_WAIT mode=$mode returning=$returning alive=${player.isAlive}")
+                    println("LUNAR_PLAYER_WAIT dim=${player.level().dimension()} pos=${player.position()} destination=$next")
+                }
+                return@onEachTick
+            }
+            println("LUNAR_PLAYER_HANDOFF mode=$mode returning=$returning")
+            helper.assertTrue(player.level() === target, "Lunar player went to the wrong world")
+            val b =
+                org.cbi.orbitalis.minecraft.flight.PlayerGravity
+                    .acceleration(player)
+            val afterForce =
+                sample.frames
+                    .frame(
+                        CelestialFlight.world(target.dimension()),
+                    ).toParentAcceleration(expected, Vector3(b.x, b.y, b.z) * 400.0)
+            helper.assertTrue((beforeForce - afterForce).length() < 1e-7, "Player gravity jumped at the lunar handoff")
+            helper.assertTrue(
+                (Vector3(player.x, player.y, player.z) - expected.position).length() < 1e-6,
+                "Lunar handoff displaced the player",
+            )
+            helper.assertTrue(
+                (
+                    Vector3(
+                        player.deltaMovement.x,
+                        player.deltaMovement.y,
+                        player.deltaMovement.z,
+                    ) * 20.0 - expected.velocity
+                ).length() < 1e-6,
+                "Server velocity changed",
+            )
+            // Native Mth trig lookup quantizes the returned look vector by about 1e-4.
+            val transformedLook = sample.direction(look, from.dimension(), target.dimension())
+            helper.assertTrue(
+                (transformedLook - Vector3(player.lookAngle.x, player.lookAngle.y, player.lookAngle.z)).length() < 2e-4,
+                "Aim changed in physical axes return=$returning from=${from.dimension()} " +
+                    "expected=$transformedLook actual=${player.lookAngle} yaw=${player.yRot} pitch=${player.xRot}",
+            )
+            val payload =
+                packets
+                    .filterIsInstance<net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket>()
+                    .map { it.payload() }
+                    .filterIsInstance<org.cbi.orbitalis.minecraft.flight.FlightMotionPayload>()
+                    .last()
+            val captured = state.velocity * 0.05 + Vector3(1.3, -0.7, 2.1)
+            val expectedClient = sample.state(state.copy(velocity = captured * 20.0), from.dimension(), target.dimension()).velocity * 0.05
+            helper.assertTrue(
+                (payload.transformCaptured(captured) - expectedClient).length() < 1e-8,
+                "Captured client motion reused old axes or omitted lunar transport velocity",
+            )
+            val buffer =
+                net.minecraft.network.FriendlyByteBuf(
+                    io.netty.buffer.Unpooled
+                        .buffer(),
+                )
+            try {
+                org.cbi.orbitalis.minecraft.flight.FlightMotionPayload.CODEC
+                    .encode(buffer, payload)
+                val decoded =
+                    org.cbi.orbitalis.minecraft.flight.FlightMotionPayload.CODEC
+                        .decode(buffer)
+                helper.assertTrue(decoded == payload, "Motion transform codec did not roundtrip")
+                buffer.readerIndex(0)
+                buffer.setDouble(buffer.writerIndex() - 32, -1.0)
+                helper.assertTrue(
+                    runCatching {
+                        org.cbi.orbitalis.minecraft.flight.FlightMotionPayload.CODEC
+                            .decode(buffer)
+                    }.isFailure,
+                    "Motion codec accepted a reflected frame",
+                )
+            } finally {
+                buffer.release()
+            }
+            runCatching { GameTestPlayers.acknowledgeTeleport(player) }
+            helper.assertTrue(!travel.transfer(player), "Lunar player bounced immediately after arrival")
+            helper.assertTrue(player.gameMode.gameModeForPlayer == mode, "Lunar transfer changed game mode")
+            if (returning) helper.succeed() else returning = true
+        }
+    }
+
+    @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "moon", timeoutTicks = 400)
     fun nativeLunarTerrain(helper: GameTestHelper) {
         val moon = checkNotNull(helper.level.server.getLevel(MoonWorld.KEY))
@@ -261,7 +432,6 @@ object LunarGameTests {
                 pilotSync,
             )
         val automatic = AutomaticShipTravel(server, manager, owner)
-        val initialPause = server.allLevels.associateWith { SubLevelPhysicsSystem.require(it).paused }
         helper.testInfo.addListener(
             object : GameTestListener {
                 override fun testStructureLoaded(test: GameTestInfo) {}
@@ -289,7 +459,11 @@ object LunarGameTests {
                     player.discard()
                     cart?.uuid?.let { id -> levels.forEach { it.getEntity(id)?.discard() } }
                     SpaceTravelReservations.release(body.uniqueId, owner)
-                    initialPause.forEach { (world, paused) -> SubLevelPhysicsSystem.require(world).paused = paused }
+                    // A fixture may start during the real coordinator's asynchronous startup pause.
+                    // Restoring that transient state would freeze all subsequent batches.
+                    CelestialFlight.dimensions.mapNotNull(server::getLevel).forEach { world ->
+                        SubLevelPhysicsSystem.require(world).paused = false
+                    }
                     containers.forEach { (_, container) ->
                         (container.getSubLevel(body.uniqueId) as? ServerSubLevel)?.let { ship ->
                             container.removeForceLoadTicket(

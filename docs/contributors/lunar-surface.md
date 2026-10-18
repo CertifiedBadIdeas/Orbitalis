@@ -49,9 +49,9 @@ unsupported.
 
 Entry and exit use the same rounded volume-distance envelope for Earth and Moon, in each body's
 surface frame. The Moon reference slab has half-extents (1400,64,1400) m. Space enters its native
-world within 400 m of that volume; the native world returns to space at 600 m. These bands cover the
+world within 1500 m of that volume; the native world returns to space at 1800 m. These bands cover the
 top, all four edges, underside and rounded corners, independent of velocity direction. For example,
-centre-line top/bottom entry is Y=±464 and exit Y=±664; side entry is X/Z=±1800 and exit ±2000.
+centre-line top/bottom entry is Y=±1564 and exit Y=±1864; side entry is X/Z=±2900 and exit ±3200.
 The gap between entry and exit avoids immediate transfer loops. Preload forecasts and unloaded-object
 wake-up use the same envelope, rather than separate height-only rules.
 
@@ -111,3 +111,34 @@ transport, physical ground contact and automatic ascent back to space. Additiona
 enter and leave beside and beneath the Moon, retaining the seated pilot and chest cargo. The full suite additionally
 checks Earth transfer/recovery, unloaded stations and native coast/force agreement. Client rendering
 and camera continuity require a separate observed client scenario.
+
+## Free-player approach continuity
+
+Flight-motion protocol three carries the frozen source-to-destination rotation and transport-velocity
+boost with the exact unclamped motion. A captured client velocity is transformed through that map;
+it must never replace a lunar destination velocity with a vector in old axes. The authoritative server
+velocity remains the fallback. The transform includes lunar origin motion and synchronous spin.
+Dimension changes refresh the celestial clock/profile immediately, including its paused state.
+Client interpolation uses a bounded client-tick age, not a new dimension's initially reset game time.
+The same player compatibility gravity field is sampled on both sides of the handoff.
+
+The free-player camera gradually aligns its horizon between 6,000 and 2,000 metres of clearance from
+the lunar reference volume, covering top, edges, underside and corners. Both entry and exit bands
+are inside the fully aligned region. This changes camera roll while preserving the physical look
+ray; mouse turns follow the rolled screen axes. It does not torque a ship or rotate Minecraft
+collision boxes and walking controls. A straight
+look along the reference up axis has no unique horizon and retains the native roll at that pole.
+Moon/space transitions use the same bounded last-frame loading bridge as Earth/space; this remains
+a brief held image with readiness/fade, rather than a second continuously rendered native world.
+Lunar observers continue receiving Earth's saved terrain atlas without loading Earth terrain.
+
+The orbital map's Moon button locks its moving centre to the Moon. Celestial meshes and the camera
+follow the same sampled simulation clock between map snapshots; Earth moves relative to that centre.
+Manual panning releases the lock. Earth and system views restore their respective reference centres.
+
+The rendered lunar frame uses the camera partial tick, including map focus and the native-to-root
+view transform. Physical handoffs still use an immutable integer server epoch. The presentation
+clock stops extrapolating after ten client ticks without an authoritative update.
+
+Native approach bands have a shared lower bound of 1500 m with at least 300 m of hysteresis,
+so small bodies retain enough approach and loading room instead of scaling the bands down.

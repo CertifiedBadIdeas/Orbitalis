@@ -43,6 +43,15 @@ public abstract class ShipCameraMixin implements ShipCameraAccess {
     @Shadow private boolean detached;
 
     @Override
+    public void orbitalisRollView(float degrees) {
+        this.roll += degrees;
+        this.rotation.rotateZ(-degrees * (float) Math.PI / 180f);
+        this.forwards.set(0, 0, -1).rotate(this.rotation);
+        this.up.set(0, 1, 0).rotate(this.rotation);
+        this.left.set(-1, 0, 0).rotate(this.rotation);
+    }
+
+    @Override
     public void orbitalisSetView(Vec3 position, float yaw, float pitch) {
         this.position = position;
         this.blockPosition.set(position.x, position.y, position.z);

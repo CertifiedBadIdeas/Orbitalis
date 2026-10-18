@@ -92,7 +92,11 @@ class SurfaceAtlasService(
                         org.cbi.orbitalis.core.planet
                             .Vector3(player.x, player.y, player.z),
                     ) > 0f
-            if (dimension != FlatPlanetSpace.SPACE && !approaching && !mapViewer(player)) continue
+            if (dimension != FlatPlanetSpace.SPACE && dimension != org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY && !approaching &&
+                !mapViewer(player)
+            ) {
+                continue
+            }
             val cursor = cursors[player.uuid]
             val (revision, samples) = data.atlas.after(cursor ?: 0L, 256)
             if (cursor == null || samples.isNotEmpty()) {

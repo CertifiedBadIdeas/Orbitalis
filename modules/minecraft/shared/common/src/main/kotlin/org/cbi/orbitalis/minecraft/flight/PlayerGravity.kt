@@ -64,21 +64,20 @@ object PlayerGravity {
         val sample = CelestialFlight.sample(entity.level())
         val local = Vector3(entity.x, entity.y, entity.z)
         val velocity = Vector3(entity.deltaMovement.x, entity.deltaMovement.y, entity.deltaMovement.z) * 20.0
+        // The same player compatibility field on both sides of a handoff. Applying a lunar
+        // correction only inside the native Moon creates an artificial force step at entry.
+        val dynamics =
+            org.cbi.orbitalis.core.orbit.CelestialDynamics(
+                sample.frames.profile,
+                sample.frames.tick,
+                field.nativeAcceleration,
+                field.nativeAcceleration / 6.0,
+            )
         val acceleration =
             if (entity.level().dimension() == MoonWorld.KEY) {
-                val lunarField =
-                    SurfaceGravityLayer(
-                        sample.frames.profile.moonGravity,
-                        maxOf(32.0, field.nativeAcceleration) / 6.0,
-                        nearHeight = 128.0,
-                        fullHeight = 600.0,
-                        edgeWidth = 128.0,
-                    )
-                sample.dynamics.lunarAcceleration(CartesianState(local, velocity)) + lunarField.acceleration(local) -
-                    sample.dynamics.moon.acceleration(local)
+                dynamics.lunarAcceleration(CartesianState(local, velocity))
             } else {
-                val physical = position(entity)
-                sample.dynamics.acceleration(physical) + field.acceleration(physical) - sample.dynamics.earth.acceleration(physical)
+                dynamics.acceleration(position(entity))
             }
         // m/s² -> blocks/tick². Native travel owns collisions and displacement.
         return Vec3(acceleration.x / 400.0, acceleration.y / 400.0, acceleration.z / 400.0)

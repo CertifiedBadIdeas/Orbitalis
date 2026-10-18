@@ -119,6 +119,7 @@ object PlayerSpaceTravel {
         val yaw = Math.toDegrees(kotlin.math.atan2(-direction.x, direction.z)).toFloat()
         val pitch = Math.toDegrees(kotlin.math.asin((-direction.y).coerceIn(-1.0, 1.0))).toFloat()
         if (preloads[player]?.ready != true) return false
+        val sourceDimension = player.level().dimension()
         val motionToken = PlayerFlightMotion.capture(player)
         if (!player.teleportTo(target, p.x, p.y, p.z, emptySet(), yaw, pitch)) return false
         player.fallDistance = 0f
@@ -130,6 +131,18 @@ object PlayerSpaceTravel {
                 state.velocity.z / 20.0,
             ),
             motionToken,
+            org.cbi.orbitalis.core.orbit.Rotation3.fromAxes(
+                sample.direction(Vector3(1.0, 0.0, 0.0), sourceDimension, key),
+                sample.direction(Vector3(0.0, 1.0, 0.0), sourceDimension, key),
+                sample.direction(Vector3(0.0, 0.0, 1.0), sourceDimension, key),
+            ),
+            sample
+                .state(
+                    org.cbi.orbitalis.core.planet
+                        .CartesianState(current, Vector3.ZERO),
+                    sourceDimension,
+                    key,
+                ).velocity * 0.05,
         )
         close(player)
         return true

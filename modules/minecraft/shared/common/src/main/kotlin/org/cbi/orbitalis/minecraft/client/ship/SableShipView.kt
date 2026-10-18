@@ -132,6 +132,7 @@ object SableShipView : ShipViewHooks.Controller {
             if (contact == null) holdView(camera)
             return
         }
+        rebaseView(body.level.dimension())
         val bounds = body.plot.boundingBox
         val centre =
             Vector3d(
@@ -171,28 +172,34 @@ object SableShipView : ShipViewHooks.Controller {
         lastDimension = body.level.dimension()
     }
 
-    private fun holdView(camera: Camera) {
+    private fun rebaseView(target: ResourceKey<Level>) {
         val source = lastDimension ?: return
-        val target = minecraft.level?.dimension() ?: return
-        var position = lastPosition ?: return
-        if (source != target) {
-            if (!org.cbi.orbitalis.minecraft.flight.CelestialFlight
-                    .available(checkNotNull(minecraft.level))
-            ) {
-                return
-            }
-            if (source !in org.cbi.orbitalis.minecraft.flight.CelestialFlight.dimensions ||
-                target !in org.cbi.orbitalis.minecraft.flight.CelestialFlight.dimensions
-            ) {
-                return
-            }
-            val local =
-                org.cbi.orbitalis.minecraft.flight.CelestialFlight
-                    .sample(
-                        checkNotNull(minecraft.level),
-                    ).point(Vector3(position.x, position.y, position.z), source, target)
-            position = Vec3(local.x, local.y, local.z)
+        val position = lastPosition ?: return
+        if (source == target) return
+        val level = minecraft.level ?: return
+        if (!org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                .available(level) ||
+            source !in org.cbi.orbitalis.minecraft.flight.CelestialFlight.dimensions ||
+            target !in org.cbi.orbitalis.minecraft.flight.CelestialFlight.dimensions
+        ) {
+            return
         }
-        (camera as ShipCameraAccess).orbitalisSetView(position, yaw, pitch)
+        val sample =
+            org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                .sample(level)
+        val local = sample.point(Vector3(position.x, position.y, position.z), source, target)
+        val ray = Vec3.directionFromRotation(pitch, yaw)
+        val direction = sample.direction(Vector3(ray.x, ray.y, ray.z), source, target)
+        yaw = Math.toDegrees(kotlin.math.atan2(-direction.x, direction.z)).toFloat()
+        pitch = Math.toDegrees(kotlin.math.asin((-direction.y).coerceIn(-1.0, 1.0))).toFloat()
+        lastPosition = Vec3(local.x, local.y, local.z)
+        lastDimension = target
+    }
+
+    private fun holdView(camera: Camera) {
+        val target = minecraft.level?.dimension() ?: return
+        rebaseView(target)
+        if (lastDimension != target) return
+        (camera as ShipCameraAccess).orbitalisSetView(lastPosition ?: return, yaw, pitch)
     }
 }

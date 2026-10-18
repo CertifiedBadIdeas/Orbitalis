@@ -109,9 +109,10 @@ object LunarPlanetRenderer {
         view: Matrix4f,
         projection: Matrix4f,
         scale: Double,
+        seconds: Double = 0.0,
     ) {
         update(terrainSeed)
-        val frame = profile.lunarSurfaceFrame(tick)
+        val frame = profile.lunarSurfaceFrame(tick, seconds)
         val r = frame.orientation
         val rotation =
             Matrix4f().set(

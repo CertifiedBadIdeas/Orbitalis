@@ -28,6 +28,7 @@ import org.cbi.orbitalis.core.planet.Vector3
 class SurfaceFlightFrames(
     val profile: SolarSystemProfile,
     val tick: Long,
+    val seconds: Double = 0.0,
 ) {
     enum class World { EARTH, SPACE, MOON }
 
@@ -35,7 +36,7 @@ class SurfaceFlightFrames(
         when (world) {
             World.EARTH -> FrameKinematics(CartesianState(Vector3.ZERO, Vector3.ZERO))
             World.SPACE -> FrameKinematics(CartesianState(FlatPlanetFrame.origin, Vector3.ZERO))
-            World.MOON -> profile.lunarSurfaceFrame(tick)
+            World.MOON -> profile.lunarSurfaceFrame(tick, seconds)
         }
 
     fun state(

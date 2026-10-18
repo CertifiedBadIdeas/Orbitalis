@@ -26,6 +26,7 @@ import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket
 import net.minecraft.resources.ResourceLocation
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.phys.Vec3
+import org.cbi.orbitalis.core.orbit.Rotation3
 import org.cbi.orbitalis.core.planet.Vector3
 import java.util.UUID
 
@@ -50,6 +51,8 @@ object PlayerFlightMotion {
         player: ServerPlayer,
         velocity: Vec3,
         token: UUID = UUID(0L, 0L),
+        rotation: Rotation3 = Rotation3.IDENTITY,
+        offset: Vector3 = Vector3.ZERO,
     ) {
         player.deltaMovement = velocity
         player.hasImpulse = true
@@ -61,6 +64,8 @@ object PlayerFlightMotion {
                     Vector3(velocity.x, velocity.y, velocity.z),
                     false,
                     token,
+                    rotation,
+                    offset,
                 ),
             ),
         )
@@ -73,11 +78,17 @@ data class FlightMotionPayload(
     val velocity: Vector3,
     val capture: Boolean = false,
     val token: UUID = UUID(0L, 0L),
+    val rotation: Rotation3 = Rotation3.IDENTITY,
+    val offset: Vector3 = Vector3.ZERO,
 ) : CustomPacketPayload {
     init {
         require(CelestialFlight.dimensions.any { it.location() == dimension })
+        require(offset.length().isFinite() && offset.length() <= 1000.0)
         require(velocity.length() <= 500.0) { "Player transfer velocity exceeds 10 km/s" }
     }
+
+    /** Preserve exact client motion, expressed in the frozen destination basis and transport velocity. */
+    fun transformCaptured(value: Vector3): Vector3 = rotation.apply(value) + offset
 
     override fun type(): CustomPacketPayload.Type<FlightMotionPayload> = TYPE
 
@@ -95,17 +106,22 @@ data class FlightMotionPayload(
                     buffer.writeDouble(payload.velocity.x)
                     buffer.writeDouble(payload.velocity.y)
                     buffer.writeDouble(payload.velocity.z)
+                    for (v in listOf(payload.rotation.xAxis, payload.rotation.yAxis, payload.rotation.zAxis, payload.offset)) {
+                        buffer.writeDouble(v.x)
+                        buffer.writeDouble(v.y)
+                        buffer.writeDouble(v.z)
+                    }
                 }
 
                 override fun decode(buffer: FriendlyByteBuf): FlightMotionPayload {
                     val capture = buffer.readBoolean()
                     val token = buffer.readUUID()
-                    return FlightMotionPayload(
-                        buffer.readResourceLocation(),
-                        Vector3(buffer.readDouble(), buffer.readDouble(), buffer.readDouble()),
-                        capture,
-                        token,
-                    )
+
+                    fun vector() = Vector3(buffer.readDouble(), buffer.readDouble(), buffer.readDouble())
+                    val dimension = buffer.readResourceLocation()
+                    val velocity = vector()
+                    val rotation = Rotation3.fromAxes(vector(), vector(), vector())
+                    return FlightMotionPayload(dimension, velocity, capture, token, rotation, vector())
                 }
             }
     }

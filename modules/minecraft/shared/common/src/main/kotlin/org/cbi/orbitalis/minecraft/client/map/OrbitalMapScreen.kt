@@ -63,6 +63,8 @@ class OrbitalMapScreen(
     private var focusButton: Button? = null
     private var celestialBodies = emptyList<CelestialMapScene.Body>()
     private var bodyFocus: String? = null
+    private var celestialRenderTick = 0L
+    private var celestialRenderSeconds = 0.0
     private val celestialButtons = mutableListOf<Button>()
     private val viewX = 12
     private val viewY = 79
@@ -260,6 +262,7 @@ class OrbitalMapScreen(
         partialTick: Float,
     ) {
         updateCamera()
+        updateCelestialView()
         graphics.fill(0, 0, width, height, 0xFF080E19.toInt())
         graphics.drawString(font, title, 12, 11, 0xE8F4FF, false)
         graphics.fill(viewX - 1, viewY - 1, viewX + viewWidth + 1, viewY + viewHeight + 1, 0xFF294358.toInt())
@@ -323,6 +326,26 @@ class OrbitalMapScreen(
         super.render(graphics, mouseX, mouseY, partialTick)
     }
 
+    private fun updateCelestialView() {
+        val data = snapshot ?: return
+        val profile = data.celestialProfile ?: return
+        val level = minecraft?.level ?: return
+        val sampled =
+            if (org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                    .available(level)
+            ) {
+                org.cbi.orbitalis.minecraft.client.space.CelestialView
+                    .sample()
+                    .frames
+            } else {
+                null
+            }
+        celestialRenderTick = if (sampled?.profile == profile) sampled.tick else data.simulationTick
+        celestialRenderSeconds = if (sampled?.profile == profile) sampled.seconds else 0.0
+        celestialBodies = CelestialMapScene.sample(profile, celestialRenderTick, celestialRenderSeconds)
+        CelestialMapScene.follow(camera, bodyFocus, celestialBodies)
+    }
+
     private fun resetEarthView() {
         clearCameraInput()
         bodyFocus = null
@@ -379,12 +402,13 @@ class OrbitalMapScreen(
                 data.celestialProfile?.let { profile ->
                     org.cbi.orbitalis.minecraft.client.space.LunarPlanetRenderer.render(
                         profile,
-                        data.simulationTick,
+                        celestialRenderTick,
                         org.cbi.orbitalis.minecraft.flight.CelestialFlight.lunarSeed,
                         camera.focus,
                         view,
                         projection,
                         1.0 / camera.range,
+                        celestialRenderSeconds,
                     )
                 }
             }

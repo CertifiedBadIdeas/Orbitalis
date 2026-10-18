@@ -63,6 +63,11 @@ object PlayerGravityEvents {
     }
 
     @JvmStatic @SubscribeEvent
+    fun dimension(event: PlayerEvent.PlayerChangedDimensionEvent) {
+        (event.entity as? ServerPlayer)?.let { send(it, PlayerGravity.serverAcceleration(it.serverLevel())) }
+    }
+
+    @JvmStatic @SubscribeEvent
     fun tick(event: ServerTickEvent.Post) {
         val gravity = PlayerGravity.serverAcceleration(event.server.overworld())
         if (sent.put(event.server, gravity) != gravity || event.server.tickCount % 10 == 0) {

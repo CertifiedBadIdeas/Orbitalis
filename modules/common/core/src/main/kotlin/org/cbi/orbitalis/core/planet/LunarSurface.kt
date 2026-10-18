@@ -105,8 +105,8 @@ class LunarSurface(
         const val HALF_SIZE = 1400
         const val SEA_LEVEL = 64
         const val BOTTOM = -64
-        const val ASCENT_HEIGHT = 600.0
-        const val DESCENT_HEIGHT = 400.0
+        const val ASCENT_HEIGHT = PlanetFlightEnvelope.MIN_DESCENT_DISTANCE + PlanetFlightEnvelope.MIN_HYSTERESIS
+        const val DESCENT_HEIGHT = PlanetFlightEnvelope.MIN_DESCENT_DISTANCE
         private const val CELL = 192
     }
 }

@@ -22,6 +22,9 @@ import kotlin.math.abs
 
 /** Rounded distance bands around the reference body's volume, shared by travel and preloading. */
 object PlanetFlightEnvelope {
+    const val MIN_DESCENT_DISTANCE = 1500.0
+    const val MIN_HYSTERESIS = 300.0
+
     val earth =
         BodyFlightEnvelope(
             Vector3(FlatPlanetDefinition.HALF_SIZE, FlatPlanetDefinition.SEA_LEVEL, FlatPlanetDefinition.HALF_SIZE),
@@ -54,6 +57,8 @@ class BodyFlightEnvelope(
 ) {
     init {
         require(listOf(halfExtents.x, halfExtents.y, halfExtents.z).all { it.isFinite() && it > 0.0 })
+        require(descentDistance >= PlanetFlightEnvelope.MIN_DESCENT_DISTANCE) { "Native worlds need at least 1500 metres of approach room" }
+        require(ascentDistance - descentDistance >= PlanetFlightEnvelope.MIN_HYSTERESIS) { "Flight bands need a 300-metre hysteresis gap" }
         require(ascentDistance.isFinite() && descentDistance.isFinite() && ascentDistance > descentDistance && descentDistance > 0.0)
     }
 

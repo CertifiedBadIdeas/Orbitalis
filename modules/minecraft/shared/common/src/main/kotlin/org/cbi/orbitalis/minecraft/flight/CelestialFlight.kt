@@ -69,30 +69,31 @@ class CelestialFlight(
         private var clientProfile: SolarSystemProfile? = null
         var lunarSeed = 0L
             private set
-        private var clientAdvancing = true
-        private var clientClock = 0L
-        private var clientReceivedAt = 0L
+        private val clientClock = ClientEphemerisClock()
 
         fun accept(
             profile: SolarSystemProfile?,
             tick: Long,
-            receivedAt: Long,
             seed: Long = 0,
             advancing: Boolean = true,
         ) {
             clientProfile = profile
-            clientAdvancing = advancing
             lunarSeed = seed
-            clientClock = tick
-            clientReceivedAt = receivedAt
+            clientClock.accept(tick, advancing)
         }
 
         fun sample(level: Level): CelestialFlight {
             if (level is ServerLevel) return sample(level.server)
             val profile = checkNotNull(clientProfile) { "Celestial snapshot not received" }
-            val elapsed = if (clientAdvancing) (level.gameTime - clientReceivedAt).coerceIn(0L, 10L) else 0L
-            return CelestialFlight(SurfaceFlightFrames(profile, clientClock + elapsed))
+            return CelestialFlight(SurfaceFlightFrames(profile, clientClock.tick))
         }
+
+        fun sampleClient(partialTick: Float): CelestialFlight =
+            CelestialFlight(
+                SurfaceFlightFrames(checkNotNull(clientProfile), clientClock.tick, clientClock.renderSeconds(partialTick)),
+            )
+
+        fun advanceClient() = clientClock.advance()
 
         fun available(level: Level): Boolean = if (level is ServerLevel) trySample(level.server) != null else clientProfile != null
 

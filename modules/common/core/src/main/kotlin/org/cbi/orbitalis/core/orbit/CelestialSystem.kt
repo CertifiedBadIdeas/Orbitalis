@@ -65,10 +65,14 @@ class CelestialSystem(
     }
 
     /** The caller supplies the authoritative simulation clock; sampling never advances it. */
-    fun sample(tick: Long): CelestialSnapshot {
+    fun sample(
+        tick: Long,
+        seconds: Double = 0.0,
+    ): CelestialSnapshot {
+        require(seconds.isFinite()) { "Sample offset must be finite" }
         require(tick >= 0) { "Simulation tick must be nonnegative" }
         val zero = FrameKinematics(CartesianState(Vector3.ZERO, Vector3.ZERO))
-        val relative = bodiesById.mapValues { (_, body) -> body.orbit?.sample(tick) ?: zero }
+        val relative = bodiesById.mapValues { (_, body) -> body.orbit?.sample(tick, seconds) ?: zero }
         return CelestialSnapshot(tick, paths, relative)
     }
 }

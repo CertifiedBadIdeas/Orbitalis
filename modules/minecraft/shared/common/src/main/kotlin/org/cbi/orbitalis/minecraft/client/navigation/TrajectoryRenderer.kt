@@ -28,7 +28,6 @@ import net.minecraft.client.multiplayer.ClientLevel
 import net.minecraft.client.renderer.GameRenderer
 import org.cbi.orbitalis.core.planet.CoastPrediction
 import org.cbi.orbitalis.core.planet.Vector3
-import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
 import org.cbi.orbitalis.minecraft.navigation.TrajectorySnapshot
 import org.joml.Matrix4f
 import org.lwjgl.opengl.GL11
@@ -53,7 +52,9 @@ object TrajectoryRenderer {
             return
         }
         val c = camera.position
-        val observer = FlightSpaceCoordinates.globalPosition(level, Vector3(c.x, c.y, c.z))
+        val observer =
+            org.cbi.orbitalis.minecraft.client.space.CelestialView
+                .globalPosition(level, Vector3(c.x, c.y, c.z))
         val rootView =
             org.cbi.orbitalis.minecraft.client.space.CelestialView
                 .rootView(level, matrix)

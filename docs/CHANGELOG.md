@@ -20,6 +20,16 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Interpolate the moving Moon, lunar camera frame and map focus between client ticks to prevent
+  visible 20 Hz stepping during approach. Raise lunar entry/exit clearance to 1500/1800 metres,
+  with shared minimum native approach and hysteresis distances for small bodies.
+
+- Preserve free-player velocity through lunar frame rotation and transport motion, avoiding an
+  outward kick after fast arrivals. Use one player gravity field on both sides, align the camera
+  horizon before entry, and extend the held-frame loading bridge and Earth atlas stream to Moon.
+  Track Moon-centred orbital-map views between snapshots; panning releases the body lock.
+  Remove the placeholder Sun square from the space sky while retaining the map catalogue.
+
 - Apply all-face flight envelopes to the moving Moon, including side/underside chunk preloading and
   unloaded ship wake-up. Share Earth's 16-metre sector LOD, stepped relief, layered cliffs and shaded
   underside with the gray cratered Moon; prepare sectors in the background without generating chunks.

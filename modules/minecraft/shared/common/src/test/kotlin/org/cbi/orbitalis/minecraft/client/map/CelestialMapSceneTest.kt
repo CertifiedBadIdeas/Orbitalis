@@ -25,6 +25,34 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class CelestialMapSceneTest {
+    @Test fun `rendered Moon and focused map share the fractional surface frame epoch`() {
+        val profile = SolarSystemProfile(11.0)
+        val tick = 12000L
+        val seconds = -0.025
+        val frames =
+            org.cbi.orbitalis.core.orbit
+                .SurfaceFlightFrames(profile, tick, seconds)
+        val scene = CelestialMapScene.sample(profile, tick, seconds)
+        val moon = scene.single { it.id == SolarSystemProfile.MOON }
+        assertEquals(profile.lunarSurfaceFrame(tick, seconds).origin.position, moon.position)
+        val world = org.cbi.orbitalis.core.orbit.SurfaceFlightFrames.World.MOON
+        val origin = frames.frame(world).origin.position
+        assertEquals(moon.position, origin)
+        val camera = MapCamera()
+        CelestialMapScene.follow(camera, SolarSystemProfile.MOON, scene)
+        assertEquals(moon.position, camera.focus)
+        val native = Vector3(70.0, 800.0, -50.0)
+        val root =
+            frames
+                .frame(world)
+                .toParent(
+                    org.cbi.orbitalis.core.planet
+                        .CartesianState(native, Vector3.ZERO),
+                ).position
+        assertTrue((frames.frame(world).orientation.inverse(root - origin) - native).length() < 1e-9)
+        assertTrue((moon.position - profile.lunarSurfaceFrame(tick).origin.position).length() > 0.1)
+    }
+
     @Test
     fun `map body positions and orbit origins use the authoritative snapshot epoch`() {
         val profile = SolarSystemProfile(11.0, 1000, 0.7, -1.1)
@@ -67,5 +95,25 @@ class CelestialMapSceneTest {
             assertEquals(width / 2.0, point.x)
             assertEquals(height / 2.0, point.y)
         }
+    }
+
+    @Test fun `Moon tracking keeps it fixed while Earth revolves and manual pan detaches`() {
+        val profile = SolarSystemProfile(11.0)
+        val camera = MapCamera()
+        camera.frame(Vector3.ZERO, 30000.0)
+        var previousEarth: MapCamera.Point? = null
+        for (tick in listOf(0L, 2000L, 4000L, 6000L)) {
+            val bodies = CelestialMapScene.sample(profile, tick)
+            CelestialMapScene.follow(camera, SolarSystemProfile.MOON, bodies)
+            val moon = camera.projectRaw(bodies.single { it.id == SolarSystemProfile.MOON }.position, 600, 400)
+            assertEquals(MapCamera.Point(300.0, 200.0), moon)
+            val earth = camera.projectRaw(Vector3.ZERO, 600, 400)
+            previousEarth?.let { assertTrue(kotlin.math.hypot(earth.x - it.x, earth.y - it.y) > 1.0) }
+            previousEarth = earth
+        }
+        camera.pan(10.0, 20.0, 400)
+        val focus = camera.focus
+        CelestialMapScene.follow(camera, null, CelestialMapScene.sample(profile, 8000L))
+        assertEquals(focus, camera.focus)
     }
 }

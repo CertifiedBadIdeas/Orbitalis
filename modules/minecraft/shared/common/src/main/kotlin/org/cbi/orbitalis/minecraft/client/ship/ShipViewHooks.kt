@@ -44,15 +44,22 @@ object ShipViewHooks {
         fieldOfView: Double,
     ) {
         controller?.setup(camera, partialTick, fieldOfView)
+        org.cbi.orbitalis.minecraft.client.space.PlayerApproachView
+            .setup(camera)
     }
 
     @JvmStatic fun turn(
         x: Double,
         y: Double,
-    ): Boolean = controller?.turn(x, y) ?: false
+    ): Boolean =
+        controller?.turn(x, y) == true ||
+            org.cbi.orbitalis.minecraft.client.space.PlayerApproachView
+                .turn(x, y)
 }
 
 interface ShipCameraAccess {
+    fun orbitalisRollView(degrees: Float)
+
     fun orbitalisSetView(
         position: Vec3,
         yaw: Float,

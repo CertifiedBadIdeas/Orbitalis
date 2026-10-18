@@ -185,3 +185,6 @@ windows. Captures and client logs are retained with task evidence. The first pre
 Voxy shutdown stall after all dimensions were saved; its thread dump was retained and that client
 was terminated. The subsequent preview saved and exited normally. Lunar markers are presentation
 placeholders; this observation does not verify lunar terrain or vessel encounters.
+
+Moon view follows the lunar centre on the sampled simulation clock, so Earth revolves relative to
+the stationary lunar map centre. Manual panning releases body tracking.
