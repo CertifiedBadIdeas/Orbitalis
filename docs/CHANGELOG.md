@@ -24,6 +24,13 @@ limitations under the License.
   preview preset and a 10000-block default. Save creation intent in native world metadata and
   preserve legacy absence and unsupported records for the physical-system adapter.
 
+- Derive Earth/Moon orbit distances from unchanged mass parameters and physical periods: a 365.24-day
+  year and 27.32-day lunar revolution, using 20-minute mean solar days. Define the corresponding
+  sidereal spin period without changing vanilla daylight. Migrate existing catalogues at preserved
+  phases, retain frozen legacy transfer profiles and inertial station positions, and extend lunar
+  transfer/trajectory bounds and map framing to the new scale.
+- Begin lunar approach-camera alignment inside the model-derived Hill sphere, matching the local
+  surface horizon before entry and retaining inertial orientation outside lunar capture.
 - Move optional Voxy WorldGenV2 finite-terrain search and shutdown compatibility into the main mod.
   Keep Voxy and WorldGenV2 separately installed, with optional client dependency declarations;
   the flight consumer no longer owns these compatibility hooks.

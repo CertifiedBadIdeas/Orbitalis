@@ -30,7 +30,7 @@ import kotlin.test.assertTrue
 class SolarSystemProfileTest {
     @Test
     fun `compact lunar period follows native Earth mass and the accepted distance`() {
-        val profile = SolarSystemProfile(11.0)
+        val profile = SolarSystemProfile(11.0, preset = SolarSystemProfile.Preset.COMPACT)
         assertEquals(FlatPlanetDefinition.gravity(11.0).body.mu, profile.moonOrbit.mu)
         val sample = profile.system.sample(0).frame(SolarSystemProfile.MOON, SolarSystemProfile.EARTH)
         assertEquals(20000.0, sample.origin.position.length(), 1e-8)
@@ -40,7 +40,7 @@ class SolarSystemProfileTest {
 
     @Test
     fun `retuning gravity preserves current phase and positions while changing velocity consistently`() {
-        val before = SolarSystemProfile(11.0, 100, 0.7, -1.3)
+        val before = SolarSystemProfile(11.0, 100, 0.7, -1.3, SolarSystemProfile.Preset.COMPACT)
         val tick = 10000L
         val after = before.retune(22.0, tick)
         assertEquals(tick, after.epochTick)

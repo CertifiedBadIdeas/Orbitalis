@@ -90,7 +90,8 @@ data class ManeuverPlan(
     ): Prediction {
         require(gameTick >= 0)
         require(gameTick >= epochTick) { "Plan epoch is in the future" }
-        val start = CoastPrediction.predict(field, initial, CoastPrediction.Limits(horizon = 0.05, range = 100000.0), sources)
+        val range = sources?.profile?.flightRange ?: 100000.0
+        val start = CoastPrediction.predict(field, initial, CoastPrediction.Limits(horizon = 0.05, range = range), sources)
         if (start.terminal.seconds == 0.0) return Prediction(listOf(Segment(0.0, start)), emptyList())
         val elapsed = (gameTick - epochTick) / 20.0
         val segments = mutableListOf<Segment>()
@@ -102,7 +103,7 @@ data class ManeuverPlan(
             if (due < 0.0) continue // Past impulses are already part of the observed physical state.
             val duration = due - time
             if (duration > 0.0) {
-                val coast = CoastPrediction.predict(field, state, limits(duration), sources, time)
+                val coast = CoastPrediction.predict(field, state, limits(duration, range), sources, time)
                 segments.add(Segment(time, coast))
                 if (coast.end != CoastPrediction.End.HORIZON) return Prediction(segments, burns)
                 state = coast.terminal.state
@@ -112,15 +113,17 @@ data class ManeuverPlan(
             burns.add(Burn(index, time, state, delta))
             state = CartesianState(state.position, state.velocity + delta)
         }
-        segments.add(Segment(time, CoastPrediction.orbit(field, state, CoastPrediction.Limits(range = 100000.0), sources, time)))
+        segments.add(Segment(time, CoastPrediction.orbit(field, state, CoastPrediction.Limits(range = range), sources, time)))
         return Prediction(segments, burns)
     }
 
-    private fun limits(duration: Double) =
-        CoastPrediction.Limits(
-            horizon = duration,
-            step = max(0.05, duration / 11999.0),
-            sampleInterval = max(0.5, duration / 599.0),
-            range = 100000.0,
-        )
+    private fun limits(
+        duration: Double,
+        range: Double,
+    ) = CoastPrediction.Limits(
+        horizon = duration,
+        step = max(0.05, duration / 11999.0),
+        sampleInterval = max(0.5, duration / 599.0),
+        range = range,
+    )
 }

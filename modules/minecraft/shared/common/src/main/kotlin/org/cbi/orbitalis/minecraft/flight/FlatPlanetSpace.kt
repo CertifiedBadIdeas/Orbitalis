@@ -39,7 +39,19 @@ object FlatPlanetSpace {
     const val ORBIT_HEIGHT = FlatPlanetDefinition.ORBIT_HEIGHT
     const val MAX_TRANSFER_DISTANCE = 100000.0
 
-    fun validTransferPosition(position: Vector3): Boolean = position.length() <= MAX_TRANSFER_DISTANCE
+    fun transferRange(level: Level): Double =
+        if (CelestialFlight.available(level)) {
+            CelestialFlight
+                .sample(level)
+                .frames.profile.flightRange
+        } else {
+            MAX_TRANSFER_DISTANCE
+        }
+
+    fun validTransferPosition(
+        position: Vector3,
+        profile: org.cbi.orbitalis.core.orbit.SolarSystemProfile? = null,
+    ): Boolean = position.length() <= (profile?.flightRange ?: MAX_TRANSFER_DISTANCE)
 
     fun gravityField(surfaceGravity: Double): SurfaceGravityLayer = FlatPlanetDefinition.gravity(surfaceGravity)
 

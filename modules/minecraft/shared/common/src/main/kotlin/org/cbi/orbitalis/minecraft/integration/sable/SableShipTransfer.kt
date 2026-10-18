@@ -356,7 +356,12 @@ class SableShipTransfer(
             val physical =
                 lunarTransform?.sample?.point(native, destinationDimension, Level.OVERWORLD)
                     ?: FlightSpaceCoordinates.globalPosition(target, native)
-            require(FlatPlanetSpace.validTransferPosition(physical)) { "Pilot outside bounded physical flight coordinates" }
+            require(
+                FlatPlanetSpace.validTransferPosition(
+                    physical,
+                    lunarTransform?.sample?.frames?.profile ?: CelestialFlight.sample(target).frames.profile,
+                ),
+            ) { "Pilot outside bounded physical flight coordinates" }
         }
         val record =
             ShipTransferRecord(

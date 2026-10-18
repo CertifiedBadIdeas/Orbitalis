@@ -69,8 +69,8 @@ class CelestialMapSceneTest {
         assertTrue(sun.orbit.isEmpty())
         assertTrue(earth.orbit.first().length() < 1e-8)
         assertTrue((moon.orbit.first() - moon.position).length() < 1e-8)
-        assertTrue(earth.orbit.all { kotlin.math.abs((it - sun.position).length() - SolarSystemProfile.EARTH_ORBIT_RADIUS) < 1e-7 })
-        assertTrue(moon.orbit.all { kotlin.math.abs(it.length() - SolarSystemProfile.MOON_ORBIT_RADIUS) < 1e-7 })
+        assertTrue(earth.orbit.all { kotlin.math.abs((it - sun.position).length() - profile.earthOrbitRadius) < 1e-7 })
+        assertTrue(moon.orbit.all { kotlin.math.abs(it.length() - profile.moonOrbitRadius) < 1e-7 })
     }
 
     @Test
@@ -78,7 +78,7 @@ class CelestialMapSceneTest {
         val profile = SolarSystemProfile(11.0)
         val camera = MapCamera()
         for ((width, height) in listOf(144 to 321, 144 to 148, 600 to 400, 1000 to 300)) {
-            camera.frame(Vector3.ZERO, SolarSystemProfile.MOON_ORBIT_RADIUS * 1.3, width, height)
+            camera.frame(Vector3.ZERO, profile.moonOrbitRadius * 1.3, width, height)
             val bodies = CelestialMapScene.sample(profile, 1200)
             for (body in bodies.filter { it.id != SolarSystemProfile.SUN }) {
                 assertTrue(camera.project(body.position, width, height) != null)

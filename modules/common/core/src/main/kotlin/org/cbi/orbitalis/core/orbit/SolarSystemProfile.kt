@@ -22,13 +22,15 @@ import org.cbi.orbitalis.core.planet.FlatPlanetDefinition
 import org.cbi.orbitalis.core.planet.LunarSurface
 import org.cbi.orbitalis.core.planet.RectangularGravity
 import kotlin.math.PI
+import kotlin.math.cbrt
 
-/** Version-one compact preset. Persist phases and epoch with the simulation clock, not daylight. */
+/** Versioned prescribed system. Physical periods use simulation time, independently of daylight. */
 data class SolarSystemProfile(
     val surfaceGravity: Double,
     val epochTick: Long = 0,
     val earthPhase: Double = 0.0,
     val moonPhase: Double = PI / 2.0,
+    val preset: Preset = Preset.CALENDAR,
 ) {
     init {
         require(surfaceGravity.isFinite() && surfaceGravity in 1e-6..1e6)
@@ -39,8 +41,24 @@ data class SolarSystemProfile(
     val earthGravity = FlatPlanetDefinition.gravity(surfaceGravity)
     val moonGravity = RectangularGravity(MOON_HALF_SIZE, FlatPlanetDefinition.SEA_LEVEL, MOON_HALF_SIZE, surfaceGravity / 6.0)
     val sunMu = earthGravity.body.mu * 10000.0
-    val earthOrbit = KeplerOrbit(sunMu, EARTH_ORBIT_RADIUS, meanAnomalyAtEpoch = earthPhase, epochTick = epochTick)
-    val moonOrbit = KeplerOrbit(earthGravity.body.mu, MOON_ORBIT_RADIUS, meanAnomalyAtEpoch = moonPhase, epochTick = epochTick)
+    val earthOrbitRadius = if (preset == Preset.COMPACT) LEGACY_EARTH_ORBIT_RADIUS else radiusForPeriod(sunMu, YEAR_SECONDS)
+    val moonOrbitRadius =
+        if (preset ==
+            Preset.COMPACT
+        ) {
+            LEGACY_MOON_ORBIT_RADIUS
+        } else {
+            radiusForPeriod(earthGravity.body.mu, LUNAR_PERIOD_SECONDS)
+        }
+
+    /** Circular restricted-three-body Hill approximation; presentation boundary, never a gravity cutoff. */
+    val earthHillRadius = earthOrbitRadius * cbrt(earthGravity.body.mu / (3.0 * sunMu))
+    val moonHillRadius = moonOrbitRadius * cbrt(moonGravity.mu / (3.0 * earthGravity.body.mu))
+
+    /** Earth-centred operating envelope, including the lunar orbit and 100 km exterior margin. */
+    val flightRange = maxOf(100000.0, moonOrbitRadius + 100000.0)
+    val earthOrbit = KeplerOrbit(sunMu, earthOrbitRadius, meanAnomalyAtEpoch = earthPhase, epochTick = epochTick)
+    val moonOrbit = KeplerOrbit(earthGravity.body.mu, moonOrbitRadius, meanAnomalyAtEpoch = moonPhase, epochTick = epochTick)
     val system =
         CelestialSystem(
             listOf(
@@ -72,22 +90,52 @@ data class SolarSystemProfile(
         )
     }
 
-    /** Preserve the current positions when native gravity changes; velocities follow the new mass. */
+    /** Preserve phase at retuning/migration; calendar radii follow mass while keeping physical periods. */
     fun retune(
         gravity: Double,
         tick: Long,
+        preset: Preset = this.preset,
     ): SolarSystemProfile {
         require(tick >= epochTick)
-        return SolarSystemProfile(gravity, tick, earthOrbit.meanAnomaly(tick), moonOrbit.meanAnomaly(tick))
+        return SolarSystemProfile(gravity, tick, earthOrbit.meanAnomaly(tick), moonOrbit.meanAnomaly(tick), preset)
+    }
+
+    enum class Preset(
+        val version: Int,
+    ) {
+        COMPACT(1),
+        CALENDAR(2),
+        ;
+
+        companion object {
+            fun fromVersion(version: Int): Preset =
+                entries.firstOrNull { it.version == version }
+                    ?: throw IllegalArgumentException("Unsupported celestial profile version: $version")
+        }
     }
 
     companion object {
-        const val VERSION = 1
+        const val VERSION = 2
+        const val SOLAR_DAY_SECONDS = 1200.0
+        const val YEAR_DAYS = 365.24
+        const val LUNAR_PERIOD_DAYS = 27.32
+        const val YEAR_SECONDS = YEAR_DAYS * SOLAR_DAY_SECONDS
+        const val LUNAR_PERIOD_SECONDS = LUNAR_PERIOD_DAYS * SOLAR_DAY_SECONDS
+
+        // Prograde spin and circular year in the same plane: mean solar day is exactly 1200 s.
+        val SIDEREAL_DAY_SECONDS = 1.0 / (1.0 / SOLAR_DAY_SECONDS + 1.0 / YEAR_SECONDS)
+        val SYNODIC_MONTH_SECONDS = 1.0 / (1.0 / LUNAR_PERIOD_SECONDS - 1.0 / YEAR_SECONDS)
+
+        private fun radiusForPeriod(
+            mu: Double,
+            period: Double,
+        ): Double = cbrt(mu * (period / (2.0 * PI)) * (period / (2.0 * PI)))
+
         const val SUN = "orbitalis:sun"
         const val EARTH = "orbitalis:overworld"
         const val MOON = "orbitalis:moon"
-        const val EARTH_ORBIT_RADIUS = 2000000.0
-        const val MOON_ORBIT_RADIUS = 20000.0
+        const val LEGACY_EARTH_ORBIT_RADIUS = 2000000.0
+        const val LEGACY_MOON_ORBIT_RADIUS = 20000.0
         val MOON_HALF_SIZE = LunarSurface.HALF_SIZE.toDouble()
         const val SUN_VISUAL_RADIUS = 30000.0
     }
