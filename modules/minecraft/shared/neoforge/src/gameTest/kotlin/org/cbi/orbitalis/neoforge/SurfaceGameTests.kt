@@ -36,15 +36,18 @@ object SurfaceGameTests {
             helper.level.server
                 .overworld()
                 .worldBorder
-        helper.assertTrue(border.centerX == 0.0 && border.centerZ == 0.0 && border.size == FlatOverworld.SIZE, "Missing surface border")
+        helper.assertTrue(border.centerX == 0.0 && border.centerZ == 0.0 && border.size == WorldBorder.MAX_SIZE, "Close wall remains")
+        val bounds =
+            org.cbi.orbitalis.minecraft.surface.FiniteSurfaceTerrain
+                .bounds(helper.level.server.overworld())!!
+        helper.assertTrue(bounds.minX == -5000 && bounds.maxX == 5000, "Finite terrain extent was lost")
         for (y in listOf(-10000, 64, 20000)) {
-            helper.assertTrue(border.isWithinBounds(BlockPos(4999, y, 4999)), "Border added an altitude limit")
             for (p in listOf(BlockPos(5000, y, 0), BlockPos(-5001, y, 0), BlockPos(0, y, 5000), BlockPos(0, y, -5001))) {
-                helper.assertTrue(!border.isWithinBounds(p), "Border allowed an outside cell: $p")
+                helper.assertTrue(border.isWithinBounds(p), "Movement border blocks edge flight: $p")
+                helper.assertTrue(!bounds.contains(p.x, p.z), "Exterior column admitted to generation")
             }
         }
-        helper.assertTrue(!border.collisionShape.isEmpty, "Native border has no collision shape")
-        helper.assertTrue(!border.isWithinBounds(AABB(5001.0, 64.0, 0.0, 5002.0, 66.0, 1.0)), "Outside body accepted")
+        helper.assertTrue(border.isWithinBounds(AABB(5001.0, 64.0, 0.0, 5002.0, 66.0, 1.0)), "Outside flight body rejected")
         helper.succeed()
     }
 
@@ -80,7 +83,11 @@ object SurfaceGameTests {
                         .getCurrentVersion()
                         .dataVersion.version,
                 )
-            helper.assertTrue(tag.getCompound("data").getInt("Version") == 2, "Initialization marker did not persist")
+            helper.assertTrue(tag.getCompound("data").getInt("Version") == 3, "Initialization marker did not persist")
+            helper.assertTrue(
+                tag.getCompound("data").getIntArray("Bounds").contentEquals(intArrayOf(-5000, -5000, 5000, 5000)),
+                "Footprint did not persist",
+            )
             FlatOverworld.initialize(level, storage)
             helper.assertTrue(
                 level.worldBorder.centerX == 32.0 && level.worldBorder.centerZ == -48.0 && level.worldBorder.size == 1536.0,

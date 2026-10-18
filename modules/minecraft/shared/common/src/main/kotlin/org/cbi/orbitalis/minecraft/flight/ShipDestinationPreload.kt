@@ -22,11 +22,10 @@ import net.minecraft.core.BlockPos
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.server.level.TicketType
 import net.minecraft.world.level.ChunkPos
-import org.cbi.orbitalis.core.planet.AltitudeArrival
+import org.cbi.orbitalis.core.planet.PlanetFlightEnvelope
 import org.cbi.orbitalis.core.planet.Vector3
 import java.util.UUID
 import java.util.WeakHashMap
-import kotlin.math.abs
 
 /** Bounded native terrain ticket with a measured time budget and an immutable arrival forecast. */
 class ShipDestinationPreload : AutoCloseable {
@@ -38,7 +37,7 @@ class ShipDestinationPreload : AutoCloseable {
     private var previousTick = -1L
     private var previousPosition: Vector3? = null
     private var previousVelocity: Vector3? = null
-    private var acceleration = 0.0
+    private var acceleration = Vector3.ZERO
     val sampledVelocity: Vector3? get() = previousVelocity
     val active: Boolean get() = target != null
     val ready: Boolean get() =
@@ -66,9 +65,11 @@ class ShipDestinationPreload : AutoCloseable {
                 Vector3.ZERO
             }
         if (dt > 0.0 && dt <= 1.0 && previousVelocity != null) {
-            acceleration = acceleration * 0.5 + ((observed.y - checkNotNull(previousVelocity).y) / dt).coerceIn(-200.0, 200.0) * 0.5
+            val measuredAcceleration = (observed - checkNotNull(previousVelocity)) * (1.0 / dt)
+            acceleration =
+                acceleration * 0.5 + measuredAcceleration * (0.5 * minOf(1.0, 200.0 / measuredAcceleration.length().coerceAtLeast(1e-8)))
         } else if (dt != 0.0 || previousLevel !== level) {
-            acceleration = 0.0
+            acceleration = Vector3.ZERO
         }
         previousLevel = level
         previousTick = tick
@@ -79,19 +80,12 @@ class ShipDestinationPreload : AutoCloseable {
         val destination = level.server.getLevel(other) ?: return false
         val budget = budgets.getOrPut(destination, ::Budget)
         val lead = (budget.seconds * 2.0 + 1.0).coerceIn(2.0, 21.0)
-        val boundary = FlatPlanetSpace.SEA_LEVEL + if (ascending) FlatPlanetSpace.ASCENT_HEIGHT else FlatPlanetSpace.DESCENT_HEIGHT
-        val eta = AltitudeArrival.seconds(physicalPosition.y, observed.y, acceleration, boundary, ascending, 30.0)
+        val eta = PlanetFlightEnvelope.arrival(physicalPosition, observed, acceleration, ascending, 30.0)
         if (eta == null || eta > lead || (!allowNewTicket && !active)) {
             close()
             return false
         }
-        val crossing = physicalPosition + observed * eta + Vector3(0.0, acceleration * eta * eta * 0.5, 0.0)
-        if (abs(crossing.x) >= FlatPlanetSpace.HALF_SIZE || abs(crossing.z) >= FlatPlanetSpace.HALF_SIZE ||
-            (!ascending && crossing.y < FlatPlanetSpace.SEA_LEVEL)
-        ) {
-            close()
-            return false
-        }
+        val crossing = physicalPosition + observed * eta + acceleration * (eta * eta * 0.5)
         update(destination, FlightSpaceCoordinates.localPosition(other, crossing))
         return true
     }

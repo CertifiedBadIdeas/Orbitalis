@@ -25,7 +25,6 @@ import net.neoforged.bus.api.SubscribeEvent
 import net.neoforged.fml.common.EventBusSubscriber
 import net.neoforged.neoforge.event.level.LevelEvent
 import net.neoforged.neoforge.event.server.ServerStoppedEvent
-import net.neoforged.neoforge.event.tick.ServerTickEvent
 import org.cbi.orbitalis.core.Orbitalis
 import org.cbi.orbitalis.minecraft.surface.FiniteSurfaceTerrain
 import org.cbi.orbitalis.minecraft.surface.FlatOverworld
@@ -37,12 +36,6 @@ object FlatSurfaceEvents {
     fun load(event: LevelEvent.Load) {
         val level = event.level as? ServerLevel ?: return
         if (level.dimension() == Level.OVERWORLD) FlatOverworld.prepare(level)
-    }
-
-    @JvmStatic
-    @SubscribeEvent
-    fun tick(event: ServerTickEvent.Pre) {
-        FiniteSurfaceTerrain.refresh(event.server.overworld())
     }
 
     @JvmStatic

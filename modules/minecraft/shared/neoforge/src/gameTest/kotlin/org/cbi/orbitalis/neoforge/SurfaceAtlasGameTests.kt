@@ -168,6 +168,7 @@ object SurfaceAtlasGameTests {
             if (saved.isDone) {
                 backfill.tick()
                 if (data.atlas.all().contains(expected)) {
+                    backfill.close()
                     helper.assertTrue(level.chunkSource.getChunkNow(300, 300) === before, "Disk backfill loaded terrain")
                     helper.succeed()
                     return
@@ -207,6 +208,7 @@ object SurfaceAtlasGameTests {
                 "Burst lifecycle lost a chunk sample",
             )
         }
+        service.close()
         helper.succeed()
     }
 

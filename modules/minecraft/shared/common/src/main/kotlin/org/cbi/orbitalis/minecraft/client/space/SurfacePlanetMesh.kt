@@ -22,13 +22,60 @@ import org.cbi.orbitalis.core.planet.SurfaceAtlas
 import org.cbi.orbitalis.core.planet.Vector3
 import kotlin.math.floor
 
-/** Fixed overview budget: 314 squared top cells, at most two interior skirts per cell. */
+/** Fixed overview budget: 626 squared top cells, at most two interior skirts per cell. */
 object SurfacePlanetMesh {
-    const val STEP = 32.0
+    const val STEP = 16.0
     private val low = floor(-SpaceScene.HALF_SIZE / STEP).toInt()
     private val high = floor((SpaceScene.HALF_SIZE - 1.0) / STEP).toInt()
 
-    fun faces(atlas: SurfaceAtlas): Sequence<SpaceScene.Face> =
+    data class Sector(
+        val x: Int,
+        val z: Int,
+    )
+
+    const val SECTOR_CHUNKS = 32
+    val sectors =
+        (Math.floorDiv(low, SECTOR_CHUNKS)..Math.floorDiv(high, SECTOR_CHUNKS)).flatMap { x ->
+            (Math.floorDiv(low, SECTOR_CHUNKS)..Math.floorDiv(high, SECTOR_CHUNKS)).map { z -> Sector(x, z) }
+        }
+
+    fun sector(
+        x: Int,
+        z: Int,
+    ) = Sector(Math.floorDiv(x, SECTOR_CHUNKS), Math.floorDiv(z, SECTOR_CHUNKS))
+
+    /** Preserve the existing fallback coast pattern with clipped macro cells while fine sectors build. */
+    fun coarse(sector: Sector): Sequence<SpaceScene.Face> =
+        sequence {
+            val x0 = maxOf(-SpaceScene.HALF_SIZE, sector.x * SECTOR_CHUNKS * STEP)
+            val x1 = minOf(SpaceScene.HALF_SIZE, (sector.x + 1) * SECTOR_CHUNKS * STEP)
+            val z0 = maxOf(-SpaceScene.HALF_SIZE, sector.z * SECTOR_CHUNKS * STEP)
+            val z1 = minOf(SpaceScene.HALF_SIZE, (sector.z + 1) * SECTOR_CHUNKS * STEP)
+            val macro = SpaceScene.HALF_SIZE * 2.0 / 32.0
+            val xs = (listOf(x0, x1) + (1..31).map { -SpaceScene.HALF_SIZE + it * macro }.filter { it > x0 && it < x1 }).sorted()
+            val zs = (listOf(z0, z1) + (1..31).map { -SpaceScene.HALF_SIZE + it * macro }.filter { it > z0 && it < z1 }).sorted()
+            for ((a, b) in xs.zipWithNext()) {
+                for ((c, d) in zs.zipWithNext()) {
+                    yield(
+                        SpaceScene.Face(
+                            listOf(
+                                Vector3(a, SpaceScene.TOP, c),
+                                Vector3(b, SpaceScene.TOP, c),
+                                Vector3(b, SpaceScene.TOP, d),
+                                Vector3(a, SpaceScene.TOP, d),
+                            ),
+                            fallback((a + b) / 2, (c + d) / 2),
+                            Vector3(0.0, 1.0, 0.0),
+                        ),
+                    )
+                }
+            }
+        }
+
+    fun faces(
+        atlas: SurfaceAtlas,
+        sector: Sector? = null,
+    ): Sequence<SpaceScene.Face> =
         sequence {
             val cells = atlas.overview()
 
@@ -41,8 +88,24 @@ object SurfacePlanetMesh {
                 x: Int,
                 z: Int,
             ) = cells[x to z]?.color ?: fallback(x * STEP, z * STEP)
-            for (x in low..high) {
-                for (z in low..high) {
+            val xs =
+                if (sector ==
+                    null
+                ) {
+                    low..high
+                } else {
+                    maxOf(low, sector.x * SECTOR_CHUNKS)..minOf(high, (sector.x + 1) * SECTOR_CHUNKS - 1)
+                }
+            val zs =
+                if (sector ==
+                    null
+                ) {
+                    low..high
+                } else {
+                    maxOf(low, sector.z * SECTOR_CHUNKS)..minOf(high, (sector.z + 1) * SECTOR_CHUNKS - 1)
+                }
+            for (x in xs) {
+                for (z in zs) {
                     val x0 = maxOf(-SpaceScene.HALF_SIZE, x * STEP)
                     val x1 = minOf(SpaceScene.HALF_SIZE, (x + 1) * STEP)
                     val z0 = maxOf(-SpaceScene.HALF_SIZE, z * STEP)
@@ -146,7 +209,7 @@ object SurfacePlanetMesh {
                     }
                 }
             }
-            yieldAll(SpaceScene.body.filter { it.normal.y <= 0.0 })
+            if (sector == null) yieldAll(SpaceScene.body.filter { it.normal.y <= 0.0 })
         }
 
     private fun fallback(

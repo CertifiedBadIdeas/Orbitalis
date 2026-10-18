@@ -477,7 +477,7 @@ third-party class is unavailable. Recheck these injection points before updating
 ### WorldGenV2 finite surface search
 
 For pinned WorldGenV2 2.4.2, the consumer scopes `DistanceGraph.findWork` in
-`ChunkGenerationManager.dispatchGeneration` to the player's Overworld border snapshot. Search nodes
+`ChunkGenerationManager.dispatchGeneration` to the player's saved finite Overworld terrain footprint (independent of the movement border). Search nodes
 wholly outside the footprint are pruned; edge batches retain only intersecting chunks. The native
 Orbitalis generator handles exact columns in partial chunks. Other dimensions and unrelated graph
 callers stay unchanged. The thread-local scope is restored in a `finally` block, including cancellation.

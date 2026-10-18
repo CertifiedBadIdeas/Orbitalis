@@ -24,18 +24,14 @@ import net.minecraft.server.level.ServerLevel
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.biome.Biomes
 import net.minecraft.world.level.block.Blocks
-import net.minecraft.world.level.border.BorderChangeListener
-import net.minecraft.world.level.border.WorldBorder
 import net.minecraft.world.level.chunk.ChunkAccess
 import net.minecraft.world.level.chunk.status.ChunkStatus
 import net.minecraft.world.level.chunk.status.ChunkStep
 import net.minecraft.world.level.levelgen.Heightmap
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.math.ceil
-import kotlin.math.floor
 
-/** Immutable snapshots keep generation workers away from mutable native border state. */
+/** Immutable persisted-footprint snapshots keep generation independent of the movement border. */
 object FiniteSurfaceTerrain {
     data class Bounds(
         val minX: Int,
@@ -64,71 +60,12 @@ object FiniteSurfaceTerrain {
 
     private val snapshots = ConcurrentHashMap<ServerLevel, Bounds>()
 
-    private val listeners = ConcurrentHashMap<ServerLevel, BorderChangeListener>()
-
     fun attach(level: ServerLevel) {
-        listeners.computeIfAbsent(level) {
-            object : BorderChangeListener {
-                override fun onBorderSizeSet(
-                    border: WorldBorder,
-                    size: Double,
-                ) = refresh(level)
-
-                override fun onBorderSizeLerping(
-                    border: WorldBorder,
-                    from: Double,
-                    to: Double,
-                    time: Long,
-                ) = refresh(level)
-
-                override fun onBorderCenterSet(
-                    border: WorldBorder,
-                    x: Double,
-                    z: Double,
-                ) = refresh(level)
-
-                override fun onBorderSetWarningTime(
-                    border: WorldBorder,
-                    time: Int,
-                ) = Unit
-
-                override fun onBorderSetWarningBlocks(
-                    border: WorldBorder,
-                    blocks: Int,
-                ) = Unit
-
-                override fun onBorderSetDamagePerBlock(
-                    border: WorldBorder,
-                    damage: Double,
-                ) = Unit
-
-                override fun onBorderSetDamageSafeZOne(
-                    border: WorldBorder,
-                    distance: Double,
-                ) = Unit
-            }.also { listener -> level.worldBorder.addListener(listener) }
-        }
-        refresh(level)
-    }
-
-    fun refresh(level: ServerLevel) {
-        if (level.dimension() != Level.OVERWORLD) return
-        val border = level.worldBorder
-        val minX = ceil(border.minX).toInt()
-        val minZ = ceil(border.minZ).toInt()
-        snapshots[level] = Bounds(minX, minZ, maxOf(minX, floor(border.maxX).toInt()), maxOf(minZ, floor(border.maxZ).toInt()))
+        if (level.dimension() == Level.OVERWORLD) snapshots[level] = FlatOverworld.footprint(level)
     }
 
     fun close(server: MinecraftServer) {
-        listeners.entries.removeIf { (level, listener) ->
-            if (level.server !== server) {
-                false
-            } else {
-                level.worldBorder.removeListener(listener)
-                snapshots.remove(level)
-                true
-            }
-        }
+        snapshots.keys.removeIf { it.server === server }
     }
 
     @JvmStatic

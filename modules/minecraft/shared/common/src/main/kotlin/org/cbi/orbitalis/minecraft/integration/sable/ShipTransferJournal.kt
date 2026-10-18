@@ -82,7 +82,7 @@ data class ShipTransferRecord(
     fun encode(): CompoundTag =
         CompoundTag().also {
             require(surfaceDimension == Level.OVERWORLD && orbitalDimension == FlatPlanetSpace.SPACE) { "Invalid transfer route" }
-            it.putInt("version", 4)
+            it.putInt("version", 5)
             it.putString("surface_dimension", surfaceDimension.location().toString())
             it.putString("orbital_dimension", orbitalDimension.location().toString())
             it.putUUID("transaction", transaction)
@@ -137,7 +137,7 @@ data class ShipTransferRecord(
             require(!RetiredFlightData.isDiagnosticJournal(tag)) {
                 "Retired diagnostic ship route; finish recovery with the previous Orbitalis version"
             }
-            require(version in 3..4) { "Unsupported ship transfer journal version" }
+            require(version in 3..5) { "Unsupported ship transfer journal version" }
             require(
                 tag.getString("surface_dimension") == Level.OVERWORLD.location().toString() &&
                     tag.getString("orbital_dimension") == FlatPlanetSpace.SPACE.location().toString(),
@@ -215,16 +215,24 @@ data class ShipTransferRecord(
                 ) { "Unbounded snapshot" }
                 val decoded = SableNBTUtils.readPose3d(pose)
                 val orbitalSnapshot = if (index == 0) tag.getBoolean("source_is_orbit") else !tag.getBoolean("source_is_orbit")
-                val heights =
-                    when {
-                        orbitalSnapshot -> 4160.0..20352.0
-                        else -> 64.0..16256.0
+                if (version >= 5) {
+                    val dimension = if (orbitalSnapshot) FlatPlanetSpace.SPACE else net.minecraft.world.level.Level.OVERWORLD
+                    val physical =
+                        org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates.globalPosition(
+                            dimension,
+                            org.cbi.orbitalis.core.planet
+                                .Vector3(decoded.position().x, decoded.position().y, decoded.position().z),
+                        )
+                    require(FlatPlanetSpace.validTransferPosition(physical)) { "Pose outside bounded physical flight coordinates" }
+                } else {
+                    val heights = if (orbitalSnapshot) 4160.0..20352.0 else 64.0..16256.0
+                    require(
+                        abs(decoded.position().x) <= FlatPlanetSpace.HALF_SIZE + 32.0 &&
+                            abs(decoded.position().z) <= FlatPlanetSpace.HALF_SIZE + 32.0 && decoded.position().y in heights,
+                    ) {
+                        "Pose outside legacy diagnostic bounds"
                     }
-                require(
-                    abs(decoded.position().x) <= FlatPlanetSpace.HALF_SIZE + 32.0 &&
-                        abs(decoded.position().z) <= FlatPlanetSpace.HALF_SIZE + 32.0 &&
-                        decoded.position().y in heights,
-                ) { "Pose outside diagnostic bounds" }
+                }
                 require(abs(decoded.orientation().lengthSquared() - 1.0) < 1e-6) { "Invalid rotation magnitude" }
             }
             val pilotId = if (tag.hasUUID("pilot")) tag.getUUID("pilot") else null

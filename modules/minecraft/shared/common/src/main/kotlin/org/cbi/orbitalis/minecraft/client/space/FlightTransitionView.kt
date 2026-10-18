@@ -24,11 +24,10 @@ import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.screens.ReceivingLevelScreen
 import net.minecraft.resources.ResourceKey
 import net.minecraft.world.level.Level
-import org.cbi.orbitalis.core.planet.AltitudeArrival
+import org.cbi.orbitalis.core.planet.PlanetFlightEnvelope
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
-import org.cbi.orbitalis.minecraft.flight.PlayerSpaceTravel
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL30
 import java.util.UUID
@@ -132,23 +131,16 @@ object FlightTransitionView {
         val dt = time - previousAt
         val velocity =
             if (previousDimension == level.dimension() && dt in 0.001..0.5) {
-                (position.y - checkNotNull(previousPosition).y) / dt
+                (position - checkNotNull(previousPosition)) * (1.0 / dt)
             } else {
-                0.0
+                Vector3.ZERO
             }
         previousPosition = position
         previousAt = time
         previousDimension = level.dimension()
         val ascending = level.dimension() == Level.OVERWORLD
-        val boundary = FlatPlanetSpace.SEA_LEVEL + if (ascending) FlatPlanetSpace.ASCENT_HEIGHT else FlatPlanetSpace.DESCENT_HEIGHT
-        val arrival = AltitudeArrival.seconds(position.y, velocity, 0.0, boundary, ascending, 3.0)
-        val forecast = Vector3(position.x, if (arrival != null && arrival > 0) boundary else position.y, position.z)
-        val eligible =
-            arrival != null && PlayerSpaceTravel.destination(
-                level,
-                FlightSpaceCoordinates.localPosition(level.dimension(), forecast),
-                velocity,
-            ) != null
+        val arrival = PlanetFlightEnvelope.arrival(position, velocity, Vector3.ZERO, ascending, 3.0)
+        val eligible = arrival != null
         if (!eligible) {
             if (time - capturedAt > 1.0) releaseImage()
             return

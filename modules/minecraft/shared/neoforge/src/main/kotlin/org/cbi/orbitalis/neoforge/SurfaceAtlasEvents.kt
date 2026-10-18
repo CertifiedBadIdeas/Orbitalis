@@ -26,7 +26,7 @@ import net.neoforged.bus.api.SubscribeEvent
 import net.neoforged.fml.common.EventBusSubscriber
 import net.neoforged.neoforge.event.entity.player.PlayerEvent
 import net.neoforged.neoforge.event.level.ChunkEvent
-import net.neoforged.neoforge.event.server.ServerStoppedEvent
+import net.neoforged.neoforge.event.server.ServerStoppingEvent
 import net.neoforged.neoforge.event.tick.ServerTickEvent
 import net.neoforged.neoforge.network.PacketDistributor
 import org.cbi.orbitalis.core.Orbitalis
@@ -74,7 +74,7 @@ object SurfaceAtlasEvents {
     }
 
     @JvmStatic @SubscribeEvent
-    fun stop(event: ServerStoppedEvent) {
-        services.remove(event.server)
+    fun stop(event: ServerStoppingEvent) {
+        services.remove(event.server)?.close()
     }
 }
