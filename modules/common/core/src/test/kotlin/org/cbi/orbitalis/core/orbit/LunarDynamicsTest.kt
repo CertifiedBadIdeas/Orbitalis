@@ -47,7 +47,7 @@ class LunarDynamicsTest {
         val profile = SolarSystemProfile(11.0)
         val a = CelestialDynamics(profile, 1500)
         val b = CelestialDynamics(profile, 1700)
-        val point = Vector3(12000.0, 8000.0, 0.0)
+        val point = profile.lunarSurfaceFrame(1500).origin.position + Vector3(12000.0, 8000.0, 0.0)
         assertTrue((a.acceleration(point, 10.0) - b.acceleration(point)).length() < 1e-10)
         assertTrue((a.acceleration(point) - a.acceleration(point, 100.0)).length() > 1e-5)
     }
@@ -62,7 +62,7 @@ class LunarDynamicsTest {
                 CoastPrediction.predict(
                     profile.earthGravity,
                     start,
-                    CoastPrediction.Limits(horizon = 30.0),
+                    CoastPrediction.Limits(horizon = 30.0, range = profile.flightRange),
                     CelestialDynamics(profile, epoch),
                 )
             assertTrue(result.end == CoastPrediction.End.BODY_INTERSECTION)

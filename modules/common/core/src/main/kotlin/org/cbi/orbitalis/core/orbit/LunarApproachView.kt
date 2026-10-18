@@ -40,15 +40,12 @@ class LunarApproachView {
         val earthAngle = atan2(earth.orientation.xAxis.y, earth.orientation.xAxis.x)
         val moon = frames.frame(SurfaceFlightFrames.World.MOON)
         val local = frames.point(position, world, SurfaceFlightFrames.World.MOON)
-        // Both hysteresis boundaries lie inside the fully aligned region. Begin well before entry.
-        val t =
-            (
-                (
-                    PlanetFlightEnvelope.moon.distance(
-                        local,
-                    ) - (PlanetFlightEnvelope.moon.ascentDistance + 200.0)
-                ) / 4000.0
-            ).coerceIn(0.0, 1.0)
+        // Start only inside the body's Hill sphere, fully matching all surface handoff faces.
+        val outer = frames.profile.moonHillRadius
+        val body = frames.profile.moonGravity
+        val bounds = Vector3(body.halfWidth, body.halfHeight, body.halfDepth).length()
+        val inner = minOf(bounds + PlanetFlightEnvelope.moon.ascentDistance + 200.0, outer * 0.95)
+        val t = ((local.length() - inner) / (outer - inner)).coerceIn(0.0, 1.0)
         if (t == 1.0) {
             clear()
             return frames.frame(world).orientation.inverse(earth.orientation.yAxis)

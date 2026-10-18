@@ -56,6 +56,7 @@ data class PlayerGravityPayload(
                     buffer.writeBoolean(payload.profile != null)
                     payload.profile?.let {
                         buffer.writeVarInt(SolarSystemProfile.VERSION)
+                        buffer.writeVarInt(it.preset.version)
                         buffer.writeLong(it.epochTick)
                         buffer.writeDouble(it.earthPhase)
                         buffer.writeDouble(it.moonPhase)
@@ -71,13 +72,16 @@ data class PlayerGravityPayload(
                     val advancing = buffer.readBoolean()
                     val profile =
                         if (buffer.readBoolean()) {
-                            require(buffer.readVarInt() == SolarSystemProfile.VERSION)
+                            val version = buffer.readVarInt()
+                            require(version in 1..SolarSystemProfile.VERSION)
+                            val preset = SolarSystemProfile.Preset.fromVersion(if (version >= 3) buffer.readVarInt() else version)
                             SolarSystemProfile(
                                 acceleration,
                                 buffer.readLong(),
                                 buffer.readDouble(),
                                 buffer.readDouble(),
-                                if (buffer.readBoolean()) buffer.readLong() else null,
+                                preset,
+                                if (version >= 3 && buffer.readBoolean()) buffer.readLong() else null,
                             )
                         } else {
                             null

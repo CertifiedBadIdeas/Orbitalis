@@ -32,14 +32,29 @@ the persisted native clock/catalogue. Loaded and unloaded flight, coast/maneuver
 closed parent-relative celestial curves and seeded lunar relief. Earth coordinates and old saved
 orbital-frame identifiers retain their established meanings.
 
-The accepted scale is a compact gameplay system with transfers lasting several minutes. A preliminary
-Earth–Moon centre separation of 20 km gives a point-mass transfer estimate of about 5.5 minutes from
-radius 5,064 m for the existing Earth mass at native ship gravity 11 m/s². This is a transfer estimate, not a validated
-transfer in the finite-body field. The version-one catalogue now uses this 20 km circular lunar orbit,
-a 2,000 km circular Earth orbit, and a solar mass parameter 10,000 times Earth's. The Moon mass
-parameter comes from a 2.8 km flat body with top-centre gravity one sixth of Earth's. These are
-compact gameplay parameters, not real Solar System proportions. Native gravity remains authoritative;
-changing it must change the orbital parameters derived from it.
+The accepted physical calendar uses 1,200 simulation seconds per **mean solar day**, 365.24 solar
+days per Earth year and 27.32 solar days per sidereal lunar revolution. At 20 TPS these are
+24,000, 8,765,760 and 655,680 ticks respectively. Server downtime pauses the system; daylight
+commands, ordinary sleep and the native sky remain independent. Prograde Earth spin must use
+`1 / (1/1200 + 1/year)` = 1,196.723460026 seconds per sidereal turn so that the Sun returns after
+exactly 1,200 seconds. This period is defined in core; physical Earth spin activation remains work
+in progress on the separate axial-rotation branch, and is not enabled by this calendar change.
+The sidereal/solar distinction is described by [NASA](https://science.nasa.gov/learn/basics-of-space-flight/chapter2-1/).
+
+Sizes and gravitational parameters are preserved: Earth is 10 by 10 km, Moon is 2.8 by 2.8 km,
+Moon top-centre gravity is one sixth of Earth's and `sunMu = 10000 * earthMu`. For each prescribed
+parent focus, derive `a = cbrt(mu * (T / (2*pi))^2)` rather than selecting an arbitrary distance or
+forcing a non-Keplerian speed. At native gravity 11 m/s² this gives Earth–Moon 168,941.646 m and
+Earth–Sun 20,502,263.641 m, measured centre to centre. Other gravity settings change these derived
+distances while retaining the periods. The hierarchy still neglects parent recoil; no two-body
+mass sum or barycentric dynamics is silently introduced.
+
+The lunar surface remains synchronously locked to Earth. Its synodic phase period follows
+`1 / (1/lunarPeriod - 1/year)` = 29.528754735 solar days; it is not a separate adjustable constant.
+See [NASA's explanation of sidereal versus synodic months](https://starchild.gsfc.nasa.gov/docs/StarChild/questions/question32.html).
+These mean periods describe the circular preset, rather than a recreation of Earth's eccentricity,
+precession or real-world calendar conventions. One lunar revolution takes about 9.11 real hours
+and a year about 121.75 real hours at uninterrupted 20 TPS.
 
 ## Orbit contract
 
@@ -94,11 +109,17 @@ still advances; no native construction classes are loaded by common code. Server
 the persisted clock unchanged, and daylight commands do not modify it.
 
 The top-level orbital index is now version two, reading version one in place. Its optional
-version-one `Celestial` profile stores gravity, epoch and both mean anomalies atomically with clock
+version-two `Celestial` calendar profile stores gravity, epoch and both mean anomalies atomically with clock
 and motion records. Motion records and native user-data remain version one; body/frame IDs and
 coordinates are unchanged. Unknown/malformed profile or index versions preserve the entire raw tag
-and disable its simulation. Changing native gravity rebases current phases before retuning masses,
-avoiding an immediate position jump. Historical mass-change force replay is not implemented.
+and disable its simulation. On first configuration, an existing version-one compact catalogue migrates to the calendar at the
+saved current clock, preserving both orbital phases. The Moon and solar origin move to their new
+radii. Native surface coordinates, lunar terrain and inventories stay unchanged; free-space ships
+and persisted inertial station states are not relocated to follow the Moon. Changing native gravity
+also preserves phase but changes calendar radii to maintain fixed periods. Historical force replay
+across a mass/scale change is not implemented. Frozen transfer journals decode/write their own exact
+profile version: compact version-one receipts retain 20 km/2,000 km distances and are never migrated
+as live world catalogues. Unknown/malformed versions are preserved unreadable.
 
 Maneuver-plan epochs and consumer execution retain Minecraft game-time semantics. Prediction offsets
 are anchored explicitly to the current simulation epoch, rather than migrating or reinterpreting saved
@@ -118,14 +139,14 @@ These tests establish domain behavior. Separate native lunar/force scenarios cov
 visual correctness still requires an observed client.
 
 Native `celestialClockAndDaylight` checks `/time set`, pause gating and exactly one increment per
-server tick. `celestialProfilePersistence` checks version-one migration, fresh disk restoration of
+server tick. `celestialProfilePersistence` checks clock/profile migration, inertial-state preservation, frozen journal presets and fresh disk restoration of
 clock/phase and preservation of malformed/future profiles. The existing unloaded-station/cargo and
 metadata compatibility scenarios also pass with the shared clock lifecycle.
 
 ## Orbital map synchronization
 
-Map protocol negotiation is version four. Each screen snapshot retains its independent sequence
-counter and ship directory, and adds the persisted simulation tick plus optional version-one
+Map protocol negotiation is version five. Each screen snapshot retains its independent sequence
+counter and ship directory, and adds the persisted simulation tick plus optional version-two
 `SolarSystemProfile` parameters. The server sends the profile rather than a separately authored
 position/path list; shared core mathematics derives all celestial positions and curves on the client.
 The decoder bounds gravity/phase/epoch and rejects future model versions, future profile epochs and
@@ -154,7 +175,12 @@ Core tests cover seed/query-order reproducibility, finite edges, negative-coordi
 Earth-facing normal through a full orbit, rigid-state round trips and independent finite-difference
 checks of the velocity/acceleration of a point fixed to the spinning surface.
 
-The version-two celestial profile also stores an optional Earth spin epoch. Version-one profiles
-retain their old fixed surface axes when decoded; the runtime upgrade will attach a new spin epoch
-at the current simulation clock. Frozen old transfer frames keep their original meaning. Motion
-record positions, their frame identifier and the outer version-two index remain unchanged.
+## Camera capture boundary
+
+Use the circular Hill approximation `rH = a * cbrt(mu_body / (3 * mu_parent))` from the same
+profile, rather than a fixed camera distance. This follows the standard restricted-three-body
+[Hill scaling](https://ntrs.nasa.gov/citations/19930009947), not a hard cutoff of gravity.
+The lunar approach horizon starts blending only inside the Moon's Hill sphere and reaches the
+native surface orientation before every entry/exit face. Outside that sphere the lunar orientation
+has no effect on the free-player camera. All force sources continue to contribute independently
+of this presentation choice. Earth axial camera transport remains part of the separate spin work.

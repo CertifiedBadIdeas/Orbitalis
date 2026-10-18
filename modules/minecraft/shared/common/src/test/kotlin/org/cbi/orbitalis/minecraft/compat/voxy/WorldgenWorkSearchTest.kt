@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.cbi.orbitalis.consumer.flight
+package org.cbi.orbitalis.minecraft.compat.voxy
 
 import net.minecraft.world.level.ChunkPos
 import org.junit.jupiter.api.Assertions.assertEquals

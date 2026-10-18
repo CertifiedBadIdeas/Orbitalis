@@ -161,7 +161,7 @@ object OrbitalObjectGameTests {
                     .origin == expected,
             "Profile reload changed orbital phase",
         )
-        val legacyProfile =
+        val legacyProfileTag =
             saved.copy().apply {
                 getCompound("Celestial").apply {
                     putInt("Version", 1)
@@ -169,7 +169,7 @@ object OrbitalObjectGameTests {
                     remove("EarthSpinEpoch")
                 }
             }
-        val legacy = OrbitalObjectData.load(legacyProfile)
+        val legacy = OrbitalObjectData.load(legacyProfileTag)
         helper.assertTrue(legacy.readable && legacy.profile?.earthSpinEpochTick == null, "Legacy profile acquired a spin")
         val spinningTag =
             saved.copy().apply {
@@ -181,7 +181,7 @@ object OrbitalObjectGameTests {
         val spinning = OrbitalObjectData.load(spinningTag)
         val rotatingProfile = checkNotNull(spinning.profile)
         helper.assertTrue(rotatingProfile.earthSpinEpochTick == 500L, "Spin phase epoch was lost")
-        val turning = rotatingProfile.earthSurfaceFrame(6500).orientation
+        val turning = rotatingProfile.earthSurfaceFrame(500, SolarSystemProfile.SIDEREAL_DAY_SECONDS / 4.0).orientation
         helper.assertTrue((turning.xAxis - Vector3(0.0, 1.0, 0.0)).length() < 1e-9, "Restored spin has the wrong phase")
         val spinReload = OrbitalObjectData.load(spinning.save(CompoundTag(), registries))
         helper.assertTrue(spinReload.profile == rotatingProfile, "Spin profile did not roundtrip through native NBT")
@@ -209,6 +209,79 @@ object OrbitalObjectGameTests {
             )
         } finally {
             folder.deleteRecursively()
+        }
+        val legacyTag =
+            saved.copy().apply {
+                getCompound("Celestial").putInt("Version", 1)
+            }
+        val legacyData = OrbitalObjectData.load(legacyTag)
+        val legacyProfile = checkNotNull(legacyData.profile)
+        helper.assertTrue(legacyProfile.moonOrbitRadius == 20000.0, "Legacy profile reinterpreted before migration")
+        val station =
+            OrbitalObjectData.Record(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                0,
+                legacyData.clock,
+                CartesianState(Vector3(18000.0, 10000.0, 20000.0), Vector3(1.0, 2.0, 3.0)),
+                1.0,
+            )
+        legacyData.put(station)
+        val migrated = legacyData.configureCelestials(legacyProfile.surfaceGravity)
+        helper.assertTrue(
+            migrated.preset == SolarSystemProfile.Preset.CALENDAR && migrated.moonOrbitRadius > 160000.0,
+            "Existing world did not adopt the physical calendar",
+        )
+        helper.assertTrue(
+            migrated.epochTick == legacyData.clock &&
+                migrated.moonPhase == legacyProfile.moonOrbit.meanAnomaly(legacyData.clock) &&
+                migrated.earthPhase == legacyProfile.earthOrbit.meanAnomaly(legacyData.clock),
+            "Migration changed phase or clock",
+        )
+        helper.assertTrue(legacyData.records[station.id] == station, "Migration moved an inertial station")
+        helper.assertTrue(legacyData.configureCelestials(legacyProfile.surfaceGravity) === migrated, "Migration repeated")
+        val migratedAgain = OrbitalObjectData.load(legacyData.save(CompoundTag(), registries))
+        helper.assertTrue(
+            migratedAgain.profile == migrated && migratedAgain.records[station.id] == station,
+            "Migrated profile and inertial state did not survive reload",
+        )
+
+        // Frozen journal profiles are not live catalogues: both old and new retain their original radii.
+        for (preset in SolarSystemProfile.Preset.entries) {
+            val frozen =
+                org.cbi.orbitalis.minecraft.flight.CelestialFlight(
+                    org.cbi.orbitalis.core.orbit
+                        .SurfaceFlightFrames(legacyProfile.copy(preset = preset), legacyData.clock),
+                )
+            val receipt =
+                org.cbi.orbitalis.minecraft.integration.sable.ShipTransferRecord(
+                    UUID.randomUUID(),
+                    UUID.randomUUID(),
+                    null,
+                    true,
+                    CompoundTag(),
+                    CompoundTag(),
+                    CompoundTag(),
+                    CompoundTag(),
+                    CompoundTag(),
+                    org.cbi.orbitalis.minecraft.integration.sable.ShipTransferPhase.DONE,
+                    surfaceDimension = org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY,
+                    frozenFrame = frozen,
+                )
+            val decoded =
+                org.cbi.orbitalis.minecraft.integration.sable.ShipTransferRecord
+                    .decode(receipt.encode())
+            helper.assertTrue(
+                decoded.frozenFrame!!.frames.profile == frozen.frames.profile,
+                "Frozen journal changed celestial preset",
+            )
+            helper.assertTrue(
+                decoded.frozenFrame!!
+                    .frames.profile
+                    .lunarSurfaceFrame(legacyData.clock) ==
+                    frozen.frames.profile.lunarSurfaceFrame(legacyData.clock),
+                "Frozen journal moved the lunar recovery frame",
+            )
         }
         for (bad in listOf(
             saved.copy().apply { getCompound("Celestial").putInt("Version", 99) },

@@ -66,8 +66,10 @@ class OrbitalObjectData private constructor(
     fun configureCelestials(gravity: Double): SolarSystemProfile {
         check(readable) { "Unknown or malformed orbital simulation data" }
         val previous = profile
-        if (previous == null || previous.surfaceGravity != gravity || previous.earthSpinEpochTick == null) {
-            val tuned = previous?.retune(gravity, clock) ?: SolarSystemProfile(gravity, clock)
+        if (previous == null || previous.surfaceGravity != gravity || previous.earthSpinEpochTick == null ||
+            previous.preset != SolarSystemProfile.Preset.CALENDAR
+        ) {
+            val tuned = previous?.retune(gravity, clock, SolarSystemProfile.Preset.CALENDAR) ?: SolarSystemProfile(gravity, clock)
             // Enable with the existing orientation; reading old frozen receipts never calls this.
             profile = if (tuned.earthSpinEpochTick == null) tuned.copy(earthSpinEpochTick = clock) else tuned
             setDirty()
@@ -105,6 +107,7 @@ class OrbitalObjectData private constructor(
                 "Celestial",
                 CompoundTag().apply {
                     putInt("Version", SolarSystemProfile.VERSION)
+                    putInt("Preset", value.preset.version)
                     putLong("EpochTick", value.epochTick)
                     putDouble("Gravity", value.surfaceGravity)
                     putDouble("EarthPhase", value.earthPhase)
@@ -137,7 +140,7 @@ class OrbitalObjectData private constructor(
                     require(celestial.getInt("Version") in 1..SolarSystemProfile.VERSION && celestial.contains("EpochTick", 4))
                     require(listOf("Gravity", "EarthPhase", "MoonPhase").all { celestial.contains(it, 6) })
                     val spinEpoch =
-                        if (celestial.getInt("Version") >= 2) {
+                        if (celestial.getInt("Version") >= 3) {
                             require(celestial.contains("EarthRotates", 1) && celestial.getByte("EarthRotates").toInt() in 0..1)
                             if (celestial.getBoolean("EarthRotates")) {
                                 require(celestial.contains("EarthSpinEpoch", 4))
@@ -154,6 +157,12 @@ class OrbitalObjectData private constructor(
                             celestial.getLong("EpochTick"),
                             celestial.getDouble("EarthPhase"),
                             celestial.getDouble("MoonPhase"),
+                            if (celestial.getInt("Version") >= 3) {
+                                require(celestial.contains("Preset", 3))
+                                SolarSystemProfile.Preset.fromVersion(celestial.getInt("Preset"))
+                            } else {
+                                SolarSystemProfile.Preset.fromVersion(celestial.getInt("Version"))
+                            },
                             spinEpoch,
                         ).also { require(it.epochTick <= result.clock) }
                 }

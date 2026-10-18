@@ -116,6 +116,7 @@ data class MapSnapshot(
                     buffer.writeBoolean(profile != null)
                     if (profile != null) {
                         buffer.writeVarInt(SolarSystemProfile.VERSION)
+                        buffer.writeVarInt(profile.preset.version)
                         buffer.writeDouble(profile.surfaceGravity)
                         buffer.writeLong(profile.epochTick)
                         buffer.writeDouble(profile.earthPhase)
@@ -148,13 +149,25 @@ data class MapSnapshot(
                     val simulationTick = buffer.readLong()
                     val profile =
                         if (buffer.readBoolean()) {
-                            require(buffer.readVarInt() == SolarSystemProfile.VERSION) { "Unknown celestial profile version" }
+                            val version = buffer.readVarInt()
+                            require(version in 1..SolarSystemProfile.VERSION)
+                            val preset =
+                                SolarSystemProfile.Preset.fromVersion(
+                                    if (version >=
+                                        3
+                                    ) {
+                                        buffer.readVarInt()
+                                    } else {
+                                        version
+                                    },
+                                )
                             SolarSystemProfile(
                                 buffer.readDouble(),
                                 buffer.readLong(),
                                 buffer.readDouble(),
                                 buffer.readDouble(),
-                                if (buffer.readBoolean()) buffer.readLong() else null,
+                                preset,
+                                if (version >= 3 && buffer.readBoolean()) buffer.readLong() else null,
                             ).also { require(it.earthSpinEpochTick?.let { epoch -> epoch <= simulationTick } != false) }
                         } else {
                             null

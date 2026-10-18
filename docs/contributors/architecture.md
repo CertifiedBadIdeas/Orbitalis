@@ -55,7 +55,9 @@ broadcasts reaching their players. Vanilla Nether/End delegation and recipients 
 snapshots. Two loader mixins adapt native `ChunkStep` work and `WorldGenRegion` writes/spawns. They
 preserve native dependency/status/light completion, allow empty exterior chunks and leave runtime
 placement and completed terrain untouched. Other dimensions and Sable plot generation stay native.
-The optional WorldGenV2 search adapter belongs only to the flight consumer.
+Optional WorldGenV2 search and cancellation adapters belong to shared/common and shared/neoforge;
+the independently installed client stack is still composed by the flight consumer. No third-party
+Voxy or WorldGen implementation is bundled or required by the production mod.
 
 The current surface/orbital pair is ordinary Overworld and `orbitalis:space`. Core `InertialFrames`
 provides hierarchical position/velocity transforms; `FlatPlanetFrame` represents the current two

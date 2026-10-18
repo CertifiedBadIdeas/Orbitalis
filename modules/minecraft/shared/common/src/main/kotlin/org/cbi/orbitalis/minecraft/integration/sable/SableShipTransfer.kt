@@ -371,7 +371,9 @@ class SableShipTransfer(
             val native = Vector3(destinationPilot.getDouble("x"), destinationPilot.getDouble("y"), destinationPilot.getDouble("z"))
             val physical =
                 frameTransform.sample.rootPoint(native, destinationDimension)
-            require(FlatPlanetSpace.validTransferPosition(physical)) { "Pilot outside bounded physical flight coordinates" }
+            require(FlatPlanetSpace.validTransferPosition(physical, frameTransform.sample.frames.profile)) {
+                "Pilot outside bounded physical flight coordinates"
+            }
         }
         val record =
             ShipTransferRecord(

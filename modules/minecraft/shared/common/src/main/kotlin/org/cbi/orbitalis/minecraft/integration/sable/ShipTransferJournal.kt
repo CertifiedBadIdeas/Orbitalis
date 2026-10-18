@@ -96,6 +96,7 @@ data class ShipTransferRecord(
                     "frame",
                     CompoundTag().also { frame ->
                         frame.putInt("version", SolarSystemProfile.VERSION)
+                        frame.putInt("preset", sample.frames.profile.preset.version)
                         frame.putLong("tick", sample.frames.tick)
                         frame.putLong("epoch", sample.frames.profile.epochTick)
                         frame.putDouble("gravity", sample.frames.profile.surfaceGravity)
@@ -180,7 +181,7 @@ data class ShipTransferRecord(
                     require(listOf("gravity", "earth_phase", "moon_phase").all { frame.contains(it, 6) })
                     val tick = frame.getLong("tick")
                     val spinEpoch =
-                        if (frame.getInt("version") >= 2) {
+                        if (frame.getInt("version") >= 3) {
                             require(frame.contains("earth_rotates", 1) && frame.getByte("earth_rotates").toInt() in 0..1)
                             if (frame.getBoolean("earth_rotates")) {
                                 require(frame.contains("earth_spin_epoch", 4))
@@ -197,6 +198,12 @@ data class ShipTransferRecord(
                             frame.getLong("epoch"),
                             frame.getDouble("earth_phase"),
                             frame.getDouble("moon_phase"),
+                            if (frame.getInt("version") >= 3) {
+                                require(frame.contains("preset", 3))
+                                SolarSystemProfile.Preset.fromVersion(frame.getInt("preset"))
+                            } else {
+                                SolarSystemProfile.Preset.fromVersion(frame.getInt("version"))
+                            },
                             spinEpoch,
                         )
                     require(tick >= profile.epochTick)
@@ -287,7 +294,9 @@ data class ShipTransferRecord(
                             org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
                                 .legacyRootPosition(dimension, native)
                         }
-                    require(FlatPlanetSpace.validTransferPosition(physical)) { "Pose outside bounded physical flight coordinates" }
+                    require(
+                        FlatPlanetSpace.validTransferPosition(physical, frozenFrame?.frames?.profile),
+                    ) { "Pose outside bounded physical flight coordinates" }
                 } else {
                     val heights = if (orbitalSnapshot) 4160.0..20352.0 else 64.0..16256.0
                     require(

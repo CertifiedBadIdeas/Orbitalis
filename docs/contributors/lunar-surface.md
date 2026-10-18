@@ -26,7 +26,9 @@ Exterior columns are empty. Runtime placement is still native Minecraft behavior
 
 ## One rotating surface frame
 
-The Moon follows the persisted prescribed circular orbit, 20 km from Earth's centre. Its local +Y
+The Moon follows a prescribed circular orbit lasting 27.32 solar days; its centre separation is derived
+from Earth's gravitational parameter (about 168.94 km at native gravity 11 m/s²). See the
+[physical calendar and migration contract](celestial-orbits.md). Its local +Y
 always faces Earth and +Z follows orbital angular momentum. Native terrain and local gravity remain
 upright in the lunar dimension; the whole frame translates and rotates in Earth-relative space.
 Earth should remain overhead when viewed from the lunar surface. This synchronous lunar spin does

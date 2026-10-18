@@ -29,18 +29,20 @@ import kotlin.test.assertTrue
 class EarthRotationTest {
     private val profile = SolarSystemProfile(11.0, earthSpinEpochTick = 1000L)
 
-    @Test fun `twenty minute spin rotates around an in-plane axis without retuning lunar phase`() {
+    @Test fun `sidereal spin rotates around an in-plane axis without retuning lunar phase`() {
         val native = Vector3(2000.0, 64.0, 300.0)
         val start = profile.earthSurfaceFrame(1000)
         assertTrue((start.orientation.apply(native) - native).length() < 1e-10)
-        val quarter = profile.earthSurfaceFrame(7000)
+        val quarter = profile.earthSurfaceFrame(1000, SolarSystemProfile.SIDEREAL_DAY_SECONDS / 4.0)
         assertTrue((quarter.orientation.apply(native) - Vector3(-64.0, 2000.0, 300.0)).length() < 1e-9)
-        assertTrue((profile.earthSurfaceFrame(25000).orientation.apply(native) - native).length() < 1e-9)
-        assertEquals(Vector3(0.0, 0.0, 2.0 * PI / 1200.0), start.angularVelocity)
+        assertTrue(
+            (profile.earthSurfaceFrame(1000, SolarSystemProfile.SIDEREAL_DAY_SECONDS).orientation.apply(native) - native).length() < 1e-9,
+        )
+        assertEquals(Vector3(0.0, 0.0, 2.0 * PI / SolarSystemProfile.SIDEREAL_DAY_SECONDS), start.angularVelocity)
         val legacy = profile.copy(earthSpinEpochTick = null)
         assertEquals(Rotation3.IDENTITY, legacy.earthSurfaceFrame(7000).orientation)
         assertEquals(profile.lunarSurfaceFrame(7000), legacy.lunarSurfaceFrame(7000))
-        assertEquals(quarter, profile.retune(32.0, 7000).earthSurfaceFrame(7000))
+        assertEquals(profile.earthSurfaceFrame(7000), profile.retune(32.0, 7000).earthSurfaceFrame(7000))
     }
 
     @Test fun `ground speed and acceleration are derivatives of the same rotating frame`() {
@@ -48,7 +50,7 @@ class EarthRotationTest {
         for (tick in listOf(1000L, 7000L, 19000L, Long.MAX_VALUE - 1L)) {
             val frame = profile.earthSurfaceFrame(tick)
             val state = frame.toParent(ground)
-            val omega = 2.0 * PI / 1200.0
+            val omega = 2.0 * PI / SolarSystemProfile.SIDEREAL_DAY_SECONDS
             assertEquals(omega * kotlin.math.hypot(4000.0, 100.0), state.velocity.length(), 1e-10)
             assertTrue((frame.fromParent(state).velocity - Vector3.ZERO).length() < 1e-10)
             val a = profile.earthSurfaceFrame(tick, -0.001).toParent(ground)
@@ -64,7 +66,7 @@ class EarthRotationTest {
             val field = CelestialDynamics(profile, tick)
             assertTrue((field.earthAcceleration(still) - Vector3(0.0, -11.0, 0.0)).length() < 1e-9)
             val moving = still.copy(velocity = Vector3(20.0, 0.0, 0.0))
-            val expected = Vector3(0.0, -11.0 - 2.0 * (2.0 * PI / 1200.0) * 20.0, 0.0)
+            val expected = Vector3(0.0, -11.0 - 2.0 * (2.0 * PI / SolarSystemProfile.SIDEREAL_DAY_SECONDS) * 20.0, 0.0)
             assertTrue((field.earthAcceleration(moving) - expected).length() < 1e-9)
         }
     }
@@ -84,7 +86,7 @@ class EarthRotationTest {
             assertTrue((root.position - expected.position).length() < 1e-9)
             assertTrue((root.velocity - expected.velocity).length() < 1e-9)
             val spin = frames.angularVelocity(Vector3.ZERO, earth, space)
-            assertTrue((spin - Vector3(0.0, 0.0, 2.0 * PI / 1200.0)).length() < 1e-12)
+            assertTrue((spin - Vector3(0.0, 0.0, 2.0 * PI / SolarSystemProfile.SIDEREAL_DAY_SECONDS)).length() < 1e-12)
             assertTrue(
                 (
                     frames.direction(Vector3(0.0, 1.0, 0.0), earth, space) -
@@ -105,7 +107,7 @@ class EarthRotationTest {
     @Test fun `coast intersects rotated Earth instead of its former axis aligned box`() {
         val dynamic = profile.copy(earthSpinEpochTick = 0)
         val sources = CelestialDynamics(dynamic, 6000)
-        val state = CartesianState(Vector3(70.0, 2000.0, 0.0), Vector3(-100.0, 0.0, 0.0))
+        val state = dynamic.earthSurfaceFrame(6000).toParent(CartesianState(Vector3(2000.0, 70.0, 0.0), Vector3(0.0, -100.0, 0.0)))
         val limits = CoastPrediction.Limits(horizon = 0.2, step = 0.01, detectEntry = false)
         val prediction = CoastPrediction.predict(sources.earth, state, limits, sources)
         assertEquals(CoastPrediction.End.BODY_INTERSECTION, prediction.end)
