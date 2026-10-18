@@ -22,6 +22,7 @@ import net.minecraft.Util
 import org.cbi.orbitalis.core.planet.CartesianState
 import org.cbi.orbitalis.core.planet.CoastPrediction
 import org.cbi.orbitalis.core.planet.FlatPlanetDefinition
+import org.cbi.orbitalis.core.planet.ManeuverPlan
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.map.MapObject
 import org.cbi.orbitalis.minecraft.map.MapSnapshot
@@ -34,12 +35,21 @@ class MapTrajectories : AutoCloseable {
     data class Path(
         val source: MapObject,
         val prediction: CoastPrediction.Result,
+        val planned: Boolean = false,
     )
 
+    private data class Preview(
+        val paths: List<Path>,
+        val burns: List<ManeuverPlan.Burn>,
+    )
+
+    var burns: List<ManeuverPlan.Burn> = emptyList()
+        private set
+    private var plan: ManeuverPlan? = null
     var paths: List<Path> = emptyList()
         private set
     private val worker = Executors.newSingleThreadExecutor { Thread(it, "Orbitalis map trajectories").apply { isDaemon = true } }
-    private var pending: Future<List<Path>>? = null
+    private var pending: Future<Preview>? = null
     private var ids = emptyList<UUID>()
     private var gravity = Double.NaN
     private var requested = Long.MIN_VALUE
@@ -48,6 +58,8 @@ class MapTrajectories : AutoCloseable {
         data: MapSnapshot?,
         selected: UUID?,
         focus: Vector3,
+        draft: ManeuverPlan? = null,
+        gameTick: Long = 0,
     ) {
         if (data == null) return
         val inputs =
@@ -57,18 +69,22 @@ class MapTrajectories : AutoCloseable {
                 .take(8)
         val nextIds = inputs.map { it.id }
         val gravityChanged = gravity != data.gravity
-        if (nextIds.toSet() != ids.toSet() || nextIds.firstOrNull() != ids.firstOrNull() || gravityChanged) {
+        if (nextIds.toSet() != ids.toSet() || nextIds.firstOrNull() != ids.firstOrNull() || gravityChanged || plan != draft) {
             pending?.cancel(true)
             pending = null
             ids = nextIds
             gravity = data.gravity
-            paths = if (gravityChanged) emptyList() else paths.filter { it.source.id in ids }
+            plan = draft
+            burns = emptyList()
+            paths = if (gravityChanged) emptyList() else paths.filter { it.source.id in ids && !it.planned }
             requested = Long.MIN_VALUE
         }
         pending?.takeIf { it.isDone }?.let { result ->
             pending = null
             try {
-                paths = result.get()
+                val preview = result.get()
+                paths = preview.paths
+                burns = preview.burns
             } catch (_: java.util.concurrent.CancellationException) {
             } catch (failure: java.util.concurrent.ExecutionException) {
                 com.mojang.logging.LogUtils
@@ -81,21 +97,39 @@ class MapTrajectories : AutoCloseable {
         requested = now
         val field = FlatPlanetDefinition.gravity(data.gravity)
         pending =
-            worker.submit<List<Path>> {
-                inputs.mapNotNull { item ->
-                    try {
-                        Path(
-                            item,
-                            CoastPrediction.orbit(
-                                field,
-                                CartesianState(item.position, item.velocity),
-                                CoastPrediction.Limits(range = 100000.0),
-                            ),
-                        )
-                    } catch (_: IllegalArgumentException) {
-                        null // An out-of-envelope object remains selectable without inventing its orbit.
+            worker.submit<Preview> {
+                val coastPaths =
+                    inputs.mapNotNull { item ->
+                        try {
+                            Path(
+                                item,
+                                CoastPrediction.orbit(
+                                    field,
+                                    CartesianState(item.position, item.velocity),
+                                    CoastPrediction.Limits(range = 100000.0),
+                                ),
+                            )
+                        } catch (_: IllegalArgumentException) {
+                            null // An out-of-envelope object remains selectable without inventing its orbit.
+                        }
                     }
-                }
+                val chosen = inputs.firstOrNull { it.id == selected }
+                val prediction =
+                    if (chosen != null && draft?.nodes?.isNotEmpty() == true) {
+                        try {
+                            draft.predict(field, CartesianState(chosen.position, chosen.velocity), gameTick)
+                        } catch (
+                            _: IllegalArgumentException,
+                        ) {
+                            null
+                        }
+                    } else {
+                        null
+                    }
+                Preview(
+                    coastPaths + prediction?.segments.orEmpty().map { Path(checkNotNull(chosen), it.coast, true) },
+                    prediction?.burns.orEmpty(),
+                )
             }
     }
 

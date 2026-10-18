@@ -56,7 +56,7 @@ object CoastPrediction {
         val stopAfterRevolution: Boolean = false,
     ) {
         init {
-            require(horizon.isFinite() && horizon in 0.05..3600.0)
+            require(horizon.isFinite() && horizon > 0.0 && horizon <= 3600.0)
             require(step.isFinite() && step in 0.005..0.5 && ceil(horizon / step) <= 12000)
             require(sampleInterval.isFinite() && sampleInterval >= step && ceil(horizon / sampleInterval) <= 600)
             require(range.isFinite() && range in 100.0..100000.0)

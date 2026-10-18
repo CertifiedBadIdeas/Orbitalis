@@ -140,7 +140,7 @@ internal class AutopilotSession(
             } else {
                 64.0
             }
-        require(position(body).y >= minimum && target.y >= minimum) {
+        require(body.level.dimension() == FlatPlanetSpace.SPACE || (position(body).y >= minimum && target.y >= minimum)) {
             "Keep ship and target inside the supported surface/space height range"
         }
         val global = FlightSpaceCoordinates.globalPosition(body.level, position(body))

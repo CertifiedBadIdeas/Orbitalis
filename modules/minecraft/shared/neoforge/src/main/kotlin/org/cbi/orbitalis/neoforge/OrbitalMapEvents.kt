@@ -32,6 +32,10 @@ import org.cbi.orbitalis.minecraft.map.MapRequest
 import org.cbi.orbitalis.minecraft.map.MapSnapshot
 import org.cbi.orbitalis.minecraft.map.MapSnapshotReceiver
 import org.cbi.orbitalis.minecraft.map.OrbitalMapService
+import org.cbi.orbitalis.minecraft.navigation.FlightPlanCommand
+import org.cbi.orbitalis.minecraft.navigation.FlightPlanReceiver
+import org.cbi.orbitalis.minecraft.navigation.FlightPlanService
+import org.cbi.orbitalis.minecraft.navigation.FlightPlanState
 
 @EventBusSubscriber(modid = Orbitalis.MOD_ID)
 object OrbitalMapEvents {
@@ -46,6 +50,13 @@ object OrbitalMapEvents {
         player: ServerPlayer,
         request: MapRequest,
     ) = service(player.server).request(player, request)
+
+    fun plan(
+        player: ServerPlayer,
+        request: FlightPlanCommand,
+    ) {
+        FlightPlanService.handle(player, request, service(player.server))?.let { PacketDistributor.sendToPlayer(player, it) }
+    }
 
     fun viewing(player: ServerPlayer) = services[player.server]?.viewing(player) == true
 
@@ -69,9 +80,15 @@ object OrbitalMapEvents {
 object OrbitalMapNetwork {
     @JvmStatic @SubscribeEvent
     fun register(event: RegisterPayloadHandlersEvent) {
-        val registrar = event.registrar("2")
+        val registrar = event.registrar("3")
         registrar.playToServer(MapRequest.TYPE, MapRequest.CODEC) { request, context ->
             context.enqueueWork { (context.player() as? ServerPlayer)?.let { OrbitalMapEvents.request(it, request) } }
+        }
+        registrar.playToServer(FlightPlanCommand.TYPE, FlightPlanCommand.CODEC) { request, context ->
+            context.enqueueWork { (context.player() as? ServerPlayer)?.let { OrbitalMapEvents.plan(it, request) } }
+        }
+        registrar.playToClient(FlightPlanState.TYPE, FlightPlanState.CODEC) { state, context ->
+            context.enqueueWork { FlightPlanReceiver.accept(state) }
         }
         registrar.playToClient(MapSnapshot.TYPE, MapSnapshot.CODEC) { snapshot, context ->
             context.enqueueWork { MapSnapshotReceiver.accept(snapshot) }

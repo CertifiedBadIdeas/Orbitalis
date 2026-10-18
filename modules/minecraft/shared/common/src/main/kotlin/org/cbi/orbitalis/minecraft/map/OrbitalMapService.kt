@@ -43,6 +43,7 @@ class OrbitalMapService(
     private data class Viewer(
         val token: UUID,
         var expires: Long,
+        var planRequest: Long = -4L,
     )
 
     private val viewers = mutableMapOf<UUID, Viewer>()
@@ -56,12 +57,29 @@ class OrbitalMapService(
         if (!request.open) {
             if (viewers[player.uuid]?.token == request.token) viewers.remove(player.uuid)
         } else if (FlatPlanetSpace.contains(player.level())) {
-            viewers[player.uuid] = Viewer(request.token, tick + 100)
+            val previous = viewers[player.uuid]
+            if (previous?.token == request.token) {
+                previous.expires = tick + 100
+            } else {
+                viewers[player.uuid] = Viewer(request.token, tick + 100)
+            }
         }
     }
 
     fun viewing(player: ServerPlayer): Boolean =
         viewers[player.uuid]?.let { it.expires > tick && FlatPlanetSpace.contains(player.level()) } == true
+
+    fun subscribed(
+        player: ServerPlayer,
+        token: UUID,
+    ): Boolean = viewing(player) && viewers[player.uuid]?.token == token
+
+    fun allowPlanRequest(player: ServerPlayer): Boolean {
+        val viewer = viewers[player.uuid] ?: return false
+        if (tick - viewer.planRequest < 4) return false
+        viewer.planRequest = tick
+        return true
+    }
 
     fun logout(id: UUID) {
         viewers.remove(id)

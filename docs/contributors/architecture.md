@@ -115,8 +115,7 @@ The [flight consumer](flight-consumer.md) is an independent Gradle composite bui
 launched from `consumers/flight` using its own wrapper. The dependency points from consumer to Orbitalis through
 `developmentModJar`; production projects never include or depend on the consumer. Aeronautics and
 Propulsion APIs remain confined to the consumer adapter and its isolated GameTests. Create APIs remain confined to this consumer; production has no Create or Ponder compile dependency or adapters. Hold guidance, bounded thrust allocation, commands and their tests
-all belong to the disposable consumer. It reuses existing Orbitalis vector/gravity/frame types but adds
-no autopilot API to production. The consumer assembles no release and does not alter the ordinary
+all belong to the disposable consumer. It reuses Orbitalis vector/gravity/frame types. Shared `ManeuverPlan` owns player navigation intent and real-field impulse previews; versioned common SavedData and bounded map messages own personal plans. Optional `FlightPlanHooks` connect execution to the consumer without introducing engine dependencies into production. The consumer assembles no release and does not alter the ordinary
 Sable-only laboratory runs.
 
 The [orbital map](orbital-map.md) uses the shared planet scene with an independent screen camera.

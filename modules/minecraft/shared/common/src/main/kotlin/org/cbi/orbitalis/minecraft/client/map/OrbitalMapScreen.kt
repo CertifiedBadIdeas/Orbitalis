@@ -43,7 +43,9 @@ class OrbitalMapScreen(
 ) : Screen(Component.translatable("map.orbitalis.title")) {
     private val token = UUID.randomUUID()
     private val camera = MapCamera()
+    private val maneuvers = ManeuverPanel(token)
     private var trajectories: MapTrajectories? = null
+    private var pathRenderer: MapTrajectoryRenderer? = null
     private var snapshot: MapSnapshot? = null
     private var receivedAt = 0L
     private var selected: UUID? = null
@@ -78,8 +80,10 @@ class OrbitalMapScreen(
                     .build(),
             )
         addRenderableWidget(Button.builder(Component.translatable("gui.done")) { onClose() }.bounds(width - 76, 9, 64, 20).build())
+        maneuvers.init(font, panelX, viewY, panelWidth - 12) { addRenderableWidget(it) }
         if (!subscribed) {
             trajectories = MapTrajectories()
+            pathRenderer = MapTrajectoryRenderer()
             subscribed = true
             send(MapRequest(token, true))
         }
@@ -98,6 +102,8 @@ class OrbitalMapScreen(
         listOffset = listOffset.coerceIn(0, (value.objects.size - listRows).coerceAtLeast(0))
     }
 
+    fun accept(value: org.cbi.orbitalis.minecraft.navigation.FlightPlanState) = maneuvers.accept(value)
+
     override fun tick() {
         if (minecraft?.player == null ||
             minecraft?.level?.let {
@@ -111,8 +117,12 @@ class OrbitalMapScreen(
         if (++heartbeat >= 40) {
             heartbeat = 0
             send(MapRequest(token, true))
+            maneuvers.poll()
         }
-        trajectories?.update(snapshot, selected, camera.focus)
+        selected = maneuvers.select(selected)
+        maneuvers.tick()
+        trajectories?.update(snapshot, selected, camera.focus, maneuvers.draft, maneuvers.clock)
+        focusButton?.visible = !maneuvers.open
         focusButton?.active = snapshot?.objects?.any { it.id == selected } == true
     }
 
@@ -127,6 +137,8 @@ class OrbitalMapScreen(
     override fun isPauseScreen() = false
 
     override fun removed() {
+        pathRenderer?.close()
+        pathRenderer = null
         trajectories?.close()
         trajectories = null
         if (subscribed) {
@@ -141,6 +153,7 @@ class OrbitalMapScreen(
         scan: Int,
         modifiers: Int,
     ): Boolean {
+        if (focused is net.minecraft.client.gui.components.EditBox) return super.keyPressed(key, scan, modifiers)
         if (toggleKey?.matches(key, scan) == true) {
             onClose()
             return true
@@ -166,10 +179,13 @@ class OrbitalMapScreen(
         graphics.flush()
         drawPlanet()
         graphics.enableScissor(viewX, viewY, viewX + viewWidth, viewY + viewHeight)
-        if (Util.getMillis() - receivedAt <=
-            3000L
-        ) {
-            MapTrajectoryRenderer.render(graphics, camera, trajectories?.paths.orEmpty(), selected, viewX, viewY, viewWidth, viewHeight)
+        if (Util.getMillis() - receivedAt <= 3000L) {
+            for (burn in trajectories?.burns.orEmpty()) {
+                marker(graphics, burn.state.position, 0xD08CFF, true, false)
+                camera.project(burn.state.position, viewWidth, viewHeight)?.let {
+                    graphics.drawString(font, "${burn.index + 1}", viewX + it.x.toInt() + 6, viewY + it.y.toInt() - 9, 0xD08CFF, false)
+                }
+            }
         }
         snapshot?.let { data ->
             for (item in data.objects) {
@@ -200,7 +216,7 @@ class OrbitalMapScreen(
             0x8098AF,
             false,
         )
-        drawPanel(graphics)
+        if (maneuvers.open) maneuvers.render(graphics, font, panelX, viewY, panelWidth - 12, height - 26) else drawPanel(graphics)
         font.split(Component.translatable("map.orbitalis.controls"), width - 24).take(2).forEachIndexed { index, line ->
             graphics.drawString(font, line, viewX, height - 24 + index * 10, 0x8098AF, false)
         }
@@ -236,12 +252,16 @@ class OrbitalMapScreen(
             val direction = camera.direction
             val view = Matrix4f().lookAt(direction.x.toFloat(), direction.y.toFloat(), direction.z.toFloat(), 0f, 0f, 0f, 0f, 1f, 0f)
             val aspect = viewWidth.toFloat() / viewHeight
+            val projection = Matrix4f().ortho(-aspect, aspect, -1f, 1f, -100f, 100f)
             SurfacePlanetRenderer.renderScene(
                 camera.focus,
                 view,
-                Matrix4f().ortho(-aspect, aspect, -1f, 1f, -100f, 100f),
+                projection,
                 1.0 / camera.range,
             )
+            if (Util.getMillis() - receivedAt <= 3000L) {
+                pathRenderer?.render(camera, view, projection, trajectories?.paths.orEmpty(), selected)
+            }
         } finally {
             RenderSystem.viewport(viewport[0], viewport[1], viewport[2], viewport[3])
             RenderSystem.disableScissor()
@@ -378,13 +398,28 @@ class OrbitalMapScreen(
         button: Int,
     ): Boolean {
         if (super.mouseClicked(x, y, button)) return true
+        if (button == 1 && inView(x, y) && selected != null && Util.getMillis() - receivedAt <= 3000L) {
+            trajectories
+                ?.paths
+                ?.firstOrNull { it.source.id == selected && !it.planned }
+                ?.prediction
+                ?.points
+                ?.map { point ->
+                    val projected = camera.projectRaw(point.state.position, viewWidth, viewHeight)
+                    point to kotlin.math.hypot(projected.x + viewX - x, projected.y + viewY - y)
+                }?.filter { it.second <= 10.0 && it.first.seconds >= 1.0 }
+                ?.minByOrNull { it.second }
+                ?.first
+                ?.let { maneuvers.addAt(it.seconds) }
+            return true
+        }
         if (button == 0 && inView(x, y)) {
             startX = x
             startY = y
             dragged = false
             return true
         }
-        if (button == 0 && x >= panelX && x < width - 12 && y >= listY && y < listY + listRows * 20) {
+        if (!maneuvers.open && button == 0 && x >= panelX && x < width - 12 && y >= listY && y < listY + listRows * 20) {
             items.getOrNull(listOffset + ((y - listY) / 20).toInt())?.let { selected = it.id }
             return true
         }
@@ -412,7 +447,7 @@ class OrbitalMapScreen(
         button: Int,
     ): Boolean {
         if (button == 0 && inView(startX, startY)) {
-            if (!dragged && inView(x, y)) {
+            if (!maneuvers.open && !dragged && inView(x, y)) {
                 selected =
                     snapshot
                         ?.objects
@@ -442,7 +477,7 @@ class OrbitalMapScreen(
             camera.zoom(vertical)
             return true
         }
-        if (x >= panelX &&
+        if (!maneuvers.open && x >= panelX &&
             y >= listY
         ) {
             listOffset = (listOffset - vertical.toInt()).coerceIn(0, (items.size - listRows).coerceAtLeast(0))

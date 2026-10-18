@@ -26,6 +26,12 @@ limitations under the License.
   with ordinary-loading fallbacks. Preserve player and ship skylight above the terrain ceiling without
   changing plot light or introducing a physical Sun/shadow model.
 
+- Add personal timed maneuver nodes with prograde/normal/radial delta-v, a map editor and separate
+  real-field impulse previews. Persist revisioned plans in Orbitalis; the removable flight consumer
+  executes loaded orbital ships using native Propulsion engines and measured delta-v feedback.
+  Existing orbit/land modes remain separate and no dormant ships are automatically loaded.
+  Planet relief occludes trajectory arcs on the far side in the orbital map.
+
 - Keep the F6 observation camera at its last view while the same ship is being received after an
   Overworld/space handoff. Rebase the held position into the destination frame instead of briefly
   falling back to the passenger camera. Native loading screens and transfer checkpoints remain.

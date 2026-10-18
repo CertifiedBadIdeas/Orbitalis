@@ -21,9 +21,12 @@ package org.cbi.orbitalis.neoforge
 import io.netty.buffer.Unpooled
 import net.minecraft.gametest.framework.GameTest
 import net.minecraft.gametest.framework.GameTestHelper
+import net.minecraft.nbt.CompoundTag
 import net.minecraft.network.FriendlyByteBuf
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
 import org.cbi.orbitalis.core.planet.CartesianState
+import org.cbi.orbitalis.core.planet.ManeuverNode
+import org.cbi.orbitalis.core.planet.ManeuverPlan
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.integration.sable.SableMapObjects
@@ -32,6 +35,10 @@ import org.cbi.orbitalis.minecraft.map.MapObject
 import org.cbi.orbitalis.minecraft.map.MapRequest
 import org.cbi.orbitalis.minecraft.map.MapSnapshot
 import org.cbi.orbitalis.minecraft.map.OrbitalMapService
+import org.cbi.orbitalis.minecraft.navigation.FlightPlanCommand
+import org.cbi.orbitalis.minecraft.navigation.FlightPlanService
+import org.cbi.orbitalis.minecraft.navigation.FlightPlanState
+import org.cbi.orbitalis.minecraft.navigation.FlightPlans
 import org.cbi.orbitalis.minecraft.orbit.OrbitalObjectData
 import java.util.UUID
 
@@ -89,6 +96,72 @@ object OrbitalMapGameTests {
         } finally {
             buffer.release()
         }
+        val ship = UUID.randomUUID()
+        val owner = UUID.randomUUID()
+        val plan =
+            ManeuverPlan(
+                helper.level.server
+                    .overworld()
+                    .gameTime,
+                List(8) { ManeuverNode((it + 1) * 60.0, 10.0, -3.0, 2.0) },
+            )
+        val command = FlightPlanCommand(token, ship, FlightPlanCommand.Action.SAVE, 0, plan)
+        val wire = FriendlyByteBuf(Unpooled.buffer())
+        try {
+            FlightPlanCommand.CODEC.encode(wire, command)
+            helper.assertTrue(wire.writerIndex() < 512 && FlightPlanCommand.CODEC.decode(wire) == command, "Plan command round trip failed")
+            wire.clear()
+            val state = FlightPlanState(token, ship, plan.epochTick, 1, plan, true, false, "test")
+            FlightPlanState.CODEC.encode(wire, state)
+            helper.assertTrue(FlightPlanState.CODEC.decode(wire) == state, "Plan state round trip failed")
+            wire.clear()
+            wire.writeUUID(token)
+            wire.writeUUID(ship)
+            wire.writeEnum(FlightPlanCommand.Action.SAVE)
+            wire.writeLong(0)
+            wire.writeLong(0)
+            wire.writeVarInt(9)
+            var rejected = false
+            try {
+                FlightPlanCommand.CODEC.decode(wire)
+            } catch (_: IllegalArgumentException) {
+                rejected = true
+            }
+            helper.assertTrue(rejected, "Unbounded node count accepted")
+        } finally {
+            wire.release()
+        }
+        val plans = FlightPlans()
+        plans.put(owner, ship, 0, plan)
+        val saved = plans.save(CompoundTag(), helper.level.registryAccess())
+        val restored = FlightPlans.load(saved, helper.level.registryAccess())
+        helper.assertTrue(
+            restored.get(owner, ship)?.plan == plan && restored.get(UUID.randomUUID(), ship) == null,
+            "Personal flight plan save lost ownership or nodes",
+        )
+        var stale = false
+        try {
+            restored.put(owner, ship, 0, plan)
+        } catch (_: IllegalArgumentException) {
+            stale = true
+        }
+        helper.assertTrue(stale, "Stale revision overwrote plan")
+        restored.put(owner, ship, 1, plan.copy(nodes = emptyList()))
+        helper.assertTrue(restored.get(owner, ship)?.revision == 2L, "Cleared plan lost revision")
+        for (bad in listOf(
+            saved.copy().also {
+                it.putInt("version", 99)
+            },
+            saved.copy().also { ((it.get("plans") as net.minecraft.nbt.ListTag)[0] as CompoundTag).putLong("epoch", -1) },
+        )) {
+            var rejected = false
+            try {
+                FlightPlans.load(bad, helper.level.registryAccess())
+            } catch (_: IllegalArgumentException) {
+                rejected = true
+            }
+            helper.assertTrue(rejected, "Malformed persisted flight plan accepted")
+        }
         val player = GameTestPlayers.create(helper)
         val snapshots = mutableListOf<MapSnapshot>()
         val service =
@@ -102,7 +175,17 @@ object OrbitalMapGameTests {
                 }
             })
         try {
+            helper.assertTrue(FlightPlanService.handle(player, command, service) == null, "Plan write without subscription accepted")
             service.request(player, MapRequest(token, true))
+            helper.assertTrue(
+                FlightPlanService.handle(player, command.copy(token = UUID.randomUUID()), service) == null,
+                "Wrong screen token accepted",
+            )
+            val denied = FlightPlanService.handle(player, command, service)
+            helper.assertTrue(
+                denied?.error?.isNotEmpty() == true && FlightPlans.get(helper.level.server).get(player.uuid, ship) == null,
+                "Unauthorised plan changed server state",
+            )
             service.tick()
             helper.assertTrue(
                 service.viewing(player) && snapshots.size == 1 && snapshots[0].token == token,
