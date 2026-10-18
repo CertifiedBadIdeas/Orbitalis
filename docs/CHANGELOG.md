@@ -41,6 +41,9 @@ limitations under the License.
 - Add core rotating-frame mathematics for the planned Earth–Moon system: surface rotation velocity,
   acceleration transport and body angular velocity. This foundation is not yet wired into world physics
   or Sun rendering.
+- Pan the orbital map with middle-button drag, Shift+left drag or held WASD/arrow keys, using
+  camera-relative movement at the current zoom. Preserve ordinary rotation, selection and text input.
+
 - Give the orbital planet layered stone cliffs that follow 16-metre perimeter relief, a shaded
   underside at the actual Y=-64 boundary and a cached luminous blue atmospheric rim. Share this
   appearance with the orbital map and rebuild only affected sectors.

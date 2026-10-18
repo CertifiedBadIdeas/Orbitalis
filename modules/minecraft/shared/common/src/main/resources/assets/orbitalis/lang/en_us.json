@@ -8,7 +8,7 @@
   "map.orbitalis.planet": "Centre on planet",
   "map.orbitalis.focus": "Centre on object",
   "map.orbitalis.scale": "Vertical span: %s",
-  "map.orbitalis.controls": "Drag: orbit   Wheel: zoom   Home: reset   Esc: close",
+  "map.orbitalis.controls": "LMB: orbit   MMB / Shift+LMB: pan   WASD / arrows: pan   Wheel: zoom   Home: reset   Esc: close",
   "map.orbitalis.objects": "Objects: %s / %s",
   "map.orbitalis.waiting": "Waiting for server…",
   "map.orbitalis.you": "Your altitude (Y): %s",

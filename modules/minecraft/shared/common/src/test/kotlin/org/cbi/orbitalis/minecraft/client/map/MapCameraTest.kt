@@ -78,4 +78,56 @@ class MapCameraTest {
         assertEquals(8500.0, camera.range)
         assertEquals(Vector3.ZERO, camera.focus)
     }
+
+    @Test fun panMovesMarkersByTheRequestedScreenDistanceAtAnyZoomAndOrientation() {
+        for ((width, height) in listOf(144 to 148, 600 to 400, 1000 to 300)) {
+            val camera = MapCamera()
+            repeat(6) {
+                camera.rotate(32.0, -18.0)
+                camera.zoom(3.0)
+                val anchor = camera.focus
+                val before = assertNotNull(camera.project(anchor, width, height))
+                val direction = camera.direction
+                val range = camera.range
+                camera.pan(17.0, -11.0, height)
+                val after = assertNotNull(camera.project(anchor, width, height))
+                assertEquals(before.x + 17.0, after.x, 1e-8)
+                assertEquals(before.y - 11.0, after.y, 1e-8)
+                assertEquals(direction, camera.direction)
+                assertEquals(range, camera.range)
+                val matrix =
+                    Matrix4f()
+                        .ortho(-width.toFloat() / height, width.toFloat() / height, -1f, 1f, -100f, 100f)
+                        .mul(Matrix4f().lookAt(direction.x.toFloat(), direction.y.toFloat(), direction.z.toFloat(), 0f, 0f, 0f, 0f, 1f, 0f))
+                        .scale((1.0 / camera.range).toFloat())
+                        .translate(-camera.focus.x.toFloat(), -camera.focus.y.toFloat(), -camera.focus.z.toFloat())
+                val clip = matrix.transform(Vector4f(anchor.x.toFloat(), anchor.y.toFloat(), anchor.z.toFloat(), 1f))
+                assertEquals((clip.x.toDouble() + 1) * width / 2, after.x, 0.001)
+                assertEquals((1 - clip.y.toDouble()) * height / 2, after.y, 0.001)
+            }
+        }
+    }
+
+    @Test fun aCornerCanBeCentredThenZoomedWithoutChangingTheViewAngle() {
+        val camera = MapCamera()
+        val corner = Vector3(5000.0, 64.0, 5000.0)
+        val point = camera.projectRaw(corner, 600, 400)
+        val direction = camera.direction
+        camera.pan(300.0 - point.x, 200.0 - point.y, 400)
+        camera.zoom(15.0)
+        val centred = assertNotNull(camera.project(corner, 600, 400))
+        assertEquals(300.0, centred.x, 1e-8)
+        assertEquals(200.0, centred.y, 1e-8)
+        assertEquals(direction, camera.direction)
+        camera.reset()
+        assertEquals(Vector3.ZERO, camera.focus)
+    }
+
+    @Test fun unavailableViewportOrInvalidMouseDeltasDoNotMoveTheCamera() {
+        val camera = MapCamera()
+        camera.pan(10.0, 10.0, 0)
+        camera.pan(Double.NaN, 10.0, 400)
+        camera.pan(10.0, Double.POSITIVE_INFINITY, 400)
+        assertEquals(Vector3.ZERO, camera.focus)
+    }
 }

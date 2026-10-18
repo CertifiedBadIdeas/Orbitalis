@@ -48,6 +48,17 @@ class MapCamera {
         pitch = (pitch + dy * 0.008).coerceIn(-1.5, 1.5)
     }
 
+    /** Move the scene by GUI pixels in the current camera plane, at the current zoom. */
+    fun pan(
+        dx: Double,
+        dy: Double,
+        viewportHeight: Int,
+    ) {
+        if (viewportHeight <= 0 || !dx.isFinite() || !dy.isFinite()) return
+        val metresPerPixel = range * 2.0 / viewportHeight
+        focus = focus - right * (dx * metresPerPixel) + up * (dy * metresPerPixel)
+    }
+
     fun zoom(scroll: Double) {
         range = (range * exp(-scroll.coerceIn(-20.0, 20.0) * 0.15)).coerceIn(128.0, 1e8)
     }

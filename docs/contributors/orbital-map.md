@@ -19,8 +19,11 @@ limitations under the License.
 # Orbital map
 
 Press **M** (rebindable in the Orbitalis controls category) in Overworld or `orbitalis:space` to open
-the orbital map. Drag the map with the left mouse button to orbit the camera, scroll over the map
-to zoom, use Home or Centre on planet to restore the overview. Select a construction by its marker
+the orbital map. Drag with the left mouse button to orbit; middle-button drag or Shift+left drag
+moves the scene in its current camera plane. Hold WASD or the arrow keys for continuous panning
+at a zoom-relative speed; diagonal input is normalized. Keyboard panning stops on release, window
+focus loss, reset, resize or closing the screen and is disabled while editing a maneuver field.
+Scroll over the map to zoom; use Home or Centre on planet to restore the overview. Select a construction by its marker
 or a row in the sidebar. Scroll over the list to reach additional rows; Centre on object moves the
 camera focus to its current sampled position. Escape, Done or the configured keyboard binding closes
 the map. The screen does not pause the server or alter flight controls/physics.

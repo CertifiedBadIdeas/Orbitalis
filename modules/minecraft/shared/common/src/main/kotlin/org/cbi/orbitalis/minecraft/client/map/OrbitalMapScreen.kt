@@ -55,6 +55,10 @@ class OrbitalMapScreen(
     private var startX = 0.0
     private var startY = 0.0
     private var dragged = false
+    private var dragButton = -1
+    private var panDrag = false
+    private val panKeys = mutableSetOf<Int>()
+    private var lastPanAt = 0L
     private var subscribed = false
     private var focusButton: Button? = null
     private var celestialBodies = emptyList<CelestialMapScene.Body>()
@@ -72,6 +76,7 @@ class OrbitalMapScreen(
 
     override fun init() {
         super.init()
+        clearCameraInput()
         celestialButtons.clear()
         val frameWidth = ((viewWidth - 4) / 2).coerceIn(1, 110)
         val views: List<Pair<String, () -> Unit>> =
@@ -164,6 +169,7 @@ class OrbitalMapScreen(
     override fun isPauseScreen() = false
 
     override fun removed() {
+        clearCameraInput()
         pathRenderer?.close()
         pathRenderer = null
         trajectories?.close()
@@ -189,7 +195,62 @@ class OrbitalMapScreen(
             resetEarthView()
             return true
         }
+        if (isPanKey(key)) {
+            panKeys.add(key)
+            return true
+        }
         return super.keyPressed(key, scan, modifiers)
+    }
+
+    override fun keyReleased(
+        key: Int,
+        scan: Int,
+        modifiers: Int,
+    ): Boolean {
+        if (panKeys.remove(key)) return true
+        return super.keyReleased(key, scan, modifiers)
+    }
+
+    private fun isPanKey(key: Int) =
+        key in
+            setOf(
+                GLFW.GLFW_KEY_W,
+                GLFW.GLFW_KEY_A,
+                GLFW.GLFW_KEY_S,
+                GLFW.GLFW_KEY_D,
+                GLFW.GLFW_KEY_UP,
+                GLFW.GLFW_KEY_LEFT,
+                GLFW.GLFW_KEY_DOWN,
+                GLFW.GLFW_KEY_RIGHT,
+            )
+
+    private fun clearCameraInput() {
+        panKeys.clear()
+        dragButton = -1
+        lastPanAt = Util.getMillis()
+    }
+
+    private fun updateCamera() {
+        val now = Util.getMillis()
+        val seconds = ((now - lastPanAt).coerceIn(0L, 100L)) / 1000.0
+        lastPanAt = now
+        if (minecraft?.isWindowActive != true || focused is net.minecraft.client.gui.components.EditBox) {
+            clearCameraInput()
+            return
+        }
+
+        fun down(
+            first: Int,
+            second: Int,
+        ) = if (first in panKeys || second in panKeys) 1.0 else 0.0
+        val dx = down(GLFW.GLFW_KEY_D, GLFW.GLFW_KEY_RIGHT) - down(GLFW.GLFW_KEY_A, GLFW.GLFW_KEY_LEFT)
+        val dy = down(GLFW.GLFW_KEY_S, GLFW.GLFW_KEY_DOWN) - down(GLFW.GLFW_KEY_W, GLFW.GLFW_KEY_UP)
+        val length = kotlin.math.hypot(dx, dy)
+        if (length > 0.0) {
+            bodyFocus = null
+            val pixels = viewHeight * 0.8 * seconds / length
+            camera.pan(dx * pixels, dy * pixels, viewHeight)
+        }
     }
 
     override fun render(
@@ -198,6 +259,7 @@ class OrbitalMapScreen(
         mouseY: Int,
         partialTick: Float,
     ) {
+        updateCamera()
         graphics.fill(0, 0, width, height, 0xFF080E19.toInt())
         graphics.drawString(font, title, 12, 11, 0xE8F4FF, false)
         graphics.fill(viewX - 1, viewY - 1, viewX + viewWidth + 1, viewY + viewHeight + 1, 0xFF294358.toInt())
@@ -262,6 +324,7 @@ class OrbitalMapScreen(
     }
 
     private fun resetEarthView() {
+        clearCameraInput()
         bodyFocus = null
         camera.reset()
         camera.frame(Vector3.ZERO, 8500.0, viewWidth, viewHeight)
@@ -466,7 +529,10 @@ class OrbitalMapScreen(
                 ?.let { maneuvers.addAt(it.seconds) }
             return true
         }
-        if (button == 0 && inView(x, y)) {
+        if ((button == 0 || button == 2) && inView(x, y)) {
+            setFocused(null)
+            dragButton = button
+            panDrag = button == 2 || hasShiftDown()
             startX = x
             startY = y
             dragged = false
@@ -486,9 +552,14 @@ class OrbitalMapScreen(
         dx: Double,
         dy: Double,
     ): Boolean {
-        if (button == 0 && inView(startX, startY)) {
+        if (button == dragButton) {
             if (kotlin.math.hypot(x - startX, y - startY) > 3.0) dragged = true
-            if (dragged) camera.rotate(dx, dy)
+            if (panDrag) {
+                bodyFocus = null
+                camera.pan(dx, dy, viewHeight)
+            } else if (dragged) {
+                camera.rotate(dx, dy)
+            }
             return true
         }
         return super.mouseDragged(x, y, button, dx, dy)
@@ -499,8 +570,8 @@ class OrbitalMapScreen(
         y: Double,
         button: Int,
     ): Boolean {
-        if (button == 0 && inView(startX, startY)) {
-            if (!maneuvers.open && !dragged && inView(x, y)) {
+        if (button == dragButton) {
+            if (!panDrag && !maneuvers.open && !dragged && inView(x, y)) {
                 selected =
                     snapshot
                         ?.objects
@@ -513,8 +584,7 @@ class OrbitalMapScreen(
                         ?.minByOrNull { it.second }
                         ?.first
             }
-            startX = -1.0
-            startY = -1.0
+            dragButton = -1
             return true
         }
         return super.mouseReleased(x, y, button)
