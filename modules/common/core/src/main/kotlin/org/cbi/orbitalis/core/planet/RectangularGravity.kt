@@ -25,7 +25,7 @@ import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.sqrt
 
-/** Fixed, homogeneous rectangular body. Coordinates are metres relative to its centre; Y is up. */
+/** Homogeneous rectangular near field with a conservative point-mass far field; metres, local Y up. */
 class RectangularGravity(
     val halfWidth: Double,
     val halfHeight: Double,
@@ -41,7 +41,7 @@ class RectangularGravity(
     private val half: Vector3
     private val strength: Double
 
-    /** Total G*M, for far-field estimates only. Near-field trajectories are not Kepler ellipses. */
+    /** Total G*M, shared by the rectangular near field and exact central far field. */
     val mu: Double
 
     init {
@@ -74,14 +74,14 @@ class RectangularGravity(
                 }
 
                 radius >= 12.0 -> {
-                    volume(p)
+                    pointMass(p)
                 }
 
                 else -> {
                     // Blend potentials, including the derivative of the blend. Blending just forces
                     // would introduce a nonconservative shell and invalidate engines-off energy checks.
                     val near = corners(p)
-                    val far = volume(p)
+                    val far = pointMass(p)
                     val t = (radius - 8.0) / 4.0
                     val weight = t * t * t * (10.0 + t * (-15.0 + 6.0 * t))
                     val derivative = 30.0 * t * t * (1.0 - t) * (1.0 - t) / 4.0
@@ -126,30 +126,12 @@ class RectangularGravity(
         return Sample(potential, if (p == Vector3.ZERO) Vector3.ZERO else Vector3(gx, gy, gz))
     }
 
-    // Far from the body, corner subtraction loses significant digits. Tensor Gauss-Legendre
-    // integration evaluates the same volume integral without subtracting nearly equal terms.
-    private fun volume(p: Vector3): Sample {
-        var potential = 0.0
-        var gx = 0.0
-        var gy = 0.0
-        var gz = 0.0
-        for (i in NODES.indices) {
-            for (j in NODES.indices) {
-                for (k in NODES.indices) {
-                    val x = p.x - NODES[i] * half.x
-                    val y = p.y - NODES[j] * half.y
-                    val z = p.z - NODES[k] * half.z
-                    val r = Vector3(x, y, z).length()
-                    val weight = WEIGHTS[i] * WEIGHTS[j] * WEIGHTS[k] * half.x * half.y * half.z
-                    potential -= weight / r
-                    val factor = weight / r / r / r
-                    gx -= x * factor
-                    gy -= y * factor
-                    gz -= z * factor
-                }
-            }
-        }
-        return Sample(potential, Vector3(gx, gy, gz))
+    // Dimensionless monopole with exactly the same total mass. C2 potential blending above
+    // retains conservative acceleration while discarding distant shape multipoles deliberately.
+    private fun pointMass(p: Vector3): Sample {
+        val radius = p.length()
+        val mass = 8.0 * half.x * half.y * half.z
+        return Sample(-mass / radius, p.normalized() * (-mass / radius / radius))
     }
 
     private fun log(
@@ -176,29 +158,4 @@ class RectangularGravity(
             numerator < 0.0 -> -PI / 2.0
             else -> 0.0
         }
-
-    companion object {
-        private val NODES =
-            doubleArrayOf(
-                -0.9602898564975363,
-                -0.7966664774136267,
-                -0.5255324099163290,
-                -0.1834346424956498,
-                0.1834346424956498,
-                0.5255324099163290,
-                0.7966664774136267,
-                0.9602898564975363,
-            )
-        private val WEIGHTS =
-            doubleArrayOf(
-                0.1012285362903763,
-                0.2223810344533745,
-                0.3137066458778873,
-                0.3626837833783620,
-                0.3626837833783620,
-                0.3137066458778873,
-                0.2223810344533745,
-                0.1012285362903763,
-            )
-    }
 }

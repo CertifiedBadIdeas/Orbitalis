@@ -147,4 +147,62 @@ class RectangularGravityTest {
             assertFailsWith<IllegalArgumentException> { RectangularGravity(1000.0, 64.0, 1000.0, bad) }
         }
     }
+
+    @Test fun `far field is exactly central at the same total mass for every direction`() {
+        for (direction in listOf(Vector3(1.0, 0.0, 0.0), Vector3(1.0, 2.0, -3.0), Vector3(-2.0, 0.1, 1.0))) {
+            for (radius in listOf(12000.0, 12001.0, 20000.0, 1e8)) {
+                val p = direction.normalized() * radius
+                val sample = field.sample(p)
+                val expected = TwoBodyGravity(field.mu).acceleration(p)
+                assertTrue((sample.acceleration - expected).length() < expected.length() * 1e-12)
+                assertEquals(-field.mu / p.length(), sample.potential, kotlin.math.abs(sample.potential) * 1e-12)
+            }
+        }
+    }
+
+    @Test fun `potential transition stays conservative and C2 through both radial seams`() {
+        val direction = Vector3(1.0, 2.0, -3.0).normalized()
+        for (radius in listOf(7999.0, 8000.0, 8001.0, 9000.0, 10000.0, 11000.0, 11999.0, 12000.0, 12001.0)) {
+            val p = direction * radius
+            val a = field.acceleration(p)
+            val delta = 0.05
+            for (axis in listOf(Vector3(1.0, 0.0, 0.0), Vector3(0.0, 1.0, 0.0), Vector3(0.0, 0.0, 1.0))) {
+                val gradient = -(field.potential(p + axis * delta) - field.potential(p - axis * delta)) / (2 * delta)
+                assertEquals(a.dot(axis), gradient, 1e-6)
+            }
+        }
+        for (radius in listOf(8000.0, 12000.0)) {
+            val h = 0.1
+            val centre = field.acceleration(direction * radius)
+            val before = (centre - field.acceleration(direction * (radius - h))) * (1.0 / h)
+            val after = (field.acceleration(direction * (radius + h)) - centre) * (1.0 / h)
+            assertTrue((before - after).length() < 1e-7)
+        }
+    }
+
+    @Test fun `transition crossing conserves energy and distant isolated ellipse closes`() {
+        fun step(
+            state: CartesianState,
+            dt: Double,
+        ): CartesianState {
+            val half = state.velocity + field.acceleration(state.position) * (dt * 0.5)
+            val p = state.position + half * dt
+            return CartesianState(p, half + field.acceleration(p) * (dt * 0.5))
+        }
+        var crossing = CartesianState(Vector3(7000.0, 1500.0, 2000.0), Vector3(180.0, 20.0, 0.0))
+        val energy = field.specificEnergy(crossing)
+        repeat(4000) { crossing = step(crossing, 0.01) }
+        assertTrue(crossing.position.length() > 12000.0)
+        assertTrue(kotlin.math.abs((field.specificEnergy(crossing) - energy) / energy) < 1e-7)
+        val radius = 20000.0
+        val eccentricity = 0.2
+        val semiMajor = radius / (1.0 - eccentricity)
+        val initial =
+            CartesianState(Vector3(radius, 0.0, 0.0), Vector3(0.0, kotlin.math.sqrt(field.mu * (1.0 + eccentricity) / radius), 0.0))
+        val period = 2.0 * kotlin.math.PI * kotlin.math.sqrt(semiMajor * semiMajor * semiMajor / field.mu)
+        var orbit = initial
+        repeat(10000) { orbit = step(orbit, period / 10000.0) }
+        assertTrue((orbit.position - initial.position).length() / radius < 1e-5)
+        assertTrue((orbit.velocity - initial.velocity).length() / initial.velocity.length() < 1e-5)
+    }
 }
