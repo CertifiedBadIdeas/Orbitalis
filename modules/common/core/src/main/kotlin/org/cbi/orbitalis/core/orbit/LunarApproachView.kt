@@ -58,6 +58,13 @@ class LunarApproachView {
     }
 
     companion object {
+        /** At the viewing pole gravity has no screen projection; retain transported screen up. */
+        fun stableUp(
+            desired: Vector3,
+            forward: Vector3,
+            previous: Vector3,
+        ): Vector3 = if (desired.cross(forward).length() < 1e-3) previous else desired
+
         fun turnRay(
             forward: Vector3,
             up: Vector3,
