@@ -38,14 +38,15 @@ object SurfaceAtlasSampler {
         stateAt: (BlockPos) -> BlockState,
         biomeAt: (Int, Int, Int) -> Biome,
     ): SurfaceAtlas.Sample {
+        val bounds = FlatOverworld.footprint(level)
         var height = 0
         var red = 0
         var green = 0
         var blue = 0
         for (dx in intArrayOf(2, 6, 10, 14)) {
             for (dz in intArrayOf(2, 6, 10, 14)) {
-                val x = (cx * 16 + dx).coerceIn(-FlatPlanetDefinition.HALF_SIZE.toInt(), FlatPlanetDefinition.HALF_SIZE.toInt() - 1)
-                val z = (cz * 16 + dz).coerceIn(-FlatPlanetDefinition.HALF_SIZE.toInt(), FlatPlanetDefinition.HALF_SIZE.toInt() - 1)
+                val x = (cx * 16 + dx).coerceIn(bounds.minX, bounds.maxX - 1)
+                val z = (cz * 16 + dz).coerceIn(bounds.minZ, bounds.maxZ - 1)
                 val y = heightAt(x and 15, z and 15)
                 val pos = BlockPos(x, y, z)
                 val state = stateAt(pos)

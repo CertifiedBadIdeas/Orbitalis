@@ -71,6 +71,22 @@ class EarthRotationTest {
         }
     }
 
+    @Test fun `small selected planet keeps ground support inside its actual footprint`() {
+        val small = profile.copy(selectedEarthWidth = 1000)
+        for (tick in listOf(1000L, 7000L, 19000L)) {
+            val model = CelestialDynamics(small, tick)
+            val inside = CartesianState(Vector3(100.0, 100.0, 0.0), Vector3.ZERO)
+            assertTrue((model.earthAcceleration(inside) - Vector3(0.0, -11.0, 0.0)).length() < 1e-9)
+            val outside = Vector3(1000.0, 100.0, 0.0)
+            val frame = small.earthSurfaceFrame(tick)
+            val root = frame.orientation.apply(outside)
+            val force = frame.orientation.inverse(model.acceleration(root))
+            val expected = model.earth.acceleration(outside)
+            // Outside the support strip, no centrifugal support is attached to empty native air.
+            assertTrue((force - expected).length() < 0.001)
+        }
+    }
+
     @Test fun `native handoff preserves root position velocity direction and angular motion`() {
         val native = CartesianState(Vector3(1234.0, 3100.0, -500.0), Vector3(40.0, 100.0, 3.0))
         for (tick in listOf(1000L, 7000L, 13000L, 19000L)) {

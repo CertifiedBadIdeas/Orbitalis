@@ -47,6 +47,14 @@ class LunarChunkGenerator(
     val lunarBiome: Holder<Biome>,
 ) : FlatLevelSource(FlatLevelGeneratorSettings(Optional.of(HolderSet.direct(emptyList())), lunarBiome, emptyList())) {
     @Volatile private var sampledTerrain: LunarSurface? = null
+
+    @Volatile private var halfSize = LunarSurface.HALF_SIZE.toDouble()
+
+    fun configure(geometry: org.cbi.orbitalis.core.planet.CelestialGeometry) {
+        halfSize = geometry.moonHalfSize
+        sampledTerrain = sampledTerrain?.let { LunarSurface(it.seed, halfSize) }
+    }
+
     val terrain: LunarSurface get() = checkNotNull(sampledTerrain) { "Lunar generator seed has not been initialized" }
 
     override fun codec(): MapCodec<out ChunkGenerator> = CODEC
@@ -56,7 +64,7 @@ class LunarChunkGenerator(
         random: RandomState,
         seed: Long,
     ): ChunkGeneratorStructureState {
-        sampledTerrain = LunarSurface(LunarSurface.terrainSeed(seed))
+        sampledTerrain = LunarSurface(LunarSurface.terrainSeed(seed), halfSize)
         return super.createState(sets, random, seed)
     }
 

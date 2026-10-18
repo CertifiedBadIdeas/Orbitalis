@@ -26,14 +26,26 @@ object FlightAtmosphere {
     const val START = FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ASCENT_HEIGHT * 0.1
     const val END = FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.DESCENT_HEIGHT * 0.75
 
-    fun vacuum(position: Vector3): Float {
-        val lateral = PlanetAtmosphere.vacuum(Vector3(position.x, minOf(position.y, FlatPlanetSpace.SEA_LEVEL), position.z))
-        return (1.0 - (1.0 - vacuum(position.y)) * (1.0 - lateral)).toFloat()
+    fun vacuum(
+        position: Vector3,
+        geometry: org.cbi.orbitalis.core.planet.CelestialGeometry =
+            org.cbi.orbitalis.core.planet
+                .CelestialGeometry(),
+    ): Float {
+        val lateral = PlanetAtmosphere.vacuum(Vector3(position.x, minOf(position.y, FlatPlanetSpace.SEA_LEVEL), position.z), geometry)
+        return (1.0 - (1.0 - vacuum(position.y, geometry)) * (1.0 - lateral)).toFloat()
     }
 
-    fun vacuum(height: Double): Float {
+    fun vacuum(
+        height: Double,
+        geometry: org.cbi.orbitalis.core.planet.CelestialGeometry =
+            org.cbi.orbitalis.core.planet
+                .CelestialGeometry(),
+    ): Float {
         if (!height.isFinite()) return 0f
-        val t = ((height - START) / (END - START)).coerceIn(0.0, 1.0)
+        val start = FlatPlanetSpace.SEA_LEVEL + geometry.earthEnvelope.ascentDistance * 0.1
+        val end = FlatPlanetSpace.SEA_LEVEL + geometry.earthEnvelope.descentDistance * 0.75
+        val t = ((height - start) / (end - start)).coerceIn(0.0, 1.0)
         return (t * t * (3.0 - 2.0 * t)).toFloat()
     }
 }

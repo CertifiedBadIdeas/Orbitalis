@@ -25,7 +25,11 @@ import kotlin.math.sin
 
 /** Presentation only: a finite flat body in surface coordinates, independent of diagnostic gravity. */
 object SpaceScene {
-    const val HALF_SIZE = FlatPlanetSpace.HALF_SIZE
+    val HALF_SIZE: Double get() =
+        org.cbi.orbitalis.minecraft.flight.CelestialFlight.clientProfileSnapshot
+            ?.geometry
+            ?.earthHalfSize
+            ?: FlatPlanetSpace.HALF_SIZE
     const val TOP = FlatPlanetSpace.SEA_LEVEL
     const val BOTTOM = -FlatPlanetSpace.SEA_LEVEL
     val SUN_DIRECTION = Vector3(-0.4, 0.8, -0.3).normalized()
@@ -37,7 +41,9 @@ object SpaceScene {
         val ambient: Double = 0.18,
     )
 
-    val body: List<Face> =
+    val body: List<Face> get() = buildBody()
+
+    private fun buildBody(): List<Face> =
         buildList {
             val cells = 32
             val step = HALF_SIZE * 2.0 / cells

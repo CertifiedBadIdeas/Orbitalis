@@ -85,7 +85,7 @@ of external mod networks, world references or unsaved state.
 
 ## Authority and persistence
 
-`ShipTransferJournal` writes version 5 Earth or version 6 lunar compressed NBT records to
+`ShipTransferJournal` writes version 7 compressed NBT records for new Earth and lunar transfers to
 `<save>/data/orbitalis-transfers/<ship-uuid>.nbt`. A record contains transaction/ship/pilot UUIDs, source
 side, native source/destination snapshots (including glue metadata), exact linear/angular velocities, pilot pose/motion, the
 source's previous native save pointer, phase, orbital dimension and offline-pilot recovery flags. Unknown versions,
@@ -94,6 +94,7 @@ records are bounded to 16 MiB. Native payloads remain tied to the pinned Sable s
 future Sable/Orbitalis migrations must handle unfinished records before changing that format.
 Version 4 requires explicit `surface_dimension=minecraft:overworld` and
 `orbital_dimension=orbitalis:space`. The 4096-m Earth translation remains unchanged.
+Version 7 freezes both surface routes at one celestial sample, including Earth spin. Versions 3–5 retain translation-only Earth recovery and version 6 retains its frozen lunar basis.
 Version 6 requires `surface_dimension=orbitalis:moon` and a versioned frozen celestial profile/epoch.
 It transports full rigid motion and validates recovery against that persisted sample.
 Active version-3/4 Earth records remain readable; version 4 adds optional pilots and entity/mount manifests.

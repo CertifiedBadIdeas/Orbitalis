@@ -54,9 +54,14 @@ object OrbitalisGameTests {
                     "map",
                     "moon",
                     "settings",
+                    "scaled",
                 ),
         ) {
             "Unknown GameTest suite: $suite"
+        }
+        if (suite == "scaled") {
+            event.register(ScaledSystemGameTests::class.java)
+            return
         }
         if (suite == "all" || suite == "settings") event.register(WorldSystemSettingsGameTests::class.java)
         if (suite == "settings") return

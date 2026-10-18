@@ -98,7 +98,13 @@ object FlatOverworld {
                 (border.size == SIZE || (marker?.version == 1 && border.size == 2000.0))
         val bounds =
             if (marker == null || stationaryDefault) {
-                defaultBounds
+                val half =
+                    (
+                        org.cbi.orbitalis.minecraft.world.WorldSystemSettings
+                            .get(level.server)
+                            ?.earthWidth ?: SIZE.toInt()
+                    ) / 2
+                FiniteSurfaceTerrain.Bounds(-half, -half, half, half)
             } else {
                 FiniteSurfaceTerrain.Bounds(
                     ceil(border.minX).toInt(),

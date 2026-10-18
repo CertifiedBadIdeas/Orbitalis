@@ -34,6 +34,11 @@ object FlightSky {
         if (level.dimension() == FlatPlanetSpace.SPACE || level.dimension() == org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY) return 1f
         if (level.dimension() != Level.OVERWORLD) return 0f
         val p = camera.position
-        return FlightAtmosphere.vacuum(Vector3(p.x, p.y, p.z))
+        return FlightAtmosphere.vacuum(
+            Vector3(p.x, p.y, p.z),
+            CelestialView
+                .sample()
+                .frames.profile.geometry,
+        )
     }
 }

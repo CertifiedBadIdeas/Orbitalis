@@ -141,6 +141,18 @@ object FlightTransitionView {
         previousPosition = position
         previousAt = time
         previousDimension = level.dimension()
+        val geometry =
+            if (CelestialFlight.available(
+                    level,
+                )
+            ) {
+                CelestialFlight
+                    .sample(level)
+                    .frames.profile.geometry
+            } else {
+                org.cbi.orbitalis.core.planet
+                    .CelestialGeometry()
+            }
         val ascending = level.dimension() == Level.OVERWORLD
         val earthArrival =
             if (level.dimension() == org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY) {
@@ -156,7 +168,7 @@ object FlightTransitionView {
                                     .CartesianState(position, velocity),
                                 Level.OVERWORLD,
                             )
-                    PlanetFlightEnvelope.arrival(native.position, native.velocity, Vector3.ZERO, ascending, 3.0)
+                    geometry.earthEnvelope.arrival(native.position, native.velocity, Vector3.ZERO, ascending, 3.0)
                 } else {
                     null
                 }
@@ -172,7 +184,7 @@ object FlightTransitionView {
                         ),
                         org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY,
                     )
-                PlanetFlightEnvelope.moon.arrival(
+                geometry.moonEnvelope.arrival(
                     native.position,
                     native.velocity,
                     Vector3.ZERO,

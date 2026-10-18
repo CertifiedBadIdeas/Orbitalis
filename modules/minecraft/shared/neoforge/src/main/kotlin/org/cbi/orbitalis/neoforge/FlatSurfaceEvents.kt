@@ -36,6 +36,15 @@ object FlatSurfaceEvents {
     fun load(event: LevelEvent.Load) {
         val level = event.level as? ServerLevel ?: return
         if (level.dimension() == Level.OVERWORLD) FlatOverworld.prepare(level)
+        if (level.dimension() == org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY) {
+            (level.chunkSource.generator as? org.cbi.orbitalis.minecraft.moon.LunarChunkGenerator)?.configure(
+                org.cbi.orbitalis.core.planet.CelestialGeometry(
+                    org.cbi.orbitalis.minecraft.world.WorldSystemSettings
+                        .get(level.server)
+                        ?.earthWidth,
+                ),
+            )
+        }
     }
 
     @JvmStatic

@@ -104,8 +104,8 @@ class SurfaceAtlas {
     }
 
     companion object {
-        val MIN_CHUNK = Math.floorDiv(-FlatPlanetDefinition.HALF_SIZE.toInt(), 16)
-        val MAX_CHUNK = Math.floorDiv(FlatPlanetDefinition.HALF_SIZE.toInt() - 1, 16)
+        val MIN_CHUNK = Math.floorDiv(-10000, 16)
+        val MAX_CHUNK = Math.floorDiv(10000 - 1, 16)
         val WIDTH = MAX_CHUNK - MIN_CHUNK + 1
         val MAX_SAMPLES = WIDTH * WIDTH
     }

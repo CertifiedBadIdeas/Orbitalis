@@ -19,7 +19,6 @@
 package org.cbi.orbitalis.core.orbit
 
 import org.cbi.orbitalis.core.planet.CartesianState
-import org.cbi.orbitalis.core.planet.FlatPlanetDefinition
 import org.cbi.orbitalis.core.planet.SurfaceGravityLayer
 import org.cbi.orbitalis.core.planet.Vector3
 import kotlin.math.abs
@@ -29,9 +28,10 @@ class CelestialDynamics(
     val profile: SolarSystemProfile,
     val epochTick: Long,
     earthCompatibility: Double = profile.surfaceGravity,
-    moonCompatibility: Double = profile.surfaceGravity / 6.0,
+    moonCompatibility: Double = profile.surfaceGravity * profile.geometry.moonGravityRatio,
 ) {
-    val earth = SurfaceGravityLayer(profile.earthGravity.body, earthCompatibility, fullHeight = FlatPlanetDefinition.ASCENT_HEIGHT)
+    val earth =
+        SurfaceGravityLayer(profile.earthGravity.body, earthCompatibility, fullHeight = profile.geometry.earthEnvelope.ascentDistance)
     val moon =
         SurfaceGravityLayer(profile.moonGravity, moonCompatibility, nearHeight = 128.0, fullHeight = 600.0, edgeWidth = 128.0)
 
@@ -76,14 +76,15 @@ class CelestialDynamics(
             val moonForce = moonFrame.orientation.apply(moon.acceleration(local))
             val sunOffset = position + earthOrbit.origin.position
             val sunTide = sunOffset * (-profile.sunMu / sunOffset.length().let { it * it * it }) - earthOrbit.originAcceleration
-            val terrestrialWindow = window(terrestrial, FlatPlanetDefinition.HALF_SIZE, 256.0, FlatPlanetDefinition.ASCENT_HEIGHT, 256.0)
+            val terrestrialWindow =
+                window(terrestrial, profile.geometry.earthHalfSize, 256.0, profile.geometry.earthEnvelope.ascentDistance, 256.0)
             val nativeForce = earth.acceleration(terrestrial)
             val terrestrialForce = earthFrame.orientation.apply(nativeForce)
             val supportedEarth = earthFrame.toParentAcceleration(CartesianState(terrestrial, Vector3.ZERO), nativeForce)
             val field =
                 terrestrialForce + (supportedEarth - terrestrialForce) * terrestrialWindow +
                     (moonForce - earthOriginMoonForce + sunTide) * (1.0 - terrestrialWindow)
-            val lunarWindow = window(local, SolarSystemProfile.MOON_HALF_SIZE, 128.0, 600.0, 128.0)
+            val lunarWindow = window(local, profile.geometry.moonHalfSize, 128.0, 600.0, 128.0)
             if (lunarWindow == 0.0) return field
             val supported = moonFrame.toParentAcceleration(CartesianState(local, Vector3.ZERO), moon.acceleration(local))
             return field * (1.0 - lunarWindow) + supported * lunarWindow

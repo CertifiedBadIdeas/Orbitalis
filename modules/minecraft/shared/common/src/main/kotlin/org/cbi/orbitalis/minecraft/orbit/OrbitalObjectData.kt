@@ -63,13 +63,18 @@ class OrbitalObjectData private constructor(
         }
     }
 
-    fun configureCelestials(gravity: Double): SolarSystemProfile {
+    fun configureCelestials(
+        gravity: Double,
+        selectedEarthWidth: Int? = null,
+    ): SolarSystemProfile {
         check(readable) { "Unknown or malformed orbital simulation data" }
         val previous = profile
         if (previous == null || previous.surfaceGravity != gravity || previous.earthSpinEpochTick == null ||
-            previous.preset != SolarSystemProfile.Preset.CALENDAR
+            previous.preset != SolarSystemProfile.Preset.CALENDAR || previous.selectedEarthWidth != selectedEarthWidth
         ) {
-            val tuned = previous?.retune(gravity, clock, SolarSystemProfile.Preset.CALENDAR) ?: SolarSystemProfile(gravity, clock)
+            val tuned =
+                previous?.retune(gravity, clock, SolarSystemProfile.Preset.CALENDAR, selectedEarthWidth)
+                    ?: SolarSystemProfile(gravity, clock, selectedEarthWidth = selectedEarthWidth)
             // Enable with the existing orientation; reading old frozen receipts never calls this.
             profile = if (tuned.earthSpinEpochTick == null) tuned.copy(earthSpinEpochTick = clock) else tuned
             setDirty()
@@ -108,6 +113,7 @@ class OrbitalObjectData private constructor(
                 CompoundTag().apply {
                     putInt("Version", SolarSystemProfile.VERSION)
                     putInt("Preset", value.preset.version)
+                    putInt("EarthWidth", value.selectedEarthWidth ?: 0)
                     putLong("EpochTick", value.epochTick)
                     putDouble("Gravity", value.surfaceGravity)
                     putDouble("EarthPhase", value.earthPhase)
@@ -164,6 +170,12 @@ class OrbitalObjectData private constructor(
                                 SolarSystemProfile.Preset.fromVersion(celestial.getInt("Version"))
                             },
                             spinEpoch,
+                            if (celestial.getInt("Version") >= 3) {
+                                require(celestial.contains("EarthWidth", 3))
+                                celestial.getInt("EarthWidth").takeIf { it != 0 }
+                            } else {
+                                null
+                            },
                         ).also { require(it.epochTick <= result.clock) }
                 }
                 require(tag.contains("Objects", Tag.TAG_LIST.toInt()))

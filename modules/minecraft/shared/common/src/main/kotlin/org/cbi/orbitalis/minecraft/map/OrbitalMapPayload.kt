@@ -123,6 +123,7 @@ data class MapSnapshot(
                         buffer.writeDouble(profile.moonPhase)
                         buffer.writeBoolean(profile.earthSpinEpochTick != null)
                         profile.earthSpinEpochTick?.let(buffer::writeLong)
+                        buffer.writeVarInt(profile.selectedEarthWidth ?: 0)
                     }
                 }
 
@@ -168,6 +169,7 @@ data class MapSnapshot(
                                 buffer.readDouble(),
                                 preset,
                                 if (version >= 3 && buffer.readBoolean()) buffer.readLong() else null,
+                                if (version >= 3) buffer.readVarInt().takeIf { it != 0 } else null,
                             ).also { require(it.earthSpinEpochTick?.let { epoch -> epoch <= simulationTick } != false) }
                         } else {
                             null

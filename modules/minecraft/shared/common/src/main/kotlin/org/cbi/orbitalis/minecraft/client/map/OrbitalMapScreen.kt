@@ -84,7 +84,13 @@ class OrbitalMapScreen(
         val views: List<Pair<String, () -> Unit>> =
             listOf(
                 "earth" to { resetEarthView() },
-                "moon" to { frameBody(SolarSystemProfile.MOON, SolarSystemProfile.MOON_HALF_SIZE * 3.0) },
+                "moon" to
+                    {
+                        frameBody(
+                            SolarSystemProfile.MOON,
+                            (snapshot?.celestialProfile?.geometry?.moonHalfSize ?: SolarSystemProfile.MOON_HALF_SIZE) * 3.0,
+                        )
+                    },
                 "earth_moon" to { snapshot?.celestialProfile?.let { frameBody(SolarSystemProfile.EARTH, it.moonOrbitRadius * 1.3) } },
                 "system" to { snapshot?.celestialProfile?.let { frameBody(SolarSystemProfile.SUN, it.earthOrbitRadius * 1.15) } },
             )
@@ -350,7 +356,7 @@ class OrbitalMapScreen(
         clearCameraInput()
         bodyFocus = null
         camera.reset()
-        camera.frame(Vector3.ZERO, 8500.0, viewWidth, viewHeight)
+        camera.frame(Vector3.ZERO, (snapshot?.celestialProfile?.geometry?.earthHalfSize ?: 5000.0) * 1.7, viewWidth, viewHeight)
     }
 
     private fun frameBody(

@@ -91,6 +91,11 @@ class SurfaceAtlasService(
                     FlightAtmosphere.vacuum(
                         org.cbi.orbitalis.core.planet
                             .Vector3(player.x, player.y, player.z),
+                        org.cbi.orbitalis.core.planet.CelestialGeometry(
+                            org.cbi.orbitalis.minecraft.world.WorldSystemSettings
+                                .get(server)
+                                ?.earthWidth,
+                        ),
                     ) > 0f
             if (dimension != FlatPlanetSpace.SPACE && dimension != org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY && !approaching &&
                 !mapViewer(player)

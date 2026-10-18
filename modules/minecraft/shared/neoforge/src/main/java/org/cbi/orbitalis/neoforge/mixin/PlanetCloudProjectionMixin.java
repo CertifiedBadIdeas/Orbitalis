@@ -39,7 +39,7 @@ public abstract class PlanetCloudProjectionMixin {
         if (FlightSky.INSTANCE.weight(mc.level, camera) <= 0) return original;
         var p = camera.getPosition();
         var observer = FlightSpaceCoordinates.INSTANCE.globalPosition(mc.level, new Vector3(p.x, p.y, p.z));
-        double extent = new Vector3(SpaceScene.HALF_SIZE, 4096.0, SpaceScene.HALF_SIZE).length();
+        double extent = new Vector3(SpaceScene.INSTANCE.getHALF_SIZE(), 4096.0, SpaceScene.INSTANCE.getHALF_SIZE()).length();
         return (float) Math.max(original, (observer.length() + extent) * 2.0);
     }
 }

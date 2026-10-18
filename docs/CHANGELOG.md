@@ -26,6 +26,10 @@ limitations under the License.
 - Add a per-world Earth-size selection to the native world-creation More tab, with a 1000-block
   preview preset and a 10000-block default. Save creation intent in native world metadata and
   preserve legacy absence and unsupported records for the physical-system adapter.
+- Apply selected widths to actual Earth/Moon terrain, gravity, approach envelopes, LOD meshes,
+  navigation bounds and atlas sampling. New worlds use lunar width/gravity ratios 0.273/0.165;
+  old worlds retain their established dimensions and lunar gravity. Derive orbit radii from the
+  selected masses without changing the physical calendar. Preserve a 1500-metre entry floor.
 
 - Derive Earth/Moon orbit distances from unchanged mass parameters and physical periods: a 365.24-day
   year and 27.32-day lunar revolution, using 20-minute mean solar days. Define the corresponding
@@ -38,9 +42,16 @@ limitations under the License.
   Keep Voxy and WorldGenV2 separately installed, with optional client dependency declarations;
   the flight consumer no longer owns these compatibility hooks.
 
+- Add a physical sidereal axial spin to celestial surface frames, transport-aware Earth
+  forces and moving-body coast intersections. Version-three profiles persist and synchronize the spin
+  epoch while preserving version-one profiles and frozen lunar frames. Enable with unchanged orientation
+  when opening an older world; ordinary daylight, sleep and `/time set` retain vanilla behavior.
 - Replace distant rectangular-volume quadrature with an exact point-mass field of the same total
   mass. Blend scalar potentials conservatively at 8–12 maximum half-extents (40–60 km for Earth),
   including the blend gradient in acceleration; retain the analytic rectangular near field.
+- Use explicit inertial-root coordinates for transfer/preloading, live map objects and coast forecasts.
+  Freeze all new Earth and lunar transfers in version-seven receipts; preserve translation-only legacy Earth recovery.
+  Transform terrain gravity, atmosphere, planet relief/clouds and observer axes through the surface frame.
 
 - Interpolate the moving Moon, lunar camera frame and map focus between client ticks to prevent
   visible 20 Hz stepping during approach. Raise lunar entry/exit clearance to 1500/1800 metres,

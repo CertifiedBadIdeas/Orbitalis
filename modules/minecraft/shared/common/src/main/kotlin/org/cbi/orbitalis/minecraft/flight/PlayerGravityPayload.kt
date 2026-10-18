@@ -62,6 +62,7 @@ data class PlayerGravityPayload(
                         buffer.writeDouble(it.moonPhase)
                         buffer.writeBoolean(it.earthSpinEpochTick != null)
                         it.earthSpinEpochTick?.let(buffer::writeLong)
+                        buffer.writeVarInt(it.selectedEarthWidth ?: 0)
                     }
                 }
 
@@ -82,6 +83,7 @@ data class PlayerGravityPayload(
                                 buffer.readDouble(),
                                 preset,
                                 if (version >= 3 && buffer.readBoolean()) buffer.readLong() else null,
+                                if (version >= 3) buffer.readVarInt().takeIf { it != 0 } else null,
                             )
                         } else {
                             null

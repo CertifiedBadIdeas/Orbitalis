@@ -86,7 +86,7 @@ class SurfaceAtlasBackfill(
         var examined = 0
         while (remaining.hasNext() && pending.size < 8 && examined++ < 256) {
             val pos = remaining.next()
-            if (!data.atlas.contains(pos.x, pos.z)) {
+            if (FlatOverworld.footprint(level).intersectsChunk(pos.x, pos.z) && !data.atlas.contains(pos.x, pos.z)) {
                 pending[pos] =
                     CompletableFuture.supplyAsync({ SavedSurfaceReader.read(directory, pos) }, workers)
             }

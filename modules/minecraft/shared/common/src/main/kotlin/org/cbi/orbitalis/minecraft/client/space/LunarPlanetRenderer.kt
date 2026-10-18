@@ -33,6 +33,7 @@ import java.util.concurrent.CompletableFuture
 /** Bounded background sector preparation and GPU uploads, shared by space and the orbital map. */
 object LunarPlanetRenderer {
     private var seed: Long? = null
+    private var halfSize = Double.NaN
     private var generation = 0L
     private var body: VertexBuffer? = null
     private val meshes = linkedMapOf<SurfacePlanetMesh.Sector, VertexBuffer>()
@@ -55,10 +56,14 @@ object LunarPlanetRenderer {
         retryAfter = 0L
     }
 
-    private fun update(terrainSeed: Long) {
-        if (seed != terrainSeed) {
+    private fun update(
+        terrainSeed: Long,
+        selectedHalf: Double,
+    ) {
+        if (seed != terrainSeed || halfSize != selectedHalf) {
             clear()
             seed = terrainSeed
+            halfSize = selectedHalf
         }
         if (body == null) {
             body = upload(prepare(LunarPlanetMesh.underside(), 0L, generation))
@@ -95,7 +100,7 @@ object LunarPlanetRenderer {
             val current = generation
             pending[sector] =
                 CompletableFuture.supplyAsync(
-                    { prepare(LunarPlanetMesh.faces(terrainSeed, sector), 0L, current) },
+                    { prepare(LunarPlanetMesh.faces(terrainSeed, sector, selectedHalf), 0L, current) },
                     Util.backgroundExecutor(),
                 )
         }
@@ -111,7 +116,7 @@ object LunarPlanetRenderer {
         scale: Double,
         seconds: Double = 0.0,
     ) {
-        update(terrainSeed)
+        update(terrainSeed, profile.geometry.moonHalfSize)
         val frame = profile.lunarSurfaceFrame(tick, seconds)
         val r = frame.orientation
         val rotation =

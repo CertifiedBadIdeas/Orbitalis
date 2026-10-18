@@ -97,6 +97,7 @@ data class ShipTransferRecord(
                     CompoundTag().also { frame ->
                         frame.putInt("version", SolarSystemProfile.VERSION)
                         frame.putInt("preset", sample.frames.profile.preset.version)
+                        frame.putInt("earth_width", sample.frames.profile.selectedEarthWidth ?: 0)
                         frame.putLong("tick", sample.frames.tick)
                         frame.putLong("epoch", sample.frames.profile.epochTick)
                         frame.putDouble("gravity", sample.frames.profile.surfaceGravity)
@@ -205,6 +206,12 @@ data class ShipTransferRecord(
                                 SolarSystemProfile.Preset.fromVersion(frame.getInt("version"))
                             },
                             spinEpoch,
+                            if (frame.getInt("version") >= 3) {
+                                require(frame.contains("earth_width", 3))
+                                frame.getInt("earth_width").takeIf { it != 0 }
+                            } else {
+                                null
+                            },
                         )
                     require(tick >= profile.epochTick)
                     CelestialFlight(SurfaceFlightFrames(profile, tick))

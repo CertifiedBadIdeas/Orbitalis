@@ -23,19 +23,36 @@ import org.cbi.orbitalis.core.planet.SurfaceAtlas
 
 /** Deterministic 16m sectors use the shared slab mesh with lunar geology and no atmosphere. */
 object LunarPlanetMesh {
-    private val half = LunarSurface.HALF_SIZE.toDouble()
-    private val low = Math.floorDiv(-LunarSurface.HALF_SIZE, 16)
-    private val high = Math.floorDiv(LunarSurface.HALF_SIZE - 1, 16)
+    val half: Double get() =
+        org.cbi.orbitalis.minecraft.flight.CelestialFlight.clientProfileSnapshot
+            ?.geometry
+            ?.moonHalfSize
+            ?: LunarSurface.HALF_SIZE.toDouble()
+    private val low get() = kotlin.math.floor(-half / 16.0).toInt()
+    private val high get() = kotlin.math.floor((half - 1.0) / 16.0).toInt()
     private val strata = listOf(0x55565a, 0x747579, 0x85868a, 0x96979b)
-    val sectors =
-        (Math.floorDiv(low, 32)..Math.floorDiv(high, 32)).flatMap { x ->
-            (Math.floorDiv(low, 32)..Math.floorDiv(high, 32)).map { z -> SurfacePlanetMesh.Sector(x, z) }
+    private var sectorHalf = Double.NaN
+    private var sectorList = emptyList<SurfacePlanetMesh.Sector>()
+    val sectors: List<SurfacePlanetMesh.Sector> get() =
+        synchronized(this) {
+            if (sectorHalf != half) {
+                sectorHalf = half
+                sectorList =
+                    (Math.floorDiv(low, 32)..Math.floorDiv(high, 32)).flatMap { x ->
+                        (Math.floorDiv(low, 32)..Math.floorDiv(high, 32)).map { z -> SurfacePlanetMesh.Sector(x, z) }
+                    }
+            }
+            sectorList
         }
 
     /** Keep the coarse slab out of ground-level sky while retaining it above, beside and below native chunks. */
     fun visibleFromSurface(position: org.cbi.orbitalis.core.planet.Vector3): Boolean =
-        org.cbi.orbitalis.core.planet.PlanetFlightEnvelope.moon
-            .distance(position) >= 32.0
+        (
+            org.cbi.orbitalis.minecraft.flight.CelestialFlight.clientProfileSnapshot
+                ?.geometry
+                ?.moonEnvelope
+                ?: org.cbi.orbitalis.core.planet.PlanetFlightEnvelope.moon
+        ).distance(position) >= 32.0
 
     fun coarse(sector: SurfacePlanetMesh.Sector): Sequence<SpaceScene.Face> =
         SurfacePlanetMesh.coarse(sector, half, LunarSurface.SEA_LEVEL.toDouble(), 0x969698, strata)
@@ -43,14 +60,18 @@ object LunarPlanetMesh {
     fun faces(
         seed: Long,
         sector: SurfacePlanetMesh.Sector,
+        halfSize: Double = half,
     ): Sequence<SpaceScene.Face> {
-        val terrain = LunarSurface(seed)
+        val half = halfSize
+        val low = kotlin.math.floor(-half / 16.0).toInt()
+        val high = kotlin.math.floor((half - 1.0) / 16.0).toInt()
+        val terrain = LunarSurface(seed, half)
         val atlas = SurfaceAtlas()
         // One-cell halo seals height discontinuities across separately prepared sectors.
         for (x in maxOf(low, sector.x * 32 - 1)..minOf(high, (sector.x + 1) * 32)) {
             for (z in maxOf(low, sector.z * 32 - 1)..minOf(high, (sector.z + 1) * 32)) {
-                val px = (x * 16 + 8).coerceIn(-LunarSurface.HALF_SIZE, LunarSurface.HALF_SIZE - 1)
-                val pz = (z * 16 + 8).coerceIn(-LunarSurface.HALF_SIZE, LunarSurface.HALF_SIZE - 1)
+                val px = (x * 16 + 8).coerceIn(kotlin.math.ceil(-half).toInt(), kotlin.math.ceil(half).toInt() - 1)
+                val pz = (z * 16 + 8).coerceIn(kotlin.math.ceil(-half).toInt(), kotlin.math.ceil(half).toInt() - 1)
                 val height = checkNotNull(terrain.height(px, pz))
                 val gray = (150 + (height - 64) / 4).coerceIn(125, 165)
                 atlas.put(SurfaceAtlas.Sample(x, z, height + 1, (gray shl 16) or (gray shl 8) or (gray + 2)))

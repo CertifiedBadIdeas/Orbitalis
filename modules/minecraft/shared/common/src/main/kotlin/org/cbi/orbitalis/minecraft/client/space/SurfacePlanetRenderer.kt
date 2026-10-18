@@ -45,6 +45,7 @@ object SurfacePlanetRenderer {
     private var generation = 0L
     private var retryAfter = 0L
     private var nextSector = 0
+    private var geometryHalfSize = Double.NaN
 
     private fun discard() {
         generation++
@@ -82,6 +83,13 @@ object SurfacePlanetRenderer {
     }
 
     private fun updateMesh() {
+        if (geometryHalfSize != SpaceScene.HALF_SIZE) {
+            discard()
+            PlanetCloudRenderer.clear()
+            PlanetLimbRenderer.clear()
+            geometryHalfSize = SpaceScene.HALF_SIZE
+            nextSector = 0
+        }
         if (body == null) {
             body = upload(prepare(SpaceScene.body.asSequence().filter { it.normal.y <= 0.0 }, 0L, generation))
             // A few coarse quads per sector cover unknown data immediately; no whole fine-mesh build on the render thread.
@@ -118,11 +126,12 @@ object SurfacePlanetRenderer {
             if (sector in pending || uploaded[sector] == revision) return@repeat
             val samples = sectors.snapshot(sector)
             val currentGeneration = generation
+            val halfSize = geometryHalfSize
             pending[sector] =
                 CompletableFuture.supplyAsync({
                     val snapshot = SurfaceAtlas()
                     samples.forEach(snapshot::put)
-                    prepare(SurfacePlanetMesh.faces(snapshot, sector), revision, currentGeneration)
+                    prepare(SurfacePlanetMesh.faces(snapshot, sector, halfSize), revision, currentGeneration)
                 }, Util.backgroundExecutor())
         }
     }

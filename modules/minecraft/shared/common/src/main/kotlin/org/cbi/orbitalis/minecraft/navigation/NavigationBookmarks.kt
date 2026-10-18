@@ -37,8 +37,9 @@ class NavigationBookmarks : SavedData() {
     fun put(
         player: UUID,
         position: Vector3,
+        halfSize: Double = FlatPlanetSpace.HALF_SIZE,
     ) {
-        validate(position)
+        validate(position, halfSize)
         require(player in markers || markers.size < 1024) { "Navigation bookmark limit reached" }
         markers[player] = position
         setDirty()
@@ -75,11 +76,13 @@ class NavigationBookmarks : SavedData() {
                 KEY,
             )
 
-        fun validate(position: Vector3) {
-            require(
-                abs(position.x) < FlatPlanetSpace.HALF_SIZE && abs(position.z) < FlatPlanetSpace.HALF_SIZE &&
-                    position.y in -64.0..320.0,
-            ) { "Mark a surface location inside the initial Overworld footprint and build height" }
+        fun validate(
+            position: Vector3,
+            halfSize: Double = FlatPlanetSpace.HALF_SIZE,
+        ) {
+            require(abs(position.x) < halfSize && abs(position.z) < halfSize && position.y in -64.0..320.0) {
+                "Mark a surface location inside the finite Overworld footprint and build height"
+            }
         }
 
         fun load(
@@ -94,7 +97,7 @@ class NavigationBookmarks : SavedData() {
                 val entry = raw as CompoundTag
                 require(entry.hasUUID("player") && listOf("x", "y", "z").all { entry.contains(it, 99) }) { "Invalid navigation marker" }
                 val position = Vector3(entry.getDouble("x"), entry.getDouble("y"), entry.getDouble("z"))
-                validate(position)
+                validate(position, 10000.0)
                 require(result.markers.put(entry.getUUID("player"), position) == null) { "Duplicate navigation marker" }
             }
             return result

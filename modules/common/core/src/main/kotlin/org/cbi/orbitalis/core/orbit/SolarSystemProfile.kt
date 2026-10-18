@@ -32,6 +32,7 @@ data class SolarSystemProfile(
     val moonPhase: Double = PI / 2.0,
     val preset: Preset = Preset.CALENDAR,
     val earthSpinEpochTick: Long? = null,
+    val selectedEarthWidth: Int? = null,
 ) {
     init {
         require(earthSpinEpochTick == null || earthSpinEpochTick >= 0)
@@ -40,10 +41,19 @@ data class SolarSystemProfile(
         require(earthPhase in -PI..PI && moonPhase in -PI..PI)
     }
 
-    val version get() = if (earthSpinEpochTick == null) preset.version else VERSION
+    val version get() = if (earthSpinEpochTick == null && selectedEarthWidth == null) preset.version else VERSION
 
-    val earthGravity = FlatPlanetDefinition.gravity(surfaceGravity)
-    val moonGravity = RectangularGravity(MOON_HALF_SIZE, FlatPlanetDefinition.SEA_LEVEL, MOON_HALF_SIZE, surfaceGravity / 6.0)
+    val geometry =
+        org.cbi.orbitalis.core.planet
+            .CelestialGeometry(selectedEarthWidth)
+    val earthGravity = FlatPlanetDefinition.gravity(surfaceGravity, geometry.earthWidth)
+    val moonGravity =
+        RectangularGravity(
+            geometry.moonHalfSize,
+            FlatPlanetDefinition.SEA_LEVEL,
+            geometry.moonHalfSize,
+            surfaceGravity * geometry.moonGravityRatio,
+        )
     val sunMu = earthGravity.body.mu * 10000.0
     val earthOrbitRadius = if (preset == Preset.COMPACT) LEGACY_EARTH_ORBIT_RADIUS else radiusForPeriod(sunMu, YEAR_SECONDS)
     val moonOrbitRadius =
@@ -121,9 +131,18 @@ data class SolarSystemProfile(
         gravity: Double,
         tick: Long,
         preset: Preset = this.preset,
+        selectedEarthWidth: Int? = this.selectedEarthWidth,
     ): SolarSystemProfile {
         require(tick >= epochTick)
-        return SolarSystemProfile(gravity, tick, earthOrbit.meanAnomaly(tick), moonOrbit.meanAnomaly(tick), preset, earthSpinEpochTick)
+        return SolarSystemProfile(
+            gravity,
+            tick,
+            earthOrbit.meanAnomaly(tick),
+            moonOrbit.meanAnomaly(tick),
+            preset,
+            earthSpinEpochTick,
+            selectedEarthWidth,
+        )
     }
 
     enum class Preset(

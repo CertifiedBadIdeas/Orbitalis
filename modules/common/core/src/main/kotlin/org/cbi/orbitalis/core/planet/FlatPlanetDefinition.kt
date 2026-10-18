@@ -28,10 +28,13 @@ object FlatPlanetDefinition {
     const val DESCENT_HEIGHT = 400.0 * SCALE
     const val ORBIT_HEIGHT = 1000.0 * SCALE
 
-    fun gravity(surfaceAcceleration: Double): SurfaceGravityLayer =
+    fun gravity(
+        surfaceAcceleration: Double,
+        width: Double = SIZE,
+    ): SurfaceGravityLayer =
         SurfaceGravityLayer(
-            RectangularGravity(HALF_SIZE, SEA_LEVEL, HALF_SIZE, surfaceAcceleration),
+            RectangularGravity(width / 2.0, SEA_LEVEL, width / 2.0, surfaceAcceleration),
             surfaceAcceleration,
-            fullHeight = ASCENT_HEIGHT,
+            fullHeight = maxOf(1800.0, width * 0.3),
         )
 }

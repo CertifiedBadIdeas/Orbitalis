@@ -74,7 +74,9 @@ No position projection, energy rescaling, artificial orbital speed or synthetic 
 ## Trajectories and guidance
 
 Near-field trajectories are not Kepler ellipses. Angular momentum need not be conserved because the
-field is not central; energy is `v^2/2 + Phi`. Negative energy alone does not establish a safe orbit:
+field is not central; energy is `v^2/2 + Phi`. This is conserved only for a static potential.
+Earth spin makes the root potential time dependent, so native moving-field tests compare against
+numerical motion/gravitational work instead. Negative energy alone does not establish a safe orbit:
 a bound trajectory can intersect the body or its intended clearance envelope.
 
 `BallisticOrbit` numerically shoots a periodic meridian from a point 5000 m above sea level,
@@ -82,6 +84,11 @@ using velocity Verlet in the predictor. It rejects collisions, insufficient clea
 close and excessive prediction energy error. Axial and square-diagonal meridians are covered;
 this is not a general arbitrary-inclination orbit planner or a guarantee of long-term stability.
 The configured hull bounding radius plus a margin determines required clearance.
+`BallisticOrbit.firstRevolution` instead searches inertial insertion speeds against the evolving
+celestial model. It rejects collisions, insufficient clearance and escape/range before one full
+free turn. The resulting first-revolution reference is clamped at its terminal sample, never
+wrapped into an artificial periodic jump. Consumer rocket ascent uses this reference in frozen
+launch axes; the remembered landing pad stays in the rotating Earth chart.
 The predictor runs off the game thread with an immutable field. Its output never integrates a live ship.
 The finite-body consumer mission ramps the reference trajectory's time parameter to capture it with
 real Propulsion engines. It then releases engine ownership and coasts with engines fully faded.
@@ -90,8 +97,11 @@ and descends. The final metre is an engines-off settling phase; native terrain m
 
 ## Surface and space route
 
-Ordinary Overworld uses a separate `orbitalis:space` frame. `FlatPlanetFrame` adds 4096 to represented
-Y; axes and velocity are unchanged. The smaller offset preserves more native float precision for
+Ordinary Overworld uses a separate `orbitalis:space` frame. Its inertial root adds 4096 to represented
+Y, while the Overworld terrain chart rotates once every 20 minutes. Use `CelestialFlight` for
+surface/root positions, derivatives and attitudes; `FlatPlanetFrame` only bridges Space and root
+or decodes translation-only legacy receipts. See [axial rotation](earth-rotation.md).
+The smaller Space offset preserves more native float precision for
 low orbits. It is a bounded first-body frame, not a floating origin: space has no native terrain void floor, so below-body orbital arcs may have negative represented Y.
 Below-world removal is suppressed in both managed frames for underside/exterior flight; other
 damage and other dimensions retain native rules. The former diagnostic frames are removed; old journals are never reinterpreted.

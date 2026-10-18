@@ -69,18 +69,24 @@ class SurfaceFlightFrames(
         from: World,
     ): World? {
         if (from == World.MOON) {
-            val envelope = PlanetFlightEnvelope.moon
+            val envelope = profile.geometry.moonEnvelope
             return if (envelope.distance(value.position) >= envelope.ascentDistance) World.SPACE else null
         }
         if (from == World.EARTH) {
-            return if (PlanetFlightEnvelope.distance(value.position) >= FlatPlanetDefinition.ASCENT_HEIGHT) World.SPACE else null
+            return if (profile.geometry.earthEnvelope.distance(value.position) >=
+                profile.geometry.earthEnvelope.ascentDistance
+            ) {
+                World.SPACE
+            } else {
+                null
+            }
         }
         val lunar = state(value, World.SPACE, World.MOON)
-        if (PlanetFlightEnvelope.moon.distance(lunar.position) <= PlanetFlightEnvelope.moon.descentDistance) {
+        if (profile.geometry.moonEnvelope.distance(lunar.position) <= profile.geometry.moonEnvelope.descentDistance) {
             return World.MOON
         }
         val terrestrial = state(value, World.SPACE, World.EARTH)
-        if (PlanetFlightEnvelope.distance(terrestrial.position) <= FlatPlanetDefinition.DESCENT_HEIGHT) {
+        if (profile.geometry.earthEnvelope.distance(terrestrial.position) <= profile.geometry.earthEnvelope.descentDistance) {
             return World.EARTH
         }
         return null

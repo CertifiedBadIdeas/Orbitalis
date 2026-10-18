@@ -59,12 +59,12 @@ Optional WorldGenV2 search and cancellation adapters belong to shared/common and
 the independently installed client stack is still composed by the flight consumer. No third-party
 Voxy or WorldGen implementation is bundled or required by the production mod.
 
-The current surface/orbital pair is ordinary Overworld and `orbitalis:space`. Core `InertialFrames`
-provides hierarchical position/velocity transforms; `FlatPlanetFrame` represents the current two
-frames through that graph and adds
-4096 to physical Y, preserving axes and inertial velocity. Independent core `Rotation3`/`FrameKinematics` now provide
-[tested rotating-frame transforms](rotating-frames.md) for subsequent Earth–Moon integration; the
-Earth route retains the established fixed frame; the Moon route uses the sampled rotating frame. Core also provides
+Earth and Moon each have a native surface chart and share `orbitalis:space`. The space chart
+adds 4096 to root Y; Earth's terrain chart rotates about its in-plane +Z axis, while the lunar
+chart follows the Moon's orbit and synchronous spin. Shared `FrameKinematics` provides
+[tested rotating-frame transforms](rotating-frames.md), including position, velocity, acceleration
+and angular transport. `CelestialFlight` requires explicit root/native conversions rather than
+using a Minecraft dimension as an inertial-root alias. Core also provides
 [prescribed celestial ephemerides](celestial-orbits.md) and sampled body hierarchies. Common lifecycle
 advances the existing persisted orbital clock and stores a versioned compact catalogue with that
 index; the orbital map displays its synchronized bodies and orbit curves. The [lunar surface](lunar-surface.md) adds a tidally locked native Moon dimension and shared moving
@@ -100,10 +100,10 @@ worker, narrow loader hooks connect native holding-map persistence, and core own
 The same persisted index/clock now supports the moving lunar force source; saved station coordinates remain Earth-relative.
 
 The `SableShipTransfer` coordinator reconstructs one independent ship and an optional pilot on the explicit
-Overworld/`orbitalis:space` and Moon/`orbitalis:space` routes. Lunar journal version 6 stores a frozen
-rotating frame; Earth journal version 5 names both dimensions, an optional pilot and bounded entity/mount manifests;
-active version-3 records remain readable. `FlatPlanetFrame` owns
-the fixed translation. Common owns native snapshots, exact-motion restoration and the versioned asynchronous
+Overworld/`orbitalis:space` and Moon/`orbitalis:space` routes. Version-seven receipts freeze
+the full sampled frame for either body. Legacy lunar version-six and translation-only Earth
+version-three through five receipts retain their original recovery semantics. Both dimensions,
+an optional pilot and bounded entity/mount manifests are explicit. Common owns native snapshots, exact-motion restoration and the versioned asynchronous
 journal and plot-chunk block-entity tick leases; NeoForge owns startup/tick/interaction wiring and
 a narrow Minecraft ticker hook that honors those leases without loading optional Sable classes.
 A second loader hook exposes vanilla's pending teleport acknowledgment without replacing its
@@ -185,3 +185,10 @@ inspects the resulting archive, including Java bytecode ceilings and legal notic
 This scaffold reduces ownership and build migration work; it does not establish source/API compatibility
 with 26.1. Client-only classes must not load on dedicated servers. World authority belongs to the logical
 server; validate packet bounds and identifiers at receipt and keep blocking work off the tick thread.
+
+Earth's native terrain is a rotating leaf chart, with a saved spin epoch about +Z and a 1,196.723460-second sidereal period.
+The geocentric physical root stays nonrotating; Space retains its fixed vertical offset. Never
+use `Level.OVERWORLD` as a synonym for the inertial root: use the explicit root conversions in
+`CelestialFlight`. Moon's separate synchronous leaf keeps its top facing Earth's centre.
+See [axial rotation](earth-rotation.md) for velocity/force transport, migration and presentation.
+Native daylight, sleep and time commands are not coupled to either physical spin.

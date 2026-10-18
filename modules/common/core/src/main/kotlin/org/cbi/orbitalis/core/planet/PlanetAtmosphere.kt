@@ -22,16 +22,19 @@ import kotlin.math.abs
 
 /** Compact atmosphere over the playable top; its drag reaches zero at the ascent boundary. */
 object PlanetAtmosphere {
-    fun vacuum(position: Vector3): Double {
+    fun vacuum(
+        position: Vector3,
+        geometry: CelestialGeometry = CelestialGeometry(),
+    ): Double {
         fun fade(t: Double): Double {
             val s = t.coerceIn(0.0, 1.0)
             return 1.0 - s * s * s * (10.0 + s * (-15.0 + 6.0 * s))
         }
-        val upper = fade((position.y - FlatPlanetDefinition.SEA_LEVEL - 256.0) / (FlatPlanetDefinition.ASCENT_HEIGHT - 256.0))
+        val upper = fade((position.y - FlatPlanetDefinition.SEA_LEVEL - 256.0) / (geometry.earthEnvelope.ascentDistance - 256.0))
         val lower = fade((-position.y - FlatPlanetDefinition.SEA_LEVEL) / 256.0)
         val sides =
-            fade((abs(position.x) - FlatPlanetDefinition.HALF_SIZE) / 256.0) *
-                fade((abs(position.z) - FlatPlanetDefinition.HALF_SIZE) / 256.0)
+            fade((abs(position.x) - geometry.earthHalfSize) / 256.0) *
+                fade((abs(position.z) - geometry.earthHalfSize) / 256.0)
         return 1.0 - upper * lower * sides
     }
 }

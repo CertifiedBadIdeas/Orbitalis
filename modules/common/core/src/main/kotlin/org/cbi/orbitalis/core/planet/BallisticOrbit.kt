@@ -76,8 +76,7 @@ class BallisticOrbit private constructor(
                         initial,
                         CoastPrediction.Limits(
                             detectEntry = false,
-                            range =
-                                field.body.halfWidth * 4.0,
+                            range = maxOf(field.body.halfWidth * 4.0, altitude * 4.0),
                             hullRadius = clearance,
                         ),
                         sources,

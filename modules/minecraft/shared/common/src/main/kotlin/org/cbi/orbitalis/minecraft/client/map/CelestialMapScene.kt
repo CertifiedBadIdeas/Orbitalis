@@ -52,13 +52,13 @@ object CelestialMapScene {
             Body(
                 SolarSystemProfile.EARTH,
                 Vector3.ZERO,
-                FlatPlanetDefinition.HALF_SIZE,
+                profile.geometry.earthHalfSize,
                 profile.earthOrbit.curve(tick = tick).map {
                     it +
                         sun
                 },
             ),
-            Body(SolarSystemProfile.MOON, moon, SolarSystemProfile.MOON_HALF_SIZE, profile.moonOrbit.curve(tick = tick)),
+            Body(SolarSystemProfile.MOON, moon, profile.geometry.moonHalfSize, profile.moonOrbit.curve(tick = tick)),
         )
     }
 }

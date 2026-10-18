@@ -36,12 +36,22 @@ object OrbitalSimulation {
     fun profile(server: MinecraftServer): SolarSystemProfile? =
         data(server)
             ?.takeIf { it.readable }
-            ?.configureCelestials(surfaceGravity(server))
+            ?.configureCelestials(
+                surfaceGravity(server),
+                org.cbi.orbitalis.minecraft.world.WorldSystemSettings
+                    .get(server)
+                    ?.earthWidth,
+            )
 
     fun tick(server: MinecraftServer) {
         val data = data(server) ?: return
         if (!data.readable || !mayAdvance(server)) return
-        data.configureCelestials(surfaceGravity(server))
+        data.configureCelestials(
+            surfaceGravity(server),
+            org.cbi.orbitalis.minecraft.world.WorldSystemSettings
+                .get(server)
+                ?.earthWidth,
+        )
         data.advanceClock()
     }
 }

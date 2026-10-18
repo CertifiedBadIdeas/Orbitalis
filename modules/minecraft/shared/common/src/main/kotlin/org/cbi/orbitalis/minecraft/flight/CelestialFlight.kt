@@ -114,6 +114,7 @@ class CelestialFlight(
 
     companion object {
         private var clientProfile: SolarSystemProfile? = null
+        val clientProfileSnapshot get() = clientProfile
         var lunarSeed = 0L
             private set
         private val clientClock = ClientEphemerisClock()

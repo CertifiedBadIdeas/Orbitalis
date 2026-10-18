@@ -60,12 +60,12 @@ class SurfaceAtlasTest {
     }
 
     @Test fun boundsIncludePartialEdgeChunksAndRejectBadRecords() {
-        val low = SurfaceAtlas.Sample(-313, -313, -64, 0)
-        val high = SurfaceAtlas.Sample(312, 312, 320, 0xffffff)
+        val low = SurfaceAtlas.Sample(SurfaceAtlas.MIN_CHUNK, SurfaceAtlas.MIN_CHUNK, -64, 0)
+        val high = SurfaceAtlas.Sample(SurfaceAtlas.MAX_CHUNK, SurfaceAtlas.MAX_CHUNK, 320, 0xffffff)
         assertEquals(0, low.key)
         assertEquals(SurfaceAtlas.MAX_SAMPLES - 1, high.key)
-        assertThrows(IllegalArgumentException::class.java) { low.copy(x = -314) }
-        assertThrows(IllegalArgumentException::class.java) { high.copy(z = 313) }
+        assertThrows(IllegalArgumentException::class.java) { low.copy(x = SurfaceAtlas.MIN_CHUNK - 1) }
+        assertThrows(IllegalArgumentException::class.java) { high.copy(z = SurfaceAtlas.MAX_CHUNK + 1) }
         assertThrows(IllegalArgumentException::class.java) { low.copy(height = 4097) }
         assertThrows(IllegalArgumentException::class.java) { low.copy(color = -1) }
         assertThrows(IllegalArgumentException::class.java) { SurfaceAtlas().after(0, 257) }

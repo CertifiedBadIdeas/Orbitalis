@@ -22,29 +22,30 @@ The accepted first solar-system model uses prescribed trajectories for massive b
 motion for vessels. The intended hierarchy is Sun → Earth → Moon. Daylight remains ordinary
 Minecraft behavior: `/time set`, sleep and local sky presentation do not advance orbital simulation.
 Physical sunlight and sleep-driven system acceleration remain deferred. Twenty-minute
-[axial rotation](earth-rotation.md) is being integrated independently of native daylight.
+[axial rotation](earth-rotation.md) uses a separate saved 20-minute clock, independently of native daylight.
 
 ## Current scope
 
 Core provides `KeplerOrbit`, `CelestialBody`, `CelestialSystem` and `CelestialSnapshot`, backed by
 the persisted native clock/catalogue. Loaded and unloaded flight, coast/maneuver forecasts and
 [lunar surface travel](lunar-surface.md) now sample this model. The map displays synchronized bodies,
-closed parent-relative celestial curves and seeded lunar relief. Earth coordinates and old saved
-orbital-frame identifiers retain their established meanings.
+closed parent-relative celestial curves and seeded lunar relief. The native Earth chart rotates relative to the geocentric root; saved inertial orbital-frame
+identifiers retain their established meanings.
 
 The accepted physical calendar uses 1,200 simulation seconds per **mean solar day**, 365.24 solar
 days per Earth year and 27.32 solar days per sidereal lunar revolution. At 20 TPS these are
 24,000, 8,765,760 and 655,680 ticks respectively. Server downtime pauses the system; daylight
 commands, ordinary sleep and the native sky remain independent. Prograde Earth spin must use
 `1 / (1/1200 + 1/year)` = 1,196.723460026 seconds per sidereal turn so that the Sun returns after
-exactly 1,200 seconds. This period is defined in core; physical Earth spin activation remains work
-in progress on the separate axial-rotation branch, and is not enabled by this calendar change.
+exactly 1,200 seconds. Physical Earth spin uses this sidereal period, independently of native daylight.
 The sidereal/solar distinction is described by [NASA](https://science.nasa.gov/learn/basics-of-space-flight/chapter2-1/).
 
-Sizes and gravitational parameters are preserved: Earth is 10 by 10 km, Moon is 2.8 by 2.8 km,
-Moon top-centre gravity is one sixth of Earth's and `sunMu = 10000 * earthMu`. For each prescribed
+Legacy saves retain Earth at 10 by 10 km, Moon at 2.8 by 2.8 km and lunar top-centre
+gravity at one sixth of Earth's. New worlds select an immutable Earth width of 1–20 km
+(default 10 km); Moon width is 0.273 times Earth width, lunar gravity is 0.165 times Earth
+gravity, and Earth top-centre gravity is 11 m/s². Both use `sunMu = 10000 * earthMu`. For each prescribed
 parent focus, derive `a = cbrt(mu * (T / (2*pi))^2)` rather than selecting an arbitrary distance or
-forcing a non-Keplerian speed. At native gravity 11 m/s² this gives Earth–Moon 168,941.646 m and
+forcing a non-Keplerian speed. For legacy dimensions at native gravity 11 m/s² this gives Earth–Moon 168,941.646 m and
 Earth–Sun 20,502,263.641 m, measured centre to centre. Other gravity settings change these derived
 distances while retaining the periods. The hierarchy still neglects parent recoil; no two-body
 mass sum or barycentric dynamics is silently introduced.

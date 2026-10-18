@@ -25,11 +25,16 @@ import kotlin.math.roundToInt
 /** Version-one finite lunar geology. Integer world columns are sampled independently of chunk order. */
 class LunarSurface(
     val seed: Long,
+    val halfSize: Double = HALF_SIZE.toDouble(),
 ) {
+    init {
+        require(halfSize.isFinite() && halfSize > 0.0)
+    }
+
     fun contains(
         x: Int,
         z: Int,
-    ): Boolean = x >= -HALF_SIZE && x < HALF_SIZE && z >= -HALF_SIZE && z < HALF_SIZE
+    ): Boolean = x >= -halfSize && x < halfSize && z >= -halfSize && z < halfSize
 
     /** Top solid block; null denotes genuine exterior vacuum rather than an invisible floor. */
     fun height(

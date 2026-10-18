@@ -377,15 +377,15 @@ object SableOrbitalObjects {
                     }
                 val p = sample.nativePoint(record.state.position, net.minecraft.world.level.Level.OVERWORLD)
                 val approachingSurface =
-                    org.cbi.orbitalis.core.planet.PlanetFlightEnvelope
+                    sample.frames.profile.geometry.earthEnvelope
                         .distance(p) <
-                        FlatPlanetSpace.ASCENT_HEIGHT + record.radius + 256
+                        sample.frames.profile.geometry.earthEnvelope.ascentDistance + record.radius + 256
                 val moonLocal =
                     sample.frames.profile
                         .lunarSurfaceFrame(data.clock)
                         .fromParent(record.state)
                 val approachingMoon =
-                    org.cbi.orbitalis.core.planet.PlanetFlightEnvelope.moon.let { envelope ->
+                    sample.frames.profile.geometry.moonEnvelope.let { envelope ->
                         envelope.distance(moonLocal.position) < envelope.ascentDistance + record.radius + 256.0
                     }
                 if (!nearbyPlayer && !nearbyShip && !approachingSurface && !approachingMoon) continue

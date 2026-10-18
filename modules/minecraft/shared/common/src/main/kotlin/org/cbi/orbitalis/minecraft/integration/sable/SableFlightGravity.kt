@@ -36,15 +36,19 @@ import org.joml.Vector3d
 object SableFlightGravity {
     fun isManaged(level: Level): Boolean = FlatPlanetSpace.contains(level)
 
-    private val flatFields = mutableMapOf<Double, SurfaceGravityLayer>()
+    private val flatFields = mutableMapOf<Pair<Double, Double>, SurfaceGravityLayer>()
 
     /** Native configuration is the surface authority; changing it intentionally changes the mass model. */
     fun flatField(level: ServerLevel): SurfaceGravityLayer {
         val native = DimensionPhysicsData.getGravity(level.server.overworld())
         require(native.x() == 0.0 && native.z() == 0.0 && native.y() < 0.0) { "Flat planet requires vertical downward native gravity" }
-        val g = -native.y()
-        return flatFields.getOrPut(g) {
-            FlatPlanetSpace.gravityField(g)
+        val selected =
+            org.cbi.orbitalis.minecraft.world.WorldSystemSettings
+                .get(level.server)
+        val g = if (selected == null) -native.y() else 11.0
+        val width = selected?.earthWidth?.toDouble() ?: org.cbi.orbitalis.core.planet.FlatPlanetDefinition.SIZE
+        return flatFields.getOrPut(g to width) {
+            FlatPlanetSpace.gravityField(g, width)
         }
     }
 

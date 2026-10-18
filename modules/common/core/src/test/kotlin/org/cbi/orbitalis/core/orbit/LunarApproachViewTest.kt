@@ -82,6 +82,24 @@ class LunarApproachViewTest {
         assertTrue(profile.earthHillRadius > profile.moonOrbitRadius + profile.moonHillRadius)
     }
 
+    @Test fun `Earth spin captures the horizon only inside its Hill sphere and matches native transfers`() {
+        val profile = SolarSystemProfile(11.0, earthSpinEpochTick = 0L)
+        for (tick in listOf(1000L, 7000L, 19000L, 24000L)) {
+            val frames = SurfaceFlightFrames(profile, tick)
+            val view = LunarApproachView()
+            val outsideRoot = Vector3(0.0, 0.0, profile.earthHillRadius + 1.0)
+            val outside = frames.frame(SurfaceFlightFrames.World.SPACE).fromParent(CartesianState(outsideRoot, Vector3.ZERO)).position
+            assertTrue((view.up(frames, outside, SurfaceFlightFrames.World.SPACE) - up).length() < 1e-12)
+            val native = Vector3(0.0, 64.0 + profile.geometry.earthEnvelope.ascentDistance + 1.0, 0.0)
+            val space = frames.point(native, SurfaceFlightFrames.World.EARTH, SurfaceFlightFrames.World.SPACE)
+            val before = view.up(frames, native, SurfaceFlightFrames.World.EARTH)
+            val after = view.up(frames, space, SurfaceFlightFrames.World.SPACE)
+            assertTrue(
+                (frames.direction(before, SurfaceFlightFrames.World.EARTH, SurfaceFlightFrames.World.SPACE) - after).length() < 1e-10,
+            )
+        }
+    }
+
     @Test fun `wire rotations reject shear reflection and scale`() {
         val x = Vector3(1.0, 0.0, 0.0)
         val z = Vector3(0.0, 0.0, 1.0)

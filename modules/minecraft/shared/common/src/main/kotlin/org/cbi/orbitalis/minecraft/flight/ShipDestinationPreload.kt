@@ -97,7 +97,14 @@ class ShipDestinationPreload : AutoCloseable {
         val nativeMoon = sample.nativeState(CartesianState(physicalPosition, observed), MoonWorld.KEY)
         val fromMoon = level.dimension() == MoonWorld.KEY
         val lunarAcceleration = sample.dynamics.lunarAcceleration(nativeMoon)
-        val moonEta = PlanetFlightEnvelope.moon.arrival(nativeMoon.position, nativeMoon.velocity, lunarAcceleration, fromMoon, 30.0)
+        val moonEta =
+            sample.frames.profile.geometry.moonEnvelope.arrival(
+                nativeMoon.position,
+                nativeMoon.velocity,
+                lunarAcceleration,
+                fromMoon,
+                30.0,
+            )
         val ascending = level.dimension() == net.minecraft.world.level.Level.OVERWORLD
         val nativeEarth = sample.nativeState(CartesianState(physicalPosition, observed), net.minecraft.world.level.Level.OVERWORLD)
         val earthAcceleration = sample.dynamics.earthAcceleration(nativeEarth)
@@ -105,7 +112,7 @@ class ShipDestinationPreload : AutoCloseable {
             if (fromMoon) {
                 null
             } else {
-                PlanetFlightEnvelope.arrival(
+                sample.frames.profile.geometry.earthEnvelope.arrival(
                     nativeEarth.position,
                     nativeEarth.velocity,
                     earthAcceleration,

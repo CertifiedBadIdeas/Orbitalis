@@ -37,7 +37,10 @@ object PlayerApproachView {
     /** Only input acceleration changes basis; the existing orbital velocity remains untouched. */
     private fun creativeAxes(player: net.minecraft.client.player.LocalPlayer): org.cbi.orbitalis.core.orbit.FlightControlAxes? {
         val level = player.level()
-        if (!player.abilities.flying || player.isPassenger || FlightTransitionContact.ship() != null ||
+        if (!player.abilities.flying ||
+            !org.cbi.orbitalis.minecraft.flight.PlayerGravity
+                .active(player) || player.isPassenger ||
+            FlightTransitionContact.ship() != null ||
             !FlatPlanetSpace.contains(level) || !CelestialFlight.available(level)
         ) {
             return null

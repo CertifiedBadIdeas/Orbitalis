@@ -53,7 +53,10 @@ object FlatPlanetSpace {
         profile: org.cbi.orbitalis.core.orbit.SolarSystemProfile? = null,
     ): Boolean = position.length() <= (profile?.flightRange ?: MAX_TRANSFER_DISTANCE)
 
-    fun gravityField(surfaceGravity: Double): SurfaceGravityLayer = FlatPlanetDefinition.gravity(surfaceGravity)
+    fun gravityField(
+        surfaceGravity: Double,
+        width: Double = FlatPlanetDefinition.SIZE,
+    ): SurfaceGravityLayer = FlatPlanetDefinition.gravity(surfaceGravity, width)
 
     fun contains(level: Level): Boolean = level.dimension() in CelestialFlight.dimensions
 }

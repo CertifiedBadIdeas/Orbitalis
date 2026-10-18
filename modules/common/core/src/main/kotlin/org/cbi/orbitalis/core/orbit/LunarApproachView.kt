@@ -18,7 +18,6 @@
 
 package org.cbi.orbitalis.core.orbit
 
-import org.cbi.orbitalis.core.planet.PlanetFlightEnvelope
 import org.cbi.orbitalis.core.planet.Vector3
 import kotlin.math.PI
 import kotlin.math.atan2
@@ -26,9 +25,11 @@ import kotlin.math.atan2
 /** Presentation reference only: never turns a vessel or changes native collision/movement axes. */
 class LunarApproachView {
     private var angle: Double? = null
+    private var earthPhase: Double? = null
 
     fun clear() {
         angle = null
+        earthPhase = null
     }
 
     fun up(
@@ -37,18 +38,42 @@ class LunarApproachView {
         world: SurfaceFlightFrames.World,
     ): Vector3 {
         val earth = frames.frame(SurfaceFlightFrames.World.EARTH)
-        val earthAngle = atan2(earth.orientation.xAxis.y, earth.orientation.xAxis.x)
+        val root =
+            frames
+                .frame(world)
+                .toParent(
+                    org.cbi.orbitalis.core.planet
+                        .CartesianState(position, Vector3.ZERO),
+                ).position
+        val dimensions = frames.profile.geometry
+        val earthInner =
+            minOf(
+                Vector3(
+                    dimensions.earthHalfSize,
+                    64.0,
+                    dimensions.earthHalfSize,
+                ).length() + dimensions.earthEnvelope.ascentDistance + 200.0,
+                frames.profile.earthHillRadius * 0.95,
+            )
+        val earthT = ((root.length() - earthInner) / (frames.profile.earthHillRadius - earthInner)).coerceIn(0.0, 1.0)
+        val principalEarth = atan2(earth.orientation.xAxis.y, earth.orientation.xAxis.x)
+        val prior = if (earthT == 0.0 || earthT == 1.0) principalEarth else earthPhase ?: principalEarth
+        val unwrappedEarth = prior + atan2(kotlin.math.sin(principalEarth - prior), kotlin.math.cos(principalEarth - prior))
+        earthPhase = if (earthT == 1.0) null else unwrappedEarth
+        val earthWeight = 1.0 - earthT * earthT * earthT * (10.0 + earthT * (-15.0 + 6.0 * earthT))
+        val earthAngle = unwrappedEarth * earthWeight
+        val earthUp = Rotation3.axisAngle(Vector3(0.0, 0.0, 1.0), earthAngle).yAxis
         val moon = frames.frame(SurfaceFlightFrames.World.MOON)
         val local = frames.point(position, world, SurfaceFlightFrames.World.MOON)
         // Start only inside the body's Hill sphere, fully matching all surface handoff faces.
         val outer = frames.profile.moonHillRadius
         val body = frames.profile.moonGravity
         val bounds = Vector3(body.halfWidth, body.halfHeight, body.halfDepth).length()
-        val inner = minOf(bounds + PlanetFlightEnvelope.moon.ascentDistance + 200.0, outer * 0.95)
+        val inner = minOf(bounds + frames.profile.geometry.moonEnvelope.ascentDistance + 200.0, outer * 0.95)
         val t = ((local.length() - inner) / (outer - inner)).coerceIn(0.0, 1.0)
         if (t == 1.0) {
-            clear()
-            return frames.frame(world).orientation.inverse(earth.orientation.yAxis)
+            angle = null
+            return frames.frame(world).orientation.inverse(earthUp)
         }
         val principal = atan2(moon.orientation.xAxis.y, moon.orientation.xAxis.x) - earthAngle
         val previous = if (t == 0.0) principal else angle ?: principal

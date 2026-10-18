@@ -49,7 +49,7 @@ object PlanetRockShell {
     ) = SpaceScene.Face(listOf(a, b, c, c), rgb, (b - a).cross(c - a).normalized(), 0.42)
 
     /** Only this immutable underside belongs to the static body buffer; walls belong to LOD sectors. */
-    val faces: List<SpaceScene.Face> = underside(SpaceScene.HALF_SIZE, SpaceScene.BOTTOM)
+    val faces: List<SpaceScene.Face> get() = underside(SpaceScene.HALF_SIZE, SpaceScene.BOTTOM)
 
     fun underside(
         halfSize: Double,

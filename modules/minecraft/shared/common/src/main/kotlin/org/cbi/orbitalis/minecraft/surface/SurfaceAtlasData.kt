@@ -37,6 +37,7 @@ class SurfaceAtlasData(
         chunk: LevelChunk,
     ): Boolean {
         if (!supported || level.dimension() != Level.OVERWORLD || chunk.level !== level) return false
+        if (!FlatOverworld.footprint(level).intersectsChunk(chunk.pos.x, chunk.pos.z)) return false
         val cx = chunk.pos.x
         val cz = chunk.pos.z
         if (cx !in SurfaceAtlas.MIN_CHUNK..SurfaceAtlas.MAX_CHUNK || cz !in SurfaceAtlas.MIN_CHUNK..SurfaceAtlas.MAX_CHUNK) return false

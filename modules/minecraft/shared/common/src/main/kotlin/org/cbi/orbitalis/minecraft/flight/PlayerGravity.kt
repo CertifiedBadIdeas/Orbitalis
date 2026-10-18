@@ -71,7 +71,7 @@ object PlayerGravity {
                 sample.frames.profile,
                 sample.frames.tick,
                 field.nativeAcceleration,
-                field.nativeAcceleration / 6.0,
+                field.nativeAcceleration * sample.frames.profile.geometry.moonGravityRatio,
             )
         val acceleration =
             if (entity.level().dimension() == MoonWorld.KEY) {
@@ -94,6 +94,9 @@ object PlayerGravity {
         } else {
             PlanetAtmosphere.vacuum(
                 CelestialFlight.sample(entity.level()).nativePoint(position(entity), net.minecraft.world.level.Level.OVERWORLD),
+                CelestialFlight
+                    .sample(entity.level())
+                    .frames.profile.geometry,
             )
         }
 

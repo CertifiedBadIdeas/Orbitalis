@@ -137,7 +137,16 @@ object TrajectoryEvents {
                 val player = context.source.playerOrException
                 try {
                     require(player.level().dimension() == Level.OVERWORLD) { "Mark the launch site in Overworld" }
-                    NavigationBookmarks.get(player.server).put(player.uuid, Vector3(player.x, player.y, player.z))
+                    NavigationBookmarks
+                        .get(
+                            player.server,
+                        ).put(
+                            player.uuid,
+                            Vector3(player.x, player.y, player.z),
+                            org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                                .sample(player.server)
+                                .frames.profile.geometry.earthHalfSize,
+                        )
                     context.source.sendSuccess({
                         Component.literal("Personal surface marker saved. It will appear as a green cross with the coast forecast.")
                     }, false)

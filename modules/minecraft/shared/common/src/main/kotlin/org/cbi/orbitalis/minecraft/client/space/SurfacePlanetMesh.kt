@@ -25,8 +25,8 @@ import kotlin.math.floor
 /** Fixed overview budget: 626 squared top cells, at most two interior skirts per cell. */
 object SurfacePlanetMesh {
     const val STEP = 16.0
-    private val low = floor(-SpaceScene.HALF_SIZE / STEP).toInt()
-    private val high = floor((SpaceScene.HALF_SIZE - 1.0) / STEP).toInt()
+    private val low get() = floor(-SpaceScene.HALF_SIZE / STEP).toInt()
+    private val high get() = floor((SpaceScene.HALF_SIZE - 1.0) / STEP).toInt()
 
     data class Sector(
         val x: Int,
@@ -34,9 +34,18 @@ object SurfacePlanetMesh {
     )
 
     const val SECTOR_CHUNKS = 32
-    val sectors =
-        (Math.floorDiv(low, SECTOR_CHUNKS)..Math.floorDiv(high, SECTOR_CHUNKS)).flatMap { x ->
-            (Math.floorDiv(low, SECTOR_CHUNKS)..Math.floorDiv(high, SECTOR_CHUNKS)).map { z -> Sector(x, z) }
+    private var sectorHalf = Double.NaN
+    private var sectorList = emptyList<Sector>()
+    val sectors: List<Sector> get() =
+        synchronized(this) {
+            if (sectorHalf != SpaceScene.HALF_SIZE) {
+                sectorHalf = SpaceScene.HALF_SIZE
+                sectorList =
+                    (Math.floorDiv(low, SECTOR_CHUNKS)..Math.floorDiv(high, SECTOR_CHUNKS)).flatMap { x ->
+                        (Math.floorDiv(low, SECTOR_CHUNKS)..Math.floorDiv(high, SECTOR_CHUNKS)).map { z -> Sector(x, z) }
+                    }
+            }
+            sectorList
         }
 
     fun sector(
