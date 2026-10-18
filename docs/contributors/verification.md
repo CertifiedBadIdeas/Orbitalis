@@ -35,7 +35,9 @@ Use ./gradlew-sandbox-dev-parallel-summary for noninteractive Gradle commands. v
 verifyTooling, verifyArchitecture and :core:check. verifyLocalFull adds common/check, loader/check and
 production archive inspection. Core tests cover finite rectangular-body potential, the conservative surface layer, numerical low
 orbits, spherical/two-body fields and flight/frame math. This is mathematical coverage, not evidence of Minecraft/Sable gameplay. NO-SOURCE is not coverage.
-Run `:v1_21_1-neoforge:runGameTestServer` separately. The default `all` suite requires four surface-atlas sampling/persistence/backfill/packet scenarios, nine surface
+Run `:v1_21_1-neoforge:runGameTestServer` separately. The focused `terrain` suite checks four native partially intersecting corners, exterior empty/full/light
+completion, void biomes and heightmaps, feature/entity rejection and ordinary runtime writes.
+The default `all` suite also includes these two scenarios and requires four surface-atlas sampling/persistence/backfill/packet scenarios, nine surface
 border/persistence/preload/void-floor/player-motion scenarios, six finite-orbit/ship-transfer/retirement/travel scenarios, two navigation scenarios and five sparse-vacuum scenarios, with no
 failed, skipped or error results in a fresh XML report. `-PorbitalisGameTestSuite=surface` runs the nine
 surface cases alone; `-PorbitalisGameTestSuite=transfer` runs the five native transfer/recovery/retirement/travel cases
@@ -119,3 +121,16 @@ The `-PorbitalisGameTestSuite=atlas` suite requires `nativesurfaceatlaspersisten
 reload, unknown-version preservation, malformed records and bounded packet roundtrips/rejection.
 Both are included in `all`. Client framebuffer composition and relief appearance require the separate
 manual scenario in [space presentation](space-visuals.md).
+
+### Finite terrain runtime evidence (2026-10-18)
+
+An isolated flight consumer with the pinned Voxy/WorldGenV2 stack created a new ordinary noise-based
+Overworld. A server-thread probe checked two opposite partially intersecting corner chunks and four
+entirely exterior chunks: all 147,456 inspected outside block positions were air, with interior terrain
+preserved. A spectator preview showed the terrain ending at both border planes. Runtime probes against
+the transformed WorldGenV2 graph checked exterior pruning, interior/edge work and unaffected unscoped
+search. Its transformed manager filtered a 16-chunk edge batch to one intersecting chunk, rejected a
+wholly exterior batch and retained unscoped batch identity. Probe sources, results, screenshot and the
+normal save/quit client log are retained in task verification evidence; they are not production hooks.
+This observation covers the pinned stack and inspected locations, not arbitrary generators that bypass
+native chunk stages or direct-write outside their generation region.

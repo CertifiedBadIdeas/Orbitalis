@@ -24,6 +24,7 @@ import net.minecraft.server.level.ServerLevel
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.saveddata.SavedData
 import net.minecraft.world.level.storage.DimensionDataStorage
+import net.minecraft.world.level.storage.ServerLevelData
 
 /** Native border settings remain authoritative; the marker only records that defaults were installed. */
 object FlatOverworld {
@@ -41,6 +42,15 @@ object FlatOverworld {
 
     // Future versions and administrator customizations retain native authority.
     private val factory = SavedData.Factory({ Initialized() }, { tag, _ -> Initialized(tag.getInt("Version")) }, null)
+
+    /** Level-load precedes Minecraft applying saved settings again; keep that later application consistent. */
+    fun prepare(level: ServerLevel) {
+        val saved = level.levelData as ServerLevelData
+        level.worldBorder.applySettings(saved.worldBorder)
+        initialize(level)
+        saved.worldBorder = level.worldBorder.createSettings()
+        FiniteSurfaceTerrain.attach(level)
+    }
 
     fun initialize(
         level: ServerLevel,

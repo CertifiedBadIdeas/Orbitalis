@@ -19,6 +19,7 @@
 package org.cbi.orbitalis.consumer.flight.mixin
 
 import net.minecraft.world.level.ChunkPos
+import org.cbi.orbitalis.consumer.flight.WorldgenBorderScope
 import org.spongepowered.asm.mixin.Mixin
 import org.spongepowered.asm.mixin.Pseudo
 import org.spongepowered.asm.mixin.injection.At
@@ -29,6 +30,18 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable
 @Pseudo
 @Mixin(targets = ["com.ethan.voxyworldgenv2.core.DistanceGraph"], remap = false)
 internal abstract class VoxyWorldgenCancellationMixin {
+    @Inject(method = ["getDistSq"], at = [At("HEAD")], cancellable = true)
+    private fun flightPruneOutsideBorder(
+        x: Int,
+        z: Int,
+        size: Int,
+        playerX: Int,
+        playerZ: Int,
+        callback: CallbackInfoReturnable<Double>,
+    ) {
+        if (WorldgenBorderScope.outside(x, z, size)) callback.returnValue = Double.POSITIVE_INFINITY
+    }
+
     @Inject(
         method = ["findWork"],
         at = [

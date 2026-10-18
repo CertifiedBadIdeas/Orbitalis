@@ -20,6 +20,9 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Bound new Overworld terrain to the native world border, including partial edge chunks and
+  generation-time structures/spawns. Keep empty technical neighbours loadable and limit the flight
+  consumer's optional WorldGenV2 search to the surface footprint. Existing worlds and caches are not trimmed.
 - Allow up to three concurrent development tasks in separate worktrees. Managed Gradle launches
   share three workspace slots while keeping each worktree, including its consumer, exclusive until
   the build or client exits. Preserve compatibility with older single-slot checkouts.

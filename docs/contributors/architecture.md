@@ -42,13 +42,19 @@ block storage, fluids and neighbour logic. No projection, rotated player frame o
 planet chart is installed. The cube experiment, its dimension `orbitalis:planet_lab`, commands,
 resources and compatibility mixins have been retired. Old save directories are never deleted or
 converted. Start a new world; opening an old cube save with this version is unsupported.
-See [flat surface](flat-surface.md) for border initialization and persistence.
+See [flat surface](flat-surface.md) for border initialization, finite terrain generation and persistence.
 
 `FlatOverworld` in shared/common initializes the native border once per save. NeoForge invokes it
-after levels are ready. The native world border remains the only authority for centre, size and lerp;
+before initial spawn generation. The native world border remains the only authority for centre, size and lerp;
 a small SavedData marker prevents startup from overriding administrator changes. Two narrow loader
 hooks omit vanilla border delegation into Orbitalis diagnostic dimensions and stop surface-border
 broadcasts reaching their players. Vanilla Nether/End delegation and recipients remain unchanged.
+
+`FiniteSurfaceTerrain` in shared/common bounds new Overworld terrain against immutable native-border
+snapshots. Two loader mixins adapt native `ChunkStep` work and `WorldGenRegion` writes/spawns. They
+preserve native dependency/status/light completion, allow empty exterior chunks and leave runtime
+placement and completed terrain untouched. Other dimensions and Sable plot generation stay native.
+The optional WorldGenV2 search adapter belongs only to the flight consumer.
 
 The sole surface/orbital pair is ordinary Overworld and `orbitalis:space`. `FlatPlanetFrame` adds
 4096 to physical Y, preserving axes and inertial velocity. `SableFlightGravity` applies core

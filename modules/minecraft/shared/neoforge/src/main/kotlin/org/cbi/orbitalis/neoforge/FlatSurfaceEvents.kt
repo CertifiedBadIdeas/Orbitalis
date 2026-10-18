@@ -18,17 +18,36 @@
 
 package org.cbi.orbitalis.neoforge
 
+import net.minecraft.server.level.ServerLevel
+import net.minecraft.world.level.Level
+import net.neoforged.bus.api.EventPriority
 import net.neoforged.bus.api.SubscribeEvent
 import net.neoforged.fml.common.EventBusSubscriber
-import net.neoforged.neoforge.event.server.ServerStartedEvent
+import net.neoforged.neoforge.event.level.LevelEvent
+import net.neoforged.neoforge.event.server.ServerStoppedEvent
+import net.neoforged.neoforge.event.tick.ServerTickEvent
 import org.cbi.orbitalis.core.Orbitalis
+import org.cbi.orbitalis.minecraft.surface.FiniteSurfaceTerrain
 import org.cbi.orbitalis.minecraft.surface.FlatOverworld
 
 @EventBusSubscriber(modid = Orbitalis.MOD_ID)
 object FlatSurfaceEvents {
     @JvmStatic
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    fun load(event: LevelEvent.Load) {
+        val level = event.level as? ServerLevel ?: return
+        if (level.dimension() == Level.OVERWORLD) FlatOverworld.prepare(level)
+    }
+
+    @JvmStatic
     @SubscribeEvent
-    fun started(event: ServerStartedEvent) {
-        FlatOverworld.initialize(event.server.overworld())
+    fun tick(event: ServerTickEvent.Pre) {
+        FiniteSurfaceTerrain.refresh(event.server.overworld())
+    }
+
+    @JvmStatic
+    @SubscribeEvent
+    fun stopped(event: ServerStoppedEvent) {
+        FiniteSurfaceTerrain.close(event.server)
     }
 }

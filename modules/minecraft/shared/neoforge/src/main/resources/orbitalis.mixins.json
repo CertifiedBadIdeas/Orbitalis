@@ -6,6 +6,8 @@
   "mixins": [
     "LevelBlockEntityTickMixin",
     "VacuumRegionStorageMixin",
+    "FiniteSurfaceGenerationMixin",
+    "FiniteSurfaceFeatureMixin",
     "VacuumBlockPlacementMixin",
     "SpaceVoidFloorMixin",
     "PlayerGravityMixin",
