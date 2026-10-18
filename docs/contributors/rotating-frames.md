@@ -22,8 +22,27 @@ The current live Overworld/space route still uses `FlatPlanetFrame` and its fixe
 `Rotation3` and `FrameKinematics` provide independent core mathematics for the planned moving
 Earth–Moon system. They do not activate platform rotation, lunar gravity or a physical Sun in a world.
 The accepted Earth spin axis lies in the platform plane, allowing sunrise and sunset while surface
-coordinates retain ordinary Minecraft local up/down. Orbital scale and time-policy choices remain
-part of the subsequent system design.
+coordinates retain ordinary Minecraft local up/down. Orbital scale remains part of subsequent system
+design. Physical daylight integration is deferred; the planned default preserves ordinary Minecraft
+daylight independently of orbital simulation time.
+
+## Planned daylight modes
+
+The system design separates the orbital simulation clock from sky/daylight presentation. Neither a
+mode switch nor physical daylight integration is implemented by this foundation.
+
+- **Ordinary daylight (default):** preserve existing Minecraft sky, sleep and `/time` behavior.
+  Changes to daylight must not jump celestial ephemerides or vessel states. Orbital time follows
+  running game simulation and pauses while the server is stopped.
+- **Physical sky (future optional mode):** derive sunlight from the physical Sun and body orientation.
+  Sleep must use coordinated system-wide time acceleration, with consistent loaded and unloaded
+  vessel evolution. Sleep arbitration between bodies and safe acceleration remain design work.
+
+In the pinned Minecraft 1.21.1 implementation, `TimeCommand.setTime` and `addTime` iterate all server
+levels; `DerivedLevelData` delegates daylight reads to the primary data and ignores `setDayTime`.
+Preserving vanilla commands therefore does not imply independent per-dimension clocks, even when
+commands run through `execute in`. Independent world clocks would require an explicit separate
+feature. Ordinary daylight does not promise that the surface Sun matches physical orbital geometry.
 
 ## Sampled local-to-parent transform
 
