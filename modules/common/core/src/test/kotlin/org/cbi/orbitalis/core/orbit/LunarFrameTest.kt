@@ -52,4 +52,24 @@ class LunarFrameTest {
             assertTrue(((b.velocity - a.velocity) * 10.0 - frame.toParentAcceleration(ground, Vector3.ZERO)).length() < 1e-6)
         }
     }
+
+    @Test
+    fun `moving lunar entry uses surface relative descent and hysteresis after handoff`() {
+        val frames = SurfaceFlightFrames(SolarSystemProfile(11.0), 12345)
+        val ground = CartesianState(Vector3(113.0, 450.0, -372.0), Vector3(1.0, -12.0, 0.0))
+        val space = frames.state(ground, SurfaceFlightFrames.World.MOON, SurfaceFlightFrames.World.SPACE)
+        kotlin.test.assertEquals(SurfaceFlightFrames.World.MOON, frames.destination(space, SurfaceFlightFrames.World.SPACE))
+        kotlin.test.assertNull(frames.destination(ground, SurfaceFlightFrames.World.MOON))
+        val rising = ground.copy(position = Vector3(113.0, 665.0, -372.0), velocity = Vector3(0.0, 12.0, 0.0))
+        kotlin.test.assertEquals(SurfaceFlightFrames.World.SPACE, frames.destination(rising, SurfaceFlightFrames.World.MOON))
+        kotlin.test.assertNull(
+            frames.destination(
+                frames.state(rising, SurfaceFlightFrames.World.MOON, SurfaceFlightFrames.World.SPACE),
+                SurfaceFlightFrames.World.SPACE,
+            ),
+        )
+        val restored = frames.state(space, SurfaceFlightFrames.World.SPACE, SurfaceFlightFrames.World.MOON)
+        assertTrue((restored.position - ground.position).length() < 1e-8)
+        assertTrue((restored.velocity - ground.velocity).length() < 1e-8)
+    }
 }

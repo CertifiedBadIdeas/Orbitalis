@@ -51,8 +51,12 @@ data class SolarSystemProfile(
         )
 
     /** Top (+Y) faces Earth. Circular orbit: one prograde spin per revolution, in Earth axes. */
-    fun lunarSurfaceFrame(tick: Long): FrameKinematics {
-        val orbit = moonOrbit.sample(tick)
+    @JvmOverloads
+    fun lunarSurfaceFrame(
+        tick: Long,
+        seconds: Double = 0.0,
+    ): FrameKinematics {
+        val orbit = moonOrbit.sample(tick, seconds)
         val angle = kotlin.math.atan2(orbit.origin.position.y, orbit.origin.position.x) + PI / 2.0
         val omega =
             orbit.origin.position.cross(orbit.origin.velocity) *

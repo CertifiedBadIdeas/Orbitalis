@@ -60,9 +60,14 @@ class KeplerOrbit(
     }
 
     /** All components are relative to the parent focus at the same [tick]. No incremental state. */
-    fun sample(tick: Long): FrameKinematics {
+    @JvmOverloads
+    fun sample(
+        tick: Long,
+        seconds: Double = 0.0,
+    ): FrameKinematics {
+        require(seconds.isFinite())
         require(tick >= 0) { "Simulation tick must be nonnegative" }
-        val anomaly = eccentricAnomaly(meanAnomaly(tick))
+        val anomaly = eccentricAnomaly(wrap(meanAnomaly(tick) + (seconds % period) / period * (2.0 * PI)))
         val c = cos(anomaly)
         val s = sin(anomaly)
         val denominator = 1.0 - eccentricity * c

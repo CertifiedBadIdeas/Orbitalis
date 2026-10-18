@@ -18,6 +18,7 @@
 
 package org.cbi.orbitalis.core.planet
 
+import org.cbi.orbitalis.core.orbit.CelestialDynamics
 import kotlin.math.max
 
 /** Time is seconds after the plan's game-time epoch. Components are metres per second. */
@@ -79,10 +80,17 @@ data class ManeuverPlan(
         field: SurfaceGravityLayer,
         initial: CartesianState,
         gameTick: Long,
+    ): Prediction = predict(field, initial, gameTick, null)
+
+    fun predict(
+        field: SurfaceGravityLayer,
+        initial: CartesianState,
+        gameTick: Long,
+        sources: CelestialDynamics?,
     ): Prediction {
         require(gameTick >= 0)
         require(gameTick >= epochTick) { "Plan epoch is in the future" }
-        val start = CoastPrediction.predict(field, initial, CoastPrediction.Limits(horizon = 0.05, range = 100000.0))
+        val start = CoastPrediction.predict(field, initial, CoastPrediction.Limits(horizon = 0.05, range = 100000.0), sources)
         if (start.terminal.seconds == 0.0) return Prediction(listOf(Segment(0.0, start)), emptyList())
         val elapsed = (gameTick - epochTick) / 20.0
         val segments = mutableListOf<Segment>()
@@ -94,7 +102,7 @@ data class ManeuverPlan(
             if (due < 0.0) continue // Past impulses are already part of the observed physical state.
             val duration = due - time
             if (duration > 0.0) {
-                val coast = CoastPrediction.predict(field, state, limits(duration))
+                val coast = CoastPrediction.predict(field, state, limits(duration), sources, time)
                 segments.add(Segment(time, coast))
                 if (coast.end != CoastPrediction.End.HORIZON) return Prediction(segments, burns)
                 state = coast.terminal.state
@@ -104,7 +112,7 @@ data class ManeuverPlan(
             burns.add(Burn(index, time, state, delta))
             state = CartesianState(state.position, state.velocity + delta)
         }
-        segments.add(Segment(time, CoastPrediction.orbit(field, state, CoastPrediction.Limits(range = 100000.0))))
+        segments.add(Segment(time, CoastPrediction.orbit(field, state, CoastPrediction.Limits(range = 100000.0), sources, time)))
         return Prediction(segments, burns)
     }
 

@@ -86,6 +86,21 @@ class LunarSurface(
     }
 
     companion object {
+        /** A client may know lunar geology without receiving the Overworld generation seed. */
+        fun terrainSeed(worldSeed: Long): Long {
+            val hash = java.security.MessageDigest.getInstance("SHA-256")
+            hash.update("orbitalis:moon:terrain:v1".toByteArray(Charsets.UTF_8))
+            return java.nio.ByteBuffer
+                .wrap(
+                    hash.digest(
+                        java.nio.ByteBuffer
+                            .allocate(8)
+                            .putLong(worldSeed)
+                            .array(),
+                    ),
+                ).long
+        }
+
         const val VERSION = 1
         const val HALF_SIZE = 1400
         const val SEA_LEVEL = 64
