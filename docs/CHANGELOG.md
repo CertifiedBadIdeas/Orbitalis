@@ -41,6 +41,10 @@ limitations under the License.
 - Add core rotating-frame mathematics for the planned Earth–Moon system: surface rotation velocity,
   acceleration transport and body angular velocity. This foundation is not yet wired into world physics
   or Sun rendering.
+- Give the orbital planet layered stone cliffs that follow 16-metre perimeter relief, a shaded
+  underside at the actual Y=-64 boundary and a cached luminous blue atmospheric rim. Share this
+  appearance with the orbital map and rebuild only affected sectors.
+
 - Refine the shared orbital/map surface LOD from 32 to 16 metres per cell, retaining the existing
   atlas/network formats. Rebuild/upload independently dirty 512-metre sectors with local boundary
   snapshots and bounded background work; read saved terrain on two dedicated read-only workers.

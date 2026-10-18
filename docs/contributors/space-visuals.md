@@ -31,13 +31,36 @@ extension for this dimension ID. NeoForge owns the hook and effects adapter; sha
 or Create APIs participate in rendering, and the selector never loads on a dedicated server.
 
 The reference body remains a 10,000-by-10,000-block flat slab centred at surface X/Z zero,
-with a fallback top at Y=64 and underside at Y=-64. Its orbital top now uses a server-owned
+with a fallback top at Y=64 and its actual flat lower boundary at Y=-64.
+Its orbital top now uses a server-owned
 surface atlas: each naturally loaded Overworld chunk contributes sixteen height/map-colour probes,
 averaged to one chunk sample. Water, grass and leaves use native biome colours. The client combines
 known samples into 16-metre overview cells, including large terrain changes and buildings; this is
 an overview, not block-resolution geometry or a collision surface. Vertical skirts join differing
-heights, unknown neighbours and the slab edge. Side strata and the underside remain illustrative.
-Administrator border changes do not resize the physical reference body or its atlas.
+heights, unknown neighbours and the slab edge. Administrator border changes do not resize the
+physical reference body or its atlas. Side strata and the underside remain illustrative.
+
+`PlanetRockShell` shades the underside using a deterministic 64-by-64 triangulated grid, flat at
+Y=-64 (8,192 triangle faces encoded as quads with a repeated final vertex). Its jitter is horizontal
+only, so no decorative volume protrudes beyond the real bedrock floor. Independently rebuilt surface
+sectors own their outer cliffs: each 16-metre perimeter cell extends from its known atlas height
+(or fallback Y=64) down to Y=-64. Absolute strata levels align beside neighbouring cells, with a thin
+sample-coloured top band and deterministic stone colour variation. The static body buffer contains
+only the underside; there is no overlapping fixed-sea-level wall. Coarse initial sectors include
+matching fallback walls before their fine replacements arrive. Rock uses modest illustrative ambient
+fill to keep the unlit underside readable; this is not new stellar lighting. No bitmap assets or
+runtime rock textures are added. Cliff interiors/caves/materials remain illustrative: the atlas stores
+only a top height/colour, not a full side scan. Loaded native chunks render in front of the sky model.
+
+`PlanetLimbRenderer` adds a luminous blue feathered upper-edge halo to the shared map/world scene
+after opaque geometry: a narrow pale core fades into a broad blue outer glow, using additive RGB
+blending while preserving destination alpha for the later sky composite. No post-process bloom target
+is allocated. Its static vertex buffer is uploaded once, shared by map/world and released on
+disconnect; rendering does not rebuild or upload the rim each frame. It tests existing
+scene depth without writing depth; clouds remain a separate
+pass and foreground ships still draw against the normal world. This bounded geometric halo is not
+physical atmospheric scattering. The shell is decoration, with no collision or terrain generation;
+it does not change the mass model, gravity field, coordinate frames or transfer altitudes.
 
 Unknown overview cells keep the existing deterministic water/coast/land mosaic. Each known chunk replaces its 16-metre cell.
 The sampler never requests chunk generation or loading. Each normal full-chunk load/unload captures
@@ -141,7 +164,7 @@ shared-wall ownership and coarse/fine footprint coverage. `SavedSurfaceReaderTes
 compression modes, external entries, read-only access and malformed/missing snapshots.
 `SurfaceAtlasTest` protects updates, bounded revision streams, coordinates and mixed known cells.
 `SurfacePlanetMeshTest` verifies complete fallback coverage, real relief replacement, edge/unknown
-skirts and the mesh budget. `-PorbitalisGameTestSuite=atlas` requires native sampling/terrain-change,
+skirts, real-height perimeter wall coverage, coarse exterior walls and the mesh budget. `-PorbitalisGameTestSuite=atlas` requires native sampling/terrain-change,
 real SavedData disk reload, saved-terrain backfill, lifecycle bursts, future/malformed data handling
 and packet bounds/roundtrip scenarios.
 In a disposable client world, inspect generated land from above, then view the slab edges/underside
@@ -150,16 +173,17 @@ should retain location, height and map colours after unload and dimension travel
 roof while loaded and verify the next pass updates its orbital overview. Compilation does not prove
 framebuffer compositing or actual client receipt.
 
-`SpaceSceneTest` exercises angular preservation at near/far and opposite-side viewpoints, side and
-underside visibility, and distance-dependent apparent size. Run target checks and inspect a disposable
+`SpaceSceneTest` exercises angular preservation at near/far and opposite-side viewpoints, the rock
+underside's manifold joins, exact lower plane, outward unit normals, area/geometry bounds and
+distance-dependent apparent size. Run target checks and inspect a disposable
 client world; compilation alone does not demonstrate appearance. Suggested manual views:
 
-- `/gamemode spectator`, then `/execute in orbitalis:space run tp @s 0 6160 0 0 90`
-  shows the surface from physical Y=2064.
+- `/gamemode spectator`, then `/execute in orbitalis:space run tp @s 0 7160 0 0 90`
+  shows the surface from physical Y=3064, outside the automatic return band.
 - `/execute in orbitalis:space run tp @s 6500 10160 6500 135 15`
   shows the top and two sides.
-- `/execute in orbitalis:space run tp @s 0 2032 0 0 -90`
-  shows the underside from physical Y=-2064.
+- `/execute in orbitalis:space run tp @s 0 -1904 0 0 -90`
+  shows the underside from physical Y=-6000.
 - Compare `/time set noon` and `/time set midnight`: vacuum sky, Sun, body and skylight stay fixed.
 - `/execute in orbitalis:space run tp @s 0 9160 0 0 90` shows the body from 5000 m above sea level
   through the new low frame.

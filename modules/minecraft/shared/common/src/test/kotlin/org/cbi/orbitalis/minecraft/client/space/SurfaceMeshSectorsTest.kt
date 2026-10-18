@@ -76,7 +76,14 @@ class SurfaceMeshSectorsTest {
         assertEquals(400, SurfacePlanetMesh.sectors.size)
 
         fun area(face: SpaceScene.Face): Double = (face.vertices[2].x - face.vertices[0].x) * (face.vertices[2].z - face.vertices[0].z)
-        val coarseArea = SurfacePlanetMesh.sectors.sumOf { SurfacePlanetMesh.coarse(it).sumOf(::area) }
+        val coarseArea =
+            SurfacePlanetMesh.sectors.sumOf {
+                SurfacePlanetMesh
+                    .coarse(it)
+                    .filter { face ->
+                        face.normal.y > 0.0
+                    }.sumOf(::area)
+            }
         val fineArea =
             SurfacePlanetMesh.sectors.sumOf {
                 SurfacePlanetMesh

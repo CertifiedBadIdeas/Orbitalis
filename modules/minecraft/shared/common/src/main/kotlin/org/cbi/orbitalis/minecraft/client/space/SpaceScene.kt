@@ -34,6 +34,7 @@ object SpaceScene {
         val vertices: List<Vector3>,
         val color: Int,
         val normal: Vector3,
+        val ambient: Double = 0.18,
     )
 
     val body: List<Face> =
@@ -67,59 +68,7 @@ object SpaceScene {
                     )
                 }
             }
-            val h = HALF_SIZE
-            add(
-                Face(
-                    listOf(
-                        Vector3(-h, BOTTOM, -h),
-                        Vector3(h, BOTTOM, -h),
-                        Vector3(h, BOTTOM, h),
-                        Vector3(-h, BOTTOM, h),
-                    ),
-                    0x34343a,
-                    Vector3(0.0, -1.0, 0.0),
-                ),
-            )
-            for (layer in 0 until 8) {
-                val y = TOP - (TOP - BOTTOM) * layer / 8.0
-                val low = TOP - (TOP - BOTTOM) * (layer + 1) / 8.0
-                val color =
-                    if (layer == 0) {
-                        0x78614a
-                    } else if (layer % 2 == 0) {
-                        0x62606a
-                    } else {
-                        0x514f59
-                    }
-                add(
-                    Face(
-                        listOf(Vector3(-h, y, -h), Vector3(h, y, -h), Vector3(h, low, -h), Vector3(-h, low, -h)),
-                        color,
-                        Vector3(0.0, 0.0, -1.0),
-                    ),
-                )
-                add(
-                    Face(
-                        listOf(Vector3(-h, y, h), Vector3(h, y, h), Vector3(h, low, h), Vector3(-h, low, h)),
-                        color,
-                        Vector3(0.0, 0.0, 1.0),
-                    ),
-                )
-                add(
-                    Face(
-                        listOf(Vector3(-h, y, -h), Vector3(-h, y, h), Vector3(-h, low, h), Vector3(-h, low, -h)),
-                        color,
-                        Vector3(-1.0, 0.0, 0.0),
-                    ),
-                )
-                add(
-                    Face(
-                        listOf(Vector3(h, y, -h), Vector3(h, y, h), Vector3(h, low, h), Vector3(h, low, -h)),
-                        color,
-                        Vector3(1.0, 0.0, 0.0),
-                    ),
-                )
-            }
+            addAll(PlanetRockShell.faces)
         }
 
     /** One uniform camera-relative scale preserves perspective while fitting inside the sky pass. */

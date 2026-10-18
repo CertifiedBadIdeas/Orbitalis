@@ -68,6 +68,7 @@ object SurfacePlanetMesh {
                             Vector3(0.0, 1.0, 0.0),
                         ),
                     )
+                    yieldAll(PlanetRockShell.walls(a, b, c, d, SpaceScene.TOP, fallback((a + b) / 2, (c + d) / 2)))
                 }
             }
         }
@@ -154,58 +155,8 @@ object SurfacePlanetMesh {
                             ),
                         )
                     }
-                    // The terrain edge joins the unchanged lower side strata even above/below sea level.
-                    if (h != SpaceScene.TOP) {
-                        if (x == low || x == high) {
-                            val edge = if (x == low) x0 else x1
-                            yield(
-                                SpaceScene.Face(
-                                    listOf(
-                                        Vector3(edge, h, z0),
-                                        Vector3(edge, h, z1),
-                                        Vector3(edge, SpaceScene.TOP, z1),
-                                        Vector3(edge, SpaceScene.TOP, z0),
-                                    ),
-                                    rgb,
-                                    Vector3(
-                                        if (x ==
-                                            low
-                                        ) {
-                                            -1.0
-                                        } else {
-                                            1.0
-                                        },
-                                        0.0,
-                                        0.0,
-                                    ),
-                                ),
-                            )
-                        }
-                        if (z == low || z == high) {
-                            val edge = if (z == low) z0 else z1
-                            yield(
-                                SpaceScene.Face(
-                                    listOf(
-                                        Vector3(x0, h, edge),
-                                        Vector3(x1, h, edge),
-                                        Vector3(x1, SpaceScene.TOP, edge),
-                                        Vector3(x0, SpaceScene.TOP, edge),
-                                    ),
-                                    rgb,
-                                    Vector3(
-                                        0.0,
-                                        0.0,
-                                        if (z ==
-                                            low
-                                        ) {
-                                            -1.0
-                                        } else {
-                                            1.0
-                                        },
-                                    ),
-                                ),
-                            )
-                        }
+                    if (x == low || x == high || z == low || z == high) {
+                        yieldAll(PlanetRockShell.walls(x0, x1, z0, z1, h, rgb))
                     }
                 }
             }
