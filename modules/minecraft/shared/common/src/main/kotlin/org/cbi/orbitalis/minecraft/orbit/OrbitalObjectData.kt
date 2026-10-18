@@ -66,8 +66,8 @@ class OrbitalObjectData private constructor(
     fun configureCelestials(gravity: Double): SolarSystemProfile {
         check(readable) { "Unknown or malformed orbital simulation data" }
         val previous = profile
-        if (previous == null || previous.surfaceGravity != gravity) {
-            profile = previous?.retune(gravity, clock) ?: SolarSystemProfile(gravity, clock)
+        if (previous == null || previous.surfaceGravity != gravity || previous.preset != SolarSystemProfile.Preset.CALENDAR) {
+            profile = previous?.retune(gravity, clock, SolarSystemProfile.Preset.CALENDAR) ?: SolarSystemProfile(gravity, clock)
             setDirty()
         }
         return checkNotNull(profile)
@@ -102,7 +102,7 @@ class OrbitalObjectData private constructor(
             tag.put(
                 "Celestial",
                 CompoundTag().apply {
-                    putInt("Version", SolarSystemProfile.VERSION)
+                    putInt("Version", value.preset.version)
                     putLong("EpochTick", value.epochTick)
                     putDouble("Gravity", value.surfaceGravity)
                     putDouble("EarthPhase", value.earthPhase)
@@ -130,7 +130,7 @@ class OrbitalObjectData private constructor(
                 if (tag.getInt("Version") == 2 && tag.contains("Celestial")) {
                     require(tag.contains("Celestial", Tag.TAG_COMPOUND.toInt()))
                     val celestial = tag.getCompound("Celestial")
-                    require(celestial.getInt("Version") == SolarSystemProfile.VERSION && celestial.contains("EpochTick", 4))
+                    require(celestial.contains("Version", 3) && celestial.contains("EpochTick", 4))
                     require(listOf("Gravity", "EarthPhase", "MoonPhase").all { celestial.contains(it, 6) })
                     result.profile =
                         SolarSystemProfile(
@@ -138,6 +138,7 @@ class OrbitalObjectData private constructor(
                             celestial.getLong("EpochTick"),
                             celestial.getDouble("EarthPhase"),
                             celestial.getDouble("MoonPhase"),
+                            SolarSystemProfile.Preset.fromVersion(celestial.getInt("Version")),
                         ).also { require(it.epochTick <= result.clock) }
                 }
                 require(tag.contains("Objects", Tag.TAG_LIST.toInt()))

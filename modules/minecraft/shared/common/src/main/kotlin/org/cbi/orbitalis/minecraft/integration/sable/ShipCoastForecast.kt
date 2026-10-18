@@ -61,7 +61,7 @@ class ShipCoastForecast private constructor(
                     Level.OVERWORLD,
                 )
             val global = state.position
-            if (global.length() > 30000.0 || sample.velocity.length() > 9990.0) return null
+            if (global.length() > celestial.frames.profile.flightRange || sample.velocity.length() > 9990.0) return null
             return ShipCoastForecast(
                 body.uniqueId,
                 body.level.dimension().location(),
@@ -69,7 +69,7 @@ class ShipCoastForecast private constructor(
                 state,
                 SableFlightGravity.flatField(body.level),
                 // Dimension handoff is a change of representation, not the end of a ballistic path.
-                CoastPrediction.Limits(detectEntry = false),
+                CoastPrediction.Limits(detectEntry = false, range = celestial.frames.profile.flightRange),
                 celestial.dynamics,
             )
         }

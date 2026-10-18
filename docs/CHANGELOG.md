@@ -20,6 +20,14 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Derive Earth/Moon orbit distances from unchanged mass parameters and physical periods: a 365.24-day
+  year and 27.32-day lunar revolution, using 20-minute mean solar days. Define the corresponding
+  sidereal spin period without changing vanilla daylight. Migrate existing catalogues at preserved
+  phases, retain frozen legacy transfer profiles and inertial station positions, and extend lunar
+  transfer/trajectory bounds and map framing to the new scale.
+- Begin lunar approach-camera alignment inside the model-derived Hill sphere, matching the local
+  surface horizon before entry and retaining inertial orientation outside lunar capture.
+
 - Replace distant rectangular-volume quadrature with an exact point-mass field of the same total
   mass. Blend scalar potentials conservatively at 8–12 maximum half-extents (40–60 km for Earth),
   including the blend gradient in acceleration; retain the analytic rectangular near field.

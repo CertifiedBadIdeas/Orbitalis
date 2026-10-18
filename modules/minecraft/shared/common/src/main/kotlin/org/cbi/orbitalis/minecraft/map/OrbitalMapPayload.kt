@@ -112,7 +112,7 @@ data class MapSnapshot(
                     val profile = value.celestialProfile
                     buffer.writeBoolean(profile != null)
                     if (profile != null) {
-                        buffer.writeVarInt(SolarSystemProfile.VERSION)
+                        buffer.writeVarInt(profile.preset.version)
                         buffer.writeDouble(profile.surfaceGravity)
                         buffer.writeLong(profile.epochTick)
                         buffer.writeDouble(profile.earthPhase)
@@ -143,8 +143,8 @@ data class MapSnapshot(
                     val simulationTick = buffer.readLong()
                     val profile =
                         if (buffer.readBoolean()) {
-                            require(buffer.readVarInt() == SolarSystemProfile.VERSION) { "Unknown celestial profile version" }
-                            SolarSystemProfile(buffer.readDouble(), buffer.readLong(), buffer.readDouble(), buffer.readDouble())
+                            val preset = SolarSystemProfile.Preset.fromVersion(buffer.readVarInt())
+                            SolarSystemProfile(buffer.readDouble(), buffer.readLong(), buffer.readDouble(), buffer.readDouble(), preset)
                         } else {
                             null
                         }

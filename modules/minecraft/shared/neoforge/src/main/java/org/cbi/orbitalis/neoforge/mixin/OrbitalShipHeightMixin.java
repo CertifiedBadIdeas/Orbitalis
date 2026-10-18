@@ -38,7 +38,7 @@ public abstract class OrbitalShipHeightMixin {
         ServerSubLevel body = (ServerSubLevel) (Object) this;
         if (body.getLevel().dimension() != FlatPlanetSpace.INSTANCE.getSPACE()) return configured;
         double offset = -FlatPlanetFrame.INSTANCE.getOrigin().getY();
-        double extent = FlatPlanetSpace.MAX_TRANSFER_DISTANCE + 64.0;
+        double extent = FlatPlanetSpace.INSTANCE.transferRange(body.getLevel()) + 64.0;
         return setting == SableConfig.SUB_LEVEL_REMOVE_MIN
             ? Math.min(configured, offset - extent)
             : Math.max(configured, offset + extent);

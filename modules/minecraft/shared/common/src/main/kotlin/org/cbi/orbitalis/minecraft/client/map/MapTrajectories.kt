@@ -108,7 +108,7 @@ class MapTrajectories : AutoCloseable {
                                 CoastPrediction.orbit(
                                     field,
                                     CartesianState(item.position, item.velocity),
-                                    CoastPrediction.Limits(range = 100000.0),
+                                    CoastPrediction.Limits(range = data.celestialProfile?.flightRange ?: 100000.0),
                                     sources,
                                 ),
                             )

@@ -60,7 +60,7 @@ object CoastPrediction {
             require(horizon.isFinite() && horizon > 0.0 && horizon <= 3600.0)
             require(step.isFinite() && step in 0.005..0.5 && ceil(horizon / step) <= 12000)
             require(sampleInterval.isFinite() && sampleInterval >= step && ceil(horizon / sampleInterval) <= 600)
-            require(range.isFinite() && range in 100.0..100000.0)
+            require(range.isFinite() && range in 100.0..1e8)
             require(hullRadius.isFinite() && hullRadius in 0.0..128.0)
             require(entryArmHeight.isFinite() && entryArmHeight >= entryHeight)
             require(entryHeight.isFinite() && footprintHalfSize.isFinite() && footprintHalfSize > 0.0)
@@ -113,7 +113,7 @@ object CoastPrediction {
         startSeconds: Double = 0.0,
     ): Result {
         require(limits.entryHeight >= field.body.halfHeight)
-        require(initial.position.length() <= 100000.0 && initial.velocity.length() <= 10000.0)
+        require(initial.position.length() <= 1e8 && initial.velocity.length() <= 10000.0)
         val points = mutableListOf(Point(0.0, initial))
 
         fun append(point: Point) {

@@ -95,7 +95,7 @@ data class ShipTransferRecord(
                 it.put(
                     "frame",
                     CompoundTag().also { frame ->
-                        frame.putInt("version", SolarSystemProfile.VERSION)
+                        frame.putInt("version", sample.frames.profile.preset.version)
                         frame.putLong("tick", sample.frames.tick)
                         frame.putLong("epoch", sample.frames.profile.epochTick)
                         frame.putDouble("gravity", sample.frames.profile.surfaceGravity)
@@ -169,7 +169,7 @@ data class ShipTransferRecord(
                 if (version == 6) {
                     require(tag.contains("frame", 10)) { "Missing frozen lunar frame" }
                     val frame = tag.getCompound("frame")
-                    require(frame.contains("version", 3) && frame.getInt("version") == SolarSystemProfile.VERSION)
+                    require(frame.contains("version", 3))
                     require(frame.contains("tick", 4) && frame.contains("epoch", 4))
                     require(listOf("gravity", "earth_phase", "moon_phase").all { frame.contains(it, 6) })
                     val profile =
@@ -178,6 +178,7 @@ data class ShipTransferRecord(
                             frame.getLong("epoch"),
                             frame.getDouble("earth_phase"),
                             frame.getDouble("moon_phase"),
+                            SolarSystemProfile.Preset.fromVersion(frame.getInt("version")),
                         )
                     val tick = frame.getLong("tick")
                     require(tick >= profile.epochTick)
@@ -268,7 +269,9 @@ data class ShipTransferRecord(
                             org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
                                 .globalPosition(dimension, native)
                         }
-                    require(FlatPlanetSpace.validTransferPosition(physical)) { "Pose outside bounded physical flight coordinates" }
+                    require(
+                        FlatPlanetSpace.validTransferPosition(physical, lunarFrame?.frames?.profile),
+                    ) { "Pose outside bounded physical flight coordinates" }
                 } else {
                     val heights = if (orbitalSnapshot) 4160.0..20352.0 else 64.0..16256.0
                     require(

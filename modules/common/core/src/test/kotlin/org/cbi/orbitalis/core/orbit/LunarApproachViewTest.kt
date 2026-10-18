@@ -55,16 +55,31 @@ class LunarApproachViewTest {
         val frames = SurfaceFlightFrames(SolarSystemProfile(11.0), 8000)
         val reference = LunarApproachView()
         var previous: Vector3? = null
-        for (distance in 6200 downTo 1900 step 5) {
+        for (distance in (kotlin.math.ceil(frames.profile.moonHillRadius).toInt() + 10) downTo 1900 step 5) {
             val local = Vector3(0.0, 64.0 + distance, 0.0)
             val root = frames.point(local, SurfaceFlightFrames.World.MOON, SurfaceFlightFrames.World.SPACE)
             val now = reference.up(frames, root, SurfaceFlightFrames.World.SPACE)
-            if (distance >= 6000) assertTrue((now - up).length() < 1e-9)
+            if (local.length() >= frames.profile.moonHillRadius) assertTrue((now - up).length() < 1e-9)
             previous?.let { assertTrue((now - it).length() < 0.01) }
             previous = now
         }
         assertTrue(LunarApproachView.roll(up, up, Vector3(-1.0, 0.0, 0.0)) == 0.0)
         assertTrue(LunarApproachView.roll(Vector3(0.0, 0.0, 1.0), up, Vector3(-1.0, 0.0, 0.0)).isFinite())
+    }
+
+    @Test fun `lunar camera never captures a view outside the lunar Hill sphere`() {
+        val profile = SolarSystemProfile(11.0)
+        for (tick in listOf(0L, 160000L, 330000L, 650000L)) {
+            val frames = SurfaceFlightFrames(profile, tick)
+            val view = LunarApproachView()
+            for (axis in listOf(Vector3(1.0, 0.0, 0.0), up, Vector3(0.0, 0.0, 1.0))) {
+                val outside = axis * (profile.moonHillRadius + 1.0)
+                val root = frames.point(outside, SurfaceFlightFrames.World.MOON, SurfaceFlightFrames.World.SPACE)
+                assertTrue((view.up(frames, root, SurfaceFlightFrames.World.SPACE) - up).length() < 1e-12)
+            }
+        }
+        assertTrue(profile.moonHillRadius in 25000.0..35000.0)
+        assertTrue(profile.earthHillRadius > profile.moonOrbitRadius + profile.moonHillRadius)
     }
 
     @Test fun `wire rotations reject shear reflection and scale`() {

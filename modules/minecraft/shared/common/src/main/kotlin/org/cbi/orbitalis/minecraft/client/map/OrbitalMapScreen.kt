@@ -85,8 +85,8 @@ class OrbitalMapScreen(
             listOf(
                 "earth" to { resetEarthView() },
                 "moon" to { frameBody(SolarSystemProfile.MOON, SolarSystemProfile.MOON_HALF_SIZE * 3.0) },
-                "earth_moon" to { frameBody(SolarSystemProfile.EARTH, SolarSystemProfile.MOON_ORBIT_RADIUS * 1.3) },
-                "system" to { frameBody(SolarSystemProfile.SUN, SolarSystemProfile.EARTH_ORBIT_RADIUS * 1.15) },
+                "earth_moon" to { snapshot?.celestialProfile?.let { frameBody(SolarSystemProfile.EARTH, it.moonOrbitRadius * 1.3) } },
+                "system" to { snapshot?.celestialProfile?.let { frameBody(SolarSystemProfile.SUN, it.earthOrbitRadius * 1.15) } },
             )
         for ((index, view) in views.withIndex()) {
             celestialButtons.add(
