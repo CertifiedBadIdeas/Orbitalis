@@ -31,8 +31,7 @@ for navigation and are selectable through it. The sidebar reports native name (o
 state, signed vertical altitude relative to reference sea level Y=64, speed and physical distance from
 the viewer. Unloaded names are UUID labels because the motion index does not own native names. The
 scene is an overview: it shares the actual 32-metre planet relief/fallback mesh, not live ship block
-geometry. Cyan lines show ballistic forecasts; the selected object's line is gold. Manoeuvres, ship
-commands and a multi-body selector are separate work.
+geometry. Cyan lines show ballistic forecasts; the selected object's line is gold. The Flight plan sidebar adds separately coloured maneuver previews; a multi-body selector remains future work.
 
 Forecasts use each object's current physical position and velocity and the server's actual surface
 gravity. They omit thrust, future autopilot actions, drag, terrain and hull extent. A suborbital arc
@@ -46,7 +45,7 @@ selected object. It receives immutable snapshots and never touches a world or na
 Each forecast has at most 12,000 integration steps and 602 samples, with a 3,600-second maximum
 horizon and a 100 km radius limit. Longer periods may remain incomplete; objects beyond that radius
 remain selectable but have no preview. The worker is interrupted and discarded on screen close.
-Lines share marker projection, viewport clipping and overlay visibility through the planet.
+Lines share marker projection and viewport clipping. They render in world space against the same relief depth as the planet: hidden arcs disappear behind the visible surface. Object and maneuver markers remain selectable navigation overlays.
 
 ## Ownership and lifecycle
 
@@ -63,7 +62,7 @@ culling enables after drawing. Marker projection uses the same camera basis as t
 map admits that player to the existing bounded atlas stream; closing leaves the shared client atlas
 cache available for later map/orbital views. Atlas SavedData and its existing protocol are unchanged.
 
-## Version-two network contract
+## Version-three map network contract
 
 `orbitalis:map_request` carries a screen-local random UUID token and an open/close flag. The native
 connection supplies player identity. Only Overworld/space subscribers are admitted. A 100-server-tick
@@ -80,8 +79,7 @@ rejected. Gravity must be finite and within 0.000001..1,000,000 m/s². The maxim
 For overflow, nearest objects are retained and shown count differs from total. The client accepts only
 the current screen token and nondecreasing snapshot ticks. It marks missing/stale responses after
 three seconds and hides stale trajectory previews. Forecasts do not move the authoritative object
-markers. Screen state is discarded on close. Version two adds gravity to the snapshot; mismatched
-clients are rejected during native protocol negotiation, with no SavedData migration.
+markers. Screen state is discarded on close. Version two added gravity; version three registers the additional bounded flight-plan messages described below. Mismatched clients are rejected during native protocol negotiation; existing map/atlas data is unchanged.
 
 ## Verification
 
@@ -113,3 +111,53 @@ clipping. Zoom-out fitted the full loop in the portrait viewport. Closing with t
 the screen worker, restored world/menu rendering, and reopening allowed fixture cleanup. These
 fixtures verify client presentation of received orbital state; native body ownership and no-loading
 behavior are covered separately by the GameTests. Temporary preview probes are not shipped.
+
+## Maneuver nodes
+
+Select a ship, then **Flight plan**. Use **+** to append a node; **<** / **>** choose a node and **−**
+removes it. Right-click the selected gold coast line to add a node at that forecast time. The four editable fields are time in seconds after the plan epoch (T+), prograde, normal
+and radial delta-v in m/s. Positive prograde follows velocity; normal follows position cross velocity;
+radial is the outward component perpendicular to velocity in the orbital plane. Negative values reverse
+those axes. Purely radial or stationary states have no orbital basis and cannot produce a non-zero node.
+The first appended node defaults to 120 seconds ahead. Removing all nodes and adding one starts a fresh
+epoch. Time continues while this screen is open and pauses when the server stops.
+
+The gold line remains the selected object's gravity-only forecast. Purple lines and numbered markers
+show the local draft after instantaneous impulses in the actual reference field. Editing previews does
+not fire engines. **Save** stores the plan; **Reload** discards the draft and reads the server version.
+**Execute** asks an installed engine adapter to run the saved plan, and **Stop** releases that controller.
+Save or reload a draft before selecting another ship. Editing is disabled while engine control is active. Without an adapter, saving and previewing still work;
+the ordinary Orbitalis mod contains no Propulsion engine controller. The flight consumer supplies the
+optional adapter, alongside its existing independent orbit/land commands.
+
+A plan contains at most eight nodes, strictly increasing by at least 0.05 s, within 0.05..3600 s of its
+epoch. Each vector is finite and at most 500 m/s. Each coast segment has the existing numerical budget;
+a plan adds at most nine segments. A collision/range event truncates the plan before later nodes. Only
+an actually periodic final coast is closed. Preview impulses have zero duration; real engine burns
+have finite duration and can leave execution error. Terrain, vessel geometry and other objects are not
+collision-planned. Main-body contact ends the numerical forecast, not a guaranteed landing solution.
+
+`orbitalis:flight_plan_command` carries the current map lease token, ship UUID, action (read/save/execute/
+stop), expected revision and bounded plan. Connection identity selects personal ownership. Mutations
+require creative mode and permission level 2, a directory entry and the current revision. Reads never
+wake a native body; execution adapters must reject unloaded targets. `flight_plan_state` replies with
+the same token/ship, Overworld game tick, current revision/plan, adapter availability, running flag and
+a bounded error. Requests are limited to one per four service ticks. Screen token and selected UUID
+prevent an old response replacing another ship's draft.
+
+`orbitalis_flight_plans` is version-one Overworld SavedData with at most 256 owner/ship entries. Each
+entry stores owner/ship UUIDs, positive revision, epoch tick and nodes. Empty plans retain their revision.
+Unknown versions, malformed numeric fields, duplicate keys and out-of-bounds nodes are rejected rather
+than silently overwritten. Plans persist across restart; active consumer execution does not resume.
+
+
+Maneuver-editor verification on 2026-10-18 used a new, task-owned consumer world. Native screen button
+and EditBox input created a prograde/normal node, changed the purple forecast, rejected NaN with Save
+disabled, saved through the real server connection (revision 0 to 1), and rejected execution against an
+unloaded index fixture without waking it. A native right-click on the coast created another timed node.
+Framebuffer captures at GUI scales 1, 2 and 3 checked controls, clipping and forecast alignment. After
+moving line rendering into the planet depth pass, scales 1 and 2 and a rotated camera showed both gold
+and purple far-side arcs hidden by the actual relief mesh, with near-side arcs retained. Closing the
+map released its worker/GPU buffers; owned fixtures were removed and the client saved/exited normally.
+Headless native engine scenarios separately verify actual execution; index fixtures here only verify
+presentation and command rejection. Logs, actions and framebuffer captures are retained as task evidence.

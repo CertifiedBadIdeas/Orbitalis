@@ -20,6 +20,12 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Add personal timed maneuver nodes with prograde/normal/radial delta-v, a map editor and separate
+  real-field impulse previews. Persist revisioned plans in Orbitalis; the removable flight consumer
+  executes loaded orbital ships using native Propulsion engines and measured delta-v feedback.
+  Existing orbit/land modes remain separate and no dormant ships are automatically loaded.
+  Planet relief occludes trajectory arcs on the far side in the orbital map.
+
 - Retain already loaded ships while consumer autopilots are active, including uncrewed flight and
   orbital coast. Follow native bodies across handoffs and release session tickets on stop/landing/error;
   listing and commands for unloaded UUIDs still do not wake ships or load orbital terrain.

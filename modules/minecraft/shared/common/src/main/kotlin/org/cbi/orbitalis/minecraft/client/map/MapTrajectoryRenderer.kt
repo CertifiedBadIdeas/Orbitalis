@@ -19,74 +19,135 @@
 package org.cbi.orbitalis.minecraft.client.map
 
 import com.mojang.blaze3d.systems.RenderSystem
-import com.mojang.blaze3d.vertex.BufferUploader
 import com.mojang.blaze3d.vertex.DefaultVertexFormat
 import com.mojang.blaze3d.vertex.Tesselator
+import com.mojang.blaze3d.vertex.VertexBuffer
 import com.mojang.blaze3d.vertex.VertexFormat
-import net.minecraft.client.gui.GuiGraphics
 import net.minecraft.client.renderer.GameRenderer
 import org.cbi.orbitalis.core.planet.CoastPrediction
 import org.cbi.orbitalis.core.planet.Vector3
+import org.joml.Matrix4f
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL14
 import java.util.UUID
 
-/** Scissored GUI-space lines share the exact marker camera; distant endpoints stay GPU-clipped. */
-object MapTrajectoryRenderer {
-    fun render(
-        graphics: GuiGraphics,
-        camera: MapCamera,
+/** Screen-owned world-space lines share the planet's projection and real relief depth attachment. */
+class MapTrajectoryRenderer : AutoCloseable {
+    private var mesh: VertexBuffer? = null
+    private var previous: List<MapTrajectories.Path>? = null
+    private var selection: UUID? = null
+
+    private fun upload(
         paths: List<MapTrajectories.Path>,
         selected: UUID?,
-        x: Int,
-        y: Int,
-        width: Int,
-        height: Int,
     ) {
-        if (paths.none { it.prediction.points.size > 1 }) return
-        graphics.flush()
-        val shader = RenderSystem.getShader()
-        val color = RenderSystem.getShaderColor().copyOf()
+        if (previous === paths && selection == selected) return
+        previous = paths
+        selection = selected
+        if (paths.none { it.prediction.points.size > 1 }) {
+            mesh?.close()
+            mesh = null
+            return
+        }
+        val buffer = Tesselator.getInstance().begin(VertexFormat.Mode.DEBUG_LINES, DefaultVertexFormat.POSITION_COLOR)
+        for (path in paths.sortedWith(compareBy<MapTrajectories.Path> { it.planned }.thenBy { it.source.id == selected })) {
+            val chosen = path.source.id == selected
+
+            fun vertex(p: Vector3) {
+                buffer.addVertex(p.x.toFloat(), p.y.toFloat(), p.z.toFloat()).setColor(
+                    if (path.planned) {
+                        208
+                    } else if (chosen) {
+                        255
+                    } else {
+                        75
+                    },
+                    if (path.planned) {
+                        140
+                    } else if (chosen) {
+                        225
+                    } else {
+                        170
+                    },
+                    if (path.planned) {
+                        255
+                    } else if (chosen) {
+                        155
+                    } else {
+                        215
+                    },
+                    if (chosen) 255 else 155,
+                )
+            }
+            val points = path.prediction.points
+            for (i in 1 until points.size) {
+                vertex(points[i - 1].state.position)
+                vertex(points[i].state.position)
+            }
+            if (path.prediction.end == CoastPrediction.End.ORBIT && points.size > 1) {
+                vertex(points.last().state.position)
+                vertex(points.first().state.position)
+            }
+        }
+        val gpu = mesh ?: VertexBuffer(VertexBuffer.Usage.STATIC).also { mesh = it }
+        gpu.bind()
+        try {
+            buffer.buildOrThrow().use { gpu.upload(it) }
+        } finally {
+            VertexBuffer.unbind()
+        }
+    }
+
+    /** Caller has drawn the planet and keeps its viewport/depth until this pass finishes. */
+    fun render(
+        camera: MapCamera,
+        view: Matrix4f,
+        projection: Matrix4f,
+        paths: List<MapTrajectories.Path>,
+        selected: UUID?,
+    ) {
+        upload(paths, selected)
+        val gpu = mesh ?: return
         val depth = GL11.glIsEnabled(GL11.GL_DEPTH_TEST)
+        val mask = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK)
+        val func = GL11.glGetInteger(GL11.GL_DEPTH_FUNC)
         val blend = GL11.glIsEnabled(GL11.GL_BLEND)
         val srcRgb = GL11.glGetInteger(GL14.GL_BLEND_SRC_RGB)
         val dstRgb = GL11.glGetInteger(GL14.GL_BLEND_DST_RGB)
         val srcAlpha = GL11.glGetInteger(GL14.GL_BLEND_SRC_ALPHA)
         val dstAlpha = GL11.glGetInteger(GL14.GL_BLEND_DST_ALPHA)
+        val color = RenderSystem.getShaderColor().copyOf()
+        val shader = RenderSystem.getShader()
         try {
-            RenderSystem.disableDepthTest()
+            RenderSystem.enableDepthTest()
+            RenderSystem.depthFunc(GL11.GL_LEQUAL)
+            RenderSystem.depthMask(false)
             RenderSystem.enableBlend()
             RenderSystem.defaultBlendFunc()
             RenderSystem.setShaderColor(1f, 1f, 1f, 1f)
-            RenderSystem.setShader(GameRenderer::getPositionColorShader)
-            val buffer = Tesselator.getInstance().begin(VertexFormat.Mode.DEBUG_LINES, DefaultVertexFormat.POSITION_COLOR)
-            val matrix = graphics.pose().last().pose()
-            for (path in paths.sortedBy { it.source.id == selected }) {
-                val chosen = path.source.id == selected
-
-                fun vertex(position: Vector3) {
-                    val p = camera.projectRaw(position, width, height)
-                    buffer
-                        .addVertex(matrix, (x + p.x).toFloat(), (y + p.y).toFloat(), 0f)
-                        .setColor(if (chosen) 255 else 75, if (chosen) 225 else 170, if (chosen) 155 else 215, if (chosen) 255 else 155)
-                }
-                val points = path.prediction.points
-                for (i in 1 until points.size) {
-                    vertex(points[i - 1].state.position)
-                    vertex(points[i].state.position)
-                }
-                if (path.prediction.end == CoastPrediction.End.ORBIT && points.size > 1) {
-                    vertex(points.last().state.position)
-                    vertex(points.first().state.position)
-                }
-            }
-            BufferUploader.drawWithShader(buffer.buildOrThrow())
+            val modelView =
+                Matrix4f(
+                    view,
+                ).scale(
+                    (1.0 / camera.range).toFloat(),
+                ).translate(-camera.focus.x.toFloat(), -camera.focus.y.toFloat(), -camera.focus.z.toFloat())
+            gpu.bind()
+            gpu.drawWithShader(modelView, projection, checkNotNull(GameRenderer.getPositionColorShader()))
         } finally {
+            VertexBuffer.unbind()
             RenderSystem.setShader { shader }
             RenderSystem.setShaderColor(color[0], color[1], color[2], color[3])
+            RenderSystem.depthMask(mask)
+            RenderSystem.depthFunc(func)
             if (depth) RenderSystem.enableDepthTest() else RenderSystem.disableDepthTest()
             RenderSystem.blendFuncSeparate(srcRgb, dstRgb, srcAlpha, dstAlpha)
             if (blend) RenderSystem.enableBlend() else RenderSystem.disableBlend()
         }
+    }
+
+    override fun close() {
+        mesh?.close()
+        mesh = null
+        previous = null
     }
 }

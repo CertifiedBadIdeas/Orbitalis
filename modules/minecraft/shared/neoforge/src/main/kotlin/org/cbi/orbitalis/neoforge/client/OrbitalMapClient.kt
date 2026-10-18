@@ -47,6 +47,10 @@ object OrbitalMapClient {
         event.enqueueWork(
             Runnable {
                 OrbitalMapScreen.send = { if (Minecraft.getInstance().connection != null) PacketDistributor.sendToServer(it) }
+                org.cbi.orbitalis.minecraft.client.map.ManeuverPanel.send =
+                    { if (Minecraft.getInstance().connection != null) PacketDistributor.sendToServer(it) }
+                org.cbi.orbitalis.minecraft.navigation.FlightPlanReceiver.accept =
+                    { (Minecraft.getInstance().screen as? OrbitalMapScreen)?.accept(it) }
                 MapSnapshotReceiver.accept = { (Minecraft.getInstance().screen as? OrbitalMapScreen)?.accept(it) }
             },
         )

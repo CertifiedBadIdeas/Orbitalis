@@ -483,3 +483,34 @@ Orbitalis generator handles exact columns in partial chunks. Other dimensions an
 callers stay unchanged. The thread-local scope is restored in a `finally` block, including cancellation.
 These optional hooks add no production dependency on Voxy or WorldGenV2. Recheck manager call sites,
 local-player capture and the graph's four-chunk batch geometry when updating the pinned mod.
+
+### Player maneuver-plan execution
+
+The map's **Execute** button or `/orbitalis flight autopilot execute [ship UUID]` runs a saved personal
+maneuver plan. `orbit` and `land` keep their separate existing behaviors; first reach orbital space,
+stop the old controller, then create/save a future plan. The executor requires an already loaded ship,
+creative owner and permission level 2. It never wakes a dormant UUID. Its normal flight ticket retains
+the active loaded body even without passengers and is released on completion/stop/error.
+
+`ManeuverMission` consumes the shared plan and calculates real-field impulse target vectors on its own
+worker. It supports the rocket's bottom vector engines plus capped RCS, or the six-axis creative shuttle.
+Before each node it coasts, turns using RCS, then burns around the planned impulse time. Main thrust
+is capped at 3 m/s², tapers as the remaining delta-v decreases, and retains native engine fade. Delivered
+delta-v is measured from native velocity changes minus trapezoidal gravity impulse; guidance never
+writes velocity, teleports or replaces Sable integration. Each burn must settle below 0.75 m/s residual;
+timeout, off-axis deviation, frame change, removed body or lost authority stops the controller. There
+must be 30 seconds of turn lead plus half-burn margins between nodes. Zero/tiny nodes are previewable
+but execution requires at least 0.2 m/s per node. Late plans must be edited before execution.
+
+This is an orbital finite-burn prototype, not a terrain-aware ascent/landing planner or a guarantee that
+finite burns reproduce an impulsive preview exactly. Engine execution is transient; plans persist in
+Orbitalis and remain usable without this consumer. Space-travel reservations prevent a competing
+height-triggered transfer during a maneuver; normal travel resumes when the plan releases its lease.
+
+
+`-PorbitalisConsumerGameTestSuite=maneuver` runs the two focused native plan scenarios; the default
+suite now requires all 17 consumer tests. Both rocket and shuttle fixtures execute a mixed
+prograde/normal/radial node followed by a retrograde node, without passengers or a fixture force ticket.
+On 2026-10-18 each settled burn measured 0.127–0.129 m/s residual; final trajectories differed from the
+unpowered prediction by about 1.1 km. Tests also require engine fade to zero and angular speed below
+0.1 rad/s. These are two bounded finite-burn scenarios, not general trajectory optimality evidence.
