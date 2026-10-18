@@ -337,8 +337,8 @@ At the end of ascent, a bounded worker forecasts the actual insertion state with
 Capture requires negative specific energy, a full revolution in the launch meridian, at least 64 m
 of reference-body clearance and a radius within 15% of the planned low orbit. An unsafe insertion
 fails explicitly. The controller does not chase a moving reference point after insertion: the main
-engines fade and remain off for a full ballistic revolution. Native ownership changes clear
-residual Propulsion inputs exactly. Balanced native
+engines fade and remain off during ballistic coast until an explicitly requested return burn. Native
+ownership changes clear residual Propulsion inputs exactly. Balanced native
 RCS keeps the nose prograde and damps residual roll throughout that coast. The attitude target
 transports the current roll instead of rebuilding an absolute world-UP quaternion, avoiding a roll
 singularity below the planet. Return searches future ballistic states over the next revolution,
@@ -365,9 +365,13 @@ reaching the target angle. These are development-controller limits, not a propel
 The controller never sets the live
 ship's pose, velocity or applied force directly.
 
-The rocket route returns automatically after the full revolution. `land` during free coast also queues
-that return, preserving the full-revolution requirement; after a controller restart it uses the persisted
-launch bookmark. `stop` releases all inputs and native engine fade still applies. The current stand
+`orbit` ends ascent in `COAST` and never starts a return automatically, even after a full revolution.
+Main engines remain off; native RCS continues prograde attitude control until `land` or `stop`.
+Free coast has no mission timeout. `land` during `COAST` starts searching for the next safe return
+window immediately; it does not require a full revolution first. After a controller restart, `land`
+uses the persisted launch bookmark. It returns to the original launch pad rather than saving the
+current orbital position as a new destination. `stop` releases all inputs and native engine fade still
+applies. The current stand
 requires one creative pilot, standing on the deck or riding a plot-owned seat, an upright rocket, a clear pad and an unobstructed
 approach. It does not plan around arbitrary terrain or buildings. The shuttle fixture and its hold
 controller remain separate regression tools.
@@ -380,6 +384,9 @@ textures or models are imported. Steering overrides preserve manual signals and 
 
 The focused `rocket` GameTest suite checks assembly, actual gimbal basis/interpolation, powered hold,
 RCS-only orientation and complete native centre/off-axis missions with cargo and both dimension handoffs.
+The centred mission waits beyond a full revolution without an automatic return, then explicitly requests
+landing. Off-axis and seated missions request landing earlier; the off-axis case reconnects through
+a saved launch bookmark.
 The seated mission adds a real Create seat and previously excluded dispenser inventory. Coast trials
 apply a native angular impulse and require roll damping, prograde tracking, main-engine cutoff and
 bounded orbital energy drift; guidance never writes velocities to recover from that disturbance.

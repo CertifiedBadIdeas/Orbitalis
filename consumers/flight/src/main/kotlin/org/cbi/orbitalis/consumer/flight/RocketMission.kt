@@ -169,7 +169,10 @@ internal class RocketMission(
 
     override fun tick(pilot: ServerPlayer?): Boolean {
         require(!closed && pilot != null && pilot.isAlive) { "Pilot unavailable" }
-        check(++ticks < (16000 * kotlin.math.sqrt(org.cbi.orbitalis.core.planet.FlatPlanetDefinition.SCALE)).toInt()) {
+        // A completed orbit insertion may coast until the pilot explicitly requests landing.
+        check(
+            phase == Phase.COAST || ++ticks < (16000 * kotlin.math.sqrt(org.cbi.orbitalis.core.planet.FlatPlanetDefinition.SCALE)).toInt(),
+        ) {
             "Rocket mission timed out: $phase"
         }
         check(transfer.error == null) { "Transfer stopped: ${transfer.error}" }
@@ -287,8 +290,7 @@ internal class RocketMission(
                 val current = atan2(s.position.dot(course.axis), s.position.y)
                 coastAngle += OrbitalGuidance.angleStep(angle, current)
                 angle = current
-                if (phase == Phase.COAST && coastAngle >= 2 * PI) enter(Phase.RETURN)
-                if (phase == Phase.RETURN && coastAngle >= 2 * PI) {
+                if (phase == Phase.RETURN) {
                     if (returnPlanning == null) {
                         val initial = s
                         val authority = engine().maximumAcceleration
@@ -407,7 +409,7 @@ internal class RocketMission(
                 state().position.y - 64.0,
                 state().velocity.length(),
                 coastAngle / (2 * PI),
-            )
+            ) + if (phase == Phase.COAST) "; orbit reached; use /orbitalis flight autopilot land to return" else ""
         }
 
     override fun close() {

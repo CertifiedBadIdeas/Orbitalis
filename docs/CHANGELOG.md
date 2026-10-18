@@ -20,6 +20,9 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Separate consumer autopilot orbit insertion from landing: `orbit` coasts until an explicit `land`
+  request, and `land` searches the next safe return window without requiring a complete revolution.
+
 - Add hierarchical inertial frame transforms and a persisted game-time motion index for unloaded,
   independent Sable stations in sparse space. Evolve ballistic motion without terrain tickets and
   restore the native station's position, exact velocity and existing cargo through its holding map.

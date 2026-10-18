@@ -117,6 +117,7 @@ object RocketGameTests {
         var assembledAt = 0
         var handoffs = 0
         var requested = false
+        var coastBeforeLanding = 0.0
         var previousState: org.cbi.orbitalis.core.planet.CartesianState? = null
         var previousWorld: net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level>? = null
         var minimumClearance = Double.POSITIVE_INFINITY
@@ -458,7 +459,18 @@ object RocketGameTests {
                     }
                     if (seated) helper.assertTrue(pilot.player.vehicle?.uuid == seatId, "Create seat/rider link lost at handoff")
                 }
-                if (active.phase == RocketMission.Phase.COAST && !requested) {
+                if (!requested) {
+                    helper.assertTrue(
+                        active.phase !in listOf(RocketMission.Phase.RETURN, RocketMission.Phase.FLIP, RocketMission.Phase.BRAKE),
+                        "Orbit started returning without an explicit landing request",
+                    )
+                }
+                // The centred flight must stay in orbit beyond a complete revolution. The other
+                // flights request landing early, including reconnecting through a saved bookmark.
+                val landingAngle = if (reload || seated) 0.15 else 2 * Math.PI + 0.1
+                if (active.phase == RocketMission.Phase.COAST && !requested && active.coastAngle >= landingAngle) {
+                    coastBeforeLanding = active.coastAngle
+                    println("ORBITALIS_EXPLICIT_LAND coastTurns=${coastBeforeLanding / (2 * Math.PI)} reconnect=$reload")
                     if (reload) {
                         val bookmarks = LaunchSites()
                         bookmarks.put(pilot.player.uuid, site!!)
@@ -470,6 +482,8 @@ object RocketGameTests {
                                 ).require(pilot.player.uuid, active.body.uniqueId)
                         active.close()
                         mission = RocketMission(pilot.player, active.body, saved, transfer, true)
+                    } else {
+                        active.requestLanding()
                     }
                     requested = true
                 }
@@ -480,8 +494,8 @@ object RocketGameTests {
                 }
                 if (landed) {
                     helper.assertTrue(
-                        handoffs == 2 && requested && active.coastAngle >= 2 * Math.PI,
-                        "Rocket did not complete full round trip",
+                        handoffs == 2 && requested && (reload || seated || coastBeforeLanding > 2 * Math.PI),
+                        "Rocket did not complete the separately requested orbit and landing",
                     )
                     helper.assertTrue((AutopilotSession.position(active.body) - site!!.position).length() < 0.5, "Rocket missed its pad")
                     val cargo =
@@ -509,7 +523,7 @@ object RocketGameTests {
                             "Create seat or pilot mount was lost",
                         )
                     }
-                    helper.assertTrue(freeTicks > 1000, "No complete native engine-off revolution")
+                    helper.assertTrue(freeTicks > (if (reload || seated) 100 else 1000), "No native engine-off coast before landing")
                     helper.assertTrue(earlyHorizontal > 2.0, "No horizontal acceleration before ascent handoff")
                     helper.assertTrue(
                         maximumHeight < FlatPlanetSpace.ORBIT_HEIGHT * 1.2,

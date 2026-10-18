@@ -147,7 +147,10 @@ internal class FlatOrbitalMission(
 
     override fun tick(pilot: ServerPlayer?): Boolean {
         require(!closed && pilot != null && pilot.isAlive) { "Pilot unavailable" }
-        check(++ticks < (16000 * kotlin.math.sqrt(org.cbi.orbitalis.core.planet.FlatPlanetDefinition.SCALE)).toInt()) {
+        // A completed orbit insertion may coast until the pilot explicitly requests landing.
+        check(
+            phase == Phase.COAST || ++ticks < (16000 * kotlin.math.sqrt(org.cbi.orbitalis.core.planet.FlatPlanetDefinition.SCALE)).toInt(),
+        ) {
             "Finite-body mission timed out: $phase"
         }
         check(transfer.error == null) { "Transfer stopped: ${transfer.error}" }
@@ -296,7 +299,7 @@ internal class FlatOrbitalMission(
             if (phase ==
                 Phase.COAST
             ) {
-                "Engines off; numerical free orbit."
+                "Engines off; numerical free orbit. Use /orbitalis flight autopilot land to return."
             } else {
                 "Native engines only."
             },
