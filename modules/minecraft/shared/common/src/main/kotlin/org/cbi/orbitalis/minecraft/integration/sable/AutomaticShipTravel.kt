@@ -82,10 +82,9 @@ class AutomaticShipTravel(
                     CelestialFlight
                         .sample(
                             server,
-                        ).state(
+                        ).rootState(
                             CartesianState(reading.position, Vector3(reading.velocity.x, reading.velocity.y, reading.velocity.z)),
                             key,
-                            Level.OVERWORLD,
                         )
                 val global = physical.position
                 seen.add(body.uniqueId)

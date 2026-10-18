@@ -136,7 +136,13 @@ object SurfacePlanetRenderer {
         clouds: Boolean = true,
     ) {
         updateMesh()
-        val modelView = Matrix4f(view).scale(scale.toFloat()).translate(-observer.x.toFloat(), -observer.y.toFloat(), -observer.z.toFloat())
+        val modelView =
+            Matrix4f(
+                view,
+            ).scale(
+                scale.toFloat(),
+            ).translate(-observer.x.toFloat(), -observer.y.toFloat(), -observer.z.toFloat())
+                .mul(CelestialView.earthRotation())
         for (mesh in meshes.values + listOfNotNull(body)) {
             mesh.bind()
             try {

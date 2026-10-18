@@ -220,7 +220,25 @@ class SableShipTransfer(
         preserveClientMotion: Boolean = false,
         next: () -> Unit,
     ) {
-        check(movePlayer(player, body.level, state, preserveClientMotion)) { "Pilot dimension transfer was rejected" }
+        check(
+            movePlayer(
+                player,
+                body.level,
+                state,
+                preserveClientMotion,
+                active?.frozenFrame?.takeUnless {
+                    val passengers =
+                        if (player.level().dimension() ==
+                            body.level.dimension()
+                        ) {
+                            active?.destinationPassengers
+                        } else {
+                            active?.sourcePassengers
+                        }
+                    passengers?.filterIsInstance<CompoundTag>()?.any { it.getBoolean("player") && it.getBoolean("plot") } == true
+                },
+            ),
+        ) { "Pilot dimension transfer was rejected" }
 
         fun available(): Boolean {
             check(player.isAlive && player.level() === body.level) { "Pilot became unavailable during client handoff" }
@@ -229,7 +247,25 @@ class SableShipTransfer(
         awaitCondition("Destination ship tracking timed out", { available() && pilotSync.hasShip(player, body) }) {
             // Native tracking has queued the complete ship bundle. This second teleport is
             // ordered after it on TCP, so its vanilla acknowledgment fences client loading.
-            check(movePlayer(player, body.level, state, preserveClientMotion)) { "Pilot deck positioning was rejected" }
+            check(
+                movePlayer(
+                    player,
+                    body.level,
+                    state,
+                    preserveClientMotion,
+                    active?.frozenFrame?.takeUnless {
+                        val passengers =
+                            if (player.level().dimension() ==
+                                body.level.dimension()
+                            ) {
+                                active?.destinationPassengers
+                            } else {
+                                active?.sourcePassengers
+                            }
+                        passengers?.filterIsInstance<CompoundTag>()?.any { it.getBoolean("player") && it.getBoolean("plot") } == true
+                    },
+                ),
+            ) { "Pilot deck positioning was rejected" }
             awaitCondition("Pilot teleport acknowledgment or deck contact timed out", { available() && pilotSync.isReady(player, body) }) {
                 player.deltaMovement = Vec3(state.getDouble("vx"), state.getDouble("vy"), state.getDouble("vz"))
                 player.fallDistance = 0f
@@ -295,36 +331,18 @@ class SableShipTransfer(
         require(surfaceDimension in setOf(Level.OVERWORLD, MoonWorld.KEY)) { "Unsupported surface route" }
         val destinationDimension = if (sourceOrbit) surfaceDimension else orbitalDimension
         require(targetDimension == null || targetDimension == destinationDimension) { "Unsupported transfer route" }
-        val lunarTransform =
-            if (surfaceDimension ==
-                MoonWorld.KEY
-            ) {
-                ShipFrameTransform(CelestialFlight.sample(server), sourceDimension, destinationDimension)
-            } else {
-                null
-            }
+        val frameTransform = ShipFrameTransform(CelestialFlight.sample(server), sourceDimension, destinationDimension)
         // Freeze bounds at the same current pose as the snapshot, after native drift.
         body.updateBoundingBox()
         val participants = ShipTransferPassengers.preflight(body, player)
         val passengers = participants.data
         val travellerIds = ShipTransferPassengers.ids(passengers)
         val source = SableShipSnapshot.capture(body, travellerIds)
-        val delta =
-            if (lunarTransform != null) {
-                0.0
-            } else {
-                FlightSpaceCoordinates
-                    .localPosition(
-                        destinationDimension,
-                        FlightSpaceCoordinates.globalPosition(sourceDimension, Vector3.ZERO),
-                    ).y
-            }
         val target = checkNotNull(server.getLevel(destinationDimension))
         require(participants.entities.all { it.canChangeDimensions(body.level, target) }) { "A travelling entity rejects dimension travel" }
         val destination =
             SableShipSnapshot.forDestination(
-                lunarTransform?.ship(source, SableFlightGravity.reading(body).position)
-                    ?: SableShipSnapshot.translated(source, delta, destinationDimension),
+                frameTransform.ship(source, SableFlightGravity.reading(body).position),
                 body.level,
                 target,
             )
@@ -336,26 +354,23 @@ class SableShipTransfer(
                 Vector3(sourcePilot.getDouble("vx"), sourcePilot.getDouble("vy"), sourcePilot.getDouble("vz")),
             )
         }
-        val destinationPassengers =
-            lunarTransform?.passengers(passengers, source, destination)
-                ?: ShipTransferPassengers.translated(passengers, source, destination)
+        val destinationPassengers = frameTransform.passengers(passengers, source, destination)
         val destinationPilot =
-            if (lunarTransform != null && player != null) {
+            if (player != null) {
                 destinationPassengers
                     .filterIsInstance<CompoundTag>()
                     .single { it.getBoolean("player") }
                     .getCompound("state")
                     .copy()
             } else {
-                sourcePilot.copy().also { it.putDouble("y", it.getDouble("y") + delta) }
+                CompoundTag()
             }
         if (player != null &&
             !destinationPassengers.filterIsInstance<CompoundTag>().single { it.getBoolean("player") }.getBoolean("plot")
         ) {
             val native = Vector3(destinationPilot.getDouble("x"), destinationPilot.getDouble("y"), destinationPilot.getDouble("z"))
             val physical =
-                lunarTransform?.sample?.point(native, destinationDimension, Level.OVERWORLD)
-                    ?: FlightSpaceCoordinates.globalPosition(target, native)
+                frameTransform.sample.rootPoint(native, destinationDimension)
             require(FlatPlanetSpace.validTransferPosition(physical)) { "Pilot outside bounded physical flight coordinates" }
         }
         val record =
@@ -373,7 +388,7 @@ class SableShipTransfer(
                 orbitalDimension = orbitalDimension,
                 surfaceDimension = surfaceDimension,
                 sourcePassengers = passengers,
-                lunarFrame = lunarTransform?.sample,
+                frozenFrame = frameTransform.sample,
                 destinationPassengers = destinationPassengers,
             )
         player?.closeContainer()
@@ -837,7 +852,32 @@ class SableShipTransfer(
             world: ServerLevel,
             state: CompoundTag,
             preserveClientMotion: Boolean = false,
+            frame: CelestialFlight? = null,
         ): Boolean {
+            val sourceDimension = player.level().dimension()
+            val targetDimension = world.dimension()
+            val rotation =
+                if (frame != null && sourceDimension != targetDimension) {
+                    org.cbi.orbitalis.core.orbit.Rotation3.fromAxes(
+                        frame.direction(Vector3(1.0, 0.0, 0.0), sourceDimension, targetDimension),
+                        frame.direction(Vector3(0.0, 1.0, 0.0), sourceDimension, targetDimension),
+                        frame.direction(Vector3(0.0, 0.0, 1.0), sourceDimension, targetDimension),
+                    )
+                } else {
+                    org.cbi.orbitalis.core.orbit.Rotation3.IDENTITY
+                }
+            val offset =
+                if (frame != null && sourceDimension != targetDimension) {
+                    frame
+                        .state(
+                            org.cbi.orbitalis.core.planet
+                                .CartesianState(Vector3(player.x, player.y, player.z), Vector3.ZERO),
+                            sourceDimension,
+                            targetDimension,
+                        ).velocity * 0.05
+                } else {
+                    Vector3.ZERO
+                }
             val p = position(state)
             (player as EntityMovementExtension).`sable$setTrackingSubLevel`(null)
             (player as EntityMovementExtension).`sable$setLastTrackingSubLevelID`(null)
@@ -862,7 +902,7 @@ class SableShipTransfer(
                 player.deltaMovement = Vec3(state.getDouble("vx"), state.getDouble("vy"), state.getDouble("vz"))
                 player.fallDistance = 0f
                 org.cbi.orbitalis.minecraft.flight.PlayerFlightMotion
-                    .restore(player, player.deltaMovement, motionToken)
+                    .restore(player, player.deltaMovement, motionToken, rotation, offset)
             }
             return moved
         }

@@ -375,7 +375,7 @@ object SableOrbitalObjects {
                     container.allSubLevels.any { body ->
                         nativePosition.minus(vector(body.logicalPose().position())).length() < 512.0 + record.radius
                     }
-                val p = record.state.position
+                val p = sample.nativePoint(record.state.position, net.minecraft.world.level.Level.OVERWORLD)
                 val approachingSurface =
                     org.cbi.orbitalis.core.planet.PlanetFlightEnvelope
                         .distance(p) <

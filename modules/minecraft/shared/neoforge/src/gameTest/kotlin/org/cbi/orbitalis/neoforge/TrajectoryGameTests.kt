@@ -101,12 +101,20 @@ object TrajectoryGameTests {
                 return
             }
             val sample = SableFlightGravity.reading(body)
-            val target = FlightSpaceCoordinates.localPosition(FlatPlanetSpace.SPACE, Vector3(0.0, 8000.0, 0.0))
+            val frame =
+                org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                    .sample(level.server)
+            val rootTarget = frame.rootPoint(Vector3(0.0, 8000.0, 0.0), net.minecraft.world.level.Level.OVERWORLD)
+            val target = frame.nativePoint(rootTarget, FlatPlanetSpace.SPACE)
             val delta = target - sample.position
             val handle = physics.getPhysicsHandle(body)
             handle.teleport(Vector3d(body.logicalPose().position()).add(delta.x, delta.y, delta.z), body.logicalPose().orientation())
             handle.addLinearAndAngularVelocity(Vector3d(sample.velocity).negate(), Vector3d())
             helper.runAfterDelay(1) {
+                val frames =
+                    org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                        .sample(level.server)
+                        .frames
                 val request = checkNotNull(ShipCoastForecast.capture(body))
                 val future = CompletableFuture.supplyAsync { request.calculate() }
                 helper.runAfterDelay(30) {
@@ -144,8 +152,16 @@ object TrajectoryGameTests {
                         )
                         helper.assertTrue(
                             result.prediction.end == CoastPrediction.End.BODY_INTERSECTION &&
-                                kotlin.math.abs(result.prediction.terminal.state.position.y - FlatPlanetSpace.SEA_LEVEL) < 1e-6,
-                            "Ballistic forecast stopped at the dimension handoff instead of continuing to the reference surface",
+                                org.cbi.orbitalis.core.planet.PlanetFlightEnvelope.distance(
+                                    frames.profile
+                                        .earthSurfaceFrame(
+                                            frames.tick,
+                                            result.prediction.terminal.seconds,
+                                        ).orientation
+                                        .inverse(result.prediction.terminal.state.position),
+                                ) <
+                                0.01,
+                            "Ballistic forecast missed moving surface: end=${result.prediction.end} terminal=${result.prediction.terminal}",
                         )
                         val buffer = FriendlyByteBuf(Unpooled.buffer())
                         try {

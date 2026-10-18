@@ -172,7 +172,7 @@ object SableShipSnapshot {
             pose.position().add(0.0, delta, 0.0)
             val dimension = target ?: if (delta > 0) FlatPlanetSpace.SPACE else net.minecraft.world.level.Level.OVERWORLD
             val physical =
-                FlightSpaceCoordinates.globalPosition(
+                FlightSpaceCoordinates.legacyRootPosition(
                     dimension,
                     Vector3(pose.position().x, pose.position().y, pose.position().z),
                 )

@@ -111,7 +111,7 @@ class PlayerGravityGameTests {
             player.setGameMode(GameType.SURVIVAL)
             player.setPos(4500.0, 100.0, 4500.0)
             val near = PlayerGravity.acceleration(player)
-            helper.assertTrue(near.x == 0.0 && near.z == 0.0 && near.y < 0.0, "Surface gravity is not vertical")
+            helper.assertTrue(abs(near.x) < 1e-12 && abs(near.z) < 1e-12 && near.y < 0.0, "Surface gravity is not vertical")
             helper.assertTrue(abs(near.y + 0.08) < 1e-10, "Default surface player gravity differs from Minecraft")
             val vanilla = GameTestPlayers.create(helper, locallyControlled = true)
             try {
@@ -133,22 +133,42 @@ class PlayerGravityGameTests {
                     player.travel(Vec3.ZERO)
                     vanilla.travel(Vec3.ZERO)
                     helper.assertTrue(
-                        player.deltaMovement.distanceTo(vanilla.deltaMovement) < 1e-10,
-                        "Surface jump velocity differs from native Minecraft",
+                        player.deltaMovement.distanceTo(vanilla.deltaMovement) < 0.005,
+                        "Surface spin changed jump velocity beyond the small Coriolis correction",
                     )
                     helper.assertTrue(
-                        abs((player.y - 100.0) - (vanilla.y - 10000.0)) < 1e-8,
+                        abs((player.y - 100.0) - (vanilla.y - 10000.0)) < 0.02,
                         "Surface jump height differs from native Minecraft",
                     )
                 }
             } finally {
                 vanilla.discard()
             }
-            player.setPos(10000.0, 10000.0, 0.0)
-            val far = PlayerGravity.acceleration(player)
-            player.setPos(20000.0, 20000.0, 0.0)
-            val farther = PlayerGravity.acceleration(player)
-            helper.assertTrue(far.x < 0.0 && far.y < 0.0 && farther.length() < far.length(), "Gravity failed to weaken with distance")
+            val sample =
+                org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                    .sample(player.level())
+            val frame = sample.frames.profile.earthSurfaceFrame(sample.frames.tick)
+
+            fun physical(position: org.cbi.orbitalis.core.planet.Vector3): org.cbi.orbitalis.core.planet.Vector3 {
+                player.setPos(position.x, position.y, position.z)
+                player.deltaMovement = Vec3.ZERO
+                val a = PlayerGravity.acceleration(player)
+                return frame.toParentAcceleration(
+                    org.cbi.orbitalis.core.planet
+                        .CartesianState(position, org.cbi.orbitalis.core.planet.Vector3.ZERO),
+                    org.cbi.orbitalis.core.planet
+                        .Vector3(a.x, a.y, a.z) * 400.0,
+                )
+            }
+            val position =
+                org.cbi.orbitalis.core.planet
+                    .Vector3(10000.0, 10000.0, 0.0)
+            val far = physical(position)
+            val farther = physical(position * 2.0)
+            helper.assertTrue(
+                far.dot(frame.orientation.apply(position)) < 0.0 && farther.length() < far.length(),
+                "Inertial gravity failed to weaken with distance",
+            )
         } finally {
             player.discard()
         }

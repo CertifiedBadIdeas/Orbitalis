@@ -185,7 +185,11 @@ object SableFlightIntegration {
                     SableShipContact.resolve(player) as? ServerSubLevel
                         ?: failure("Stand on a Sable ship and wait for native contact")
                 val sample = SableFlightGravity.reading(body)
-                val global = SableFlightGravity.globalPosition(source.level, sample.position)
+                val global =
+                    org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                        .sample(
+                            source.level,
+                        ).point(sample.position, source.level.dimension(), net.minecraft.world.level.Level.OVERWORLD)
                 val message =
                     String.format(
                         Locale.ROOT,

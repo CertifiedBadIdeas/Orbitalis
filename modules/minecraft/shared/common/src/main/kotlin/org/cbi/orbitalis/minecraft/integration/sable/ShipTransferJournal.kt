@@ -82,16 +82,16 @@ data class ShipTransferRecord(
     val surfaceDimension: ResourceKey<Level> = Level.OVERWORLD,
     val sourcePassengers: ListTag = ListTag(),
     val destinationPassengers: ListTag = ListTag(),
-    val lunarFrame: CelestialFlight? = null,
+    val frozenFrame: CelestialFlight? = null,
 ) {
     fun encode(): CompoundTag =
         CompoundTag().also {
             require(
                 surfaceDimension in setOf(Level.OVERWORLD, MoonWorld.KEY) && orbitalDimension == FlatPlanetSpace.SPACE,
             ) { "Invalid transfer route" }
-            it.putInt("version", if (surfaceDimension == MoonWorld.KEY) 6 else 5)
-            if (surfaceDimension == MoonWorld.KEY) {
-                val sample = checkNotNull(lunarFrame) { "Missing lunar handoff frame" }
+            it.putInt("version", if (frozenFrame != null) 7 else 5)
+            if (frozenFrame != null) {
+                val sample = frozenFrame
                 it.put(
                     "frame",
                     CompoundTag().also { frame ->
@@ -161,16 +161,19 @@ data class ShipTransferRecord(
             require(!RetiredFlightData.isDiagnosticJournal(tag)) {
                 "Retired diagnostic ship route; finish recovery with the previous Orbitalis version"
             }
-            require(version in 3..6) { "Unsupported ship transfer journal version" }
-            require(
-                tag.getString("surface_dimension") == (if (version == 6) MoonWorld.KEY else Level.OVERWORLD).location().toString() &&
-                    tag.getString("orbital_dimension") == FlatPlanetSpace.SPACE.location().toString(),
-            ) { "Invalid transfer route" }
-            val surfaceDimension = if (version == 6) MoonWorld.KEY else Level.OVERWORLD
+            require(version in 3..7) { "Unsupported ship transfer journal version" }
+            val surfaceDimension =
+                when (tag.getString("surface_dimension")) {
+                    Level.OVERWORLD.location().toString() -> Level.OVERWORLD
+                    MoonWorld.KEY.location().toString() -> MoonWorld.KEY
+                    else -> throw IllegalArgumentException("Invalid transfer surface")
+                }
+            require(tag.getString("orbital_dimension") == FlatPlanetSpace.SPACE.location().toString())
+            require(version == 7 || surfaceDimension == if (version == 6) MoonWorld.KEY else Level.OVERWORLD)
             val orbitalDimension = FlatPlanetSpace.SPACE
-            val lunarFrame =
-                if (version == 6) {
-                    require(tag.contains("frame", 10)) { "Missing frozen lunar frame" }
+            val frozenFrame =
+                if (version >= 6) {
+                    require(tag.contains("frame", 10)) { "Missing frozen surface frame" }
                     val frame = tag.getCompound("frame")
                     require(frame.contains("version", 3) && frame.getInt("version") in 1..SolarSystemProfile.VERSION)
                     require(frame.contains("tick", 4) && frame.contains("epoch", 4))
@@ -278,11 +281,11 @@ data class ShipTransferRecord(
                             .Vector3(decoded.position().x, decoded.position().y, decoded.position().z)
                     val dimension = if (orbitalSnapshot) FlatPlanetSpace.SPACE else surfaceDimension
                     val physical =
-                        if (lunarFrame != null) {
-                            lunarFrame.point(native, dimension, Level.OVERWORLD)
+                        if (frozenFrame != null) {
+                            frozenFrame.rootPoint(native, dimension)
                         } else {
                             org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
-                                .globalPosition(dimension, native)
+                                .legacyRootPosition(dimension, native)
                         }
                     require(FlatPlanetSpace.validTransferPosition(physical)) { "Pose outside bounded physical flight coordinates" }
                 } else {
@@ -322,10 +325,10 @@ data class ShipTransferRecord(
                 }
                 if (phase != ShipTransferPhase.DONE) {
                     val expected =
-                        if (lunarFrame != null) {
+                        if (frozenFrame != null) {
                             val from = if (tag.getBoolean("source_is_orbit")) orbitalDimension else surfaceDimension
                             val to = if (tag.getBoolean("source_is_orbit")) surfaceDimension else orbitalDimension
-                            ShipFrameTransform(lunarFrame, from, to).passengers(sourcePassengers, source, destination)
+                            ShipFrameTransform(frozenFrame, from, to).passengers(sourcePassengers, source, destination)
                         } else {
                             ShipTransferPassengers.translated(sourcePassengers, source, destination)
                         }
@@ -362,7 +365,7 @@ data class ShipTransferRecord(
                 surfaceDimension,
                 sourcePassengers.copy(),
                 destinationPassengers.copy(),
-                lunarFrame,
+                frozenFrame,
             )
         }
     }

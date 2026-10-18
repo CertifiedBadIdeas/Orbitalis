@@ -77,7 +77,7 @@ object SableMapObjects {
             val v = native.getLinearVelocity(Vector3d())
             if (!v.isFinite) continue
             val state =
-                sample?.state(CartesianState(nativePosition, Vector3(v.x, v.y, v.z)), body.level.dimension(), Level.OVERWORLD)
+                sample?.rootState(CartesianState(nativePosition, Vector3(v.x, v.y, v.z)), body.level.dimension())
                     ?: CartesianState(FlightSpaceCoordinates.globalPosition(body.level, nativePosition), Vector3(v.x, v.y, v.z))
             val pos = state.position
             if (pos.length() > 1e8 || v.length() > 10000.0) continue

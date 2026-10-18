@@ -46,7 +46,7 @@ object FlatPlanetSpace {
     fun contains(level: Level): Boolean = level.dimension() in CelestialFlight.dimensions
 }
 
-/** Physical Overworld coordinates and the sole orbital representation. */
+/** Geocentric nonrotating root coordinates; native surface charts rotate with their bodies. */
 object FlightSpaceCoordinates {
     fun isOrbital(dimension: ResourceKey<Level>): Boolean = dimension == FlatPlanetSpace.SPACE
 
@@ -57,13 +57,35 @@ object FlightSpaceCoordinates {
         level: Level,
         position: Vector3,
     ): Vector3 =
-        if (level.dimension() == org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY) {
-            CelestialFlight.sample(level).point(position, level.dimension(), Level.OVERWORLD)
+        if (CelestialFlight.available(level)) {
+            CelestialFlight.sample(level).rootPoint(position, level.dimension())
         } else {
-            globalPosition(level.dimension(), position)
+            legacyRootPosition(level.dimension(), position)
         }
 
+    fun localPosition(
+        level: Level,
+        position: Vector3,
+    ): Vector3 =
+        if (CelestialFlight.available(level)) {
+            CelestialFlight.sample(level).nativePoint(position, level.dimension())
+        } else {
+            legacyLocalPosition(level.dimension(), position)
+        }
+
+    @Deprecated("Translation-only legacy contract; sample CelestialFlight or supply a Level")
     fun globalPosition(
+        dimension: ResourceKey<Level>,
+        position: Vector3,
+    ): Vector3 = legacyRootPosition(dimension, position)
+
+    @Deprecated("Translation-only legacy contract; sample CelestialFlight or supply a Level")
+    fun localPosition(
+        dimension: ResourceKey<Level>,
+        position: Vector3,
+    ): Vector3 = legacyLocalPosition(dimension, position)
+
+    fun legacyRootPosition(
         dimension: ResourceKey<Level>,
         position: Vector3,
     ): Vector3 =
@@ -73,7 +95,7 @@ object FlightSpaceCoordinates {
             else -> throw IllegalArgumentException("Unsupported flight dimension: ${dimension.location()}")
         }
 
-    fun localPosition(
+    fun legacyLocalPosition(
         dimension: ResourceKey<Level>,
         position: Vector3,
     ): Vector3 =

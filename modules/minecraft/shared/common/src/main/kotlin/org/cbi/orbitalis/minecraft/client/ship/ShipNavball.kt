@@ -82,7 +82,14 @@ object ShipNavball {
                         .CartesianState(Vector3(position.x(), position.y(), position.z()), Vector3.ZERO),
                 )
             } else {
-                sample.dynamics.acceleration(global)
+                if (body.level.dimension() == net.minecraft.world.level.Level.OVERWORLD) {
+                    sample.dynamics.earthAcceleration(
+                        org.cbi.orbitalis.core.planet
+                            .CartesianState(Vector3(position.x(), position.y(), position.z()), Vector3.ZERO),
+                    )
+                } else {
+                    sample.dynamics.acceleration(global)
+                }
             }
         if (acceleration.length() < 1e-8) return
         val upWorld = acceleration.normalized() * -1.0

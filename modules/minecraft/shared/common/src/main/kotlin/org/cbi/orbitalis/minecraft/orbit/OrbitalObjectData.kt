@@ -66,8 +66,10 @@ class OrbitalObjectData private constructor(
     fun configureCelestials(gravity: Double): SolarSystemProfile {
         check(readable) { "Unknown or malformed orbital simulation data" }
         val previous = profile
-        if (previous == null || previous.surfaceGravity != gravity) {
-            profile = previous?.retune(gravity, clock) ?: SolarSystemProfile(gravity, clock)
+        if (previous == null || previous.surfaceGravity != gravity || previous.earthSpinEpochTick == null) {
+            val tuned = previous?.retune(gravity, clock) ?: SolarSystemProfile(gravity, clock)
+            // Enable with the existing orientation; reading old frozen receipts never calls this.
+            profile = if (tuned.earthSpinEpochTick == null) tuned.copy(earthSpinEpochTick = clock) else tuned
             setDirty()
         }
         return checkNotNull(profile)

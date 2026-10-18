@@ -28,6 +28,7 @@ import dev.ryanhcode.sable.sublevel.SubLevel
 import dev.ryanhcode.sable.sublevel.storage.SubLevelRemovalReason
 import dev.ryanhcode.sable.sublevel.storage.holding.GlobalSavedSubLevelPointer
 import dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem
+import dev.ryanhcode.sable.util.SableNBTUtils
 import net.minecraft.core.BlockPos
 import net.minecraft.gametest.framework.GameTest
 import net.minecraft.gametest.framework.GameTestHelper
@@ -47,7 +48,9 @@ import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.level.block.entity.ChestBlockEntity
 import net.minecraft.world.level.block.entity.TickingBlockEntity
+import net.minecraft.world.phys.Vec3
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
+import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.flight.SpaceTravelReservations
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
@@ -497,7 +500,13 @@ object SableTransferGameTests {
                 expectedAngle = org.joml.Quaterniond(source.logicalPose().orientation())
                 val p = source.logicalPose().position()
                 check(player.teleportTo(surface, p.x, p.y + 2.0, p.z, emptySet(), 32f, 12f))
-                val startY = player.y
+                val frozen =
+                    org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                        .sample(server)
+                val transform =
+                    org.cbi.orbitalis.minecraft.integration.sable
+                        .ShipFrameTransform(frozen, surfaceKey, route)
+                val expectedPilot = transform.player(SableShipTransfer.playerState(player))
                 val before = SableShipSnapshot.capture(source)
                 val expectedChest =
                     source
@@ -508,7 +517,73 @@ object SableTransferGameTests {
                                 chest(source).blockPos.y.toDouble(),
                                 chest(source).blockPos.z.toDouble(),
                             ),
-                        ).add(0.0, delta, 0.0)
+                        ).let { v -> frozen.point(Vector3(v.x, v.y, v.z), surfaceKey, route).let { Vector3d(it.x, it.y, it.z) } }
+                val expectedOutbound = transform.ship(before, SableFlightGravity.reading(source).position)
+                expectedAngle = org.joml.Quaterniond(SableNBTUtils.readPose3d(expectedOutbound.getCompound("pose")).orientation())
+                // Exercise frame/journal roundtrips at quarter, half and full Earth turns.
+                for (tick in listOf(0L, 6000L, 12000L, 18000L, 24000L)) {
+                    val sample =
+                        org.cbi.orbitalis.minecraft.flight.CelestialFlight(
+                            org.cbi.orbitalis.core.orbit.SurfaceFlightFrames(
+                                org.cbi.orbitalis.core.orbit
+                                    .SolarSystemProfile(11.0, earthSpinEpochTick = 0L),
+                                tick,
+                            ),
+                        )
+                    val outbound =
+                        org.cbi.orbitalis.minecraft.integration.sable
+                            .ShipFrameTransform(
+                                sample,
+                                surfaceKey,
+                                route,
+                            ).ship(before, SableFlightGravity.reading(source).position)
+                    val outboundCentre = sample.point(SableFlightGravity.reading(source).position, surfaceKey, route)
+                    val back =
+                        org.cbi.orbitalis.minecraft.integration.sable
+                            .ShipFrameTransform(
+                                sample,
+                                route,
+                                surfaceKey,
+                            ).ship(outbound, outboundCentre)
+                    helper.assertTrue(
+                        SableShipSnapshot.vector(back, "exact_linear").distance(SableShipSnapshot.vector(before, "exact_linear")) < 1e-8,
+                        "Rotating receipt lost linear velocity at $tick",
+                    )
+                    helper.assertTrue(
+                        SableShipSnapshot.vector(back, "exact_angular").distance(SableShipSnapshot.vector(before, "exact_angular")) < 1e-8,
+                        "Rotating receipt lost angular velocity at $tick",
+                    )
+                    val poseBack = SableNBTUtils.readPose3d(back.getCompound("pose"))
+                    val poseBefore = SableNBTUtils.readPose3d(before.getCompound("pose"))
+                    helper.assertTrue(
+                        poseBack.position().distance(poseBefore.position()) < 1e-7 &&
+                            kotlin.math.abs(poseBack.orientation().dot(poseBefore.orientation())) > 0.999999,
+                        "Rotating snapshot lost pose at $tick",
+                    )
+                    val record =
+                        ShipTransferRecord(
+                            UUID.randomUUID(),
+                            ship,
+                            null,
+                            false,
+                            before,
+                            outbound,
+                            CompoundTag(),
+                            CompoundTag(),
+                            CompoundTag(),
+                            ShipTransferPhase.PREPARED,
+                            frozenFrame = sample,
+                        )
+                    helper.assertTrue(
+                        record.encode().getInt("version") == 7 &&
+                            ShipTransferRecord
+                                .decode(record.encode())
+                                .frozenFrame
+                                ?.frames
+                                ?.profile == sample.frames.profile,
+                        "Frozen Earth epoch did not roundtrip",
+                    )
+                }
                 val plot = before.getCompound("plot")
                 val occupied = blocker(orbit, plot.getInt("plot_x"), plot.getInt("plot_z"))
                 val firstFree = orbitContainer.occupancy.nextClearBit(0)
@@ -545,10 +620,18 @@ object SableTransferGameTests {
                     val moved = orbitContainer.getSubLevel(ship) as? ServerSubLevel ?: error("Destination ship missing")
                     helper.assertTrue(surfaceContainer.getSubLevel(ship) == null, "Source ship remained after commit")
                     helper.assertTrue(
-                        player.level() === orbit && kotlin.math.abs(player.y - (startY + delta)) < 1e-8,
+                        player.level() === orbit &&
+                            player.position().distanceTo(
+                                Vec3(expectedPilot.getDouble("x"), expectedPilot.getDouble("y"), expectedPilot.getDouble("z")),
+                            ) <
+                            1e-8,
                         "Pilot did not retain relative position",
                     )
-                    helper.assertTrue(player.yRot == 32f && player.xRot == 12f, "Pilot view changed")
+                    helper.assertTrue(
+                        kotlin.math.abs(player.yRot - expectedPilot.getDouble("yaw")) < 1e-4 &&
+                            kotlin.math.abs(player.xRot - expectedPilot.getDouble("pitch")) < 1e-4,
+                        "Pilot view changed",
+                    )
                     cargo(moved)
                     val actualChest =
                         moved.logicalPose().transformPosition(
@@ -574,12 +657,29 @@ object SableTransferGameTests {
                         blocker(surface, movedPlot.getInt("plot_x"), movedPlot.getInt("plot_z"))
                     }
                     val linear = SubLevelPhysicsSystem.require(orbit).getPhysicsHandle(moved).getLinearVelocity(Vector3d())
-                    helper.assertTrue(linear.distance(Vector3d(0.03, 0.04, -0.02)) < 1e-8, "Small linear velocity changed across handoff")
+                    helper.assertTrue(
+                        linear.distance(SableShipSnapshot.vector(expectedOutbound, "exact_linear")) < 1e-5,
+                        "Small linear velocity changed across handoff",
+                    )
                     val angular = SubLevelPhysicsSystem.require(orbit).getPhysicsHandle(moved).getAngularVelocity(Vector3d())
                     helper.assertTrue(
-                        angular.distance(Vector3d(0.002, -0.003, 0.001)) < 1e-5,
+                        angular.distance(SableShipSnapshot.vector(expectedOutbound, "exact_angular")) < 1e-5,
                         "Small angular velocity was dropped by native serialization",
                     )
+                    expectedAngle =
+                        org.joml.Quaterniond(
+                            SableNBTUtils
+                                .readPose3d(
+                                    org.cbi.orbitalis.minecraft.integration.sable
+                                        .ShipFrameTransform(
+                                            org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                                                .sample(server),
+                                            route,
+                                            surfaceKey,
+                                        ).ship(SableShipSnapshot.capture(moved), SableFlightGravity.reading(moved).position)
+                                        .getCompound("pose"),
+                                ).orientation(),
+                        )
                     manager.begin(player, moved)
                     waitUntil({ !manager.busy }) {
                         val returned = surfaceContainer.getSubLevel(ship) as? ServerSubLevel ?: error("Return ship missing")

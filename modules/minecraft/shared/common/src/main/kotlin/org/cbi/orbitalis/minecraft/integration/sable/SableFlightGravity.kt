@@ -98,6 +98,8 @@ object SableFlightGravity {
         val sample = CelestialFlight.sample(level)
         return if (level.dimension() == MoonWorld.KEY) {
             sample.dynamics.lunarAcceleration(CartesianState(position, velocity), offsetSeconds)
+        } else if (level.dimension() == Level.OVERWORLD) {
+            sample.dynamics.earthAcceleration(CartesianState(position, velocity), offsetSeconds)
         } else {
             sample.dynamics.acceleration(globalPosition(level, position), offsetSeconds)
         }
@@ -146,10 +148,29 @@ object SableFlightGravity {
                     acceleration.y - native.y(),
                     acceleration.z - native.z(),
                 ).mul(mass * seconds * fraction)
-            // Native surface gravity already matches exactly; do not wake sleeping ships with a zero impulse.
-            if (impulse.lengthSquared() == 0.0) continue
             pose.orientation().transformInverse(impulse)
-            physics.getPhysicsHandle(body).applyLinearImpulse(impulse)
+            val handle = physics.getPhysicsHandle(body)
+            if (impulse.lengthSquared() > 0.0) handle.applyLinearImpulse(impulse)
+            // Euler's rigid-body equation in rotating terrain axes. Without this transport
+            // torque a freely spinning asymmetric hull acquires an artificial inertial rotation.
+            if (CelestialFlight.available(level)) {
+                val frame = CelestialFlight.sample(level).frames.frame(CelestialFlight.world(level.dimension()))
+                val frameSpin = frame.orientation.inverse(frame.angularVelocity)
+                val frameAcceleration = frame.orientation.inverse(frame.angularAcceleration)
+                if (frameSpin.length() > 0.0 || frameAcceleration.length() > 0.0) {
+                    val w = pose.orientation().transformInverse(handle.getAngularVelocity(Vector3d()), Vector3d())
+                    val spin = pose.orientation().transformInverse(Vector3d(frameSpin.x, frameSpin.y, frameSpin.z))
+                    val alpha = pose.orientation().transformInverse(Vector3d(frameAcceleration.x, frameAcceleration.y, frameAcceleration.z))
+                    val physical = Vector3d(w).add(spin)
+                    val inertia = body.massTracker.inertiaTensor
+                    val correction =
+                        inertia
+                            .transform(Vector3d(w).cross(spin).sub(alpha), Vector3d())
+                            .sub(Vector3d(physical).cross(inertia.transform(physical, Vector3d())))
+                            .add(Vector3d(w).cross(inertia.transform(w, Vector3d())))
+                    if (correction.lengthSquared() > 1e-20) handle.applyTorqueImpulse(correction.mul(seconds * fraction))
+                }
+            }
         }
     }
 }

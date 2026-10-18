@@ -23,18 +23,29 @@ import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.sqrt
 
-/** A numerically fitted periodic meridian, not a Kepler ellipse or an altitude-hold path. */
+/** Numerical reference: a fixed-field periodic meridian or one inertial revolution in a moving field. */
 class BallisticOrbit private constructor(
     private val states: List<CartesianState>,
     val step: Double,
     val period: Double,
     val minimumClearance: Double,
+    private val times: List<Double>? = null,
+    private val repeating: Boolean = true,
 ) {
     val initial: CartesianState get() = states.first()
 
     fun stateAt(seconds: Double): CartesianState {
         require(seconds.isFinite())
-        val time = ((seconds % period) + period) % period
+        val time = if (repeating) ((seconds % period) + period) % period else seconds.coerceIn(0.0, period)
+        if (times != null) {
+            val found = times.binarySearch(time)
+            if (found >= 0) return states[found]
+            val i = (-found - 2).coerceIn(0, states.lastIndex - 1)
+            val f = (time - times[i]) / (times[i + 1] - times[i])
+            val a = states[i]
+            val b = states[i + 1]
+            return CartesianState(a.position + (b.position - a.position) * f, a.velocity + (b.velocity - a.velocity) * f)
+        }
         val index = floor(time / step).toInt().coerceAtMost(states.lastIndex - 1)
         val fraction = (time - index * step) / minOf(step, period - index * step)
         val a = states[index]
@@ -43,6 +54,66 @@ class BallisticOrbit private constructor(
     }
 
     companion object {
+        /** First free revolution in a moving field, expressed in frozen launch axes; never loop a nonclosed path. */
+        fun firstRevolution(
+            field: SurfaceGravityLayer,
+            sources: org.cbi.orbitalis.core.orbit.CelestialDynamics,
+            altitude: Double = field.body.halfWidth,
+            clearance: Double = 32.0,
+            direction: Double = 1.0,
+        ): BallisticOrbit {
+            require(direction == 1.0 || direction == -1.0)
+            require(altitude.isFinite() && altitude >= field.body.halfWidth * 0.8)
+            val basis = sources.profile.earthSurfaceFrame(sources.epochTick).orientation
+            val start = Vector3(0.0, field.body.halfHeight + altitude, 0.0)
+            val escape = sqrt(-2.0 * field.potential(start))
+            for (index in 0..32) {
+                val speed = escape * (0.65 + index * 0.01)
+                val initial = CartesianState(basis.apply(start), basis.apply(Vector3(speed * direction, 0.0, 0.0)))
+                val prediction =
+                    CoastPrediction.orbit(
+                        field,
+                        initial,
+                        CoastPrediction.Limits(
+                            detectEntry = false,
+                            range =
+                                field.body.halfWidth * 4.0,
+                            hullRadius = clearance,
+                        ),
+                        sources,
+                    )
+                if (prediction.end !in setOf(CoastPrediction.End.ORBIT, CoastPrediction.End.REVOLUTION)) continue
+                var minimum = Double.POSITIVE_INFINITY
+                for (point in prediction.points) {
+                    val local =
+                        sources.profile
+                            .earthSurfaceFrame(
+                                sources.epochTick,
+                                point.seconds,
+                            ).orientation
+                            .inverse(point.state.position)
+                    minimum = minOf(minimum, clearance(field.body, local))
+                }
+                if (minimum + 1e-6 < clearance ||
+                    prediction.points.any { it.state.position.length() + 1e-6 < field.body.halfWidth + clearance }
+                ) {
+                    continue
+                }
+                val points = prediction.points
+                return BallisticOrbit(
+                    points.map {
+                        CartesianState(basis.inverse(it.state.position), basis.inverse(it.state.velocity))
+                    },
+                    0.0,
+                    points.last().seconds,
+                    minimum,
+                    points.map { it.seconds },
+                    repeating = false,
+                )
+            }
+            error("No bounded inertial revolution clears the rotating body at altitude $altitude")
+        }
+
         /** Bounded pure computation. Call off the game thread and cache for an unchanged field. */
         fun plan(
             field: SurfaceGravityLayer,

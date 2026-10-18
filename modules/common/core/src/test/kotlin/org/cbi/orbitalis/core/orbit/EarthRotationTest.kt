@@ -113,4 +113,21 @@ class EarthRotationTest {
         val legacy = CelestialDynamics(dynamic.copy(earthSpinEpochTick = null), 6000)
         assertEquals(CoastPrediction.End.HORIZON, CoastPrediction.predict(legacy.earth, state, limits, legacy).end)
     }
+
+    @kotlin.test.Test fun `inertial insertion clears the rotating slab for a full free turn`() {
+        val profile = SolarSystemProfile(11.0, earthSpinEpochTick = 0L)
+        for (tick in listOf(13L, 6000L, 17317L, 23001L)) {
+            val model = CelestialDynamics(profile, tick)
+            val field = profile.earthGravity
+            val orbit =
+                org.cbi.orbitalis.core.planet.BallisticOrbit
+                    .firstRevolution(field, model, clearance = 64.0)
+            assertTrue(orbit.minimumClearance >= 64.0)
+            assertTrue(orbit.period > 20.0 && orbit.period < 3600.0)
+            assertTrue(orbit.stateAt(orbit.period + 1.0) == orbit.stateAt(orbit.period))
+            println(
+                "ROTATING_EARTH_INSERTION tick=$tick period=${orbit.period} speed=${orbit.initial.velocity.length()} clearance=${orbit.minimumClearance}",
+            )
+        }
+    }
 }

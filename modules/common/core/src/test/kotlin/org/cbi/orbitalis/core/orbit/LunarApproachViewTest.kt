@@ -28,7 +28,7 @@ class LunarApproachViewTest {
     private val up = Vector3(0.0, 1.0, 0.0)
 
     @Test fun `approach horizon matches across top edge and underside handoffs at many phases`() {
-        val profile = SolarSystemProfile(11.0)
+        val profile = SolarSystemProfile(11.0, earthSpinEpochTick = 0L)
         for (tick in 0L..60000L step 977) {
             val frames = SurfaceFlightFrames(profile, tick)
             val reference = LunarApproachView()

@@ -76,6 +76,8 @@ object PlayerGravity {
         val acceleration =
             if (entity.level().dimension() == MoonWorld.KEY) {
                 dynamics.lunarAcceleration(CartesianState(local, velocity))
+            } else if (entity.level().dimension() == net.minecraft.world.level.Level.OVERWORLD) {
+                dynamics.earthAcceleration(CartesianState(local, velocity))
             } else {
                 dynamics.acceleration(position(entity))
             }
@@ -90,7 +92,9 @@ object PlayerGravity {
         ) {
             1.0
         } else {
-            PlanetAtmosphere.vacuum(position(entity))
+            PlanetAtmosphere.vacuum(
+                CelestialFlight.sample(entity.level()).nativePoint(position(entity), net.minecraft.world.level.Level.OVERWORLD),
+            )
         }
 
     @JvmStatic

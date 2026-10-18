@@ -121,39 +121,62 @@ object AutomaticTravelGameTests {
         var returning = false
         helper.onEachTick {
             pumpChunkTasks(helper)
-            if (!returning) {
-                if (!PlayerSpaceTravel.transfer(p)) {
-                    // Accelerated test ticks must allow native chunk/entity I/O to complete.
-                    java.util.concurrent.locks.LockSupport
-                        .parkNanos(2_000_000L)
-                    return@onEachTick
+            val sample =
+                org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                    .sample(helper.level.server)
+            val sourceKey = if (returning) FlatPlanetSpace.SPACE else Level.OVERWORLD
+            val targetKey = if (returning) Level.OVERWORLD else FlatPlanetSpace.SPACE
+            val fixture =
+                if (returning) {
+                    sample.state(
+                        org.cbi.orbitalis.core.planet
+                            .CartesianState(returningPosition, Vector3(2.0, -8.0, 4.0)),
+                        Level.OVERWORLD,
+                        FlatPlanetSpace.SPACE,
+                    )
+                } else {
+                    org.cbi.orbitalis.core.planet
+                        .CartesianState(initial, Vector3(160.0, 8.0, -140.0))
                 }
-                helper.assertTrue(
-                    p.level().dimension() == FlatPlanetSpace.SPACE &&
-                        abs(p.y - (4096.0 + initial.y)) < 1e-6 && abs(p.x - initial.x) < 1e-6,
-                    "Player mapping incorrect",
-                )
-                helper.assertTrue(p.deltaMovement.distanceTo(Vec3(8.0, 0.4, -7.0)) < 1e-8 && !p.isCreative, "Player motion/mode changed")
+            p.setPos(fixture.position.x, fixture.position.y, fixture.position.z)
+            p.deltaMovement = Vec3(fixture.velocity.x / 20.0, fixture.velocity.y / 20.0, fixture.velocity.z / 20.0)
+            val expected = sample.state(fixture, sourceKey, targetKey)
+            if (!PlayerSpaceTravel.transfer(p)) {
+                java.util.concurrent.locks.LockSupport
+                    .parkNanos(2_000_000L)
+                return@onEachTick
+            }
+            helper.assertTrue(
+                p.level().dimension() == targetKey &&
+                    p.position().distanceTo(Vec3(expected.position.x, expected.position.y, expected.position.z)) < 1e-6,
+                "Player mapping incorrect",
+            )
+            helper.assertTrue(
+                p.deltaMovement.distanceTo(
+                    Vec3(expected.velocity.x / 20.0, expected.velocity.y / 20.0, expected.velocity.z / 20.0),
+                ) < 1e-8 &&
+                    !p.isCreative,
+                "Player motion/mode changed",
+            )
+            if (!returning) {
                 val motion = packets.filterIsInstance<net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket>().lastOrNull()
                 helper.assertTrue(
-                    motion != null && abs(motion.xa - 3.9) < 0.001 && abs(motion.ya - 0.4) < 0.001,
-                    "Native client velocity was not restored after the absolute teleport",
-                )
-                helper.assertTrue(
-                    packets.indexOf(motion!!) >
+                    motion != null &&
+                        packets.indexOf(motion) >
                         packets.indexOfLast { it is net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket },
-                    "Velocity packet preceded the position reset",
+                    "Velocity packet preceded position reset",
                 )
                 val exactMotion =
                     packets
                         .filterIsInstance<net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket>()
-                        .map { it.payload() }
-                        .filterIsInstance<org.cbi.orbitalis.minecraft.flight.FlightMotionPayload>()
+                        .map {
+                            it.payload()
+                        }.filterIsInstance<org.cbi.orbitalis.minecraft.flight.FlightMotionPayload>()
                         .lastOrNull()
                 helper.assertTrue(
-                    exactMotion != null && exactMotion.velocity == Vector3(8.0, 0.4, -7.0) &&
-                        exactMotion.dimension == FlatPlanetSpace.SPACE.location(),
-                    "Unclamped local-player flight motion packet was lost",
+                    exactMotion != null && (exactMotion.velocity - expected.velocity * 0.05).length() < 1e-9 &&
+                        exactMotion.dimension == targetKey.location(),
+                    "Unclamped flight motion was lost",
                 )
                 val buffer =
                     net.minecraft.network.FriendlyByteBuf(
@@ -172,22 +195,9 @@ object AutomaticTravelGameTests {
                     buffer.release()
                 }
                 helper.assertTrue(!PlayerSpaceTravel.transfer(p), "Player bounced back at ascent boundary")
-                p.setPos(returningPosition.x, 4096.0 + returningPosition.y, returningPosition.z)
-                p.deltaMovement = Vec3(0.1, -0.4, 0.2)
                 returning = true
                 return@onEachTick
             }
-            if (!PlayerSpaceTravel.transfer(p)) {
-                // Accelerated test ticks must allow native chunk/entity I/O to complete.
-                java.util.concurrent.locks.LockSupport
-                    .parkNanos(2_000_000L)
-                return@onEachTick
-            }
-            helper.assertTrue(
-                p.level() === surface && abs(p.y - returningPosition.y) < 1e-6 && abs(p.x - returningPosition.x) < 1e-6 &&
-                    p.deltaMovement.y == -0.4,
-                "Return mapping changed motion",
-            )
             helper.assertTrue(!PlayerSpaceTravel.transfer(p), "Player bounced into space after return")
             p.discard()
             helper.succeed()
@@ -406,7 +416,18 @@ object AutomaticTravelGameTests {
                 if (player != null) {
                     helper.assertTrue(player in ShipTransferPassengers.nearby(source), "Mounted player missing from ship selection")
                 }
-                expectedVelocity = SableFlightGravity.reading(source).velocity
+                val read = SableFlightGravity.reading(source)
+                val expected =
+                    org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                        .sample(
+                            server,
+                        ).state(
+                            org.cbi.orbitalis.core.planet
+                                .CartesianState(read.position, Vector3(read.velocity.x, read.velocity.y, read.velocity.z)),
+                            Level.OVERWORLD,
+                            FlatPlanetSpace.SPACE,
+                        ).velocity
+                expectedVelocity = Vector3d(expected.x, expected.y, expected.z)
                 automatic.tick()
                 if (manager.busy) phase = 1
             } else if (phase == 1 && !manager.busy) {
@@ -433,21 +454,37 @@ object AutomaticTravelGameTests {
                     helper.assertTrue(surface.getEntity(expectedCart!!) == null, "Source cart was duplicated")
                 }
                 val s = SableFlightGravity.reading(body)
-                val displacement =
+                val sample =
+                    org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                        .sample(server)
+                val local = sample.point(s.position, FlatPlanetSpace.SPACE, Level.OVERWORLD)
+                val destination =
                     if (under) {
-                        Vector3d(0.0, 4096.0 - FlatPlanetSpace.SEA_LEVEL - FlatPlanetSpace.DESCENT_HEIGHT + 14.0 - s.position.y, 0.0)
+                        Vector3(local.x, -FlatPlanetSpace.SEA_LEVEL - FlatPlanetSpace.DESCENT_HEIGHT + 14.0, local.z)
                     } else if (edge) {
-                        Vector3d(-6980.0 - s.position.x, 0.0, 0.0)
+                        Vector3(-6980.0, local.y, local.z)
                     } else {
-                        Vector3d(
-                            0.0,
-                            4096.0 + FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.DESCENT_HEIGHT - 14.0 - s.position.y,
-                            0.0,
-                        )
+                        Vector3(local.x, FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.DESCENT_HEIGHT - 14.0, local.z)
                     }
+                val target =
+                    sample.state(
+                        org.cbi.orbitalis.core.planet
+                            .CartesianState(destination, Vector3(1.0, if (under) 10.0 else -10.0, 2.0)),
+                        Level.OVERWORLD,
+                        FlatPlanetSpace.SPACE,
+                    )
+                val displacement =
+                    Vector3d(
+                        target.position.x - s.position.x,
+                        target.position.y - s.position.y,
+                        target.position.z - s.position.z,
+                    )
                 val handle = SubLevelPhysicsSystem.require(space).getPhysicsHandle(body)
                 handle.teleport(Vector3d(body.logicalPose().position()).add(displacement), body.logicalPose().orientation())
-                handle.addLinearAndAngularVelocity(Vector3d(1.0, -10.0, 2.0).sub(s.velocity), Vector3d())
+                handle.addLinearAndAngularVelocity(
+                    Vector3d(target.velocity.x, target.velocity.y, target.velocity.z).sub(s.velocity),
+                    Vector3d(),
+                )
                 val c = checkNotNull(space.getEntity(expectedCart!!))
                 if (!body.plot.contains(c.position())) c.setPos(c.x + displacement.x, c.y + displacement.y, c.z + displacement.z)
                 player?.setPos(player.x + displacement.x, player.y + displacement.y, player.z + displacement.z)

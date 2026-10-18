@@ -172,23 +172,40 @@ object ScaledTravelGameTests {
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "scaled_surface")
     fun timedDestinationPreparation(helper: GameTestHelper) {
         val level = helper.level.server.overworld()
+        val sample =
+            org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                .sample(level.server)
+
+        fun prepare(
+            preload: ShipDestinationPreload,
+            position: Vector3,
+            velocity: Vector3,
+        ): Boolean {
+            val root =
+                sample.rootState(
+                    org.cbi.orbitalis.core.planet
+                        .CartesianState(position, velocity),
+                    net.minecraft.world.level.Level.OVERWORLD,
+                )
+            return preload.approach(level, root.position, root.velocity)
+        }
         val boundary = FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ASCENT_HEIGHT
         ShipDestinationPreload().use { preload ->
             helper.assertTrue(
-                !preload.approach(level, Vector3(0.0, boundary - 100.0, 0.0), Vector3(0.0, 10.0, 0.0)),
+                !prepare(preload, Vector3(0.0, boundary - 100.0, 0.0), Vector3(0.0, 10.0, 0.0)),
                 "Ten-second arrival started preparation before its time budget",
             )
         }
         ShipDestinationPreload().use { preload ->
             helper.assertTrue(
-                preload.approach(level, Vector3(0.0, boundary - 100.0, 0.0), Vector3(100.0, 100.0, 0.0)),
+                prepare(preload, Vector3(0.0, boundary - 100.0, 0.0), Vector3(100.0, 100.0, 0.0)),
                 "One-second arrival did not start destination preparation",
             )
             helper.assertTrue(preload.active, "Preparation did not retain a native ticket")
         }
         ShipDestinationPreload().use { preload ->
             helper.assertTrue(
-                preload.approach(level, Vector3(7900.0, 64.0, 0.0), Vector3(100.0, 0.0, 0.0)),
+                prepare(preload, Vector3(7900.0, 64.0, 0.0), Vector3(100.0, 0.0, 0.0)),
                 "Lateral arrival did not load a destination",
             )
         }

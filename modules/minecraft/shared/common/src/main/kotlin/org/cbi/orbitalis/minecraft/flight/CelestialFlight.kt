@@ -36,6 +36,53 @@ class CelestialFlight(
 ) {
     val dynamics = CelestialDynamics(frames.profile, frames.tick)
 
+    fun rootState(
+        value: CartesianState,
+        from: ResourceKey<Level>,
+    ): CartesianState = frames.frame(world(from)).toParent(value)
+
+    fun nativeState(
+        value: CartesianState,
+        to: ResourceKey<Level>,
+    ): CartesianState = frames.frame(world(to)).fromParent(value)
+
+    fun rootPoint(
+        value: Vector3,
+        from: ResourceKey<Level>,
+    ): Vector3 =
+        frames.frame(world(from)).let {
+            it.origin.position +
+                it.orientation.apply(value)
+        }
+
+    fun nativePoint(
+        value: Vector3,
+        to: ResourceKey<Level>,
+    ): Vector3 =
+        frames.frame(world(to)).let {
+            it.orientation.inverse(value - it.origin.position)
+        }
+
+    fun rootDirection(
+        value: Vector3,
+        from: ResourceKey<Level>,
+    ): Vector3 = frames.frame(world(from)).orientation.apply(value)
+
+    fun nativeDirection(
+        value: Vector3,
+        to: ResourceKey<Level>,
+    ): Vector3 = frames.frame(world(to)).orientation.inverse(value)
+
+    fun rootAngular(
+        value: Vector3,
+        from: ResourceKey<Level>,
+    ): Vector3 = frames.frame(world(from)).toParentAngularVelocity(value)
+
+    fun nativeAngular(
+        value: Vector3,
+        to: ResourceKey<Level>,
+    ): Vector3 = frames.frame(world(to)).fromParentAngularVelocity(value)
+
     fun state(
         value: CartesianState,
         from: ResourceKey<Level>,

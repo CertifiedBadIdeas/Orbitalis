@@ -82,6 +82,7 @@ object OrbitalObjectGameTests {
         val data = checkNotNull(OrbitalSimulation.data(server))
         val profile = checkNotNull(OrbitalSimulation.profile(server))
         val epoch = data.clock
+        val spinStart = profile.earthSurfaceFrame(epoch)
         val start =
             profile.system
                 .sample(epoch)
@@ -93,6 +94,7 @@ object OrbitalObjectGameTests {
             net.minecraft.server.commands.TimeCommand
                 .setTime(server.createCommandSourceStack(), 18000)
             helper.assertTrue(data.clock == epoch, "Time command advanced orbital time")
+            helper.assertTrue(profile.earthSurfaceFrame(data.clock) == spinStart, "Time command rotated Earth")
             helper.assertTrue(
                 profile.system
                     .sample(data.clock)
@@ -135,6 +137,11 @@ object OrbitalObjectGameTests {
             }
         val data = OrbitalObjectData.load(old)
         val profile = data.configureCelestials(11.0)
+        helper.assertTrue(
+            profile.earthSpinEpochTick == 500L &&
+                profile.earthSurfaceFrame(500).orientation == org.cbi.orbitalis.core.orbit.Rotation3.IDENTITY,
+            "Legacy activation changed Earth orientation",
+        )
         repeat(10) { data.advanceClock() }
         val saved = data.save(CompoundTag(), registries)
         val restored = OrbitalObjectData.load(saved)

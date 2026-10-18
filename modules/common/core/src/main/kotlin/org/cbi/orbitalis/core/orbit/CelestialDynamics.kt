@@ -39,50 +39,65 @@ class CelestialDynamics(
         require(epochTick >= 0)
     }
 
+    /** Immutable epoch sample, reusable across a bounded search without resolving ephemerides per point. */
+    fun at(seconds: Double = 0.0): Sample = Sample(seconds)
+
     fun acceleration(
         position: Vector3,
         seconds: Double = 0.0,
-    ): Vector3 {
-        val earthFrame = profile.earthSurfaceFrame(epochTick, seconds)
-        val terrestrial = earthFrame.orientation.inverse(position)
-        val frame = profile.lunarSurfaceFrame(epochTick, seconds)
-        val local = frame.orientation.inverse(position - frame.origin.position)
-        val moonForce = frame.orientation.apply(moon.acceleration(local))
-        // Prescribed Earth motion does not react to its satellite: retain its origin by using lunar tides.
-        val earthOriginMoonForce = frame.orientation.apply(moon.acceleration(frame.orientation.inverse(frame.origin.position * -1.0)))
-        val earthOrbit = profile.earthOrbit.sample(epochTick, seconds)
-        val sunOffset = position + earthOrbit.origin.position
-        val sunTide = sunOffset * (-profile.sunMu / sunOffset.length().let { it * it * it }) - earthOrbit.originAcceleration
-        val terrestrialWindow = window(terrestrial, FlatPlanetDefinition.HALF_SIZE, 256.0, FlatPlanetDefinition.ASCENT_HEIGHT, 256.0)
-        val terrestrialForce = earthFrame.orientation.apply(earth.acceleration(terrestrial))
-        val supportedEarth = earthFrame.toParentAcceleration(CartesianState(terrestrial, Vector3.ZERO), earth.acceleration(terrestrial))
-        val field =
-            terrestrialForce + (supportedEarth - terrestrialForce) * terrestrialWindow +
-                (moonForce - earthOriginMoonForce + sunTide) * (1.0 - terrestrialWindow)
-        val lunarWindow = window(local, SolarSystemProfile.MOON_HALF_SIZE, 128.0, 600.0, 128.0)
-        if (lunarWindow == 0.0) return field
-        // Surface compatibility includes the acceleration of a fixed ground point in its spinning frame.
-        // Dynamic Coriolis terms are still applied by fromParentAcceleration for moving local vessels.
-        val supported = frame.toParentAcceleration(CartesianState(local, Vector3.ZERO), moon.acceleration(local))
-        return field * (1.0 - lunarWindow) + supported * lunarWindow
-    }
+    ): Vector3 = at(seconds).acceleration(position)
 
     fun earthAcceleration(
         state: CartesianState,
         seconds: Double = 0.0,
-    ): Vector3 {
-        val frame = profile.earthSurfaceFrame(epochTick, seconds)
-        val physical = frame.toParent(state)
-        return frame.fromParentAcceleration(physical, acceleration(physical.position, seconds))
-    }
+    ): Vector3 = at(seconds).earthAcceleration(state)
 
     fun lunarAcceleration(
         state: CartesianState,
         seconds: Double = 0.0,
-    ): Vector3 {
-        val frame = profile.lunarSurfaceFrame(epochTick, seconds)
-        val physical = frame.toParent(state)
-        return frame.fromParentAcceleration(physical, acceleration(physical.position, seconds))
+    ): Vector3 = at(seconds).lunarAcceleration(state)
+
+    inner class Sample internal constructor(
+        seconds: Double,
+    ) {
+        val earthFrame = profile.earthSurfaceFrame(epochTick, seconds)
+        val moonFrame = profile.lunarSurfaceFrame(epochTick, seconds)
+        private val earthOrbit = profile.earthOrbit.sample(epochTick, seconds)
+        private val earthOriginMoonForce =
+            moonFrame.orientation.apply(
+                moon.acceleration(
+                    moonFrame.orientation.inverse(moonFrame.origin.position * -1.0),
+                ),
+            )
+
+        fun acceleration(position: Vector3): Vector3 {
+            val terrestrial = earthFrame.orientation.inverse(position)
+            val local = moonFrame.orientation.inverse(position - moonFrame.origin.position)
+            val moonForce = moonFrame.orientation.apply(moon.acceleration(local))
+            val sunOffset = position + earthOrbit.origin.position
+            val sunTide = sunOffset * (-profile.sunMu / sunOffset.length().let { it * it * it }) - earthOrbit.originAcceleration
+            val terrestrialWindow = window(terrestrial, FlatPlanetDefinition.HALF_SIZE, 256.0, FlatPlanetDefinition.ASCENT_HEIGHT, 256.0)
+            val nativeForce = earth.acceleration(terrestrial)
+            val terrestrialForce = earthFrame.orientation.apply(nativeForce)
+            val supportedEarth = earthFrame.toParentAcceleration(CartesianState(terrestrial, Vector3.ZERO), nativeForce)
+            val field =
+                terrestrialForce + (supportedEarth - terrestrialForce) * terrestrialWindow +
+                    (moonForce - earthOriginMoonForce + sunTide) * (1.0 - terrestrialWindow)
+            val lunarWindow = window(local, SolarSystemProfile.MOON_HALF_SIZE, 128.0, 600.0, 128.0)
+            if (lunarWindow == 0.0) return field
+            val supported = moonFrame.toParentAcceleration(CartesianState(local, Vector3.ZERO), moon.acceleration(local))
+            return field * (1.0 - lunarWindow) + supported * lunarWindow
+        }
+
+        fun earthAcceleration(state: CartesianState): Vector3 {
+            val physical = earthFrame.toParent(state)
+            return earthFrame.fromParentAcceleration(physical, acceleration(physical.position))
+        }
+
+        fun lunarAcceleration(state: CartesianState): Vector3 {
+            val physical = moonFrame.toParent(state)
+            return moonFrame.fromParentAcceleration(physical, acceleration(physical.position))
+        }
     }
 
     private fun window(

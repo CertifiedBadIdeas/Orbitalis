@@ -59,7 +59,7 @@ class ShipDestinationPreload : AutoCloseable {
                 (level.chunkSource.getChunkNow(chunk.x, chunk.z) != null && level.areEntitiesLoaded(chunk.toLong()))
         } == true
 
-    /** All positions are physical Overworld axes, velocities are m/s. Null velocity samples player movement. */
+    /** All positions are inertial geocentric root axes, velocities are m/s. Null velocity samples player movement. */
     fun approach(
         level: ServerLevel,
         physicalPosition: Vector3,
@@ -94,12 +94,25 @@ class ShipDestinationPreload : AutoCloseable {
         previousPosition = physicalPosition
         previousVelocity = if (velocity != null || dt > 0.0) observed else null
         val sample = CelestialFlight.sample(level.server)
-        val nativeMoon = sample.state(CartesianState(physicalPosition, observed), net.minecraft.world.level.Level.OVERWORLD, MoonWorld.KEY)
+        val nativeMoon = sample.nativeState(CartesianState(physicalPosition, observed), MoonWorld.KEY)
         val fromMoon = level.dimension() == MoonWorld.KEY
         val lunarAcceleration = sample.dynamics.lunarAcceleration(nativeMoon)
         val moonEta = PlanetFlightEnvelope.moon.arrival(nativeMoon.position, nativeMoon.velocity, lunarAcceleration, fromMoon, 30.0)
         val ascending = level.dimension() == net.minecraft.world.level.Level.OVERWORLD
-        val earthEta = if (fromMoon) null else PlanetFlightEnvelope.arrival(physicalPosition, observed, acceleration, ascending, 30.0)
+        val nativeEarth = sample.nativeState(CartesianState(physicalPosition, observed), net.minecraft.world.level.Level.OVERWORLD)
+        val earthAcceleration = sample.dynamics.earthAcceleration(nativeEarth)
+        val earthEta =
+            if (fromMoon) {
+                null
+            } else {
+                PlanetFlightEnvelope.arrival(
+                    nativeEarth.position,
+                    nativeEarth.velocity,
+                    earthAcceleration,
+                    ascending,
+                    30.0,
+                )
+            }
         if (fromMoon || (level.dimension() == FlatPlanetSpace.SPACE && moonEta != null && (earthEta == null || moonEta <= earthEta))) {
             val key = if (fromMoon) FlatPlanetSpace.SPACE else MoonWorld.KEY
             val destination = level.server.getLevel(key) ?: return false
@@ -123,8 +136,13 @@ class ShipDestinationPreload : AutoCloseable {
             close()
             return false
         }
-        val crossing = physicalPosition + observed * eta + acceleration * (eta * eta * 0.5)
-        forecastDestination(destination, FlightSpaceCoordinates.localPosition(other, crossing), observed.length())
+        val crossing = nativeEarth.position + nativeEarth.velocity * eta + earthAcceleration * (eta * eta * 0.5)
+        val future = CelestialFlight(SurfaceFlightFrames(sample.frames.profile, sample.frames.tick + (eta * 20.0).toLong()))
+        forecastDestination(
+            destination,
+            if (ascending) future.point(crossing, net.minecraft.world.level.Level.OVERWORLD, other) else crossing,
+            observed.length(),
+        )
         return true
     }
 

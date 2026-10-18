@@ -20,14 +20,12 @@ package org.cbi.orbitalis.minecraft.client.space
 
 import net.minecraft.client.Minecraft
 import net.minecraft.world.level.Level
-import org.cbi.orbitalis.core.orbit.SurfaceFlightFrames
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.flight.CelestialFlight
 import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
-import org.cbi.orbitalis.minecraft.moon.MoonWorld
 import org.joml.Matrix4f
 
-/** Root-space presentation seen through a camera whose local world rotates with the Moon. */
+/** Root-space presentation seen through a camera in a rotating native surface chart. */
 object CelestialView {
     fun sample() = CelestialFlight.sampleClient(Minecraft.getInstance().timer.getGameTimeDeltaPartialTick(false))
 
@@ -35,43 +33,57 @@ object CelestialView {
         level: Level,
         position: Vector3,
     ): Vector3 =
-        if (level.dimension() == MoonWorld.KEY) {
-            sample().point(position, MoonWorld.KEY, Level.OVERWORLD)
+        if (CelestialFlight.available(level)) {
+            sample().rootPoint(position, level.dimension())
         } else {
-            FlightSpaceCoordinates.globalPosition(level.dimension(), position)
+            FlightSpaceCoordinates.legacyRootPosition(level.dimension(), position)
         }
+
+    fun rotation(r: org.cbi.orbitalis.core.orbit.Rotation3): Matrix4f =
+        Matrix4f().set(
+            floatArrayOf(
+                r.xAxis.x.toFloat(),
+                r.xAxis.y.toFloat(),
+                r.xAxis.z.toFloat(),
+                0f,
+                r.yAxis.x.toFloat(),
+                r.yAxis.y.toFloat(),
+                r.yAxis.z.toFloat(),
+                0f,
+                r.zAxis.x.toFloat(),
+                r.zAxis.y.toFloat(),
+                r.zAxis.z.toFloat(),
+                0f,
+                0f,
+                0f,
+                0f,
+                1f,
+            ),
+        )
+
+    fun earthRotation(): Matrix4f {
+        val level = Minecraft.getInstance().level ?: return Matrix4f()
+        return if (CelestialFlight.available(
+                level,
+            )
+        ) {
+            rotation(
+                sample()
+                    .frames.profile
+                    .earthSurfaceFrame(sample().frames.tick, sample().frames.seconds)
+                    .orientation,
+            )
+        } else {
+            Matrix4f()
+        }
+    }
 
     fun rootView(
         level: Level,
         localView: Matrix4f,
     ): Matrix4f {
-        if (level.dimension() != MoonWorld.KEY) return Matrix4f(localView)
-        val r =
-            sample()
-                .frames
-                .frame(SurfaceFlightFrames.World.MOON)
-                .orientation
-        val inverse =
-            Matrix4f().set(
-                floatArrayOf(
-                    r.xAxis.x.toFloat(),
-                    r.yAxis.x.toFloat(),
-                    r.zAxis.x.toFloat(),
-                    0f,
-                    r.xAxis.y.toFloat(),
-                    r.yAxis.y.toFloat(),
-                    r.zAxis.y.toFloat(),
-                    0f,
-                    r.xAxis.z.toFloat(),
-                    r.yAxis.z.toFloat(),
-                    r.zAxis.z.toFloat(),
-                    0f,
-                    0f,
-                    0f,
-                    0f,
-                    1f,
-                ),
-            )
-        return Matrix4f(localView).mul(inverse)
+        if (!CelestialFlight.available(level)) return Matrix4f(localView)
+        val r = sample().frames.frame(CelestialFlight.world(level.dimension())).orientation
+        return Matrix4f(localView).mul(rotation(r).transpose())
     }
 }

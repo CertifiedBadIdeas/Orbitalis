@@ -55,10 +55,9 @@ class ShipCoastForecast private constructor(
             val sample = SableFlightGravity.reading(body)
             val celestial = CelestialFlight.sample(body.level.server)
             val state =
-                celestial.state(
+                celestial.rootState(
                     CartesianState(sample.position, Vector3(sample.velocity.x, sample.velocity.y, sample.velocity.z)),
                     body.level.dimension(),
-                    Level.OVERWORLD,
                 )
             val global = state.position
             if (global.length() > 30000.0 || sample.velocity.length() > 9990.0) return null

@@ -158,7 +158,13 @@ object PlanetCloudRenderer {
         if (clouds == CloudStatus.OFF || !height.isFinite()) return
         // The distant overview is one masked sheet, matching native FAST or FANCY upper height.
         val y = height + 0.33f + if (clouds == CloudStatus.FANCY) 4f else 0f
-        val modelView = Matrix4f(view).scale(scale.toFloat()).translate(-observer.x.toFloat(), -observer.y.toFloat(), -observer.z.toFloat())
+        val modelView =
+            Matrix4f(
+                view,
+            ).scale(
+                scale.toFloat(),
+            ).translate(-observer.x.toFloat(), -observer.y.toFloat(), -observer.z.toFloat())
+                .mul(CelestialView.earthRotation())
         val shader = checkNotNull(if (frame == null) GameRenderer.getPositionTexColorShader() else worldShader)
         val depth = GL11.glIsEnabled(GL11.GL_DEPTH_TEST)
         val write = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK)

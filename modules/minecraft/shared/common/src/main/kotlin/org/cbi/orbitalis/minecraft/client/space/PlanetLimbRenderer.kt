@@ -144,7 +144,12 @@ object PlanetLimbRenderer {
             gpu.bind()
             try {
                 gpu.drawWithShader(
-                    Matrix4f(view).scale(scale.toFloat()).translate(-observer.x.toFloat(), -observer.y.toFloat(), -observer.z.toFloat()),
+                    Matrix4f(
+                        view,
+                    ).scale(
+                        scale.toFloat(),
+                    ).translate(-observer.x.toFloat(), -observer.y.toFloat(), -observer.z.toFloat())
+                        .mul(CelestialView.earthRotation()),
                     projection,
                     shader,
                 )

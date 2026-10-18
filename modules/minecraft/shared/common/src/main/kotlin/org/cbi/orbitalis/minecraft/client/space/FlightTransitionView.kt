@@ -146,18 +146,30 @@ object FlightTransitionView {
             if (level.dimension() == org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY) {
                 null
             } else {
-                PlanetFlightEnvelope.arrival(position, velocity, Vector3.ZERO, ascending, 3.0)
+                if (CelestialFlight.available(level)) {
+                    val native =
+                        CelestialFlight
+                            .sample(
+                                level,
+                            ).nativeState(
+                                org.cbi.orbitalis.core.planet
+                                    .CartesianState(position, velocity),
+                                Level.OVERWORLD,
+                            )
+                    PlanetFlightEnvelope.arrival(native.position, native.velocity, Vector3.ZERO, ascending, 3.0)
+                } else {
+                    null
+                }
             }
         val lunarArrival =
             if (CelestialFlight.available(level)) {
                 val sample = CelestialFlight.sample(level)
                 val native =
-                    sample.state(
+                    sample.nativeState(
                         org.cbi.orbitalis.core.planet.CartesianState(
                             position,
                             velocity,
                         ),
-                        Level.OVERWORLD,
                         org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY,
                     )
                 PlanetFlightEnvelope.moon.arrival(

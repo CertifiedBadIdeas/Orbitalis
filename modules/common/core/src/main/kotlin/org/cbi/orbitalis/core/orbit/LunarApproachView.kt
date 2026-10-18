@@ -36,6 +36,8 @@ class LunarApproachView {
         position: Vector3,
         world: SurfaceFlightFrames.World,
     ): Vector3 {
+        val earth = frames.frame(SurfaceFlightFrames.World.EARTH)
+        val earthAngle = atan2(earth.orientation.xAxis.y, earth.orientation.xAxis.x)
         val moon = frames.frame(SurfaceFlightFrames.World.MOON)
         val local = frames.point(position, world, SurfaceFlightFrames.World.MOON)
         // Both hysteresis boundaries lie inside the fully aligned region. Begin well before entry.
@@ -49,14 +51,14 @@ class LunarApproachView {
             ).coerceIn(0.0, 1.0)
         if (t == 1.0) {
             clear()
-            return frames.frame(world).orientation.inverse(Vector3(0.0, 1.0, 0.0))
+            return frames.frame(world).orientation.inverse(earth.orientation.yAxis)
         }
-        val principal = atan2(moon.orientation.xAxis.y, moon.orientation.xAxis.x)
+        val principal = atan2(moon.orientation.xAxis.y, moon.orientation.xAxis.x) - earthAngle
         val previous = if (t == 0.0) principal else angle ?: principal
         val unwrapped = previous + atan2(kotlin.math.sin(principal - previous), kotlin.math.cos(principal - previous))
         angle = unwrapped
         val weight = 1.0 - t * t * t * (10.0 + t * (-15.0 + 6.0 * t))
-        val rootUp = Rotation3.axisAngle(Vector3(0.0, 0.0, 1.0), unwrapped * weight).yAxis
+        val rootUp = Rotation3.axisAngle(Vector3(0.0, 0.0, 1.0), earthAngle + unwrapped * weight).yAxis
         return frames.frame(world).orientation.inverse(rootUp)
     }
 

@@ -90,18 +90,18 @@ object PlayerSpaceTravel {
         }
         preload(player)
         val current = Vector3(player.x, player.y, player.z)
-        val sampledVerticalSpeed =
-            if (player.level().dimension() ==
-                org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY
-            ) {
-                velocity.y * 20.0
-            } else {
-                preloads[player]?.sampledVelocity?.y
-                    ?: (velocity.y * 20.0)
-            }
-        val key = destination(player.level(), current, Vector3(velocity.x * 20.0, sampledVerticalSpeed, velocity.z * 20.0)) ?: return false
-        val target = player.server.getLevel(key) ?: return false
         val sample = CelestialFlight.sample(player.server)
+        val nativeVelocity =
+            preloads[player]?.sampledVelocity?.let { observed ->
+                sample
+                    .nativeState(
+                        org.cbi.orbitalis.core.planet
+                            .CartesianState(sample.rootPoint(current, player.level().dimension()), observed),
+                        player.level().dimension(),
+                    ).velocity
+            } ?: Vector3(velocity.x, velocity.y, velocity.z) * 20.0
+        val key = destination(player.level(), current, nativeVelocity) ?: return false
+        val target = player.server.getLevel(key) ?: return false
         val state =
             sample.state(
                 org.cbi.orbitalis.core.planet

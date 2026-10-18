@@ -52,7 +52,11 @@ object FlatGravityGameTests {
     fun nativeFiniteBodyFreeOrbit(helper: GameTestHelper) {
         val level = checkNotNull(helper.level.server.getLevel(FlatPlanetSpace.SPACE))
         val field = SableFlightGravity.flatField(level)
-        val plan = CompletableFuture.supplyAsync { BallisticOrbit.plan(field) }
+        val planningModel =
+            org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                .sample(level.server)
+                .dynamics
+        val plan = CompletableFuture.supplyAsync { BallisticOrbit.firstRevolution(field, planningModel, clearance = 64.0) }
         val container = checkNotNull(SubLevelContainer.getContainer(level))
         val physics = SubLevelPhysicsSystem.require(level)
         helper.assertTrue(
@@ -121,7 +125,16 @@ object FlatGravityGameTests {
                     helper.runAfterDelay(1) { start() }
                     return
                 }
-                val initial = plan.join().initial
+                val nativeInitial = plan.join().initial
+                val model =
+                    org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                        .sample(level.server)
+                val earthFrame = model.frames.profile.earthSurfaceFrame(planningModel.epochTick)
+                val initial =
+                    org.cbi.orbitalis.core.planet.CartesianState(
+                        earthFrame.orientation.apply(nativeInitial.position),
+                        earthFrame.orientation.apply(nativeInitial.velocity),
+                    )
                 val before = SableFlightGravity.reading(body)
                 val desired = FlightSpaceCoordinates.localPosition(FlatPlanetSpace.SPACE, initial.position)
                 val delta = desired - before.position
@@ -131,7 +144,9 @@ object FlatGravityGameTests {
                     Vector3d(initial.velocity.x, initial.velocity.y, initial.velocity.z).sub(before.velocity),
                     Vector3d(),
                 )
-                val energy0 = field.specificEnergy(initial)
+                var predicted = initial
+                var predictedTick = model.frames.tick
+                val angleBasis = earthFrame.orientation
                 var ticks = 0
                 var previous = 0.0
                 var angle = 0.0
@@ -141,25 +156,58 @@ object FlatGravityGameTests {
                     level.resetEmptyTime()
                     val reading = SableFlightGravity.reading(body)
                     val p = FlightSpaceCoordinates.globalPosition(level, reading.position)
-                    val energy = reading.velocity.lengthSquared() * 0.5 + field.potential(p)
-                    val next = atan2(p.x, p.y)
+                    val sample =
+                        org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                            .sample(level.server)
+                    if (ticks == 0) {
+                        // Pending native teleport/velocity commands are applied at the next physics boundary.
+                        // Start comparison from that observed boundary, not from the pre-command tick.
+                        predicted =
+                            org.cbi.orbitalis.core.planet.CartesianState(
+                                p,
+                                Vector3(reading.velocity.x, reading.velocity.y, reading.velocity.z),
+                            )
+                        predictedTick = sample.frames.tick
+                    }
+                    val elapsed = (sample.frames.tick - predictedTick) * 0.05
+                    var advanced = 0.0
+                    while (advanced < elapsed - 1e-10) {
+                        val dt = minOf(0.005, elapsed - advanced)
+                        val seconds = (predictedTick - model.frames.tick) * 0.05 + advanced
+                        val half = predicted.velocity + model.dynamics.acceleration(predicted.position, seconds) * (dt * 0.5)
+                        val nextP = predicted.position + half * dt
+                        predicted =
+                            org.cbi.orbitalis.core.planet.CartesianState(
+                                nextP,
+                                half + model.dynamics.acceleration(nextP, seconds + dt) * (dt * 0.5),
+                            )
+                        advanced += dt
+                    }
+                    predictedTick = sample.frames.tick
+                    val localP = sample.nativePoint(p, net.minecraft.world.level.Level.OVERWORLD)
+                    val relative = angleBasis.inverse(p)
+                    val next = atan2(relative.x, relative.y)
                     var step = next - previous
                     if (step < -PI) step += 2 * PI
                     if (step > PI) step -= 2 * PI
                     angle += step
                     previous = next
-                    error = maxOf(error, abs((energy - energy0) / energy0))
+                    error = maxOf(error, (p - predicted.position).length())
                     if (ticks % 200 ==
                         0
                     ) {
                         println(
-                            "ORBITALIS_FLAT_INERT substeps=${physics.config.substepsPerTick} ticks=$ticks energyError=$error p=$p v=${reading.velocity}",
+                            "ORBITALIS_FLAT_INERT substeps=${physics.config.substepsPerTick} ticks=$ticks predictionErrorMetres=$error p=$p v=${reading.velocity}",
                         )
                     }
-                    helper.assertTrue(!field.body.contains(p), "Native orbit hit the body")
-                    helper.assertTrue(error < 0.003, "Native unpowered energy error=$error; substeps=${physics.config.substepsPerTick}")
+                    helper.assertTrue(!field.body.contains(localP), "Native orbit hit the body")
+                    helper.assertTrue(
+                        // Rapier uses float state and two native substeps; budget 0.2% of the 5 km orbit.
+                        error < initial.position.length() * 0.002,
+                        "Native unpowered prediction position error=$error m; substeps=${physics.config.substepsPerTick}",
+                    )
                     if (angle >= 2 * PI) {
-                        println("ORBITALIS_FLAT_INERT_COMPLETE ticks=$ticks energyError=$error")
+                        println("ORBITALIS_FLAT_INERT_COMPLETE ticks=$ticks predictionErrorMetres=$error")
                         helper.succeed()
                         return
                     }
