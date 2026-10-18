@@ -75,6 +75,18 @@ class CelestialGeometryTest {
         }
     }
 
+    @Test fun `small world insertion clears the minimum native handoff band`() {
+        val profile = SolarSystemProfile(11.0, selectedEarthWidth = 1000, earthSpinEpochTick = 0L)
+        val dynamics = CelestialDynamics(profile, 6000L)
+        val altitude = maxOf(profile.geometry.earthHalfSize, profile.geometry.earthEnvelope.ascentDistance + 200.0)
+        val orbit =
+            org.cbi.orbitalis.core.planet.BallisticOrbit
+                .firstRevolution(profile.earthGravity, dynamics, altitude, 64.0)
+        assertEquals(2064.0, orbit.initial.position.y, 1e-8)
+        assertTrue(orbit.minimumClearance >= 64.0)
+        assertTrue(orbit.period in 20.0..3600.0)
+    }
+
     @Test fun `native lunar footprint samples selected width without changing seeded geology`() {
         val small = LunarSurface(1234, 136.5)
         val old = LunarSurface(1234)

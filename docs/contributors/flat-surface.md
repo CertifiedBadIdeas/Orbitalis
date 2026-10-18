@@ -18,8 +18,10 @@ limitations under the License.
 
 # Finite flat surface
 
-The first playable surface is the normal Overworld. Its finite terrain footprint is initially
-10,000 by 10,000 blocks, centred at X=0/Z=0: columns -5000 through 4999. The native movement border
+The first playable surface is the normal Overworld. New worlds select an immutable terrain
+width of 1,000–20,000 blocks in the native creation settings (10,000 by default), centred at
+X=0/Z=0. The default occupies columns -5000 through 4999; a 1,000-block preview occupies
+-500 through 499. Existing saves without creation settings retain their saved bounds. The native movement border
 is distant (Minecraft's MAX_SIZE), so players and Sable ships can fly beyond the edge, around its
 sides and underneath. Blocks, fluids, neighbours and other mods retain native coordinates and logic.
 Bedrock and the native building height are unchanged. No Sable construction represents the ground.
@@ -34,7 +36,8 @@ workers consume immutable snapshots of this saved footprint. Native `/worldborde
 and its normal collision, damage, warning, centre and lerp behavior; it no longer changes generation.
 Administrator edits to that movement border persist normally, including deliberately close walls.
 
-A missing record installs the default footprint and MAX_SIZE movement border. Version-one exact
+A missing record installs the selected creation footprint (or the legacy default when settings
+are absent) and MAX_SIZE movement border. Version-one exact
 legacy defaults (2000 or 10000 at zero) and version-two exact 10000 defaults migrate to that same
 footprint and distant movement border. Customized v1/v2 borders are captured as the previous generation
 footprint, rounded inward to whole block columns; their movement settings are preserved. Existing
