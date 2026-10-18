@@ -26,14 +26,17 @@ Physical sunlight, platform spin and sleep-driven system acceleration remain def
 ## Current scope
 
 Core now provides `KeplerOrbit`, `CelestialBody`, `CelestialSystem` and `CelestialSnapshot`. These
-are independent mathematics, not an installed solar system. Native gravity, saved frames, ship
-handoffs, orbital map and sky still use the existing single-Earth route. There is no lunar dimension,
-new saved-data schema or active celestial clock introduced by this stage.
+now have a native clock/catalogue adapter. The existing orbital index owns the shared simulation
+clock and the compact profile is persisted alongside it. Native gravity, saved frames, ship handoffs
+and sky still use the existing single-Earth route. There is no lunar dimension or active lunar force.
 
 The accepted scale is a compact gameplay system with transfers lasting several minutes. A preliminary
 Earth–Moon centre separation of 20 km gives a point-mass transfer estimate of about 5.5 minutes from
-radius 5,064 m for the existing Earth mass at native ship gravity 11 m/s². This is neither a validated
-transfer in the finite-body field nor a fixed runtime preset. Native gravity remains authoritative;
+radius 5,064 m for the existing Earth mass at native ship gravity 11 m/s². This is a transfer estimate, not a validated
+transfer in the finite-body field. The version-one catalogue now uses this 20 km circular lunar orbit,
+a 2,000 km circular Earth orbit, and a solar mass parameter 10,000 times Earth's. The Moon mass
+parameter comes from a 2.8 km flat body with top-centre gravity one sixth of Earth's. These are
+compact gameplay parameters, not real Solar System proportions. Native gravity remains authoritative;
 changing it must change the orbital parameters derived from it.
 
 ## Orbit contract
@@ -78,8 +81,22 @@ is an explicit modelling choice, not an approximation of a mutually integrated N
 
 ## Native integration boundary
 
-The caller must supply the authoritative simulation time, paused during server downtime, rather than
-Minecraft daylight. Moving-source gravity, loaded and unloaded vessels, previews and visual snapshots
+`OrbitalSimulation` reads the existing `OrbitalObjectData.Clock` and advances it once at highest
+server-post-tick priority. Sable consumes that clock without a second increment. Its optional native
+adapter supplies surface gravity and a shared pause/transfer gate. Without Sable the metadata clock
+still advances; no native construction classes are loaded by common code. Server downtime leaves
+the persisted clock unchanged, and daylight commands do not modify it.
+
+The top-level orbital index is now version two, reading version one in place. Its optional
+version-one `Celestial` profile stores gravity, epoch and both mean anomalies atomically with clock
+and motion records. Motion records and native user-data remain version one; body/frame IDs and
+coordinates are unchanged. Unknown/malformed profile or index versions preserve the entire raw tag
+and disable its simulation. Changing native gravity rebases current phases before retuning masses,
+avoiding an immediate position jump. Historical mass-change force replay is not implemented.
+
+Legacy maneuver-plan epochs/consumer execution still use Minecraft game time. They require an
+explicit migration before enabling moving-field vessel predictions; this metadata stage does not
+reinterpret those saved plans. Moving-source gravity, loaded and unloaded vessels, previews and visual snapshots
 must share that clock and catalogue. `OrbitalEvolution.advanceTimed` can evaluate deterministic
 position/time forces at each endpoint; no native caller has switched to it yet.
 
@@ -96,3 +113,8 @@ momentum, analytic derivatives against independent finite differences, epochs/qu
 parabolic bound cases and invalid parameters. `CelestialSystemTest` covers a three-level hierarchy,
 relative accelerations, distant-origin precision, input isolation and invalid graphs/mass parameters.
 These tests establish domain behavior, not Minecraft lunar travel, rendering or native force agreement.
+
+Native `celestialClockAndDaylight` checks `/time set`, pause gating and exactly one increment per
+server tick. `celestialProfilePersistence` checks version-one migration, fresh disk restoration of
+clock/phase and preservation of malformed/future profiles. The existing unloaded-station/cargo and
+metadata compatibility scenarios also pass with the shared clock lifecycle.

@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Persist a compact Sun/Earth/Moon catalogue alongside the existing orbital simulation clock. Migrate
+  version-one indexes in place, preserve unknown data, and keep celestial phases independent of
+  daylight commands. Share one tick advance with unloaded stations; native lunar forces remain pending.
+
 - Add core prescribed elliptic ephemerides and sampled celestial hierarchies with position, velocity,
   acceleration and precise relative coordinates. Native gravity, worlds and sky remain on the current
   single-Earth route pending solar-system integration.

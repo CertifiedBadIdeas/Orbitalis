@@ -248,7 +248,7 @@ tasks.configureEach {
             val navigationNames = setOf("nativecoastforecastandpacket", "navigationbookmarkpersistence")
             val sparseNames = setOf("nativeterrainloadingcontrol", "nativevacuumflightwithoutterrain", "nativevacuumshipcollision", "vacuumstorageandconstruction", "vacuummetadatacompatibility")
             val atlasNames = setOf("nativesurfaceatlaspersistence", "surfaceatlaspacketbounds", "savedsurfaceatlasbackfill", "surfaceatlaslifecycleburst")
-            val objectNames = setOf("nativeunloadedstation", "orbitalmetadatacompatibility")
+            val objectNames = setOf("nativeunloadedstation", "orbitalmetadatacompatibility", "celestialclockanddaylight", "celestialprofilepersistence")
             val terrainNames = setOf("finiteterrainedges", "finitefeaturewrites")
             val mapNames = setOf("mappacketandlease", "mapnativeorbitalobjects")
             val requiredNames = when (gameTestSuite) {

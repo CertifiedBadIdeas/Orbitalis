@@ -330,7 +330,6 @@ object SableOrbitalObjects {
                     container.removeForceLoadTicket(body, wakeTicket, Unit.INSTANCE)
                 }
             }
-            data.advanceClock()
             pending?.takeIf { it.isDone }?.let { completed ->
                 pending = null
                 try {

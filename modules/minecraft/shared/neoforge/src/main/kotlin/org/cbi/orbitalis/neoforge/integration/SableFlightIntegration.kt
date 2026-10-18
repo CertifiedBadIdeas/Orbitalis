@@ -48,6 +48,7 @@ import org.cbi.orbitalis.minecraft.integration.sable.SableShipContact
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipTransfer
 import org.cbi.orbitalis.minecraft.integration.sable.SableVacuumWorld
 import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferTickGate
+import org.cbi.orbitalis.minecraft.orbit.OrbitalSimulation
 import java.util.Locale
 
 /** Registered only with Sable present. No Create or Propulsion classes cross this boundary. */
@@ -64,6 +65,14 @@ object SableFlightIntegration {
         org.cbi.orbitalis.minecraft.integration.sable.SableMapObjects
             .install()
         SableOrbitalObjects.mayAdvance = { server -> transfers[server]?.busy == false }
+        OrbitalSimulation.surfaceGravity = { server -> SableFlightGravity.flatField(server.overworld()).body.surfaceAcceleration }
+        OrbitalSimulation.mayAdvance = { server ->
+            SableOrbitalObjects.mayAdvance(server) && server.getLevel(FlatPlanetSpace.SPACE)?.let {
+                dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem
+                    .require(it)
+                    .paused
+            } != true
+        }
         // Apply before Sable compiles and sends its native dimension-physics packet.
         NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST) { event: OnDatapackSyncEvent ->
             event.playerList.server

@@ -42,7 +42,9 @@ It does not substitute a Kepler ellipse for that field.
 
 Sable remains the only owner of native blocks, block entities, inventories, plot occupancy, entity
 storage and ship UUIDs. Orbitalis stores only bounded motion metadata and a native storage pointer in
-version-one `orbitalis_orbital_objects` SavedData. Each record names its body and physical frame,
+version-two `orbitalis_orbital_objects` SavedData (version-one indexes migrate in place). The same
+file owns the simulation clock and optional [celestial profile](celestial-orbits.md); common lifecycle
+advances that clock once and the Sable worker consumes it. Motion records remain version one. Each record names its body and physical frame,
 snapshot token, snapshot epoch, current motion epoch, centre-of-mass position and velocity, and hull
 radius. The native `user_data` key `orbitalis:orbit` contains the matching snapshot token and motion
 anchor plus angular velocity. Unknown user data remains intact.
@@ -91,8 +93,9 @@ A complete multi-body ephemeris and frame migration are separate stages.
 
 Core tests cover hierarchical velocity transforms, malformed frame graphs, segmented evolution,
 comparison with the existing coast predictor and ten-minute energy preservation in the slab field.
-`-PorbitalisGameTestSuite=objects` runs `nativeunloadedstation` and
-`orbitalmetadatacompatibility`; both are required by the default native suite. The station scenario
+`-PorbitalisGameTestSuite=objects` runs `nativeunloadedstation`, `orbitalmetadatacompatibility`,
+`celestialclockanddaylight` and `celestialprofilepersistence`; all four are required by the default
+native suite. The station scenario
 uses real native storage, checks unloaded movement without a terrain trail, reopens SavedData from
 disk, reconstructs from a freshly read native payload and checks exact velocity, UUID uniqueness and
 chest cargo. The native scenario also checks a 1300-tick deferred catch-up, automatic nearby-ship wake and a warm

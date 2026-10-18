@@ -44,18 +44,138 @@ import net.minecraft.world.level.storage.DimensionDataStorage
 import net.minecraft.world.level.storage.LevelResource
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
 import org.cbi.orbitalis.core.orbit.OrbitalEvolution
+import org.cbi.orbitalis.core.orbit.SolarSystemProfile
 import org.cbi.orbitalis.core.planet.CartesianState
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
 import org.cbi.orbitalis.minecraft.integration.sable.SableOrbitalObjects
 import org.cbi.orbitalis.minecraft.orbit.OrbitalObjectData
+import org.cbi.orbitalis.minecraft.orbit.OrbitalSimulation
 import org.joml.Vector3d
 import java.nio.file.Files
 import java.util.UUID
 
 @PrefixGameTestTemplate(false)
 object OrbitalObjectGameTests {
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 100, batch = "orbital_clock")
+    fun celestialClockAndDaylight(helper: GameTestHelper) {
+        val server = helper.level.server
+        val data = checkNotNull(OrbitalSimulation.data(server))
+        val profile = checkNotNull(OrbitalSimulation.profile(server))
+        val epoch = data.clock
+        val start =
+            profile.system
+                .sample(epoch)
+                .frame(SolarSystemProfile.MOON, SolarSystemProfile.EARTH)
+                .origin
+        val day = server.overworld().dayTime
+        val gate = OrbitalSimulation.mayAdvance
+        try {
+            net.minecraft.server.commands.TimeCommand
+                .setTime(server.createCommandSourceStack(), 18000)
+            helper.assertTrue(data.clock == epoch, "Time command advanced orbital time")
+            helper.assertTrue(
+                profile.system
+                    .sample(data.clock)
+                    .frame(SolarSystemProfile.MOON, SolarSystemProfile.EARTH)
+                    .origin == start,
+                "Daylight command moved the Moon",
+            )
+            OrbitalSimulation.mayAdvance = { false }
+            OrbitalSimulation.tick(server)
+            helper.assertTrue(data.clock == epoch, "Paused native/transfer clock advanced")
+        } finally {
+            OrbitalSimulation.mayAdvance = gate
+            server.overworld().setDayTime(day)
+        }
+        helper.runAfterDelay(4) {
+            helper.assertTrue(
+                data.clock == epoch + 4,
+                "Simulation did not advance exactly once per native server tick: ${data.clock - epoch}",
+            )
+            helper.assertTrue(
+                profile.system
+                    .sample(data.clock)
+                    .frame(SolarSystemProfile.MOON, SolarSystemProfile.EARTH)
+                    .origin != start,
+                "Running simulation did not move the prescribed Moon",
+            )
+            helper.succeed()
+        }
+    }
+
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 100, batch = "orbital_metadata")
+    fun celestialProfilePersistence(helper: GameTestHelper) {
+        val registries = helper.level.registryAccess()
+        val old =
+            CompoundTag().apply {
+                putInt("Version", 1)
+                putLong("Clock", 500)
+                put("Objects", ListTag())
+            }
+        val data = OrbitalObjectData.load(old)
+        val profile = data.configureCelestials(11.0)
+        repeat(10) { data.advanceClock() }
+        val saved = data.save(CompoundTag(), registries)
+        val restored = OrbitalObjectData.load(saved)
+        helper.assertTrue(saved.getInt("Version") == 2 && restored.clock == 510L, "Legacy clock did not migrate in place")
+        val expected =
+            profile.system
+                .sample(data.clock)
+                .frame(SolarSystemProfile.MOON, SolarSystemProfile.EARTH)
+                .origin
+        helper.assertTrue(
+            restored.readable &&
+                restored.profile!!
+                    .system
+                    .sample(
+                        restored.clock,
+                    ).frame(SolarSystemProfile.MOON, SolarSystemProfile.EARTH)
+                    .origin == expected,
+            "Profile reload changed orbital phase",
+        )
+        val folder = Files.createTempDirectory("orbitalis-celestial-clock-").toFile()
+        try {
+            val storage = DimensionDataStorage(folder, helper.level.server.fixerUpper, registries)
+            storage.set(OrbitalObjectData.NAME, data)
+            data.setDirty()
+            storage.save()
+            net.neoforged.neoforge.common.IOUtilities
+                .waitUntilIOWorkerComplete()
+            val fresh =
+                DimensionDataStorage(folder, helper.level.server.fixerUpper, registries)
+                    .computeIfAbsent(OrbitalObjectData.FACTORY, OrbitalObjectData.NAME)
+            helper.assertTrue(
+                fresh.clock == data.clock &&
+                    fresh.profile!!
+                        .system
+                        .sample(fresh.clock)
+                        .frame(SolarSystemProfile.MOON, SolarSystemProfile.EARTH)
+                        .origin == expected,
+                "Fresh disk read changed clock or celestial phase",
+            )
+        } finally {
+            folder.deleteRecursively()
+        }
+        for (bad in listOf(
+            saved.copy().apply { getCompound("Celestial").putInt("Version", 99) },
+            saved.copy().apply { getCompound("Celestial").putDouble("Gravity", Double.NaN) },
+            saved.copy().apply { getCompound("Celestial").putLong("EpochTick", 511) },
+            saved.copy().apply { getCompound("Celestial").remove("MoonPhase") },
+        )) {
+            val unknown = OrbitalObjectData.load(bad)
+            unknown.advanceClock()
+            helper.assertTrue(
+                !unknown.readable && unknown.save(CompoundTag(), registries) == bad,
+                "Malformed/future celestial metadata was overwritten",
+            )
+        }
+        helper.succeed()
+    }
+
     @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 400, batch = "orbital_station")
     fun nativeUnloadedStation(helper: GameTestHelper) {

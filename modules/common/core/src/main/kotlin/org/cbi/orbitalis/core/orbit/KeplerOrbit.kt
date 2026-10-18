@@ -62,9 +62,7 @@ class KeplerOrbit(
     /** All components are relative to the parent focus at the same [tick]. No incremental state. */
     fun sample(tick: Long): FrameKinematics {
         require(tick >= 0) { "Simulation tick must be nonnegative" }
-        val elapsed = (tick - epochTick).toDouble() / 20.0
-        val mean = wrap(meanAnomalyAtEpoch + (elapsed % period) / period * (2.0 * PI))
-        val anomaly = eccentricAnomaly(mean)
+        val anomaly = eccentricAnomaly(meanAnomaly(tick))
         val c = cos(anomaly)
         val s = sin(anomaly)
         val denominator = 1.0 - eccentricity * c
@@ -73,6 +71,22 @@ class KeplerOrbit(
         val radius = position.length()
         val acceleration = position.normalized() * (-mu / radius / radius)
         return FrameKinematics(CartesianState(position, velocity), originAcceleration = acceleration)
+    }
+
+    /** Phase at an absolute tick, also used when rebasing a prescribed orbit after a mass change. */
+    fun meanAnomaly(tick: Long): Double {
+        require(tick >= 0) { "Simulation tick must be nonnegative" }
+        val elapsed = (tick - epochTick).toDouble() / 20.0
+        return wrap(meanAnomalyAtEpoch + (elapsed % period) / period * (2.0 * PI))
+    }
+
+    /** A closed parent-relative geometric ellipse; callers join the last point to the first. */
+    fun curve(samples: Int = 128): List<Vector3> {
+        require(samples in 16..256) { "Expected 16..256 orbit samples" }
+        return List(samples) { index ->
+            val angle = 2.0 * PI * index / samples
+            plane.apply(Vector3(semiMajorAxis * (cos(angle) - eccentricity), semiMajorAxis * minorRatio * sin(angle), 0.0))
+        }
     }
 
     // Newton within a monotonic bracket; bisection makes iteration bounded even near e=1.

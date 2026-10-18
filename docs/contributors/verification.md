@@ -38,7 +38,7 @@ orbits, spherical/two-body fields and flight/frame math. This is mathematical co
 Run `:v1_21_1-neoforge:runGameTestServer` separately. The focused `terrain` suite checks four native partially intersecting corners, exterior empty/full/light
 completion, void biomes and heightmaps, feature/entity rejection and ordinary runtime writes.
 The default `all` suite also includes these two scenarios and requires four surface-atlas sampling/persistence/backfill/packet scenarios, nine surface
-border/persistence/preload/void-floor/player-motion scenarios, six finite-orbit/ship-transfer/retirement/travel scenarios, two navigation scenarios, five sparse-vacuum scenarios and two unloaded-orbital-object scenarios, with no
+border/persistence/preload/void-floor/player-motion scenarios, six finite-orbit/ship-transfer/retirement/travel scenarios, two navigation scenarios, five sparse-vacuum scenarios and four orbital-object/clock scenarios, with no
 failed, skipped or error results in a fresh XML report. `-PorbitalisGameTestSuite=surface` runs the nine
 surface cases alone; `-PorbitalisGameTestSuite=transfer` runs the five native transfer/recovery/retirement/travel cases
 without the full-orbit performance cost. See [flat surface](flat-surface.md), [flight gravity](flight-gravity.md) and
