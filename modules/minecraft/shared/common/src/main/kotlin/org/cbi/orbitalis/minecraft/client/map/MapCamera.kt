@@ -52,6 +52,18 @@ class MapCamera {
         range = (range * exp(-scroll.coerceIn(-20.0, 20.0) * 0.15)).coerceIn(128.0, 1e8)
     }
 
+    /** Fit a physical bounding radius even when the viewport is taller than it is wide. */
+    fun frame(
+        position: Vector3,
+        range: Double,
+        width: Int = 1,
+        height: Int = 1,
+    ) {
+        require(range.isFinite() && range > 0.0 && width > 0 && height > 0)
+        focus = position
+        this.range = (range * maxOf(1.0, height.toDouble() / width)).coerceIn(128.0, 1e8)
+    }
+
     fun reset() {
         focus = Vector3.ZERO
         range = 8500.0

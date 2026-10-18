@@ -28,7 +28,9 @@ Physical sunlight, platform spin and sleep-driven system acceleration remain def
 Core now provides `KeplerOrbit`, `CelestialBody`, `CelestialSystem` and `CelestialSnapshot`. These
 now have a native clock/catalogue adapter. The existing orbital index owns the shared simulation
 clock and the compact profile is persisted alongside it. Native gravity, saved frames, ship handoffs
-and sky still use the existing single-Earth route. There is no lunar dimension or active lunar force.
+and sky still use the existing single-Earth route. The orbital map now displays this catalogue,
+including celestial markers and closed parent-relative orbit curves. There is no lunar dimension or
+active lunar force.
 
 The accepted scale is a compact gameplay system with transfers lasting several minutes. A preliminary
 Earth–Moon centre separation of 20 km gives a point-mass transfer estimate of about 5.5 minutes from
@@ -118,3 +120,24 @@ Native `celestialClockAndDaylight` checks `/time set`, pause gating and exactly 
 server tick. `celestialProfilePersistence` checks version-one migration, fresh disk restoration of
 clock/phase and preservation of malformed/future profiles. The existing unloaded-station/cargo and
 metadata compatibility scenarios also pass with the shared clock lifecycle.
+
+## Orbital map synchronization
+
+Map protocol negotiation is version four. Each screen snapshot retains its independent sequence
+counter and ship directory, and adds the persisted simulation tick plus optional version-one
+`SolarSystemProfile` parameters. The server sends the profile rather than a separately authored
+position/path list; shared core mathematics derives all celestial positions and curves on the client.
+The decoder bounds gravity/phase/epoch and rejects future model versions, future profile epochs and
+profile/native gravity mismatches. This adds only a fixed-size profile, not terrain or native payloads.
+
+`CelestialMapScene` derives an Earth-relative scene from that immutable profile and epoch. Celestial
+curves begin at the current body position and close after one geometric ellipse; parent positions
+place them in the same scene as the native Earth relief. GPU lines share its depth buffer, so Earth
+occludes far-side arc segments. Celestial markers/names remain readable overlays. Earth, Moon,
+Earth–Moon and solar-system framing buttons cover surface, satellite and astronomical scales. Moon
+and solar focus follow their body as new snapshots arrive; Home restores the Earth overview.
+
+The map catalogue is active independently of lunar vessel physics. Vessel coast/maneuver previews
+still use the existing Earth field. Clock-domain migration for old maneuver plans, moving-source
+forces, multiple-body encounter prediction and native lunar handoffs remain required before lunar
+flight can be advertised. Opening the map creates no terrain tickets and wakes no constructions.

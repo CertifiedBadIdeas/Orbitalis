@@ -47,5 +47,11 @@
   "map.orbitalis.plan.running": "Двигатели под управлением",
   "map.orbitalis.plan.no_executor": "Только прогноз: нет адаптера двигателей",
   "map.orbitalis.plan.node": "Узел %s / %s",
-  "map.orbitalis.plan.change_selection": "Сохраните изменения или обновите план перед выбором другого корабля."
+  "map.orbitalis.plan.change_selection": "Сохраните изменения или обновите план перед выбором другого корабля.",
+  "map.orbitalis.view.earth": "Земля",
+  "map.orbitalis.view.moon": "Луна",
+  "map.orbitalis.view.earth_moon": "Земля–Луна",
+  "map.orbitalis.view.system": "Система",
+  "body.orbitalis.sun": "Солнце",
+  "body.orbitalis.moon": "Луна"
 }

@@ -36,20 +36,35 @@ class MapTrajectoryRenderer : AutoCloseable {
     private var mesh: VertexBuffer? = null
     private var previous: List<MapTrajectories.Path>? = null
     private var selection: UUID? = null
+    private var previousBodies: List<CelestialMapScene.Body>? = null
 
     private fun upload(
         paths: List<MapTrajectories.Path>,
         selected: UUID?,
+        bodies: List<CelestialMapScene.Body>,
     ) {
-        if (previous === paths && selection == selected) return
+        if (previous === paths && selection == selected && previousBodies === bodies) return
         previous = paths
+        previousBodies = bodies
         selection = selected
-        if (paths.none { it.prediction.points.size > 1 }) {
+        if (paths.none { it.prediction.points.size > 1 } && bodies.none { it.orbit.size > 1 }) {
             mesh?.close()
             mesh = null
             return
         }
         val buffer = Tesselator.getInstance().begin(VertexFormat.Mode.DEBUG_LINES, DefaultVertexFormat.POSITION_COLOR)
+        for (body in bodies) {
+            val points = body.orbit
+            if (points.size < 2) continue
+
+            fun vertex(p: Vector3) {
+                buffer.addVertex(p.x.toFloat(), p.y.toFloat(), p.z.toFloat()).setColor(130, 155, 180, 160)
+            }
+            for (i in points.indices) {
+                vertex(points[i])
+                vertex(points[(i + 1) % points.size])
+            }
+        }
         for (path in paths.sortedWith(compareBy<MapTrajectories.Path> { it.planned }.thenBy { it.source.id == selected })) {
             val chosen = path.source.id == selected
 
@@ -105,8 +120,9 @@ class MapTrajectoryRenderer : AutoCloseable {
         projection: Matrix4f,
         paths: List<MapTrajectories.Path>,
         selected: UUID?,
+        bodies: List<CelestialMapScene.Body> = emptyList(),
     ) {
-        upload(paths, selected)
+        upload(paths, selected, bodies)
         val gpu = mesh ?: return
         val depth = GL11.glIsEnabled(GL11.GL_DEPTH_TEST)
         val mask = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK)
@@ -149,5 +165,6 @@ class MapTrajectoryRenderer : AutoCloseable {
         mesh?.close()
         mesh = null
         previous = null
+        previousBodies = null
     }
 }

@@ -81,10 +81,14 @@ class KeplerOrbit(
     }
 
     /** A closed parent-relative geometric ellipse; callers join the last point to the first. */
-    fun curve(samples: Int = 128): List<Vector3> {
+    fun curve(
+        samples: Int = 128,
+        tick: Long = epochTick,
+    ): List<Vector3> {
         require(samples in 16..256) { "Expected 16..256 orbit samples" }
+        val start = eccentricAnomaly(meanAnomaly(tick))
         return List(samples) { index ->
-            val angle = 2.0 * PI * index / samples
+            val angle = start + 2.0 * PI * index / samples
             plane.apply(Vector3(semiMajorAxis * (cos(angle) - eccentricity), semiMajorAxis * minorRatio * sin(angle), 0.0))
         }
     }

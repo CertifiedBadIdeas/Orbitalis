@@ -24,6 +24,7 @@ import net.minecraft.gametest.framework.GameTestHelper
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.network.FriendlyByteBuf
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
+import org.cbi.orbitalis.core.orbit.SolarSystemProfile
 import org.cbi.orbitalis.core.planet.CartesianState
 import org.cbi.orbitalis.core.planet.ManeuverNode
 import org.cbi.orbitalis.core.planet.ManeuverPlan
@@ -40,6 +41,7 @@ import org.cbi.orbitalis.minecraft.navigation.FlightPlanService
 import org.cbi.orbitalis.minecraft.navigation.FlightPlanState
 import org.cbi.orbitalis.minecraft.navigation.FlightPlans
 import org.cbi.orbitalis.minecraft.orbit.OrbitalObjectData
+import org.cbi.orbitalis.minecraft.orbit.OrbitalSimulation
 import java.util.UUID
 
 @PrefixGameTestTemplate(false)
@@ -58,7 +60,7 @@ object OrbitalMapGameTests {
                 List(
                     MapSnapshot.MAX_OBJECTS,
                 ) { MapObject(UUID.randomUUID(), "界".repeat(32), Vector3(1.0, 8000.0, 3.0), Vector3.ZERO, false, 0) }
-            val value = MapSnapshot(token, 0, Vector3.ZERO, objects, objects.size, 7.5)
+            val value = MapSnapshot(token, 0, Vector3.ZERO, objects, objects.size, 7.5, 500, SolarSystemProfile(7.5, 400, 0.7, -1.0))
             MapSnapshot.CODEC.encode(buffer, value)
             helper.assertTrue(buffer.writerIndex() < 1048576, "Snapshot exceeded native client payload budget")
             helper.assertTrue(MapSnapshot.CODEC.decode(buffer) == value, "Object snapshot roundtrip changed")
@@ -71,6 +73,36 @@ object OrbitalMapGameTests {
                 }
                 helper.assertTrue(rejectedGravity, "Invalid gravity accepted: $gravity")
             }
+            for (invalid in listOf(
+                { value.copy(simulationTick = -1) },
+                { value.copy(simulationTick = 399) },
+                { value.copy(celestialProfile = SolarSystemProfile(11.0)) },
+            )) {
+                var rejectedProfile = false
+                try {
+                    invalid()
+                } catch (_: IllegalArgumentException) {
+                    rejectedProfile = true
+                }
+                helper.assertTrue(rejectedProfile, "Invalid celestial clock/gravity accepted")
+            }
+            buffer.clear()
+            buffer.writeUUID(token)
+            buffer.writeLong(0)
+            repeat(3) { buffer.writeDouble(0.0) }
+            buffer.writeDouble(11.0)
+            buffer.writeVarInt(0)
+            buffer.writeVarInt(0)
+            buffer.writeLong(500)
+            buffer.writeBoolean(true)
+            buffer.writeVarInt(99)
+            var rejectedFuture = false
+            try {
+                MapSnapshot.CODEC.decode(buffer)
+            } catch (_: IllegalArgumentException) {
+                rejectedFuture = true
+            }
+            helper.assertTrue(rejectedFuture, "Unknown celestial wire model accepted")
             buffer.clear()
             buffer.writeUUID(token)
             buffer.writeLong(0)
@@ -190,6 +222,10 @@ object OrbitalMapGameTests {
             helper.assertTrue(
                 service.viewing(player) && snapshots.size == 1 && snapshots[0].token == token,
                 "Surface map subscription failed",
+            )
+            helper.assertTrue(
+                snapshots[0].celestialProfile != null && snapshots[0].simulationTick == OrbitalSimulation.data(player.server)!!.clock,
+                "Map did not use the persisted simulation clock/catalogue",
             )
             repeat(9) { service.tick() }
             helper.assertTrue(snapshots.size == 1, "Map bypassed snapshot rate limit")

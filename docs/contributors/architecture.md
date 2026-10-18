@@ -62,8 +62,10 @@ frames through that graph and adds
 4096 to physical Y, preserving axes and inertial velocity. Independent core `Rotation3`/`FrameKinematics` now provide
 [tested rotating-frame transforms](rotating-frames.md) for subsequent Earth–Moon integration; the
 current native route still uses the established fixed frame. Core also provides
-[prescribed celestial ephemerides](celestial-orbits.md) and sampled body hierarchies; they do not yet
-install moving sources, a lunar surface or a new native frame interpretation. `SableFlightGravity` applies core
+[prescribed celestial ephemerides](celestial-orbits.md) and sampled body hierarchies. Common lifecycle
+advances the existing persisted orbital clock and stores a versioned compact catalogue with that
+index; the orbital map displays its synchronized bodies and orbit curves. They do not yet install
+moving gravity sources, a lunar surface or a new native frame interpretation. `SableFlightGravity` applies core
 rectangular-body gravity and a conservative surface compatibility layer to constructions and players.
 Gravity is vertical through Y=320 within the initial footprint and finite-body gravity above Y=3064.
 Players retain native jumps with 32 m/s² at the surface; the exterior field shares the ship mass

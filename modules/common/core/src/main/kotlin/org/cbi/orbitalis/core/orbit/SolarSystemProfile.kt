@@ -23,7 +23,7 @@ import org.cbi.orbitalis.core.planet.RectangularGravity
 import kotlin.math.PI
 
 /** Version-one compact preset. Persist phases and epoch with the simulation clock, not daylight. */
-class SolarSystemProfile(
+data class SolarSystemProfile(
     val surfaceGravity: Double,
     val epochTick: Long = 0,
     val earthPhase: Double = 0.0,
@@ -59,6 +59,7 @@ class SolarSystemProfile(
     }
 
     companion object {
+        const val VERSION = 1
         const val SUN = "orbitalis:sun"
         const val EARTH = "orbitalis:overworld"
         const val MOON = "orbitalis:moon"

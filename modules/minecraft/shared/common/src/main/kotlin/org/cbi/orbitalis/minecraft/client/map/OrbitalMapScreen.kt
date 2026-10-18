@@ -25,6 +25,7 @@ import net.minecraft.client.gui.GuiGraphics
 import net.minecraft.client.gui.components.Button
 import net.minecraft.client.gui.screens.Screen
 import net.minecraft.network.chat.Component
+import org.cbi.orbitalis.core.orbit.SolarSystemProfile
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.client.space.SurfacePlanetRenderer
 import org.cbi.orbitalis.minecraft.map.MapObject
@@ -56,11 +57,14 @@ class OrbitalMapScreen(
     private var dragged = false
     private var subscribed = false
     private var focusButton: Button? = null
+    private var celestialBodies = emptyList<CelestialMapScene.Body>()
+    private var bodyFocus: String? = null
+    private val celestialButtons = mutableListOf<Button>()
     private val viewX = 12
-    private val viewY = 55
+    private val viewY = 79
     private val panelWidth get() = (width * 0.28).toInt().coerceIn(140, 220)
     private val viewWidth get() = (width - panelWidth - 36).coerceAtLeast(1)
-    private val viewHeight get() = (height - 92).coerceAtLeast(1)
+    private val viewHeight get() = (height - viewY - 37).coerceAtLeast(1)
     private val panelX get() = viewX + viewWidth + 12
     private val listY get() = viewY + 126
     private val listRows get() = ((height - 32 - listY) / 20).coerceIn(0, 12)
@@ -68,20 +72,40 @@ class OrbitalMapScreen(
 
     override fun init() {
         super.init()
-        addRenderableWidget(
-            Button.builder(Component.translatable("map.orbitalis.planet")) { camera.reset() }.bounds(viewX, 29, 110, 20).build(),
-        )
+        celestialButtons.clear()
+        val frameWidth = ((viewWidth - 4) / 2).coerceIn(1, 110)
+        val views: List<Pair<String, () -> Unit>> =
+            listOf(
+                "earth" to { resetEarthView() },
+                "moon" to { frameBody(SolarSystemProfile.MOON, SolarSystemProfile.MOON_HALF_SIZE * 3.0) },
+                "earth_moon" to { frameBody(SolarSystemProfile.EARTH, SolarSystemProfile.MOON_ORBIT_RADIUS * 1.3) },
+                "system" to { frameBody(SolarSystemProfile.SUN, SolarSystemProfile.EARTH_ORBIT_RADIUS * 1.15) },
+            )
+        for ((index, view) in views.withIndex()) {
+            celestialButtons.add(
+                addRenderableWidget(
+                    Button
+                        .builder(Component.translatable("map.orbitalis.view." + view.first)) { view.second() }
+                        .bounds(viewX + (index % 2) * (frameWidth + 4), 29 + (index / 2) * 24, frameWidth, 20)
+                        .build(),
+                ),
+            )
+        }
         focusButton =
             addRenderableWidget(
                 Button
                     .builder(Component.translatable("map.orbitalis.focus")) {
-                        snapshot?.objects?.find { it.id == selected }?.let { camera.focus = it.position }
+                        snapshot?.objects?.find { it.id == selected }?.let {
+                            bodyFocus = null
+                            camera.focus = it.position
+                        }
                     }.bounds(panelX, viewY + 104, panelWidth - 12, 20)
                     .build(),
             )
         addRenderableWidget(Button.builder(Component.translatable("gui.done")) { onClose() }.bounds(width - 76, 9, 64, 20).build())
         maneuvers.init(font, panelX, viewY, panelWidth - 12) { addRenderableWidget(it) }
         if (!subscribed) {
+            resetEarthView()
             trajectories = MapTrajectories()
             pathRenderer = MapTrajectoryRenderer()
             subscribed = true
@@ -92,6 +116,8 @@ class OrbitalMapScreen(
     fun accept(value: MapSnapshot) {
         if (value.token != token || value.tick < (snapshot?.tick ?: -1L)) return
         snapshot = value
+        celestialBodies = value.celestialProfile?.let { CelestialMapScene.sample(it, value.simulationTick) }.orEmpty()
+        bodyFocus?.let { id -> celestialBodies.firstOrNull { it.id == id }?.let { camera.focus = it.position } }
         items =
             value.objects
                 .map { it to label(it).lowercase(Locale.ROOT) }
@@ -122,6 +148,7 @@ class OrbitalMapScreen(
         selected = maneuvers.select(selected)
         maneuvers.tick()
         trajectories?.update(snapshot, selected, camera.focus, maneuvers.draft, maneuvers.clock)
+        celestialButtons.forEachIndexed { index, button -> button.active = index == 0 || celestialBodies.isNotEmpty() }
         focusButton?.visible = !maneuvers.open
         focusButton?.active = snapshot?.objects?.any { it.id == selected } == true
     }
@@ -159,7 +186,7 @@ class OrbitalMapScreen(
             return true
         }
         if (key == GLFW.GLFW_KEY_HOME) {
-            camera.reset()
+            resetEarthView()
             return true
         }
         return super.keyPressed(key, scan, modifiers)
@@ -173,7 +200,6 @@ class OrbitalMapScreen(
     ) {
         graphics.fill(0, 0, width, height, 0xFF080E19.toInt())
         graphics.drawString(font, title, 12, 11, 0xE8F4FF, false)
-        graphics.drawString(font, Component.translatable("map.orbitalis.subtitle"), 130, 34, 0x8098AF, false)
         graphics.fill(viewX - 1, viewY - 1, viewX + viewWidth + 1, viewY + viewHeight + 1, 0xFF294358.toInt())
         graphics.fill(viewX, viewY, viewX + viewWidth, viewY + viewHeight, 0xFF030812.toInt())
         graphics.flush()
@@ -186,6 +212,18 @@ class OrbitalMapScreen(
                     graphics.drawString(font, "${burn.index + 1}", viewX + it.x.toInt() + 6, viewY + it.y.toInt() - 9, 0xD08CFF, false)
                 }
             }
+        }
+        for (body in celestialBodies) {
+            if (body.id == SolarSystemProfile.EARTH) continue
+            val point = camera.project(body.position, viewWidth, viewHeight) ?: continue
+            val x = viewX + point.x.roundToInt()
+            val y = viewY + point.y.roundToInt()
+            val color = if (body.id == SolarSystemProfile.SUN) 0xFFE19B else 0xCFD9E5
+            for (row in -4..4) {
+                val extent = kotlin.math.sqrt((16 - row * row).toDouble()).toInt()
+                graphics.fill(x - extent, y + row, x + extent + 1, y + row + 1, color or 0xFF000000.toInt())
+            }
+            graphics.drawString(font, Component.translatable("body." + body.id.replace(':', '.')), x + 8, y - 4, color, false)
         }
         snapshot?.let { data ->
             for (item in data.objects) {
@@ -221,6 +259,21 @@ class OrbitalMapScreen(
             graphics.drawString(font, line, viewX, height - 24 + index * 10, 0x8098AF, false)
         }
         super.render(graphics, mouseX, mouseY, partialTick)
+    }
+
+    private fun resetEarthView() {
+        bodyFocus = null
+        camera.reset()
+        camera.frame(Vector3.ZERO, 8500.0, viewWidth, viewHeight)
+    }
+
+    private fun frameBody(
+        id: String,
+        range: Double,
+    ) {
+        val body = celestialBodies.firstOrNull { it.id == id } ?: return
+        bodyFocus = id
+        camera.frame(body.position, range, viewWidth, viewHeight)
     }
 
     private fun drawPlanet() {
@@ -260,7 +313,7 @@ class OrbitalMapScreen(
                 1.0 / camera.range,
             )
             if (Util.getMillis() - receivedAt <= 3000L) {
-                pathRenderer?.render(camera, view, projection, trajectories?.paths.orEmpty(), selected)
+                pathRenderer?.render(camera, view, projection, trajectories?.paths.orEmpty(), selected, celestialBodies)
             }
         } finally {
             RenderSystem.viewport(viewport[0], viewport[1], viewport[2], viewport[3])

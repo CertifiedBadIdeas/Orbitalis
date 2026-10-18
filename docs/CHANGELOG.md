@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Show the synchronized Sun/Earth/Moon catalogue and closed celestial orbit curves on the orbital map.
+  Add Earth, Moon, Earth–Moon and solar-system views, with relief occluding far-side orbit lines.
+  The map uses the server's saved simulation epoch; lunar forces and surface travel remain pending.
+
 - Persist a compact Sun/Earth/Moon catalogue alongside the existing orbital simulation clock. Migrate
   version-one indexes in place, preserve unknown data, and keep celestial phases independent of
   daylight commands. Share one tick advance with unloaded stations; native lunar forces remain pending.

@@ -102,7 +102,7 @@ class OrbitalObjectData private constructor(
             tag.put(
                 "Celestial",
                 CompoundTag().apply {
-                    putInt("Version", 1)
+                    putInt("Version", SolarSystemProfile.VERSION)
                     putLong("EpochTick", value.epochTick)
                     putDouble("Gravity", value.surfaceGravity)
                     putDouble("EarthPhase", value.earthPhase)
@@ -130,7 +130,7 @@ class OrbitalObjectData private constructor(
                 if (tag.getInt("Version") == 2 && tag.contains("Celestial")) {
                     require(tag.contains("Celestial", Tag.TAG_COMPOUND.toInt()))
                     val celestial = tag.getCompound("Celestial")
-                    require(celestial.getInt("Version") == 1 && celestial.contains("EpochTick", 4))
+                    require(celestial.getInt("Version") == SolarSystemProfile.VERSION && celestial.contains("EpochTick", 4))
                     require(listOf("Gravity", "EarthPhase", "MoonPhase").all { celestial.contains(it, 6) })
                     result.profile =
                         SolarSystemProfile(
