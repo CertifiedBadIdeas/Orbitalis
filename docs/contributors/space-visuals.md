@@ -47,8 +47,10 @@ close every join except the intended top boundary. Rock uses a modest illustrati
 its unlit underside retains readable facets; this is not new stellar lighting. The cached mesh and
 existing asynchronous rebuild budget are retained. No bitmap assets or runtime rock textures are added.
 
-`PlanetLimbRenderer` adds a low-opacity blue feathered upper-edge halo to the shared map/world scene
-after opaque geometry, preserving destination alpha for the later sky composite. It tests existing
+`PlanetLimbRenderer` adds a luminous blue feathered upper-edge halo to the shared map/world scene
+after opaque geometry: a narrow pale core fades into a broad blue outer glow, using additive RGB
+blending while preserving destination alpha for the later sky composite. No post-process bloom target
+is allocated. It tests existing
 scene depth without writing depth; clouds remain a separate
 pass and foreground ships still draw against the normal world. This bounded geometric halo is not
 physical atmospheric scattering. The shell is decoration, with no collision or terrain generation;

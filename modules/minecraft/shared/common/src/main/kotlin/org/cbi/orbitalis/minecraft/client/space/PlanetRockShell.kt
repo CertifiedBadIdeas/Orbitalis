@@ -95,7 +95,7 @@ object PlanetRockShell {
                     for (i in CELLS downTo 1) add(grid[i][CELLS])
                     for (j in CELLS downTo 1) add(grid[0][j])
                 }
-            val strata = intArrayOf(0x91775a, 0xa2937b, 0x7c807b, 0x9b9281, 0x757570, 0x8d8377, 0x797c78, 0x928a7e)
+            val strata = intArrayOf(0x858476, 0x919082, 0x7f827f, 0x8c8b80, 0x797f80, 0x89877e, 0x7d8381, 0x88887f)
 
             fun band(
                 v: Vector3,

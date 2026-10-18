@@ -29,18 +29,31 @@ import org.joml.Matrix4f
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL14
 
-/** Small feathered upper-edge halo, illustrative rather than an atmosphere scattering model. */
+/** Luminous feathered upper-edge halo, illustrative rather than an atmosphere scattering model. */
 object PlanetLimbRenderer {
     private data class Vertex(
         val position: Vector3,
         val alpha: Int,
+        val color: Int,
     )
 
     private val vertices: List<Vertex> =
         buildList {
             val h = SpaceScene.HALF_SIZE
             val corners = listOf(-h to -h, h to -h, h to h, -h to h)
-            val rows = listOf(Triple(-90.0, 18.0, 0), Triple(0.0, 180.0, 22), Triple(110.0, 90.0, 12), Triple(200.0, 0.0, 0))
+            // A narrow pale core and a broad blue falloff, without a bloom framebuffer or post-process.
+            val rows =
+                listOf(
+                    Triple(-220.0, 22.0, 0),
+                    Triple(-100.0, 25.0, 28),
+                    Triple(-25.0, 30.0, 150),
+                    Triple(0.0, 32.0, 235),
+                    Triple(20.0, 30.0, 165),
+                    Triple(55.0, 26.0, 70),
+                    Triple(110.0, 18.0, 30),
+                    Triple(190.0, 10.0, 8),
+                    Triple(280.0, 0.0, 0),
+                )
             for (side in corners.indices) {
                 val a = corners[side]
                 val b = corners[(side + 1) % corners.size]
@@ -53,7 +66,10 @@ object PlanetLimbRenderer {
                     val x = a.first + (b.first - a.first) * fraction
                     val z = a.second + (b.second - a.second) * fraction
                     val expand = 1.0 + outset / h
-                    return Vertex(Vector3(x * expand, SpaceScene.TOP + elevation, z * expand), alpha)
+                    val core = (1.0 - kotlin.math.abs(outset) / 110.0).coerceIn(0.0, 1.0)
+                    val red = (45 + 120 * core).toInt()
+                    val green = (105 + 110 * core).toInt()
+                    return Vertex(Vector3(x * expand, SpaceScene.TOP + elevation, z * expand), alpha, (red shl 16) or (green shl 8) or 255)
                 }
                 for (segment in 0 until 32) {
                     val start = segment / 32.0
@@ -85,7 +101,7 @@ object PlanetLimbRenderer {
             RenderSystem.depthMask(false)
             RenderSystem.enableBlend()
             // The sky target is composited later: a feather must not punch holes in its alpha.
-            RenderSystem.blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ZERO, GL11.GL_ONE)
+            RenderSystem.blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ZERO, GL11.GL_ONE)
             shader.MODEL_VIEW_MATRIX?.set(
                 Matrix4f(view).scale(scale.toFloat()).translate(-observer.x.toFloat(), -observer.y.toFloat(), -observer.z.toFloat()),
             )
@@ -93,8 +109,13 @@ object PlanetLimbRenderer {
             shader.COLOR_MODULATOR?.set(1f, 1f, 1f, 1f)
             shader.apply()
             val buffer = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR)
-            for ((v, alpha) in vertices) {
-                buffer.addVertex(v.x.toFloat(), v.y.toFloat(), v.z.toFloat()).setColor(108, 181, 236, alpha)
+            for ((v, alpha, color) in vertices) {
+                buffer.addVertex(v.x.toFloat(), v.y.toFloat(), v.z.toFloat()).setColor(
+                    color shr 16 and 255,
+                    color shr 8 and 255,
+                    color and 255,
+                    alpha,
+                )
             }
             BufferUploader.draw(buffer.buildOrThrow())
         } finally {
