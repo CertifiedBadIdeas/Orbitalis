@@ -18,8 +18,11 @@
 
 package org.cbi.orbitalis.consumer.flight.mixin
 
+import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation
 import net.minecraft.world.level.ChunkPos
 import org.cbi.orbitalis.consumer.flight.WorldgenBorderScope
+import org.cbi.orbitalis.consumer.flight.WorldgenWorkSearch
 import org.spongepowered.asm.mixin.Mixin
 import org.spongepowered.asm.mixin.Pseudo
 import org.spongepowered.asm.mixin.injection.At
@@ -30,6 +33,24 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable
 @Pseudo
 @Mixin(targets = ["com.ethan.voxyworldgenv2.core.DistanceGraph"], remap = false)
 internal abstract class VoxyWorldgenCancellationMixin {
+    @WrapMethod(method = ["findWork"])
+    private fun flightFindPendingWork(
+        position: ChunkPos,
+        radius: Int,
+        tracked: MutableSet<Long>,
+        original: Operation<List<ChunkPos>?>,
+    ): List<ChunkPos>? {
+        val pending = WorldgenBorderScope.pending.get() ?: return original.call(position, radius, tracked)
+        // Native pruning measures distance in four-chunk cells and can omit valid edge chunks.
+        // Search two cells further, then retain the exact requested circle in chunk coordinates.
+        val searchRadius = (radius.toLong() + 8).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        return WorldgenWorkSearch.findPending(tracked, { original.call(position, searchRadius, it) }) {
+            val dx = it.x.toLong() - position.x
+            val dz = it.z.toLong() - position.z
+            dx * dx + dz * dz <= radius.toLong() * radius && pending(it)
+        }
+    }
+
     @Inject(method = ["getDistSq"], at = [At("HEAD")], cancellable = true)
     private fun flightPruneOutsideBorder(
         x: Int,

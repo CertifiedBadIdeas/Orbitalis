@@ -18,15 +18,18 @@
 
 package org.cbi.orbitalis.consumer.flight
 
+import net.minecraft.server.level.ServerLevel
+import net.minecraft.world.level.ChunkPos
 import org.cbi.orbitalis.minecraft.surface.FiniteSurfaceTerrain
 
 internal const val WORLDGEN_FIND_WORK =
     "Lcom/ethan/voxyworldgenv2/core/DistanceGraph;" +
         "findWork(Lnet/minecraft/world/level/ChunkPos;ILjava/util/Set;)Ljava/util/List;"
 
-/** Scoped to one manager's Overworld search; other dimensions and graph callers stay native. */
+/** Manager search context; bounds apply only in Overworld and unscoped graph callers stay native. */
 internal object WorldgenBorderScope {
     val current = ThreadLocal<FiniteSurfaceTerrain.Bounds?>()
+    val pending = ThreadLocal<((ChunkPos) -> Boolean)?>()
 
     fun outside(
         x: Int,
@@ -42,4 +45,12 @@ internal object WorldgenBorderScope {
             minX >= bounds.maxX || minX + width <= bounds.minX ||
             minZ >= bounds.maxZ || minZ + width <= bounds.minZ
     }
+}
+
+/** Native manager method exposed without capturing a mixin implementation in a Kotlin lambda. */
+internal interface WorldgenCompletion {
+    fun isChunkCompleted(
+        level: ServerLevel,
+        position: ChunkPos,
+    ): Boolean
 }

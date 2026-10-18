@@ -134,9 +134,19 @@ Overworld. A server-thread probe checked two opposite partially intersecting cor
 entirely exterior chunks: all 147,456 inspected outside block positions were air, with interior terrain
 preserved. A spectator preview showed the terrain ending at both border planes. Runtime probes against
 the transformed WorldGenV2 graph checked exterior pruning, interior/edge work and unaffected unscoped
-search. Its transformed manager filtered a 16-chunk edge batch to one intersecting chunk, rejected a
-wholly exterior batch and retained unscoped batch identity. Probe sources, results, screenshot and the
-normal save/quit client log are retained in task verification evidence; they are not production hooks.
+search. The initial manager check covered batch filtering only, which did not establish scheduler
+progress after completing the remaining interior chunks. A later boundary regression reproduced a
+16-member leaf with four interior members: completing only those four selected the same leaf again;
+completing the intact native batch advanced to another interior batch. A full client run then showed
+that native circular-radius clipping creates the same incomplete-leaf condition without our border
+filter. The corrected search skips exhausted leaves only in a search-local exclusion set and reserves
+only pending work. `WorldgenWorkSearchTest` covers advancement, termination and reconsideration
+without fake completion. The corrected pinned client filled all 122 interior chunks of an exact
+radius-eight circle at each of two opposite edges, and its idle worker slept instead of spinning.
+A transformed-graph probe also admitted the radius-128 diagonal (-105,-73), reserved only the returned
+batch and terminated a subsequent exhausted search. The finite-terrain probe again inspected 147,456
+exterior blocks, all air. Probe sources, results, screenshots
+and client logs are retained in task verification evidence; they are not production hooks.
 This observation covers the pinned stack and inspected locations, not arbitrary generators that bypass
 native chunk stages or direct-write outside their generation region.
 

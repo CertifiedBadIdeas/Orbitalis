@@ -49,6 +49,15 @@ structures and spawning and use the void biome, while native status completion a
 Empty technical neighbour chunks remain loadable and save normally; rejecting their requests would
 break native generation dependencies. This is a terrain cutoff, not a replacement chunk scheduler.
 
+The flight consumer's optional WorldGenV2 adapter prunes wholly exterior search cells and only
+reserves batches containing unfinished interior work. Native graph leaves can stay partial at the
+world border or the circular generation radius, even after every eligible chunk is finished. Each
+search excludes exhausted leaves locally and continues to the next candidate; it does not persist
+fake completion, discard native in-flight reservations or prevent a later search from reconsidering
+the leaf after movement/border changes. The native completion index remains the source of truth. A conservative two-cell search margin
+compensates for native distance rounding on four-chunk cells, followed by an exact chunk-coordinate
+circle filter so the configured generation radius does not expand.
+
 Shared/common publishes immutable border snapshots for workers. Size/centre changes update them
 immediately; server ticks update moving borders. Load initialization also updates the native saved
 border settings so Minecraft's later startup application cannot restore the old default size. The

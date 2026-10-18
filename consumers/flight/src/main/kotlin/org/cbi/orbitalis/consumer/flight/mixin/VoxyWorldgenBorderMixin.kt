@@ -18,24 +18,32 @@
 
 package org.cbi.orbitalis.consumer.flight.mixin
 
-import com.llamalad7.mixinextras.injector.ModifyExpressionValue
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation
 import com.llamalad7.mixinextras.sugar.Local
+import net.minecraft.server.level.ServerLevel
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.level.ChunkPos
 import org.cbi.orbitalis.consumer.flight.WORLDGEN_FIND_WORK
 import org.cbi.orbitalis.consumer.flight.WorldgenBorderScope
+import org.cbi.orbitalis.consumer.flight.WorldgenCompletion
 import org.cbi.orbitalis.minecraft.surface.FiniteSurfaceTerrain
 import org.spongepowered.asm.mixin.Mixin
 import org.spongepowered.asm.mixin.Pseudo
+import org.spongepowered.asm.mixin.Shadow
 import org.spongepowered.asm.mixin.injection.At
 import org.spongepowered.asm.mixin.injection.Inject
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable
 
 @Pseudo
 @Mixin(targets = ["com.ethan.voxyworldgenv2.core.ChunkGenerationManager"], remap = false)
-internal abstract class VoxyWorldgenBorderMixin {
+internal abstract class VoxyWorldgenBorderMixin : WorldgenCompletion {
+    @Shadow
+    abstract override fun isChunkCompleted(
+        level: ServerLevel,
+        position: ChunkPos,
+    ): Boolean
+
     @WrapMethod(method = ["dispatchGeneration"])
     private fun flightRestoreSearchScope(
         players: List<ServerPlayer>,
@@ -43,31 +51,32 @@ internal abstract class VoxyWorldgenBorderMixin {
         original: Operation<Boolean>,
     ): Boolean {
         val previous = WorldgenBorderScope.current.get()
+        val pending = WorldgenBorderScope.pending.get()
         return try {
             original.call(players, limit)
         } finally {
             if (previous == null) WorldgenBorderScope.current.remove() else WorldgenBorderScope.current.set(previous)
+            if (pending == null) WorldgenBorderScope.pending.remove() else WorldgenBorderScope.pending.set(pending)
         }
     }
 
-    @Inject(
-        method = ["dispatchGeneration"],
-        at = [At(value = "INVOKE", target = WORLDGEN_FIND_WORK)],
-    )
+    @Inject(method = ["dispatchGeneration"], at = [At(value = "INVOKE", target = WORLDGEN_FIND_WORK)])
     private fun flightSelectSearchBorder(
         callback: CallbackInfoReturnable<Boolean>,
         @Local player: ServerPlayer,
     ) {
-        val bounds = FiniteSurfaceTerrain.bounds(player.serverLevel())
+        val level = player.serverLevel()
+        val bounds = FiniteSurfaceTerrain.bounds(level)
         if (bounds == null) WorldgenBorderScope.current.remove() else WorldgenBorderScope.current.set(bounds)
-    }
-
-    @ModifyExpressionValue(
-        method = ["dispatchGeneration"],
-        at = [At(value = "INVOKE", target = WORLDGEN_FIND_WORK)],
-    )
-    private fun flightFilterEdgeBatch(batch: List<ChunkPos>?): List<ChunkPos>? {
-        val bounds = WorldgenBorderScope.current.get() ?: return batch
-        return batch?.filter { bounds.intersectsChunk(it.x, it.z) }?.takeIf { it.isNotEmpty() }
+        val completion: WorldgenCompletion = this
+        WorldgenBorderScope.pending.set {
+            (
+                bounds == null ||
+                    bounds.intersectsChunk(
+                        it.x,
+                        it.z,
+                    )
+            ) && !completion.isChunkCompleted(level, it)
+        }
     }
 }

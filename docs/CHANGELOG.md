@@ -20,6 +20,9 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Keep WorldGenV2 searches moving past exhausted partial batches at the finite surface border and
+  circular generation radius, without changing completion records or generating exterior terrain.
+
 - Let consumer autopilots fly loaded ships without a player aboard. Add a paginated ship directory
   and UUID-addressed orbit, landing, status and stop commands with independent controllers and
   per-ship launch bookmarks. Directory and UUID selection never force-load ships or terrain.
