@@ -195,7 +195,7 @@ val generateGameTestResources = tasks.register("generateGameTestResources") {
 gameTest.resources.srcDir(generateGameTestResources.map { generatedGameTestResources.get() })
 
 val gameTestSuite = providers.gradleProperty("orbitalisGameTestSuite").orElse("all").get()
-require(gameTestSuite in setOf("all", "surface", "transfer", "flat", "travel", "navigation", "sparse", "atlas", "objects", "terrain")) { "Unknown GameTest suite: $gameTestSuite" }
+require(gameTestSuite in setOf("all", "surface", "transfer", "flat", "travel", "navigation", "sparse", "atlas", "objects", "terrain", "map")) { "Unknown GameTest suite: $gameTestSuite" }
 apply(from = "${rootProject.projectDir}/gradle/gametest-lifecycle.gradle.kts")
 val gameTestReport = layout.buildDirectory.file("test-results/gameTestServer/results.xml")
 loom.runs.register("gameTestServer") {
@@ -250,7 +250,9 @@ tasks.configureEach {
             val atlasNames = setOf("nativesurfaceatlaspersistence", "surfaceatlaspacketbounds", "savedsurfaceatlasbackfill", "surfaceatlaslifecycleburst")
             val objectNames = setOf("nativeunloadedstation", "orbitalmetadatacompatibility")
             val terrainNames = setOf("finiteterrainedges", "finitefeaturewrites")
+            val mapNames = setOf("mappacketandlease", "mapnativeorbitalobjects")
             val requiredNames = when (gameTestSuite) {
+                "map" -> mapNames
                 "objects" -> objectNames
                 "terrain" -> terrainNames
                 "atlas" -> atlasNames
@@ -260,7 +262,7 @@ tasks.configureEach {
                 "flat" -> setOf("nativefinitebodyfreeorbit")
                 "surface" -> surfaceNames
                 "transfer" -> transferNames + travelNames
-                else -> objectNames + terrainNames + atlasNames + surfaceNames + transferNames + travelNames + navigationNames + sparseNames + setOf("nativefinitebodyfreeorbit")
+                else -> mapNames + objectNames + terrainNames + atlasNames + surfaceNames + transferNames + travelNames + navigationNames + sparseNames + setOf("nativefinitebodyfreeorbit")
             }
             check(names.containsAll(requiredNames)) {
                 "GameTest run did not execute its required $gameTestSuite scenarios: $names"

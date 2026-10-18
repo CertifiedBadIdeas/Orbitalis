@@ -24,6 +24,10 @@ limitations under the License.
   and UUID-addressed orbit, landing, status and stop commands with independent controllers and
   per-ship launch bookmarks. Directory and UUID selection never force-load ships or terrain.
 
+- Add a rebindable M orbital map on the surface and in space, with the shared 3D planet relief,
+  orbit/zoom controls, viewer marker and selectable loaded/unloaded constructions with brief telemetry.
+  Bounded screen subscriptions never load stations or orbital terrain.
+
 - Separate consumer autopilot orbit insertion from landing: `orbit` coasts until an explicit `land`
   request, and `land` searches the next safe return window without requiring a complete revolution.
 

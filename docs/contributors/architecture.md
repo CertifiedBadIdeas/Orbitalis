@@ -116,6 +116,11 @@ all belong to the disposable consumer. It reuses existing Orbitalis vector/gravi
 no autopilot API to production. The consumer assembles no release and does not alter the ordinary
 Sable-only laboratory runs.
 
+The [orbital map](orbital-map.md) uses the shared planet scene with an independent screen camera.
+Leased server subscriptions provide bounded atlas/object snapshots from the surface or space, without
+loading orbital bodies or terrain. Its optional Sable adapter reads native live state and the existing
+motion index; no second simulation or native payload cache is created.
+
 Independent [coast trajectory navigation](trajectory-navigation.md) copies native Sable state on the server,
 forecasts with the same finite field on a bounded worker and sends validated physical path samples
 to a separate client world overlay. Personal navigation markers have their own version-one SavedData;

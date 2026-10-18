@@ -139,3 +139,7 @@ wholly exterior batch and retained unscoped batch identity. Probe sources, resul
 normal save/quit client log are retained in task verification evidence; they are not production hooks.
 This observation covers the pinned stack and inspected locations, not arbitrary generators that bypass
 native chunk stages or direct-write outside their generation region.
+
+The focused `-PorbitalisGameTestSuite=map` suite requires two [orbital map](orbital-map.md) packet,
+subscription and native object-sampling scenarios. `MapCameraTest` compares marker projection with
+the actual rendering matrices; screen layout and GPU/input behavior require a separate client preview.

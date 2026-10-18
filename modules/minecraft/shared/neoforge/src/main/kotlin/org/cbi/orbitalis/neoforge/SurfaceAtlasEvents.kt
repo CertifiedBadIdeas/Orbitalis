@@ -38,7 +38,10 @@ object SurfaceAtlasEvents {
 
     private fun service(server: MinecraftServer) =
         services.getOrPut(server) {
-            SurfaceAtlasService(server) { player, payload -> PacketDistributor.sendToPlayer(player, payload) }
+            SurfaceAtlasService(
+                server,
+                mapViewer = OrbitalMapEvents::viewing,
+            ) { player, payload -> PacketDistributor.sendToPlayer(player, payload) }
         }
 
     @JvmStatic @SubscribeEvent

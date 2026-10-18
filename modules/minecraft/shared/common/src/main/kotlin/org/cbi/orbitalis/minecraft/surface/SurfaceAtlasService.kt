@@ -29,6 +29,7 @@ import java.util.UUID
 /** Server-thread owner: live lifecycle snapshots, bounded refresh/backfill and orbital packets. */
 class SurfaceAtlasService(
     private val server: MinecraftServer,
+    private val mapViewer: (ServerPlayer) -> Boolean = { false },
     private val send: (ServerPlayer, SurfaceAtlasPayload) -> Unit,
 ) {
     private val queue = linkedSetOf<Long>()
@@ -75,7 +76,7 @@ class SurfaceAtlasService(
         }
         backfill.tick()
         for (player in server.playerList.players) {
-            if (player.level().dimension() != FlatPlanetSpace.SPACE) continue
+            if (player.level().dimension() != FlatPlanetSpace.SPACE && !mapViewer(player)) continue
             val cursor = cursors[player.uuid]
             val (revision, samples) = data.atlas.after(cursor ?: 0L, 256)
             if (cursor == null || samples.isNotEmpty()) {

@@ -129,14 +129,7 @@ object SurfacePlanetRenderer {
         target = null
     }
 
-    fun render(
-        observer: Vector3,
-        matrix: Matrix4f,
-        scale: Double,
-    ) {
-        val minecraft = Minecraft.getInstance()
-        val width = minecraft.mainRenderTarget.width
-        val height = minecraft.mainRenderTarget.height
+    private fun updateMesh() {
         val now = System.nanoTime()
         if (mesh == null) upload(prepare(emptyList(), 0L, generation))
         pending?.let { future ->
@@ -153,6 +146,33 @@ object SurfacePlanetRenderer {
             pending = CompletableFuture.supplyAsync({ prepare(samples, revision, currentGeneration) }, Util.backgroundExecutor())
             lastBuild = now
         }
+    }
+
+    /** Draw the same cached planet into the caller's viewport with an independent camera. */
+    fun renderScene(
+        observer: Vector3,
+        view: Matrix4f,
+        projection: Matrix4f,
+        scale: Double,
+    ) {
+        updateMesh()
+        val modelView = Matrix4f(view).scale(scale.toFloat()).translate(-observer.x.toFloat(), -observer.y.toFloat(), -observer.z.toFloat())
+        checkNotNull(mesh).bind()
+        try {
+            checkNotNull(mesh).drawWithShader(modelView, projection, checkNotNull(GameRenderer.getPositionColorShader()))
+        } finally {
+            VertexBuffer.unbind()
+        }
+    }
+
+    fun render(
+        observer: Vector3,
+        matrix: Matrix4f,
+        scale: Double,
+    ) {
+        val minecraft = Minecraft.getInstance()
+        val width = minecraft.mainRenderTarget.width
+        val height = minecraft.mainRenderTarget.height
         if (target == null) target = TextureTarget(width, height, true, Minecraft.ON_OSX).also { it.setClearColor(0f, 0f, 0f, 0f) }
         val surface = checkNotNull(target)
         if (surface.width != width || surface.height != height) surface.resize(width, height, Minecraft.ON_OSX)
@@ -168,13 +188,7 @@ object SurfacePlanetRenderer {
             RenderSystem.enableDepthTest()
             RenderSystem.depthFunc(GL11.GL_LEQUAL)
             RenderSystem.disableBlend()
-            val view =
-                Matrix4f(
-                    matrix,
-                ).scale(scale.toFloat()).translate(-observer.x.toFloat(), -observer.y.toFloat(), -observer.z.toFloat())
-            checkNotNull(mesh).bind()
-            checkNotNull(mesh).drawWithShader(view, RenderSystem.getProjectionMatrix(), checkNotNull(GameRenderer.getPositionColorShader()))
-            VertexBuffer.unbind()
+            renderScene(observer, matrix, RenderSystem.getProjectionMatrix(), scale)
             minecraft.mainRenderTarget.bindWrite(true)
             RenderSystem.enableBlend()
             RenderSystem.defaultBlendFunc()

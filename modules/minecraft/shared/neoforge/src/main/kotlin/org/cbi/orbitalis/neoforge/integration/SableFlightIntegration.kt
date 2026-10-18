@@ -61,6 +61,8 @@ object SableFlightIntegration {
 
     fun install() {
         SableVacuumWorld.installPlotLookup()
+        org.cbi.orbitalis.minecraft.integration.sable.SableMapObjects
+            .install()
         SableOrbitalObjects.mayAdvance = { server -> transfers[server]?.busy == false }
         // Apply before Sable compiles and sends its native dimension-physics packet.
         NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST) { event: OnDatapackSyncEvent ->

@@ -1,5 +1,22 @@
 {
   "key.orbitalis.ship_camera": "Камера корабля",
   "key.orbitalis.navball_axes": "Ось носа navball (+Y / +Z)",
-  "key.categories.orbitalis": "Orbitalis"
+  "key.categories.orbitalis": "Orbitalis",
+  "key.orbitalis.map": "Орбитальная карта",
+  "map.orbitalis.title": "ОРБИТАЛЬНАЯ КАРТА",
+  "map.orbitalis.subtitle": "ОБЫЧНЫЙ МИР / 10 × 10 км",
+  "map.orbitalis.planet": "К планете",
+  "map.orbitalis.focus": "К объекту",
+  "map.orbitalis.scale": "Размер по вертикали: %s",
+  "map.orbitalis.controls": "Перетаскивание: обзор   Колесо: масштаб   Home: сброс   Esc: закрыть",
+  "map.orbitalis.objects": "Объекты: %s / %s",
+  "map.orbitalis.waiting": "Ожидание данных сервера…",
+  "map.orbitalis.you": "Ваша высота (Y): %s",
+  "map.orbitalis.select": "Выберите объект на орбите",
+  "map.orbitalis.loaded": "Загружен / физика Sable",
+  "map.orbitalis.unloaded": "Выгружен / баллистика",
+  "map.orbitalis.altitude": "Высота (Y): %s",
+  "map.orbitalis.speed": "Скорость: %s м/с",
+  "map.orbitalis.distance": "Расстояние: %s",
+  "map.orbitalis.object": "Объект %s"
 }

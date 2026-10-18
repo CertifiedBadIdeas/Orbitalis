@@ -1,5 +1,22 @@
 {
   "key.orbitalis.ship_camera": "Ship camera",
   "key.orbitalis.navball_axes": "Navball nose axis (+Y / +Z)",
-  "key.categories.orbitalis": "Orbitalis"
+  "key.categories.orbitalis": "Orbitalis",
+  "key.orbitalis.map": "Orbital map",
+  "map.orbitalis.title": "ORBITAL MAP",
+  "map.orbitalis.subtitle": "OVERWORLD / 10 × 10 km",
+  "map.orbitalis.planet": "Centre on planet",
+  "map.orbitalis.focus": "Centre on object",
+  "map.orbitalis.scale": "Vertical span: %s",
+  "map.orbitalis.controls": "Drag: orbit   Wheel: zoom   Home: reset   Esc: close",
+  "map.orbitalis.objects": "Objects: %s / %s",
+  "map.orbitalis.waiting": "Waiting for server…",
+  "map.orbitalis.you": "Your altitude (Y): %s",
+  "map.orbitalis.select": "Select an orbital object",
+  "map.orbitalis.loaded": "Loaded / live physics",
+  "map.orbitalis.unloaded": "Unloaded / ballistic state",
+  "map.orbitalis.altitude": "Altitude (Y): %s",
+  "map.orbitalis.speed": "Speed: %s m/s",
+  "map.orbitalis.distance": "Distance: %s",
+  "map.orbitalis.object": "Object %s"
 }
