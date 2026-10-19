@@ -117,14 +117,17 @@ class FlightConsumerMod {
                 stop(source.server, null, body.uniqueId)
                 var target = AutopilotSession.position(body)
                 if (altitude != null) {
-                    val global = FlightSpaceCoordinates.globalPosition(body.level, target)
+                    val sample =
+                        org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                            .sample(body.level)
+                    val global = sample.point(target, body.level.dimension(), net.minecraft.world.level.Level.OVERWORLD)
                     val goal =
                         Vector3(
                             global.x,
                             FlatPlanetSpace.SEA_LEVEL + altitude,
                             global.z,
                         )
-                    target = FlightSpaceCoordinates.localPosition(body.level.dimension(), goal)
+                    target = sample.point(goal, net.minecraft.world.level.Level.OVERWORLD, body.level.dimension())
                 }
                 val session = AutopilotSession(body, target)
                 controls.getOrPut(source.server) { linkedMapOf() }[body.uniqueId] = Control(player.uuid, session = session)

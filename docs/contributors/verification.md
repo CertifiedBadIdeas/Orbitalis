@@ -43,9 +43,9 @@ failed, skipped or error results in a fresh XML report. `-PorbitalisGameTestSuit
 surface cases alone; `-PorbitalisGameTestSuite=transfer` runs the ten native transfer/recovery/retirement/travel cases
 without the full-orbit performance cost. See [flat surface](flat-surface.md), [flight gravity](flight-gravity.md) and
 [ship transfer](ship-transfer.md). Use `-PorbitalisGameTestSuite=flat` for the inert finite-body native orbit alone. The consumer separately
-requires fifteen native flight scenarios, including remote multi-ship commands without added loading tickets; `-PorbitalisConsumerGameTestSuite=flat` runs its low-orbit
-Overworld mission and bookmark migration cases; `rocket` runs both rocket round trips and native
-steering/hold/RCS cases. Player tests execute native travel with a locally controlled server fixture,
+requires seventeen native flight scenarios, including remote multi-ship commands without added loading tickets; `-PorbitalisConsumerGameTestSuite=flat` runs its low-orbit
+Overworld mission and bookmark migration cases; `rocket` runs all three rocket round trips and native
+steering/hold/RCS cases; `rcs` selects only the RCS flip with an exact single-case report check. Player tests execute native travel with a locally controlled server fixture,
 including a vanilla jump comparison and vacuum momentum; they do not prove a real client handoff. See [finite-body flight](flat-gravity.md) for the new field and route.
 
 A successful client launch cannot prove visual or interactive correctness. Record manual observations,

@@ -28,6 +28,7 @@ import net.minecraft.core.BlockPos
 import net.minecraft.gametest.framework.GameTest
 import net.minecraft.gametest.framework.GameTestHelper
 import net.minecraft.util.Unit
+import net.minecraft.world.level.Level
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
 import org.cbi.orbitalis.core.planet.BallisticOrbit
 import org.cbi.orbitalis.core.planet.CartesianState
@@ -35,8 +36,8 @@ import org.cbi.orbitalis.core.planet.CoastPrediction
 import org.cbi.orbitalis.core.planet.ManeuverNode
 import org.cbi.orbitalis.core.planet.ManeuverPlan
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.flight.CelestialFlight
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
-import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
 import org.joml.Vector3d
 
@@ -56,13 +57,40 @@ object ManeuverGameTests {
     ) {
         val level = checkNotNull(helper.level.server.getLevel(FlatPlanetSpace.SPACE))
         val field = SableFlightGravity.flatField(level)
-        val orbit = BallisticOrbit.plan(field, 5000.0, 32.0)
+        val sample = CelestialFlight.sample(level)
+        val geometry = sample.dynamics.profile.geometry
+        val orbit =
+            BallisticOrbit.firstRevolution(
+                field,
+                sample.dynamics,
+                maxOf(geometry.earthHalfSize, geometry.earthEnvelope.ascentDistance + 200.0),
+                32.0,
+                direction = -1.0,
+            )
+        // The reference stores inertial states in frozen launch axes, so rotate its velocity
+        // as a direction rather than adding the surface chart's transport velocity again.
+        val rootInitial =
+            CartesianState(
+                sample.rootPoint(orbit.initial.position, Level.OVERWORLD),
+                sample.rootDirection(orbit.initial.velocity, Level.OVERWORLD),
+            )
+        val nativeInitial = sample.nativeState(rootInitial, FlatPlanetSpace.SPACE)
         val container = checkNotNull(SubLevelContainer.getContainer(level))
         val body =
             if (rocket) {
-                VacuumTestBlueprint.create(level, BlockPos(0, (orbit.initial.position.y + 4096).toInt(), 0), "rocket")
+                VacuumTestBlueprint.create(
+                    level,
+                    BlockPos.containing(nativeInitial.position.x, nativeInitial.position.y, nativeInitial.position.z),
+                    "rocket",
+                )
             } else {
-                PropulsionGameTests.Rig(helper, 0.0, dimension = FlatPlanetSpace.SPACE, y = orbit.initial.position.y + 4096).body
+                PropulsionGameTests
+                    .Rig(
+                        helper,
+                        nativeInitial.position.x,
+                        dimension = FlatPlanetSpace.SPACE,
+                        y = nativeInitial.position.y,
+                    ).body
             }
         var mission: ManeuverMission? = null
         var retention: AutopilotFlightLoading? = null
@@ -92,15 +120,12 @@ object ManeuverGameTests {
                 .getPhysicsHandle(
                     body,
                 ).addLinearAndAngularVelocity(
-                    Vector3d(orbit.initial.velocity.x, orbit.initial.velocity.y, orbit.initial.velocity.z),
+                    Vector3d(nativeInitial.velocity.x, nativeInitial.velocity.y, nativeInitial.velocity.z),
                     Vector3d(),
                 )
             physics.pipeline.prePhysicsTicks()
-            val initial =
-                CartesianState(
-                    FlightSpaceCoordinates.globalPosition(level, AutopilotSession.position(body)),
-                    AutopilotSession.vector(physics.getPhysicsHandle(body).getLinearVelocity(Vector3d())),
-                )
+            val initial = FlightGuidanceFrames.rootState(body)
+            val initialModel = CelestialFlight.sample(level).dynamics
             val plan =
                 ManeuverPlan(
                     level.server.overworld().gameTime,
@@ -139,8 +164,16 @@ object ManeuverGameTests {
                         engines.all { it.power == 0.0f && it.currentThrust == 0.0f },
                         "Engine inputs/output retained after plan completion",
                     )
-                    val coast = CoastPrediction.predict(field, initial, CoastPrediction.Limits(horizon = ticks / 20.0)).terminal.state
-                    val actual = FlightSpaceCoordinates.globalPosition(level, AutopilotSession.position(body))
+                    val elapsed = (CelestialFlight.sample(level).dynamics.epochTick - initialModel.epochTick) / 20.0
+                    val coast =
+                        CoastPrediction
+                            .predict(
+                                field,
+                                initial,
+                                CoastPrediction.Limits(horizon = elapsed, range = initialModel.profile.flightRange),
+                                initialModel,
+                            ).terminal.state
+                    val actual = FlightGuidanceFrames.rootState(body).position
                     helper.assertTrue((actual - coast.position).length() > 100.0, "Native trajectory did not change after burns")
                     helper.assertTrue(
                         physics.getPhysicsHandle(body).getAngularVelocity(Vector3d()).length() < 0.1,

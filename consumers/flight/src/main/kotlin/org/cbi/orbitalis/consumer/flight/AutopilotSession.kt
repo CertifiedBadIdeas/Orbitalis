@@ -43,7 +43,8 @@ internal class AutopilotSession(
     val body: ServerSubLevel,
     val target: Vector3,
     desiredAttitude: Quaterniond = Quaterniond(body.logicalPose().orientation()),
-    mission: Boolean = false,
+    private val mission: Boolean = false,
+    private val earthAttitude: Boolean = false,
 ) : AutoCloseable {
     private val attitude = Quaterniond(desiredAttitude)
     private val engines = mutableListOf<Engine>()
@@ -77,7 +78,7 @@ internal class AutopilotSession(
         require(engines.isNotEmpty() && engines.size <= 64) { "Autopilot requires 1..64 creative engine controllers" }
         require(engines.all { it.capacity.isFinite() && it.capacity > 0 }) { "An engine has no configured thrust" }
         validateBounds()
-        val gravity = gravity()
+        val gravity = externalAcceleration()
         val localForce = attitude.transformInverse(joml(gravity).mul(-body.massTracker.mass))
         val hover = ThrusterAllocation.solve(actuators(), vector(localForce), Vector3.ZERO, lever())
         require(hover.forceResidual.length() / body.massTracker.mass < 0.25) {
@@ -129,7 +130,7 @@ internal class AutopilotSession(
         }
     }
 
-    private fun gravity(): Vector3 = SableFlightGravity.acceleration(body.level, position(body))
+    private fun externalAcceleration(): Vector3 = SableFlightGravity.reading(body).acceleration + FlightEnvironment.nativeDrag(body)
 
     private fun validateBounds() {
         val minimum =
@@ -147,8 +148,7 @@ internal class AutopilotSession(
         val goal = FlightSpaceCoordinates.globalPosition(body.level, target)
         for (p in listOf(global, goal)) {
             require(
-                FlatPlanetSpace.contains(body.level) && p.length() < maxOf(10000.0, FlatPlanetSpace.HALF_SIZE * 4.0) &&
-                    (body.level.dimension() == FlatPlanetSpace.SPACE || p.y >= minimum),
+                FlatPlanetSpace.contains(body.level) && p.length() < maxOf(10000.0, FlatPlanetSpace.HALF_SIZE * 4.0),
             ) { "Outside finite-body flight envelope" }
         }
     }
@@ -173,10 +173,38 @@ internal class AutopilotSession(
         val pose = body.logicalPose()
         val velocity = handle.getLinearVelocity(Vector3d())
         val omega = pose.orientation().transformInverse(handle.getAngularVelocity(Vector3d()), Vector3d())
-        require(velocity.length() <= 220.0 && omega.length() <= 2.0) {
-            "Speed/rotation exceeded test autopilot limits"
+        val maximumSpeed =
+            if (mission) {
+                220.0 *
+                    sqrt(
+                        org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                            .sample(body.level)
+                            .dynamics.profile.geometry.earthHalfSize / 1000.0,
+                    )
+            } else {
+                220.0
+            }
+        require(velocity.length() <= maximumSpeed && omega.length() <= 2.0) {
+            "Speed/rotation exceeded test autopilot limits: native speed=${velocity.length()}/$maximumSpeed m/s; angular speed=${omega.length()}/2.0 rad/s"
         }
-        val error = Quaterniond(pose.orientation()).conjugate().mul(attitude).normalize()
+        val desired =
+            if (earthAttitude) {
+                val sample =
+                    org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                        .sample(body.level)
+
+                fun axis(v: Vector3) =
+                    sample.direction(v, net.minecraft.world.level.Level.OVERWORLD, body.level.dimension()).let {
+                        Vector3d(it.x, it.y, it.z)
+                    }
+                Quaterniond()
+                    .setFromNormalized(
+                        org.joml.Matrix3d(axis(Vector3(1.0, 0.0, 0.0)), axis(Vector3(0.0, 1.0, 0.0)), axis(Vector3(0.0, 0.0, 1.0))),
+                    ).mul(attitude)
+            } else {
+                attitude
+            }
+        val error = Quaterniond(pose.orientation()).conjugate().mul(desired).normalize()
         if (error.w < 0) error.mul(-1.0)
         val sine = sqrt(error.x * error.x + error.y * error.y + error.z * error.z)
         val factor = if (sine > 1e-8) 2 * atan2(sine, error.w) / sine else 2.0
@@ -184,11 +212,12 @@ internal class AutopilotSession(
             FlightHoldGuidance.command(
                 CartesianState(position(body), vector(velocity)),
                 target,
-                gravity(),
+                externalAcceleration(),
                 Vector3(error.x * factor, error.y * factor, error.z * factor),
                 vector(omega),
             )
-        val acceleration = netAcceleration?.minus(gravity()) ?: demand.thrustAcceleration
+        val acceleration =
+            netAcceleration?.let { FlightGuidanceFrames.nativeAcceleration(body, it) - externalAcceleration() } ?: demand.thrustAcceleration
         val force = pose.orientation().transformInverse(joml(acceleration).mul(body.massTracker.mass))
         val inertia = body.massTracker.inertiaTensor
         val torque = inertia.transform(joml(demand.angularAcceleration), Vector3d())

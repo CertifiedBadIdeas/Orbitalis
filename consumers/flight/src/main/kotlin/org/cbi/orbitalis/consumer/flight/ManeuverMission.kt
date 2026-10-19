@@ -96,11 +96,7 @@ internal class ManeuverMission(
             }
     }
 
-    private fun state() =
-        CartesianState(
-            FlightSpaceCoordinates.globalPosition(body.level, AutopilotSession.position(body)),
-            AutopilotSession.vector(SubLevelPhysicsSystem.require(body.level).getPhysicsHandle(body).getLinearVelocity(Vector3d())),
-        )
+    private fun state() = FlightGuidanceFrames.rootState(body)
 
     private fun acquire() {
         if (rocket) {

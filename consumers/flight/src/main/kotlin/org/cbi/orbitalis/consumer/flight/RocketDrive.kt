@@ -135,10 +135,16 @@ internal class RocketDrive(
         desiredNose: Vector3? = null,
         trackDirection: Boolean = false,
     ) {
-        val gravity = SableFlightGravity.acceleration(body.level, AutopilotSession.position(body))
-        val thrust = netAcceleration - gravity
+        val native = SableFlightGravity.reading(body)
+        val gravity = native.acceleration + FlightEnvironment.nativeDrag(body)
+        val thrust = FlightGuidanceFrames.nativeAcceleration(body, netAcceleration) - gravity
         if (desiredNose != null) {
-            nose = RocketAttitude.advance(nose, desiredNose, RocketAttitudeControl.POWERED_RATE * 0.05)
+            nose =
+                RocketAttitude.advance(
+                    nose,
+                    FlightGuidanceFrames.nativeDirection(body, desiredNose),
+                    RocketAttitudeControl.POWERED_RATE * 0.05,
+                )
         } else if (thrust.length() >= 0.3) {
             nose = RocketAttitude.advance(nose, thrust, RocketAttitudeControl.POWERED_RATE * 0.05)
         }
@@ -149,7 +155,7 @@ internal class RocketDrive(
     /** Balanced native RCS couples turn the hull while all main-engine throttles stay zero. */
     fun turn(direction: Vector3) {
         require(direction.length() > 1e-8 && engines.any { !it.main }) { "Rocket has no RCS authority" }
-        nose = direction.normalized()
+        nose = FlightGuidanceFrames.nativeDirection(body, direction).normalized()
         smoothing.clear()
         apply(Vector3.ZERO, nose, true, directionRate(nose))
     }
@@ -173,10 +179,14 @@ internal class RocketDrive(
         val pose = body.logicalPose()
         val omega = pose.orientation().transformInverse(handle.getAngularVelocity(Vector3d()), Vector3d())
         val global = FlightSpaceCoordinates.globalPosition(body.level, AutopilotSession.position(body))
+        val geometry =
+            org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                .sample(body.level)
+                .dynamics.profile.geometry
         require(
-            global.length() < maxOf(10000.0, FlatPlanetSpace.HALF_SIZE * 4.0) &&
+            global.length() < maxOf(10000.0, geometry.earthHalfSize * 4.0) &&
                 handle.getLinearVelocity(Vector3d()).length() <
-                220.0 * kotlin.math.sqrt(org.cbi.orbitalis.core.planet.FlatPlanetDefinition.SCALE) &&
+                220.0 * kotlin.math.sqrt(geometry.earthHalfSize / 1000.0) &&
                 omega.length() < 2.0,
         ) {
             "Rocket left the tested flight envelope: position=$global velocity=${handle.getLinearVelocity(Vector3d())} angular=$omega"
@@ -228,7 +238,7 @@ internal class RocketDrive(
 
     fun alignment(direction: Vector3): Double {
         val up = body.logicalPose().orientation().transform(Vector3d(0.0, 1.0, 0.0))
-        return AutopilotSession.vector(up).dot(direction.normalized())
+        return AutopilotSession.vector(up).dot(FlightGuidanceFrames.nativeDirection(body, direction).normalized())
     }
 
     fun status(): String =

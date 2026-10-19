@@ -24,18 +24,18 @@ import dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.levelgen.Heightmap
+import org.cbi.orbitalis.core.orbit.CelestialDynamics
 import org.cbi.orbitalis.core.planet.BallisticOrbit
 import org.cbi.orbitalis.core.planet.CartesianState
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.flight.CelestialFlight
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
-import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
 import org.cbi.orbitalis.minecraft.flight.ShipDestinationPreload
 import org.cbi.orbitalis.minecraft.flight.SpaceTravelReservations
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipSnapshot
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipTransfer
 import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferPassengers
-import org.joml.Vector3d
 import java.util.concurrent.CompletableFuture
 import kotlin.math.PI
 import kotlin.math.abs
@@ -71,16 +71,49 @@ internal class RocketMission(
     var phase = Phase.PLANNING
         private set
     override val stage get() = phase.name
+    private val launchBasis =
+        CelestialFlight
+            .sample(
+                body.level,
+            ).frames.profile
+            .earthSurfaceFrame(
+                CelestialFlight
+                    .sample(body.level)
+                    .frames.tick,
+            ).copy(angularVelocity = Vector3.ZERO)
+    private var landingFrame = returningAtStart
     private val field = SableFlightGravity.flatField(body.level)
     private val preload = ShipDestinationPreload()
-    private val planning = CompletableFuture.supplyAsync { BallisticOrbit.plan(field, FlatPlanetSpace.ORBIT_HEIGHT, 32.0) }
+    private val planningModel =
+        CelestialFlight
+            .sample(body.level)
+            .dynamics
+    private val geometry = planningModel.profile.geometry
+    private val orbitAltitude = maxOf(geometry.earthHalfSize, geometry.earthEnvelope.ascentDistance + 200.0)
+
+    // At the top face, prograde +Z spin carries the launch pad towards local -X.
+    private val orbitDirection = -1.0
+    private val planning =
+        CompletableFuture.supplyAsync {
+            BallisticOrbit.firstRevolution(field, planningModel, orbitAltitude, 64.0, orbitDirection)
+        }
+
     private var connectionPlanning: CompletableFuture<*>? = null
     private var capturePlanning: CompletableFuture<Boolean>? = null
+    private var captureReference: RocketCaptureReference? = null
     private lateinit var course: RocketCourse
     private lateinit var ascent: RocketAscent
+    private var ascentEpochTick = 0L
     private var returning: RocketReturn.Path? = null
+
+    /** Immutable guidance sample for the consumer's native flight recorder. */
+    val returnReference: RocketConnection.Sample? get() = returning?.at(clock)
     private var returnPlanning: CompletableFuture<RocketReturn.Departure>? = null
-    val waitingForReturnPlan get() = returnPlanning?.isDone == false
+    val waitingForAscentPlan get() = connectionPlanning?.isDone == false
+    private var returnRefining: CompletableFuture<RocketReturn.Path>? = null
+    private var returnRefined = false
+    private var returnEpochTick = 0L
+    val waitingForReturnPlan get() = returnPlanning?.isDone == false || returnRefining?.isDone == false
     private var departure: RocketReturn.Departure? = null
     private var returnClock = 0.0
     private var drive: RocketDrive? = null
@@ -88,7 +121,6 @@ internal class RocketMission(
     private var settled = 0
     private var ready = 0
     private var clock = 0.0
-    private var coastEnergy = 0.0
     private var angle = 0.0
     var coastAngle = 0.0
         private set
@@ -111,7 +143,7 @@ internal class RocketMission(
                     floor(site.position.z).toInt(),
                 )
             require(
-                abs(body.boundingBox().minY() - top) < 1.0 && state().velocity.length() < 0.3,
+                abs(body.boundingBox().minY() - top) < 1.0 && FlightGuidanceFrames.earthState(body).velocity.length() < 0.3,
             ) { "Let the rocket settle on a flat clear pad" }
             RocketDrive(body, true).close()
         } else {
@@ -121,12 +153,47 @@ internal class RocketMission(
     }
 
     private fun state() =
-        CartesianState(
-            FlightSpaceCoordinates.globalPosition(body.level, AutopilotSession.position(body)),
-            AutopilotSession.vector(SubLevelPhysicsSystem.require(body.level).getPhysicsHandle(body).getLinearVelocity(Vector3d())),
-        )
+        if (landingFrame) FlightGuidanceFrames.earthState(body) else launchBasis.fromParent(FlightGuidanceFrames.rootState(body))
+
+    private fun rootDirection(value: Vector3) =
+        if (landingFrame) FlightGuidanceFrames.rootDirection(body, value) else launchBasis.orientation.apply(value)
+
+    private fun rootAcceleration(value: Vector3) =
+        if (landingFrame) FlightGuidanceFrames.rootAcceleration(body, value) else launchBasis.orientation.apply(value)
 
     private fun engine() = drive ?: RocketDrive(body).also { drive = it }
+
+    private fun turn(direction: Vector3) = engine().turn(rootDirection(direction))
+
+    private fun alignment(direction: Vector3) = engine().alignment(rootDirection(direction))
+
+    private fun command(
+        acceleration: Vector3,
+        nose: Vector3? = null,
+        track: Boolean = false,
+    ) = engine().update(
+        rootAcceleration(acceleration),
+        nose?.let { rootDirection(it) },
+        track,
+    )
+
+    private fun gravity(
+        state: CartesianState,
+        seconds: Double = 0.0,
+    ): Vector3 {
+        val dynamics =
+            CelestialFlight
+                .sample(server)
+                .dynamics
+        return if (landingFrame) {
+            dynamics.earthAcceleration(
+                state,
+                seconds,
+            )
+        } else {
+            launchBasis.orientation.inverse(dynamics.acceleration(launchBasis.toParent(state).position, seconds))
+        }
+    }
 
     private fun cut() {
         drive?.close()
@@ -152,18 +219,24 @@ internal class RocketMission(
                 (sample.state.position - s.position) * 0.4 + (sample.state.velocity - s.velocity) * 1.1,
                 10.0,
             )
-        val referenceThrust = sample.acceleration - field.acceleration(sample.state.position)
-        if (referenceThrust.length() > 1.5) {
-            engine().update(sample.acceleration + feedback, referenceThrust, true)
-        } else {
-            val corrective = sample.acceleration + feedback - field.acceleration(s.position)
-            val direction = if (corrective.length() > 1.0) corrective else sample.state.velocity
-            engine().update(sample.acceleration + feedback, direction, true)
-        }
+        val acceleration = sample.acceleration + feedback
+        // Attitude must follow the complete force request. Following feed-forward alone can
+        // point the hull away from position feedback until the gimbals saturate their cone.
+        val rootDrag = CelestialFlight.sample(body.level).rootDirection(FlightEnvironment.nativeDrag(body), body.level.dimension())
+        val drag =
+            if (landingFrame) {
+                CelestialFlight.sample(body.level).nativeDirection(rootDrag, Level.OVERWORLD)
+            } else {
+                launchBasis.orientation.inverse(rootDrag)
+            }
+        val corrective = acceleration - gravity(s) - drag
+        val direction = if (corrective.length() > 1.0) corrective else sample.state.velocity
+        command(acceleration, direction, true)
     }
 
     override fun requestLanding() {
         require(phase == Phase.COAST) { "Wait for unpowered coast before requesting return" }
+        landingFrame = true
         enter(Phase.RETURN)
     }
 
@@ -171,7 +244,14 @@ internal class RocketMission(
         require(!closed) { "Autopilot is closed" }
         // A completed orbit insertion may coast until the pilot explicitly requests landing.
         check(
-            phase == Phase.COAST || ++ticks < (16000 * kotlin.math.sqrt(org.cbi.orbitalis.core.planet.FlatPlanetDefinition.SCALE)).toInt(),
+            phase == Phase.COAST || ++ticks <
+                if (phase == Phase.RETURN) {
+                    // One bounded pad-relative forecast plus planning time; other powered phases
+                    // retain the tighter flight watchdog.
+                    ((3600.0 + RocketReturn.TURN_LEAD) * 20.0).toInt()
+                } else {
+                    (16000 * kotlin.math.sqrt(geometry.earthHalfSize / 1000.0)).toInt()
+                },
         ) {
             "Rocket mission timed out: $phase"
         }
@@ -193,45 +273,86 @@ internal class RocketMission(
             return false
         }
         require(!body.isRemoved) { "Rocket unavailable" }
-        if (SubLevelPhysicsSystem.require(body.level).paused) return false
+        if (SubLevelPhysicsSystem.require(body.level).paused) {
+            return false
+        }
         body.level.resetEmptyTime()
         val s = state()
         require(
-            s.velocity.length() < 220.0 * kotlin.math.sqrt(org.cbi.orbitalis.core.planet.FlatPlanetDefinition.SCALE) &&
-                s.position.length() < maxOf(10000.0, FlatPlanetSpace.HALF_SIZE * 4.0),
+            s.velocity.length() < 220.0 * kotlin.math.sqrt(geometry.earthHalfSize / 1000.0) &&
+                s.position.length() < maxOf(10000.0, geometry.earthHalfSize * 4.0),
         ) { "Rocket left the tested envelope" }
         when (phase) {
             Phase.PLANNING -> {
                 // Reconnecting to a flying rocket must retain attitude authority while the immutable
                 // reference orbit is calculated. Main engines remain off during this ballistic wait.
-                if (returningAtStart) engine().turn(s.velocity)
+                if (returningAtStart) turn(s.velocity)
                 if (!planning.isDone) return false
-                course = RocketCourse(planning.join(), RocketCourse.launchAxis(site.position))
+                course = RocketCourse(planning.join(), Vector3(orbitDirection, 0.0, 0.0), alreadyOriented = true)
                 if (returningAtStart) {
-                    coastEnergy = field.specificEnergy(s)
                     angle = atan2(s.position.dot(course.axis), s.position.y)
                     enter(Phase.RETURN)
                 } else {
-                    // Plan before launch; the short liftoff joins this moving state without a hover leg.
-                    val start = CartesianState(site.position + Vector3(0.0, 10.0, 0.0), Vector3(0.0, 6.0, 0.0))
-                    val authority = engine().maximumAcceleration
-                    connectionPlanning = CompletableFuture.supplyAsync { RocketAscent.plan(field, course, start, authority) }
                     enter(Phase.LIFTOFF)
                 }
             }
 
             Phase.LIFTOFF -> {
-                engine().update(Vector3(0.0, if (s.velocity.y < 6.0) 3.0 else 0.0, 0.0))
-                if (s.position.y >= site.position.y + 10.0 && connectionPlanning!!.isDone) {
-                    ascent = connectionPlanning!!.join() as RocketAscent
-                    clock = 0.0
-                    enter(Phase.ASCENT)
+                val local = FlightGuidanceFrames.earthState(body)
+                if (connectionPlanning == null) {
+                    val lift = Vector3(0.0, if (local.velocity.y < 6.0) 3.0 else 0.0, 0.0)
+                    engine().update(FlightGuidanceFrames.rootAcceleration(body, lift))
+                } else {
+                    // Every candidate shares this initial acceleration. Begin its pitch while the
+                    // worker evaluates the rest of the curve instead of waiting in a vertical leg.
+                    command(RocketAscent.initialAcceleration(course))
+                }
+                if (local.position.y >= site.position.y + 10.0) {
+                    if (connectionPlanning == null) {
+                        val start = s
+                        val authority = engine().maximumAcceleration
+                        val model = CelestialFlight.sample(server).dynamics
+                        ascentEpochTick = model.epochTick
+                        connectionPlanning =
+                            CompletableFuture.supplyAsync {
+                                RocketAscent.plan(
+                                    field,
+                                    course,
+                                    start,
+                                    authority,
+                                    acceleration = { state, seconds ->
+                                        launchBasis.orientation.inverse(model.acceleration(launchBasis.toParent(state).position, seconds))
+                                    },
+                                    safeOrbit = { state, seconds ->
+                                        val future = CelestialDynamics(model.profile, model.epochTick + (seconds * 20.0).toLong())
+                                        val frame = future.profile.earthSurfaceFrame(future.epochTick)
+                                        val native = frame.fromParent(launchBasis.toParent(state))
+                                        RocketOrbitCapture.safe(field, native, course, future)
+                                    },
+                                )
+                            }
+                    } else if (connectionPlanning!!.isDone) {
+                        val planned = connectionPlanning!!.join() as RocketAscent
+                        val elapsed = (CelestialFlight.sample(server).frames.tick - ascentEpochTick) / 20.0
+                        val join = planned.path.at(elapsed).state
+                        if (elapsed >= planned.path.duration ||
+                            (join.position - s.position).length() > 5.0 || (join.velocity - s.velocity).length() > 0.5
+                        ) {
+                            // Keep moving while planning, but never shift a validated path to a later
+                            // Earth epoch. A stale join needs a new snapshot of the actual flight state.
+                            connectionPlanning = null
+                        } else {
+                            ascent = planned
+                            clock = elapsed
+                            enter(Phase.ASCENT)
+                        }
+                    }
                 }
             }
 
             Phase.ASCENT -> {
-                clock += 0.05
-                preload.approach(body.level, s.position, s.velocity)
+                clock = (CelestialFlight.sample(server).frames.tick - ascentEpochTick) / 20.0
+                FlightGuidanceFrames.rootState(body).let { preload.approach(body.level, it.position, it.velocity) }
                 if (clock <= ascent.path.duration) {
                     follow(ascent.path.at(clock))
                 } else {
@@ -241,28 +362,59 @@ internal class RocketMission(
                     require(error < 200.0 && velocityError < 30.0) {
                         "Ascent missed the bounded orbit capture: position=$error m, velocity=$velocityError m/s"
                     }
-                    cut()
-                    capturePlanning = CompletableFuture.supplyAsync { RocketOrbitCapture.safe(field, s, course) }
+                    clock = ascent.orbitPhase + clock - ascent.path.duration
+                    captureReference =
+                        RocketCaptureReference(
+                            CelestialDynamics(
+                                CelestialFlight.sample(server).dynamics.profile,
+                                ascentEpochTick + (ascent.path.duration * 20.0).toLong(),
+                            ),
+                            launchBasis.toParent(ascent.path.at(ascent.path.duration).state),
+                        )
                     enter(Phase.CAPTURE)
                 }
                 if (body.level.dimension() == Level.OVERWORLD &&
-                    s.position.y >= FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ASCENT_HEIGHT
+                    FlightGuidanceFrames.earthState(body).position.y >= FlatPlanetSpace.SEA_LEVEL + geometry.earthEnvelope.ascentDistance
                 ) {
                     prepare(Phase.ASCENT)
                 }
             }
 
             Phase.CAPTURE -> {
-                require(ticks < 200) { "Ballistic capture forecast timed out" }
-                val forecast = checkNotNull(capturePlanning)
-                if (!forecast.isDone) return false
-                require(forecast.join()) { "Actual insertion does not provide a safe low ballistic revolution" }
-                enter(Phase.ALIGN)
+                require(ticks < 1200) { "Ballistic insertion failed to settle" }
+                clock += 0.05
+                val modelNow =
+                    CelestialFlight
+                        .sample(server)
+                        .dynamics
+                val referenceRoot = checkNotNull(captureReference).at(modelNow.epochTick)
+                val ref = launchBasis.fromParent(referenceRoot)
+                val acceleration = launchBasis.orientation.inverse(modelNow.acceleration(referenceRoot.position))
+                if (capturePlanning == null && ticks > 1) follow(RocketConnection.Sample(ref, acceleration))
+                val matched = (ref.position - s.position).length() < 2.0 && (ref.velocity - s.velocity).length() < 0.5
+                settled = if (matched) settled + 1 else 0
+                if ((ticks == 1 || settled >= 20) && capturePlanning == null) {
+                    val model =
+                        CelestialFlight
+                            .sample(server)
+                            .dynamics
+                    val native = model.profile.earthSurfaceFrame(model.epochTick).fromParent(launchBasis.toParent(s))
+                    cut()
+                    capturePlanning = CompletableFuture.supplyAsync { RocketOrbitCapture.safe(field, native, course, model) }
+                }
+                capturePlanning?.takeIf { it.isDone }?.let { forecast ->
+                    if (forecast.join()) {
+                        cut()
+                        enter(Phase.ALIGN)
+                    } else {
+                        capturePlanning = null
+                    }
+                }
             }
 
             Phase.ALIGN -> {
-                engine().turn(s.velocity)
-                if (engine().alignment(s.velocity) > 0.995 && ticks > 160) {
+                turn(s.velocity)
+                if (alignment(s.velocity) > 0.995 && ticks > 160) {
                     cut()
                     enter(Phase.FREE)
                 }
@@ -270,7 +422,6 @@ internal class RocketMission(
 
             Phase.FREE -> {
                 if (AutopilotSession.enginesFaded(body)) {
-                    coastEnergy = field.specificEnergy(s)
                     angle = atan2(s.position.dot(course.axis), s.position.y)
                     coastAngle = 0.0
                     enter(Phase.COAST)
@@ -281,10 +432,9 @@ internal class RocketMission(
             Phase.COAST, Phase.RETURN -> {
                 // Main engines remain off; balanced native RCS damps residual spin and tracks
                 // prograde continuously rather than leaving the hull uncontrolled for a full orbit.
-                engine().turn(s.velocity)
-                require(
-                    coastEnergy < 0.0 && abs((field.specificEnergy(s) - coastEnergy) / coastEnergy) < 0.03,
-                ) { "Unpowered orbit energy drifted" }
+                turn(if (phase == Phase.RETURN) s.velocity * -1.0 else s.velocity)
+                // The rotating nonspherical field exchanges inertial energy with the vessel.
+                // Bound position/speed above; energy is not conserved by this moving potential.
                 val current = atan2(s.position.dot(course.axis), s.position.y)
                 coastAngle += OrbitalGuidance.angleStep(angle, current)
                 angle = current
@@ -293,6 +443,13 @@ internal class RocketMission(
                         val initial = s
                         val authority = engine().maximumAcceleration
                         returnClock = 0.0
+                        val model =
+                            CelestialFlight
+                                .sample(server)
+                                .dynamics
+                        returnEpochTick = model.epochTick
+                        val surfaceDrag = FlightEnvironment.linearDrag(server.overworld())
+                        val entryHeight = FlatPlanetSpace.SEA_LEVEL + geometry.earthEnvelope.descentDistance
                         returnPlanning =
                             CompletableFuture.supplyAsync {
                                 RocketReturn.departure(
@@ -300,32 +457,64 @@ internal class RocketMission(
                                     initial,
                                     site.position,
                                     authority,
+                                    // An orbit's horizontal velocity reverses beneath the planet.
+                                    // The top-face landing approach retains the launch-plane axis.
                                     course.axis,
-                                    course.orbit.period + RocketReturn.TURN_LEAD,
+                                    RocketReturn.searchHorizon(model, initial),
+                                    RocketReturn.earthForces(model),
+                                    surfaceDrag = surfaceDrag,
+                                    entryHeight = entryHeight,
                                 )
                             }
                     } else {
-                        returnClock += 0.05
+                        returnClock = (CelestialFlight.sample(server).frames.tick - returnEpochTick) / 20.0
                         if (returnPlanning!!.isDone) {
                             departure = returnPlanning!!.join()
                             val window = checkNotNull(departure)
                             require(returnClock < window.delay) { "Return planner missed its burn window; coast and retry return" }
-                            if (returnClock >= window.delay - RocketReturn.TURN_LEAD) enter(Phase.FLIP)
+                            if (returnClock >= window.delay - RocketReturn.TURN_LEAD) {
+                                val initial = s
+                                val model = CelestialFlight.sample(server).dynamics
+                                val delay = (window.delay - returnClock).coerceIn(0.0, RocketReturn.TURN_LEAD)
+                                val authority = engine().maximumAcceleration
+                                val drag = FlightEnvironment.linearDrag(server.overworld())
+                                val entry = FlatPlanetSpace.SEA_LEVEL + geometry.earthEnvelope.descentDistance
+                                returnRefining =
+                                    CompletableFuture.supplyAsync {
+                                        RocketReturn.refine(
+                                            field,
+                                            initial,
+                                            site.position,
+                                            authority,
+                                            course.axis,
+                                            delay,
+                                            RocketReturn.earthForces(model),
+                                            drag,
+                                            entry,
+                                        )
+                                    }
+                                enter(Phase.FLIP)
+                            }
                         }
                     }
                 }
             }
 
             Phase.FLIP -> {
-                returnClock += 0.05
+                returnClock = (CelestialFlight.sample(server).frames.tick - returnEpochTick) / 20.0
+                returnRefining?.takeIf { it.isDone }?.let { future ->
+                    departure = checkNotNull(departure).copy(path = future.join())
+                    returnRefining = null
+                    returnRefined = true
+                }
                 val window = checkNotNull(departure)
                 val direction =
                     window.path
                         .at(0.0)
                         .state.velocity * -1.0
-                engine().turn(direction)
+                turn(direction)
                 require(returnClock <= window.delay + 2.0) { "RCS missed the planned return attitude; manual control required" }
-                if (returnClock >= window.delay && engine().alignment(direction) > 0.995 && ticks > 100) {
+                if (returnRefined && returnClock >= window.delay && alignment(direction) > 0.995 && ticks > 100) {
                     returning = window.path
                     clock = returnClock - window.delay
                     enter(Phase.BRAKE)
@@ -335,11 +524,11 @@ internal class RocketMission(
             Phase.BRAKE -> {
                 clock += 0.05
                 follow(checkNotNull(returning).at(clock))
-                preload.approach(body.level, s.position, s.velocity)
+                FlightGuidanceFrames.rootState(body).let { preload.approach(body.level, it.position, it.velocity) }
                 if (body.level.dimension() == FlatPlanetSpace.SPACE &&
-                    s.position.y <= FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.DESCENT_HEIGHT &&
+                    s.position.y <= FlatPlanetSpace.SEA_LEVEL + geometry.earthEnvelope.descentDistance &&
                     s.velocity.y < 0.0 &&
-                    abs(s.position.x) < FlatPlanetSpace.HALF_SIZE - 40.0 && abs(s.position.z) < FlatPlanetSpace.HALF_SIZE - 40.0
+                    abs(s.position.x) < geometry.earthHalfSize - 40.0 && abs(s.position.z) < geometry.earthHalfSize - 40.0
                 ) {
                     prepare(Phase.BRAKE)
                 } else if (clock >= checkNotNull(returning).duration) {
@@ -348,9 +537,9 @@ internal class RocketMission(
             }
 
             Phase.APPROACH -> {
-                engine().update(OrbitalGuidance.descent(s, site.position))
+                command(OrbitalGuidance.descent(s, site.position))
                 if ((s.position - site.position).length() < 1.0 && s.velocity.length() < 0.35 &&
-                    engine().alignment(Vector3(0.0, 1.0, 0.0)) > 0.999
+                    alignment(Vector3(0.0, 1.0, 0.0)) > 0.999
                 ) {
                     cut()
                     enter(Phase.TOUCHDOWN)
@@ -418,6 +607,7 @@ internal class RocketMission(
         connectionPlanning?.cancel(true)
         capturePlanning?.cancel(true)
         returnPlanning?.cancel(true)
+        returnRefining?.cancel(true)
         SpaceTravelReservations.release(site.ship, this)
     }
 }

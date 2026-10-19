@@ -20,6 +20,12 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Fade native terrain distance fog out in vacuum so nearby lunar chunks join the distant surface
+  without a dark frontier; retain fluid fog and visibility effects.
+
+- Rebuild the planetary halo when the selected world size changes, keeping its blue rim aligned
+  with small and large Earth surfaces instead of retaining the default 10000-block outline.
+
 - Keep Creative free-flight input in the visible lunar horizon across surface/space transitions,
   retaining orbital transport velocity while Space/Shift and directional steering accelerate in
   the same local directions. Preserve transported camera roll when looking directly along local up.
@@ -49,6 +55,9 @@ limitations under the License.
 - Replace distant rectangular-volume quadrature with an exact point-mass field of the same total
   mass. Blend scalar potentials conservatively at 8–12 maximum half-extents (40–60 km for Earth),
   including the blend gradient in acceleration; retain the analytic rectangular near field.
+- Transport consumer autopilot state and engine requests through rotating Earth frames. Plan ascent
+  from arbitrary pads in inertial space, retain a safe unpowered prograde orbit, and forecast return
+  to the moving launch pad. Account for Sable's native surface drag without changing dimension physics.
 - Use explicit inertial-root coordinates for transfer/preloading, live map objects and coast forecasts.
   Freeze all new Earth and lunar transfers in version-seven receipts; preserve translation-only legacy Earth recovery.
   Transform terrain gravity, atmosphere, planet relief/clouds and observer axes through the surface frame.

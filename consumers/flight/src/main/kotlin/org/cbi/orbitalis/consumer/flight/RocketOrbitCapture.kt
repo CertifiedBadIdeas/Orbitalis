@@ -18,13 +18,12 @@
 
 package org.cbi.orbitalis.consumer.flight
 
+import org.cbi.orbitalis.core.orbit.CelestialDynamics
 import org.cbi.orbitalis.core.planet.CartesianState
 import org.cbi.orbitalis.core.planet.CoastPrediction
 import org.cbi.orbitalis.core.planet.SurfaceGravityLayer
 import org.cbi.orbitalis.core.planet.Vector3
-import kotlin.math.PI
 import kotlin.math.abs
-import kotlin.math.atan2
 import kotlin.math.max
 
 /** Accept a real low ballistic revolution instead of chasing a time-parametrized reference point. */
@@ -33,45 +32,42 @@ internal object RocketOrbitCapture {
         field: SurfaceGravityLayer,
         state: CartesianState,
         course: RocketCourse,
+        sources: CelestialDynamics? = null,
     ): Boolean {
-        if (field.specificEnergy(state) >= 0.0) return false
-        val horizon = (course.orbit.period * 1.25).coerceAtMost(300.0)
+        val root = sources?.profile?.earthSurfaceFrame(sources.epochTick)?.toParent(state) ?: state
+        if (root.velocity.dot(root.velocity) * 0.5 + field.potential(state.position) >= 0.0) return false
         val prediction =
-            CoastPrediction.predict(
+            CoastPrediction.orbit(
                 field,
-                state,
-                CoastPrediction.Limits(
-                    horizon = horizon,
-                    sampleInterval = max(0.5, horizon / 599.0),
-                    range = max(10000.0, field.body.halfWidth * 4.0),
-                    hullRadius = 12.0,
-                ),
+                root,
+                CoastPrediction.Limits(range = max(10000.0, field.body.halfWidth * 4.0), hullRadius = 32.0, detectEntry = false),
+                sources,
             )
-        if (prediction.end != CoastPrediction.End.HORIZON) return false
+        if (prediction.end !in setOf(CoastPrediction.End.ORBIT, CoastPrediction.End.REVOLUTION)) return false
         var referenceRadius = 0.0
         var t = 0.0
         while (t < course.orbit.period) {
             referenceRadius = max(referenceRadius, course.stateAt(t).position.length())
             t += 1.0
         }
-        var previous = atan2(state.position.dot(course.axis), state.position.y)
-        var sweep = 0.0
-        for (point in prediction.points) {
-            val p = point.state.position
+        return prediction.points.all { point ->
+            val p =
+                sources
+                    ?.profile
+                    ?.earthSurfaceFrame(sources.epochTick, point.seconds)
+                    ?.orientation
+                    ?.inverse(point.state.position)
+                    ?: point.state.position
             val clearance =
                 Vector3(
                     max(0.0, abs(p.x) - field.body.halfWidth),
                     max(0.0, abs(p.y) - field.body.halfHeight),
-                    max(0.0, abs(p.z) - field.body.halfDepth),
+                    max(
+                        0.0,
+                        abs(p.z) - field.body.halfDepth,
+                    ),
                 ).length()
-            if (clearance < 64.0 || p.length() > referenceRadius * 1.15) return false
-            val angle = atan2(p.dot(course.axis), p.y)
-            var delta = angle - previous
-            if (delta < -PI) delta += 2.0 * PI
-            if (delta > PI) delta -= 2.0 * PI
-            sweep += delta
-            previous = angle
+            clearance >= 32.0 && p.length() <= max(referenceRadius * 1.15, field.body.halfWidth * 3.5)
         }
-        return sweep >= 2.0 * PI
     }
 }

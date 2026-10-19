@@ -363,30 +363,43 @@ Then use:
 
 `orbit` detects the vector-engine layout and selects the consumer rocket controller. After a short
 vertical clearance leg it pitches over and accelerates horizontally during ascent, joining a numerically
-predicted finite-body orbit with a 5000-metre crown altitude above sea level. The reference crown speed
-is about 152 m/s and the period about 229 seconds; speed and height vary around this nonspherical body.
-Square-body symmetries select the orbital plane from the launch site. No spherical Kepler formula or
-arbitrary rotation of the near-field gravity model is used.
+predicted orbit in the rotating finite-body field. The reference crown altitude is the larger of the
+Earth half-width and the ascent handoff distance plus 200 metres: 5000 metres for the default world,
+2000 metres for a 1000-metre world. The launch plane is prograde relative to Earth's axial rotation.
+Actual speed, height and revolution period vary around the nonspherical rotating body; they need not
+match the insertion reference. No spherical Kepler formula or arbitrary rotation of the near-field
+gravity model is used.
 
 At the end of ascent, a bounded worker forecasts the actual insertion state with all engines off.
-Capture requires negative specific energy, a full revolution in the launch meridian, at least 64 m
-of reference-body clearance and a radius within 15% of the planned low orbit. An unsafe insertion
-fails explicitly. The controller does not chase a moving reference point after insertion: the main
-engines fade and remain off during ballistic coast until an explicitly requested return burn. Native
+Capture requires negative instantaneous binding energy and a complete predicted free revolution,
+at least 32 metres of body clearance, and a radius below the larger of 115% of the reference radius
+and 3.5 Earth half-widths. The insertion reference reserves 64 metres of clearance. An unsafe insertion
+fails explicitly. A safe measured insertion ends powered capture immediately. If capture correction is needed, its
+reference advances from the insertion epoch through the canonical time-dependent gravity model.
+The main engines then fade and remain off during ballistic coast until an explicitly requested return burn. Native
 ownership changes clear residual Propulsion inputs exactly. Balanced native
 RCS keeps the nose prograde and damps residual roll throughout that coast. The attitude target
 transports the current roll instead of rebuilding an absolute world-UP quaternion, avoiding a roll
-singularity below the planet. Return searches future ballistic states over the next revolution,
-including a 30-second engine-off RCS turn lead before the burn. It compares bounded continuous return
+singularity below the planet. Return forecasts the actual orbit and searches a pad-relative revolution,
+accounting for Earth's rotation rather than reusing the insertion reference period. The search is
+bounded to 3600 seconds and includes a 30-second engine-off RCS turn lead before the burn.
+RCS starts the retrograde turn while the worker plans the return. Before the final turn, it refines
+the landing curve from the actual vessel state while retaining the chosen burn epoch. This bounds
+prediction drift during long coast waits without shifting the maneuver or teleporting the vessel.
+It compares bounded continuous return
 curves by the integral of required thrust acceleration (delta-v); this is a finite candidate search,
-not proof of a globally optimal fuel solution. Candidates reject crossing past the pad along the orbital
-approach axis and respect thrust, speed and surface-border limits. An attitude rollout shares the live
+not proof of a globally optimal fuel solution. Candidates must approach the pad along the orbital plane's top-face direction, reject crossing past
+it, and respect thrust, speed and surface-border limits. Requesting return beneath the planet does
+not reverse that approach axis. An attitude rollout shares the live
 nose controller and reserves five degrees inside the engines’ 30-degree gimbal cone; native torque
 and engine interpolation remain authoritative. Powered nose requests retain the 0.25 rad/s limit
 from the scaled-flight controller. Off-plane pads can use a separate
 moving lateral approach after braking. Every join preserves position, velocity and acceleration;
 there is no stop at an intermediate waypoint. Descent handoff occurs only while descending inside
-the surface footprint. The real vector engines and RCS execute the selected path. Engine slew, gimbal
+the surface footprint. Return feasibility snapshots Sable's native linear-drag coefficient on the
+server thread and includes it after surface entry; the preceding orbital coast remains a vacuum
+forecast. Live allocation subtracts both native gravity and drag when converting the requested net
+acceleration into engine thrust. The real vector engines and RCS execute the selected path. Engine slew, gimbal
 interpolation and physical torque determine the actual attitude. Requested thrust acceleration changes
 by at most 0.5 m/s² per 50-ms guidance tick (10 m/s³), smoothing phase/feedback changes before native
 allocation. This bounds the command, not the physical jerk from gravity, contacts or native engine fade.
@@ -417,6 +430,8 @@ existing journaled transfer boundary; saved fields remain subject to exact recon
 The native creative engine variants supply unlimited development power without fuel or FE. No external
 textures or models are imported. Steering overrides preserve manual signals and clear on load/stop.
 
+The focused `rcs` suite runs only the native rocket orientation scenario and verifies that exact
+single result. Use `-PorbitalisConsumerGameTestSuite=rcs` when changing RCS fixtures or controls.
 The focused `rocket` GameTest suite checks assembly, actual gimbal basis/interpolation, powered hold,
 RCS-only orientation and complete native centre/off-axis missions with cargo and both dimension handoffs.
 The centred mission waits beyond a full revolution without an automatic return, then explicitly requests
@@ -424,7 +439,8 @@ landing. Off-axis and seated missions request landing earlier; the off-axis case
 a saved launch bookmark.
 The seated mission adds a real Create seat and previously excluded dispenser inventory. Coast trials
 apply a native angular impulse and require roll damping, prograde tracking, main-engine cutoff and
-bounded orbital energy drift; guidance never writes velocities to recover from that disturbance.
+a bounded free trajectory; guidance never writes velocities to recover from that disturbance.
+Inertial orbital energy can change because the rotating nonspherical gravity field performs work.
 The approach axis remains fixed through the curved coast; a natural change in horizontal velocity
 at an orbital corner is not mistaken for flying past the landing pad.
 Return trials additionally measure native translational delta-v (velocity changes minus gravity),
@@ -452,14 +468,14 @@ through two synchronous public setter calls; those calls only dirty native state
 between them. The native RCS test reproduces that residual before reacquiring control and requires
 all main engines to remain exactly off throughout the flip. No Propulsion field mixin is added.
 
-On the current 10-km body, the capped-RCS and ballistic-capture native rocket suite completes all
-five cases, including centre/off-axis launches, occupied-plot relocation, seated cargo transfer,
-steering/hold and the RCS-only 180-degree turn. The latter holds about 0.2 rad/s during the turn
-and settles below 0.00003 rad/s within 30 seconds. Every mission tick checks the 20% pod command cap.
-Summed main-plus-RCS scalar impulse is about 1828, 1818 and 1838 m/s for the centre and two off-axis
-cases, versus 1865, 1859 and 1849 m/s before this change. These are scenario measurements, not FE
-or a claim of globally optimal guidance. Powered ascent and braking attitude still depend on the
-reference trajectory and main-engine gimbals; the RCS limit alone does not redesign that trajectory.
+The native rocket scenarios cover centre/off-axis launches, occupied-plot relocation, seated cargo
+transfer, steering/hold and the RCS-only 180-degree turn. The RCS fixture starts beyond the rotating
+body's collision envelope and compares velocity with a canonical unpowered coast from its actual
+observed epoch, retaining the 0.5 m/s translational-error limit. It records the summed native pod
+force impulse separately and checks the 20% command cap, exact main-engine cutoff and settled spin.
+Mission checks retain the 10-metre maximum pad-overshoot limit. Per-run scalar engine impulses are
+scenario measurements rather than FE usage or a claim of globally optimal guidance. Powered ascent
+and braking attitude still depend on the reference trajectory and main-engine gimbals.
 
 Reconnecting return guidance maintains native RCS prograde hold while its immutable reference orbit
 is calculated on the worker. Main engines stay off throughout this ballistic planning interval.
@@ -515,3 +531,14 @@ prograde/normal/radial node followed by a retrograde node, without passengers or
 On 2026-10-18 each settled burn measured 0.127–0.129 m/s residual; final trajectories differed from the
 unpowered prediction by about 1.1 km. Tests also require engine fade to zero and angular speed below
 0.1 rad/s. These are two bounded finite-burn scenarios, not general trajectory optimality evidence.
+
+Earth rotation uses the saved simulation clock and leaves local daylight/time commands unchanged.
+Orbital insertion now searches a complete inertial free revolution against the rotating slab,
+rather than reusing a periodic orbit of a fixed planet. The launch pad contributes its transport
+velocity. Powered ascent follows frozen launch axes, using a snapshot of the actual liftoff state
+and an absolute simulation epoch. It begins the shared initial pitch while planning and retries a
+stale join instead of shifting a validated reference to a different Earth orientation.
+Explicit landing switches to the moving
+surface chart and forecasts coast with Coriolis/centrifugal terms. Actual Propulsion engines
+and bounded RCS still supply every command. Distant body gravity becomes an exact same-mass
+monopole after its conservative potential transition; see [axial rotation](earth-rotation.md).

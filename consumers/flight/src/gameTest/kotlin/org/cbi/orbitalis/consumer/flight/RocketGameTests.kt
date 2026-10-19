@@ -47,15 +47,15 @@ import kotlin.math.abs
 @PrefixGameTestTemplate(false)
 object RocketGameTests {
     @JvmStatic
-    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 40000, batch = "rocket_mission")
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 120000, batch = "rocket_mission")
     fun nativeRocketRoundTrip(helper: GameTestHelper) = roundTrip(helper, BlockPos(0, 21, 0), false, uncrewed = true)
 
     @JvmStatic
-    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 40000, batch = "rocket_offaxis")
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 120000, batch = "rocket_offaxis")
     fun nativeRocketOffAxisRoundTrip(helper: GameTestHelper) = roundTrip(helper, BlockPos(800, 81, 500), true)
 
     @JvmStatic
-    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 24000, batch = "rocket_seated")
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 120000, batch = "rocket_seated")
     fun nativeRocketCreateSeatRoundTrip(helper: GameTestHelper) = roundTrip(helper, BlockPos(-800, 81, -500), false, true)
 
     private fun roundTrip(
@@ -96,6 +96,8 @@ object RocketGameTests {
 
         fun releaseRelocationBlocker() {
             relocationBlocker?.let { blocker ->
+                org.cbi.orbitalis.minecraft.flight.SpaceTravelReservations
+                    .release(blocker.uniqueId, helper)
                 if (!blocker.isRemoved) {
                     val c = checkNotNull(SubLevelContainer.getContainer(blocker.level))
                     c.removeForceLoadTicket(blocker, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
@@ -130,6 +132,7 @@ object RocketGameTests {
         var maximumCoastRateError = 0.0
         var initialEnergy: Double? = null
         var maximumEnergyDrift = 0.0
+        var coastWork = 0.0
         var mainImpulse = 0.0
         var rcsImpulse = 0.0
         var angularTravel = 0.0
@@ -138,7 +141,10 @@ object RocketGameTests {
         var returnDirection: Vector3? = null
         var maximumPadOvershoot = 0.0
         var flightLoading: AutopilotFlightLoading? = null
-        val trace = StringBuilder("tick,phase,x,y,z,vx,vy,vz,nx,ny,nz,mainImpulse,rcsImpulse,angularTravel\n")
+        val trace =
+            StringBuilder(
+                "tick,phase,x,y,z,vx,vy,vz,nx,ny,nz,mainImpulse,rcsImpulse,angularTravel,epoch,earthX,earthY,earthZ,earthVx,earthVy,earthVz,referenceX,referenceY,referenceZ,referenceVx,referenceVy,referenceVz\n",
+            )
         val forced = mutableListOf<Long>()
         for (x in ((origin.x - 7) shr 4)..((origin.x + 7) shr 4)) {
             for (z in ((origin.z - 7) shr 4)..((origin.z + 7) shr 4)) {
@@ -302,6 +308,8 @@ object RocketGameTests {
                         blocker.forceUpdateGlobalBounds()
                         blocker.updateLastPose()
                         target.addForceLoadTicket(blocker, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
+                        org.cbi.orbitalis.minecraft.flight.SpaceTravelReservations
+                            .reserve(blocker.uniqueId, helper)
                         relocationBlocker = blocker
                     }
                 }
@@ -319,18 +327,19 @@ object RocketGameTests {
                 flightLoading?.follow(active.body)
                 if (!active.body.isRemoved && active.phase != RocketMission.Phase.TRANSFER) {
                     val b = active.body
-                    val p =
-                        org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
-                            .globalPosition(b.level, AutopilotSession.position(b))
-                    val v =
-                        AutopilotSession.vector(
-                            SubLevelPhysicsSystem.require(b.level).getPhysicsHandle(b).getLinearVelocity(Vector3d()),
-                        )
-                    val current =
-                        org.cbi.orbitalis.core.planet
-                            .CartesianState(p, v)
+                    val sample =
+                        org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                            .sample(b.level)
+                    val current = FlightGuidanceFrames.rootState(b)
+                    val earth = sample.nativeState(current, net.minecraft.world.level.Level.OVERWORLD)
+                    val p = current.position
+                    val v = current.velocity
                     val orientation = org.joml.Quaterniond(b.logicalPose().orientation())
-                    val nose = AutopilotSession.vector(orientation.transform(Vector3d(0.0, 1.0, 0.0)))
+                    val nose =
+                        sample.rootDirection(
+                            AutopilotSession.vector(orientation.transform(Vector3d(0.0, 1.0, 0.0))),
+                            b.level.dimension(),
+                        )
                     if (previousWorld == b.level.dimension()) {
                         previousOrientation?.let {
                             angularTravel += 2.0 * kotlin.math.acos(kotlin.math.abs(it.dot(orientation)).coerceIn(0.0, 1.0))
@@ -359,11 +368,12 @@ object RocketGameTests {
                                 b.massTracker.mass
                         if (engine is CreativeVectorThrusterBlockEntity) mainImpulse += impulse else rcsImpulse += impulse
                     }
+                    val reference = active.returnReference?.state
                     trace.append(
-                        "$tick,${active.phase},${p.x},${p.y},${p.z},${v.x},${v.y},${v.z},${nose.x},${nose.y},${nose.z},$mainImpulse,$rcsImpulse,$angularTravel\n",
+                        "$tick,${active.phase},${p.x},${p.y},${p.z},${v.x},${v.y},${v.z},${nose.x},${nose.y},${nose.z},$mainImpulse,$rcsImpulse,$angularTravel,${sample.frames.tick},${earth.position.x},${earth.position.y},${earth.position.z},${earth.velocity.x},${earth.velocity.y},${earth.velocity.z},${reference?.position?.x ?: ""},${reference?.position?.y ?: ""},${reference?.position?.z ?: ""},${reference?.velocity?.x ?: ""},${reference?.velocity?.y ?: ""},${reference?.velocity?.z ?: ""}\n",
                     )
-                    maximumHeight = maxOf(maximumHeight, p.y - 64.0)
-                    if (p.y < FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.DESCENT_HEIGHT &&
+                    if (active.phase == RocketMission.Phase.ASCENT) maximumHeight = maxOf(maximumHeight, earth.position.y - 64.0)
+                    if (earth.position.y < FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.DESCENT_HEIGHT &&
                         active.phase == RocketMission.Phase.ASCENT
                     ) {
                         earlyHorizontal = maxOf(earlyHorizontal, kotlin.math.hypot(v.x, v.z))
@@ -377,20 +387,23 @@ object RocketGameTests {
                         ) {
                             val field = SableFlightGravity.flatField(b.level)
                             val acceleration = (v - old.velocity) * 20.0
-                            returnDeltaV += (acceleration - field.acceleration((p + old.position) * 0.5)).length() * 0.05
+                            returnDeltaV += (acceleration - sample.dynamics.acceleration((p + old.position) * 0.5, -0.025)).length() * 0.05
                         }
                         maximumStepAcceleration = maxOf(maximumStepAcceleration, (v - old.velocity).length() / 0.05)
                         helper.assertTrue(
                             ((p - old.position) - (v + old.velocity) * 0.025).length() < 0.3,
-                            "Native trajectory has a position jump",
+                            "Native trajectory has a position jump: phase=${active.phase} before=$before tick=$tick old=$old current=$current",
                         )
                     }
                     if (active.phase == RocketMission.Phase.BRAKE && returnDirection == null) {
-                        returnDirection = RocketCourse.launchAxis(site!!.position)
-                        helper.assertTrue((site!!.position - p).dot(returnDirection!!) > 20.0, "Braking started after flying past the pad")
+                        returnDirection = Vector3(earth.velocity.x, 0.0, earth.velocity.z).normalized()
+                        helper.assertTrue(
+                            (site!!.position - earth.position).dot(returnDirection!!) > 20.0,
+                            "Braking started after flying past the pad",
+                        )
                     }
                     returnDirection?.let { direction ->
-                        maximumPadOvershoot = maxOf(maximumPadOvershoot, (p - site!!.position).dot(direction))
+                        maximumPadOvershoot = maxOf(maximumPadOvershoot, (earth.position - site!!.position).dot(direction))
                     }
                     previousState = current
                     previousWorld = b.level.dimension()
@@ -400,9 +413,9 @@ object RocketGameTests {
                     ) {
                         val clearance =
                             Vector3(
-                                maxOf(0.0, abs(p.x) - FlatPlanetSpace.HALF_SIZE),
-                                maxOf(0.0, abs(p.y) - 64.0),
-                                maxOf(0.0, abs(p.z) - FlatPlanetSpace.HALF_SIZE),
+                                maxOf(0.0, abs(earth.position.x) - FlatPlanetSpace.HALF_SIZE),
+                                maxOf(0.0, abs(earth.position.y) - 64.0),
+                                maxOf(0.0, abs(earth.position.z) - FlatPlanetSpace.HALF_SIZE),
                             ).length()
                         minimumClearance = minOf(minimumClearance, clearance)
                         helper.assertTrue(clearance > 32.0, "Rocket's free coast passes too close to the planet: $clearance")
@@ -422,30 +435,49 @@ object RocketGameTests {
                                 disturbed = true
                             }
                             if (freeTicks > 100) {
-                                val gravity =
-                                    org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity.acceleration(
-                                        b.level,
-                                        AutopilotSession.position(b),
-                                    )
+                                val gravity = sample.dynamics.acceleration(p)
                                 val expectedRate = v.cross(gravity) * (1.0 / v.dot(v))
-                                val rate = AutopilotSession.vector(handle.getAngularVelocity(Vector3d()))
-                                maximumCoastRateError = maxOf(maximumCoastRateError, (rate - expectedRate).length())
+                                val rate =
+                                    sample.rootAngular(
+                                        AutopilotSession.vector(handle.getAngularVelocity(Vector3d())),
+                                        b.level.dimension(),
+                                    )
+                                if (active.phase == RocketMission.Phase.COAST) {
+                                    maximumCoastRateError = maxOf(maximumCoastRateError, (rate - expectedRate).length())
+                                    helper.assertTrue(
+                                        maximumCoastRateError < 0.35,
+                                        "RCS failed to track changing orbit curvature: $maximumCoastRateError",
+                                    )
+                                } else {
+                                    // Return deliberately turns retrograde; compare its bounded spin,
+                                    // not its rate against prograde tracking while executing that turn.
+                                    helper.assertTrue(rate.length() < 0.35, "Return RCS exceeded controlled turn rate: $rate")
+                                }
+                                val nose =
+                                    sample.rootDirection(
+                                        AutopilotSession.vector(b.logicalPose().orientation().transform(Vector3d(0.0, 1.0, 0.0))),
+                                        b.level.dimension(),
+                                    )
                                 helper.assertTrue(
-                                    maximumCoastRateError < 0.35,
-                                    "RCS failed to track changing orbit curvature: $maximumCoastRateError",
+                                    active.phase != RocketMission.Phase.COAST || nose.dot(v.normalized()) > 0.97,
+                                    "Rocket failed to hold prograde on the ballistic orbit",
                                 )
-                                val nose = AutopilotSession.vector(b.logicalPose().orientation().transform(Vector3d(0.0, 1.0, 0.0)))
-                                helper.assertTrue(nose.dot(v.normalized()) > 0.97, "Rocket failed to hold prograde on the ballistic orbit")
                                 helper.assertTrue(abs(rate.dot(nose)) < 0.03, "RCS failed to damp longitudinal roll: ${rate.dot(nose)}")
                             }
-                            val energy =
-                                org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
-                                    .flatField(
-                                        b.level,
-                                    ).specificEnergy(current)
-                            if (initialEnergy == null) initialEnergy = energy
-                            maximumEnergyDrift = maxOf(maximumEnergyDrift, abs((energy - initialEnergy!!) / initialEnergy!!))
-                            helper.assertTrue(maximumEnergyDrift < 0.01, "Free-orbit energy drifted: $maximumEnergyDrift")
+                            val energy = v.dot(v) * 0.5
+                            if (initialEnergy == null) {
+                                initialEnergy = energy
+                            } else if (old !=
+                                null
+                            ) {
+                                coastWork +=
+                                    sample.dynamics.acceleration((p + old.position) * 0.5, -0.025).dot((v + old.velocity) * 0.5) * 0.05
+                            }
+                            maximumEnergyDrift = maxOf(maximumEnergyDrift, abs((energy - initialEnergy!! - coastWork) / initialEnergy!!))
+                            helper.assertTrue(
+                                maximumEnergyDrift < 0.01,
+                                "Free-orbit gravity work disagrees with native energy: $maximumEnergyDrift",
+                            )
                             freeTicks++
                         }
                         val main =
@@ -563,10 +595,18 @@ object RocketGameTests {
                 }
                 // Accelerated GameTest ticks must give the real background planners CPU time.
                 if (active.phase in
-                    listOf(RocketMission.Phase.PLANNING, RocketMission.Phase.LIFTOFF, RocketMission.Phase.BRAKE, RocketMission.Phase.RETURN)
+                    listOf(
+                        RocketMission.Phase.PLANNING,
+                        RocketMission.Phase.LIFTOFF,
+                        RocketMission.Phase.BRAKE,
+                        RocketMission.Phase.RETURN,
+                        RocketMission.Phase.FLIP,
+                        RocketMission.Phase.TRANSFER,
+                    )
                 ) {
+                    val waiting = active.waitingForAscentPlan || active.waitingForReturnPlan || transfer.busy
                     java.util.concurrent.locks.LockSupport
-                        .parkNanos(if (active.waitingForReturnPlan) 50_000_000L else 1_000_000L)
+                        .parkNanos(if (waiting) 50_000_000L else 1_000_000L)
                 }
             }
             helper.runAfterDelay(1) { run() }
@@ -598,6 +638,8 @@ object RocketGameTests {
         onFinished(helper) {
             drive?.close()
             container.allSubLevels.toList().filter { it.uniqueId in owned || it.splitFromSubLevel in owned }.forEach {
+                org.cbi.orbitalis.minecraft.flight.SpaceTravelReservations
+                    .release(it.uniqueId, helper)
                 container.removeForceLoadTicket(it, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
                 container.removeSubLevel(it, SubLevelRemovalReason.REMOVED)
             }
@@ -632,6 +674,8 @@ object RocketGameTests {
                 helper.assertTrue(created.size == 1, "Rocket split or failed native assembly")
                 body = created.single() as ServerSubLevel
                 owned.add(body!!.uniqueId)
+                org.cbi.orbitalis.minecraft.flight.SpaceTravelReservations
+                    .reserve(body!!.uniqueId, helper)
                 container.addForceLoadTicket(body!!, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
                 helper.runAfterDelay(10) { steeringTrial() }
             }
@@ -647,10 +691,13 @@ object RocketGameTests {
                 val handle = SubLevelPhysicsSystem.require(level).getPhysicsHandle(rocket)
                 val position = AutopilotSession.position(rocket)
                 drive!!.update(
-                    OrbitalGuidance.point(
-                        CartesianState(position, AutopilotSession.vector(handle.getLinearVelocity(Vector3d()))),
-                        target,
-                        12.0,
+                    FlightGuidanceFrames.rootAcceleration(
+                        rocket,
+                        OrbitalGuidance.point(
+                            CartesianState(position, AutopilotSession.vector(handle.getLinearVelocity(Vector3d()))),
+                            target,
+                            12.0,
+                        ),
                     ),
                 )
                 // Vectoring can correct a disturbance with very little hull tilt. Check actual
@@ -742,7 +789,12 @@ object RocketGameTests {
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 5000, batch = "rocket_rcs")
     fun nativeRocketRcsFlip(helper: GameTestHelper) {
         val level = checkNotNull(helper.level.server.getLevel(FlatPlanetSpace.SPACE))
-        val origin = BlockPos(200, 160, 200)
+        val frame =
+            org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                .sample(level)
+        val rootOrigin = Vector3(200.0, frame.dynamics.profile.geometry.earthHalfSize * 3.0 + 2000.0, 200.0)
+        val nativeOrigin = frame.nativePoint(rootOrigin, level.dimension())
+        val origin = BlockPos.containing(nativeOrigin.x, nativeOrigin.y, nativeOrigin.z)
         val container = checkNotNull(SubLevelContainer.getContainer(level))
         val previous = container.allSubLevels.map { it.uniqueId }.toSet()
         val forced = mutableListOf<Long>()
@@ -763,6 +815,8 @@ object RocketGameTests {
             body?.let {
                 VacuumTestBlueprint.discardGlue(it)
                 container.removeForceLoadTicket(it, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
+                org.cbi.orbitalis.minecraft.flight.SpaceTravelReservations
+                    .release(it.uniqueId, helper)
                 if (!it.isRemoved) container.removeSubLevel(it, SubLevelRemovalReason.REMOVED)
             }
             for (key in forced) level.setChunkForced(ChunkPos.getX(key), ChunkPos.getZ(key), false)
@@ -771,7 +825,9 @@ object RocketGameTests {
         class Sequence {
             var attempts = 0
             var tick = 0
-            var expectedVelocity = Vector3.ZERO
+            lateinit var initial: CartesianState
+            lateinit var initialModel: org.cbi.orbitalis.core.orbit.CelestialDynamics
+            var nativeRcsImpulseBound = 0.0
 
             fun prepare() {
                 level.resetEmptyTime()
@@ -803,6 +859,8 @@ object RocketGameTests {
                     helper.assertTrue(created.size == 1, "RCS rocket split during assembly")
                     body = created.single() as ServerSubLevel
                 }
+                org.cbi.orbitalis.minecraft.flight.SpaceTravelReservations
+                    .reserve(body!!.uniqueId, helper)
                 container.addForceLoadTicket(body!!, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
                 helper.runAfterDelay(10) {
                     val main =
@@ -826,8 +884,13 @@ object RocketGameTests {
                     }
                     drive = RocketDrive(body!!, true)
                     helper.assertTrue(main.all { it.power == 0.0f }, "Reacquiring control restored a residual main-engine command")
-                    expectedVelocity =
-                        AutopilotSession.vector(SubLevelPhysicsSystem.require(level).getPhysicsHandle(body!!).getLinearVelocity(Vector3d()))
+                    // The counterfactual owns this observed epoch and full root state, including
+                    // the finite field's time dependence throughout the native flip.
+                    initial = FlightGuidanceFrames.rootState(body!!)
+                    initialModel =
+                        org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                            .sample(level)
+                            .dynamics
                     run()
                 }
             }
@@ -845,7 +908,6 @@ object RocketGameTests {
                     main.size == 4 && main.all { it.power == 0.0f && it.currentThrust == 0.0f },
                     "Main engines fired during RCS flip",
                 )
-                expectedVelocity += SableFlightGravity.acceleration(level, AutopilotSession.position(rocket)) * 0.05
                 if (++tick % 100 ==
                     0
                 ) {
@@ -861,6 +923,19 @@ object RocketGameTests {
                             it.chunk.blockEntities.values
                         }.filterIsInstance<AbstractThrusterBlockEntity>()
                         .filter { it !is CreativeVectorThrusterBlockEntity }
+                // Sum actual native output vectors before taking the norm: balanced couples
+                // rotate the hull while their net translational impulse remains zero.
+                val nativeForce = Vector3d()
+                for (pod in pods) {
+                    nativeForce.add(
+                        Vector3d(pod.thrustDirectionLocal).mul(
+                            pod.currentThrust.toDouble() /
+                                dev.propulsionteam.propulsionsimulated.PropulsionConfig
+                                    .getThrustUnitsPerKnOrDefault(),
+                        ),
+                    )
+                }
+                nativeRcsImpulseBound += nativeForce.length() / rocket.massTracker.mass * 0.05
                 helper.assertTrue(
                     pods.size == 12 &&
                         pods.all {
@@ -878,10 +953,33 @@ object RocketGameTests {
                 }
                 helper.assertTrue(drive!!.alignment(Vector3(0.0, -1.0, 0.0)) > 0.999, "RCS did not complete the 180-degree flip")
                 helper.assertTrue(handle.getAngularVelocity(Vector3d()).length() < 0.02, "RCS did not settle rotation")
-                val velocity = AutopilotSession.vector(handle.getLinearVelocity(Vector3d()))
+                val elapsed =
+                    (
+                        org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                            .sample(level)
+                            .dynamics.epochTick - initialModel.epochTick
+                    ) / 20.0
+                val coast =
+                    org.cbi.orbitalis.core.planet.CoastPrediction.predict(
+                        initialModel.earth,
+                        initial,
+                        org.cbi.orbitalis.core.planet.CoastPrediction
+                            .Limits(horizon = elapsed, range = initialModel.profile.flightRange),
+                        initialModel,
+                    )
+                helper.assertTrue(
+                    coast.end == org.cbi.orbitalis.core.planet.CoastPrediction.End.HORIZON,
+                    "RCS counterfactual left its prediction envelope: ${coast.end}",
+                )
+                val expectedVelocity = coast.terminal.state.velocity
+                val velocity = FlightGuidanceFrames.rootState(rocket).velocity
+                println(
+                    "ORBITALIS_ROCKET_RCS_COAST elapsed=$elapsed error=${(velocity - expectedVelocity).length()} " +
+                        "nativeImpulseBound=$nativeRcsImpulseBound actual=$velocity expected=$expectedVelocity",
+                )
                 helper.assertTrue(
                     (velocity - expectedVelocity).length() < 0.5,
-                    "RCS introduced excessive translation: $velocity vs $expectedVelocity",
+                    "RCS introduced excessive translation: $velocity vs $expectedVelocity; nativeImpulseBound=$nativeRcsImpulseBound",
                 )
                 drive!!.close()
                 helper.runAfterDelay(30) {

@@ -95,7 +95,11 @@ object PropulsionGameTests {
     fun register(event: RegisterGameTestsEvent) {
         GlobalTestReporter.replaceWith(JUnitLikeTestReporter(File(System.getProperty("orbitalis.consumerGameTestReport"))))
         val suite = System.getProperty("orbitalis.consumerGameTestSuite", "all")
-        require(suite in setOf("all", "flat", "rocket", "maneuver")) { "Unknown consumer GameTest suite: $suite" }
+        require(suite in setOf("all", "flat", "rocket", "rcs", "maneuver")) { "Unknown consumer GameTest suite: $suite" }
+        if (suite == "rcs") {
+            event.register(RocketGameTests::class.java.getDeclaredMethod("nativeRocketRcsFlip", GameTestHelper::class.java))
+            return
+        }
         if (suite == "maneuver") {
             event.register(ManeuverGameTests::class.java)
             return

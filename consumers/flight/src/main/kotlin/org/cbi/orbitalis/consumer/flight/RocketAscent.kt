@@ -29,6 +29,7 @@ import kotlin.math.acos
 internal class RocketCourse(
     val orbit: BallisticOrbit,
     val axis: Vector3,
+    private val alreadyOriented: Boolean = false,
 ) {
     init {
         require(axis in listOf(Vector3(1.0, 0.0, 0.0), Vector3(-1.0, 0.0, 0.0), Vector3(0.0, 0.0, 1.0), Vector3(0.0, 0.0, -1.0)))
@@ -36,6 +37,7 @@ internal class RocketCourse(
 
     fun stateAt(time: Double): CartesianState {
         val state = orbit.stateAt(time)
+        if (alreadyOriented) return state
         val across = axis.cross(Vector3(0.0, 1.0, 0.0))
 
         fun rotate(v: Vector3) = axis * v.x + Vector3(0.0, v.y, 0.0) + across * v.z
@@ -101,16 +103,20 @@ internal data class RocketAscent(
     val orbitPhase: Double,
 ) {
     companion object {
+        fun initialAcceleration(course: RocketCourse): Vector3 = course.axis + Vector3(0.0, 3.0, 0.0)
+
         /** Call on a worker with immutable native state/field copies. */
         fun plan(
             field: SurfaceGravityLayer,
             course: RocketCourse,
             initial: CartesianState,
             maximumThrust: Double,
+            acceleration: (CartesianState, Double) -> Vector3 = { state, _ -> field.acceleration(state.position) },
+            safeOrbit: (CartesianState, Double) -> Boolean = { _, _ -> true },
         ): RocketAscent {
             require(maximumThrust.isFinite() && maximumThrust >= 25.0)
             for (duration in 24..(96.0 * kotlin.math.sqrt(field.body.halfWidth / 1000.0)).toInt() step 4) {
-                for (phaseFraction in listOf(0.08, 0.10, 0.12, 0.14, 0.16, 0.18, 0.20)) {
+                for (phaseFraction in listOf(0.0, 0.02, 0.04, 0.06, 0.08, 0.10, 0.12, 0.14, 0.16, 0.18, 0.20)) {
                     val phase = course.orbit.period * phaseFraction
                     val target = course.stateAt(phase)
                     val crown = course.orbit.initial.position.y - field.body.halfHeight
@@ -120,8 +126,8 @@ internal data class RocketAscent(
                         RocketConnection(
                             initial,
                             target,
-                            course.axis * 1.0 + Vector3(0.0, 3.0, 0.0),
-                            field.acceleration(target.position),
+                            initialAcceleration(course),
+                            acceleration(target, duration.toDouble()),
                             duration.toDouble(),
                         )
                     var safe = true
@@ -131,7 +137,7 @@ internal data class RocketAscent(
                     while (t <= duration && safe) {
                         val sample = path.at(t)
                         val p = sample.state.position
-                        val thrust = sample.acceleration - field.acceleration(p)
+                        val thrust = sample.acceleration - acceleration(sample.state, t)
                         if (p.y >= field.body.halfHeight + field.fullHeight) space = true
                         safe = p.y >= initial.position.y - 0.1 && p.y <= course.orbit.initial.position.y + 150.0 &&
                             sample.state.velocity.length() < 180.0 * kotlin.math.sqrt(field.body.halfWidth / 1000.0) &&
@@ -144,7 +150,7 @@ internal data class RocketAscent(
                         if (thrust.length() > 1.0) previous = thrust else previous = null
                         t += 0.25
                     }
-                    if (safe && path
+                    if (safe && safeOrbit(target, duration.toDouble()) && path
                             .at(5.0)
                             .state.velocity
                             .dot(course.axis) > 0.5

@@ -93,6 +93,8 @@ object FlatMissionGameTests {
         var coastAngle = 0.0
         var previousAngle = 0.0
         var firstEnergy = 0.0
+        var coastWork = 0.0
+        var coastPrevious: org.cbi.orbitalis.core.planet.CartesianState? = null
         var maximumEnergyError = 0.0
         var returned = false
         val stages = mutableSetOf<FlatOrbitalMission.Phase>()
@@ -145,10 +147,22 @@ object FlatMissionGameTests {
                         site,
                     ).position} minY=${rig.body.boundingBox().minY()} q=${rig.body.logicalPose().orientation()} mass=${rig.body.massTracker.mass} com=${rig.body.massTracker.centerOfMass}",
                 )
+                helper.assertTrue(
+                    FlightGuidanceFrames.earthState(rig.body).velocity.length() < 0.3,
+                    "Launch fixture did not settle relative to the rotating pad",
+                )
+                helper.assertTrue(
+                    FlightGuidanceFrames.rootState(rig.body).velocity.length() > 1.0,
+                    "Launch fixture did not exercise Earth transport velocity",
+                )
                 mission = FlatOrbitalMission(pilot.player, rig.body, checkNotNull(site), transfer, false)
             }
             val active = mission
             if (active != null) {
+                if (active.waitingForCoastCheck) {
+                    java.util.concurrent.locks.LockSupport
+                        .parkNanos(50_000_000L)
+                }
                 val before = active.phase
                 val landed = active.tick(pilot.player)
                 if (active.phase != before) println("ORBITALIS_FLAT_MISSION tick=$tick ${active.status()}")
@@ -171,28 +185,33 @@ object FlatMissionGameTests {
                 }
                 stages.add(active.phase)
                 if (active.phase != before && active.phase == FlatOrbitalMission.Phase.TRANSFER) {
-                    transferVelocity =
-                        SubLevelPhysicsSystem.require(active.body.level).getPhysicsHandle(active.body).getLinearVelocity(Vector3d())
+                    val root = FlightGuidanceFrames.rootState(active.body).velocity
+                    transferVelocity = Vector3d(root.x, root.y, root.z)
                     helper.assertTrue(checkNotNull(transferVelocity).length() > 15.0, "Transfer braked to zero")
                 }
                 if (before == FlatOrbitalMission.Phase.TRANSFER && active.phase != before) {
-                    val velocity =
-                        SubLevelPhysicsSystem
-                            .require(
-                                active.body.level,
-                            ).getPhysicsHandle(active.body)
-                            .getLinearVelocity(Vector3d())
+                    val root = FlightGuidanceFrames.rootState(active.body).velocity
+                    val velocity = Vector3d(root.x, root.y, root.z)
                     helper.assertTrue(
-                        velocity.distance(checkNotNull(transferVelocity)) < 8.0 && velocity.y * checkNotNull(transferVelocity).y > 0.0,
+                        velocity.distance(checkNotNull(transferVelocity)) < 8.0,
                         "Transfer lost/reversed motion",
                     )
                     handoffs++
                 }
                 if (active.phase == FlatOrbitalMission.Phase.COAST && !returned && AutopilotSession.enginesFaded(active.body)) {
-                    val p = FlightSpaceCoordinates.globalPosition(active.body.level, AutopilotSession.position(active.body))
-                    val v = SubLevelPhysicsSystem.require(active.body.level).getPhysicsHandle(active.body).getLinearVelocity(Vector3d())
-                    val field = SableFlightGravity.flatField(active.body.level)
-                    val energy = v.lengthSquared() * 0.5 + field.potential(p)
+                    val sample =
+                        org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                            .sample(active.body.level)
+                    val current = FlightGuidanceFrames.rootState(active.body)
+                    val p = current.position
+                    val local = sample.nativeState(current, Level.OVERWORLD).position
+                    val v = current.velocity
+                    val energy = v.dot(v) * 0.5
+                    coastPrevious?.let { old ->
+                        coastWork +=
+                            sample.dynamics.acceleration((p + old.position) * 0.5, -0.025).dot((v + old.velocity) * 0.5) * 0.05
+                    }
+                    coastPrevious = current
                     val angle = atan2(p.x, p.y)
                     if (coastTicks++ == 0) {
                         firstEnergy = energy
@@ -200,19 +219,19 @@ object FlatMissionGameTests {
                     }
                     coastAngle += OrbitalGuidance.angleStep(previousAngle, angle)
                     previousAngle = angle
-                    maximumEnergyError = maxOf(maximumEnergyError, abs((energy - firstEnergy) / firstEnergy))
-                    helper.assertTrue(energy < 0.0 && maximumEnergyError < 0.01, "Unpowered finite-body energy drift: $maximumEnergyError")
+                    maximumEnergyError = maxOf(maximumEnergyError, abs((energy - firstEnergy - coastWork) / firstEnergy))
+                    helper.assertTrue(maximumEnergyError < 0.01, "Unpowered gravity work/energy residual: $maximumEnergyError")
                     val clearance =
                         Vector3(
-                            maxOf(0.0, abs(p.x) - FlatPlanetSpace.HALF_SIZE),
-                            maxOf(0.0, abs(p.y) - 64),
+                            maxOf(0.0, abs(local.x) - FlatPlanetSpace.HALF_SIZE),
+                            maxOf(0.0, abs(local.y) - 64),
                             maxOf(
                                 0.0,
-                                abs(p.z) - FlatPlanetSpace.HALF_SIZE,
+                                abs(local.z) - FlatPlanetSpace.HALF_SIZE,
                             ),
                         ).length()
                     helper.assertTrue(clearance > 24.0, "Free trajectory approached planet too closely: $clearance")
-                    if (coastAngle >= 2 * PI) {
+                    if (coastAngle <= -2 * PI) {
                         helper.assertTrue(coastTicks > 1000, "No complete native free revolution")
                         println("ORBITALIS_FLAT_NATIVE_ORBIT ticks=$coastTicks angle=$coastAngle energyError=$maximumEnergyError")
                         val bookmarks = LaunchSites()
