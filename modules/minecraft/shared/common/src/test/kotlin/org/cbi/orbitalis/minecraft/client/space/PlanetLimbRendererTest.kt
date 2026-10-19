@@ -23,44 +23,28 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class PlanetLimbRendererTest {
-    @Test fun atmosphericLayerContainsFeatherAcrossSelectedPlanetSizes() {
+    @Test fun atmosphereIsAnchoredToSurfaceAndFadesNearCloudHeightForEveryBodySize() {
         for (halfSize in listOf(500.0, 5000.0, 50000.0)) {
-            for (ceiling in listOf(320.0, 512.0, 1024.0)) {
-                val (minimum, maximum) = PlanetLimbRenderer.atmosphereBounds(halfSize, ceiling)
-                for (vertex in PlanetLimbRenderer.vertices(halfSize, ceiling)) {
+            for (cloudHeight in listOf(128.0, 192.0, 256.0)) {
+                val (minimum, maximum) = PlanetLimbRenderer.atmosphereBounds(halfSize, cloudHeight)
+                assertEquals(SpaceScene.TOP, minimum.y)
+                assertEquals(cloudHeight + 24.0, maximum.y)
+                for (vertex in PlanetLimbRenderer.vertices(halfSize, cloudHeight)) {
                     val p = vertex.position
                     assertTrue(p.x in minimum.x..maximum.x)
                     assertTrue(p.y in minimum.y..maximum.y)
                     assertTrue(p.z in minimum.z..maximum.z)
-                    if (vertex.alpha > 0) assertTrue(p.y > ceiling + 64.0)
                 }
-                assertEquals(ceiling, minimum.y)
+                assertTrue(maximum.x - halfSize <= 160.0)
             }
         }
     }
 
-    @Test fun changingNativeTerrainCeilingRaisesTheSameFeatherAboveHigherMountains() {
-        val normal = PlanetLimbRenderer.vertices(5000.0, 320.0)
-        val tall = PlanetLimbRenderer.vertices(5000.0, 512.0)
-        for ((before, after) in normal.zip(tall)) {
-            assertEquals(before.position.x, after.position.x)
-            assertEquals(before.position.z, after.position.z)
-            assertEquals(512.0 - 320.0, after.position.y - before.position.y)
-            assertEquals(before.alpha, after.alpha)
-            assertEquals(before.color, after.color)
-        }
-        assertEquals(normal, PlanetLimbRenderer.vertices(5000.0, 320.0))
-    }
-
-    @Test fun haloTracksSelectedBodyAfterDefaultGeometryWasAlreadyPrepared() {
-        val legacy = PlanetLimbRenderer.vertices(5000.0)
-        val small = PlanetLimbRenderer.vertices(500.0)
-        assertEquals(legacy.size, small.size)
-        assertEquals(5280.0, legacy.maxOf { kotlin.math.abs(it.position.x) }, 1e-8)
-        assertEquals(780.0, small.maxOf { kotlin.math.abs(it.position.x) }, 1e-8)
-        assertTrue(small.all { kotlin.math.abs(it.position.x) <= 780.0 && kotlin.math.abs(it.position.z) <= 780.0 })
-        assertEquals(legacy.map { it.alpha }, small.map { it.alpha })
-        assertEquals(legacy.map { it.position.y }, small.map { it.position.y })
-        assertEquals(legacy, PlanetLimbRenderer.vertices(5000.0))
+    @Test fun changingCloudHeightLeavesTheBaseAttachedToTheSurface() {
+        val low = PlanetLimbRenderer.atmosphereBounds(500.0, 128.0)
+        val high = PlanetLimbRenderer.atmosphereBounds(500.0, 256.0)
+        assertEquals(low.first, high.first)
+        assertEquals(128.0, high.second.y - low.second.y)
+        assertEquals(low.second.x, high.second.x)
     }
 }

@@ -22,15 +22,11 @@ in vec3 Position;
 in vec4 Color;
 uniform mat4 ModelViewMat;
 uniform mat4 ProjMat;
-uniform float SceneScale;
 out vec3 earthPosition;
-out vec3 actualView;
-out vec4 limbTint;
+out vec3 parallelRay;
 
 void main() {
-    vec4 compressed = ModelViewMat * vec4(Position, 1.0);
-    gl_Position = ProjMat * compressed;
+    gl_Position = ProjMat * ModelViewMat * vec4(Position, 1.0);
     earthPosition = Position;
-    actualView = compressed.xyz / SceneScale;
-    limbTint = Color;
+    parallelRay = normalize(inverse(mat3(ModelViewMat)) * vec3(0.0, 0.0, -1.0));
 }
