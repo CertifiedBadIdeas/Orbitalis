@@ -356,7 +356,8 @@ class OrbitalMapScreen(
         clearCameraInput()
         bodyFocus = null
         camera.reset()
-        camera.frame(Vector3.ZERO, (snapshot?.celestialProfile?.geometry?.earthHalfSize ?: 5000.0) * 1.7, viewWidth, viewHeight)
+        val profile = snapshot?.celestialProfile ?: org.cbi.orbitalis.minecraft.flight.CelestialFlight.clientProfileSnapshot
+        camera.frame(Vector3.ZERO, (profile?.geometry?.earthHalfSize ?: 5000.0) * 1.7, viewWidth, viewHeight)
     }
 
     private fun frameBody(
