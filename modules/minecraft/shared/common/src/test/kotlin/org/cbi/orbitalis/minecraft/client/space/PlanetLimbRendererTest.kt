@@ -25,14 +25,31 @@ import kotlin.test.assertTrue
 class PlanetLimbRendererTest {
     @Test fun atmosphericLayerContainsFeatherAcrossSelectedPlanetSizes() {
         for (halfSize in listOf(500.0, 5000.0, 50000.0)) {
-            val (minimum, maximum) = PlanetLimbRenderer.atmosphereBounds(halfSize)
-            for (vertex in PlanetLimbRenderer.vertices(halfSize)) {
-                val p = vertex.position
-                assertTrue(p.x in minimum.x..maximum.x)
-                assertTrue(p.y in minimum.y..maximum.y)
-                assertTrue(p.z in minimum.z..maximum.z)
+            for (ceiling in listOf(320.0, 512.0, 1024.0)) {
+                val (minimum, maximum) = PlanetLimbRenderer.atmosphereBounds(halfSize, ceiling)
+                for (vertex in PlanetLimbRenderer.vertices(halfSize, ceiling)) {
+                    val p = vertex.position
+                    assertTrue(p.x in minimum.x..maximum.x)
+                    assertTrue(p.y in minimum.y..maximum.y)
+                    assertTrue(p.z in minimum.z..maximum.z)
+                    if (vertex.alpha > 0) assertTrue(p.y > ceiling + 64.0)
+                }
+                assertEquals(ceiling, minimum.y)
             }
         }
+    }
+
+    @Test fun changingNativeTerrainCeilingRaisesTheSameFeatherAboveHigherMountains() {
+        val normal = PlanetLimbRenderer.vertices(5000.0, 320.0)
+        val tall = PlanetLimbRenderer.vertices(5000.0, 512.0)
+        for ((before, after) in normal.zip(tall)) {
+            assertEquals(before.position.x, after.position.x)
+            assertEquals(before.position.z, after.position.z)
+            assertEquals(512.0 - 320.0, after.position.y - before.position.y)
+            assertEquals(before.alpha, after.alpha)
+            assertEquals(before.color, after.color)
+        }
+        assertEquals(normal, PlanetLimbRenderer.vertices(5000.0, 320.0))
     }
 
     @Test fun haloTracksSelectedBodyAfterDefaultGeometryWasAlreadyPrepared() {
