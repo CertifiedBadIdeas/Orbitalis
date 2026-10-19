@@ -92,6 +92,7 @@ class LunarApproachView {
             previous: Vector3,
         ): Vector3 = if (desired.cross(forward).length() < 1e-3) previous else desired
 
+        /** Native-style yaw and bounded elevation in the local horizon, not the screen plane. */
         fun turnRay(
             forward: Vector3,
             up: Vector3,
@@ -99,9 +100,17 @@ class LunarApproachView {
             x: Double,
             y: Double,
         ): Vector3 {
-            val yaw = Rotation3.axisAngle(up, -x * 0.15 * PI / 180.0)
-            val pitch = Rotation3.axisAngle(left, y * 0.15 * PI / 180.0)
-            return (pitch * yaw).apply(forward).normalized()
+            val vertical = up.normalized()
+            val elevation = kotlin.math.asin(forward.dot(vertical).coerceIn(-1.0, 1.0))
+            val projected = forward - vertical * forward.dot(vertical)
+            val heading = if (projected.length() > 1e-9) projected.normalized() else left.cross(vertical).normalized()
+            val yaw = Rotation3.axisAngle(vertical, -x * 0.15 * PI / 180.0)
+            // Keep a unique horizontal heading outside stableUp's undefined projection cone.
+            // Without this bound one mouse step crosses the zenith, reverses screen up, and
+            // makes the following pitch step cross back, repeatedly flipping the horizon.
+            val limit = 89.9 * PI / 180.0
+            val pitch = (elevation - y * 0.15 * PI / 180.0).coerceIn(-limit, limit)
+            return (yaw.apply(heading) * kotlin.math.cos(pitch) + vertical * kotlin.math.sin(pitch)).normalized()
         }
 
         /** Native camera's positive roll turns up towards minus-left. Preserve the look ray. */

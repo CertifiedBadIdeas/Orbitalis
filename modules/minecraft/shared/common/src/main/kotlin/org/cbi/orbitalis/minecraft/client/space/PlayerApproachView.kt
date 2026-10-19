@@ -31,6 +31,7 @@ object PlayerApproachView {
     private val reference = LunarApproachView()
     private var connection: Any? = null
     private var roll = 0.0
+    private var horizonUp: Vector3? = null
     private var rootScreenUp: Vector3? = null
     private var dimension: net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level>? = null
 
@@ -93,7 +94,9 @@ object PlayerApproachView {
     ): Boolean {
         val mc = Minecraft.getInstance()
         val player = mc.player ?: return false
-        if (mc.screen != null || mc.level?.dimension() != dimension || kotlin.math.abs(roll) < 0.001) return false
+        if (mc.screen != null || mc.level?.dimension() != dimension) return false
+        val vertical = horizonUp ?: return false
+        if ((vertical - Vector3(0.0, 1.0, 0.0)).length() < 1e-9) return false
         val look = player.lookAngle
         val nativeUp =
             net.minecraft.world.phys.Vec3
@@ -102,9 +105,8 @@ object PlayerApproachView {
         val baseUp = Vector3(nativeUp.x, nativeUp.y, nativeUp.z)
         val baseLeft = Vector3(kotlin.math.cos(yawAngle), 0.0, kotlin.math.sin(yawAngle))
         val rollAngle = Math.toRadians(roll)
-        val up = baseUp * kotlin.math.cos(rollAngle) - baseLeft * kotlin.math.sin(rollAngle)
         val left = baseLeft * kotlin.math.cos(rollAngle) + baseUp * kotlin.math.sin(rollAngle)
-        val ray = LunarApproachView.turnRay(Vector3(look.x, look.y, look.z), up, left, x, y)
+        val ray = LunarApproachView.turnRay(Vector3(look.x, look.y, look.z), vertical, left, x, y)
         val yaw = Math.toDegrees(kotlin.math.atan2(-ray.x, ray.z))
         val pitch = Math.toDegrees(kotlin.math.asin((-ray.y).coerceIn(-1.0, 1.0)))
         val delta =
@@ -118,6 +120,7 @@ object PlayerApproachView {
         val mc = Minecraft.getInstance()
         roll = 0.0
         dimension = null
+        horizonUp = null
         val player = mc.player
         val level = mc.level
         if (connection !== mc.connection) {
@@ -136,6 +139,7 @@ object PlayerApproachView {
         val world = CelestialFlight.world(level.dimension())
         val orientation = frames.frame(world).orientation
         val desired = reference.up(frames, Vector3(p.x, p.y, p.z), world)
+        horizonUp = desired
         val look = camera.lookVector
         val forward = orientation.apply(Vector3(look.x.toDouble(), look.y.toDouble(), look.z.toDouble()))
         val up =

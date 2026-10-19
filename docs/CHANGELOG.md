@@ -20,6 +20,9 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Keep free-player mouse yaw and pitch in the local planetary horizon. Bound elevation near its
+  zenith and nadir to prevent repeated horizon flips when looking vertically near the Moon.
+
 - Retain lunar relief detail on small bodies with a bounded finer render grid, while preserving
   existing atlas data and the original sampling density for larger moons.
 

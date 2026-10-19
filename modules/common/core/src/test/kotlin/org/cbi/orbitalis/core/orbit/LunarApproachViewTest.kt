@@ -130,4 +130,37 @@ class LunarApproachViewTest {
         val rolled = LunarApproachView.turnRay(look, up * -1.0, left * -1.0, 10.0, 10.0)
         assertTrue(rolled.x > 0.0 && rolled.y > 0.0)
     }
+
+    @Test fun `looking up or down cannot repeatedly flip a tilted lunar horizon`() {
+        for (tilt in listOf(0.0, 45.0, 90.0, 135.0, 180.0)) {
+            val rotation = Rotation3.axisAngle(Vector3(0.0, 0.0, 1.0), Math.toRadians(tilt))
+            val vertical = rotation.apply(up)
+            for (sign in listOf(-1.0, 1.0)) {
+                var ray = rotation.apply(Vector3(0.0, 0.0, 1.0))
+                var screen = vertical
+                for (step in 0..300) {
+                    val left = screen.cross(ray).normalized()
+                    val next = LunarApproachView.turnRay(ray, vertical, left, 0.0, sign * 4.0)
+                    val nextScreen = (vertical - next * vertical.dot(next)).normalized()
+                    assertTrue(screen.dot(nextScreen) > 0.999, "Horizon reversed at tilt=$tilt, step=$step")
+                    assertTrue((next - ray).length() < 0.011, "Look jumped at tilt=$tilt, step=$step")
+                    assertTrue(vertical.cross(next).length() > 1e-3, "Undefined zenith projection")
+                    ray = next
+                    screen = nextScreen
+                }
+                val away = LunarApproachView.turnRay(ray, vertical, screen.cross(ray).normalized(), 0.0, -sign * 4.0)
+                assertTrue(kotlin.math.abs(away.dot(vertical)) < kotlin.math.abs(ray.dot(vertical)))
+            }
+        }
+    }
+
+    @Test fun `horizontal mouse movement preserves elevation in a tilted lunar horizon`() {
+        val vertical = Vector3(1.0, 1.0, 0.0).normalized()
+        val ray = (vertical * 0.8 + Vector3(0.0, 0.0, 0.6)).normalized()
+        val left = vertical.cross(ray).normalized()
+        val turned = LunarApproachView.turnRay(ray, vertical, left, 160.0, 0.0)
+        assertTrue(kotlin.math.abs(turned.dot(vertical) - ray.dot(vertical)) < 1e-12)
+        val yawed = LunarApproachView.turnRay(turned, vertical, vertical.cross(turned).normalized(), -160.0, 0.0)
+        assertTrue((yawed - ray).length() < 1e-12)
+    }
 }
