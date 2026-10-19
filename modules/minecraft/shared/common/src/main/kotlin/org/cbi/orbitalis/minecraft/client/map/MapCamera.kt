@@ -44,8 +44,10 @@ class MapCamera {
         dx: Double,
         dy: Double,
     ) {
+        if (!dx.isFinite() || !dy.isFinite()) return
         yaw = (yaw - dx * 0.008) % (Math.PI * 2)
-        pitch = (pitch + dy * 0.008).coerceIn(-1.5, 1.5)
+        // Keep the same continuous camera basis through both poles, including an inverted view.
+        pitch = (pitch + dy * 0.008) % (Math.PI * 2)
     }
 
     /** Move the scene by GUI pixels in the current camera plane, at the current zoom. */

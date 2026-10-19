@@ -396,7 +396,19 @@ class OrbitalMapScreen(
             RenderSystem.disableBlend()
             RenderSystem.disableCull()
             val direction = camera.direction
-            val view = Matrix4f().lookAt(direction.x.toFloat(), direction.y.toFloat(), direction.z.toFloat(), 0f, 0f, 0f, 0f, 1f, 0f)
+            val up = camera.up
+            val view =
+                Matrix4f().lookAt(
+                    direction.x.toFloat(),
+                    direction.y.toFloat(),
+                    direction.z.toFloat(),
+                    0f,
+                    0f,
+                    0f,
+                    up.x.toFloat(),
+                    up.y.toFloat(),
+                    up.z.toFloat(),
+                )
             val aspect = viewWidth.toFloat() / viewHeight
             val projection = Matrix4f().ortho(-aspect, aspect, -1f, 1f, -100f, 100f)
             SurfacePlanetRenderer.renderScene(
