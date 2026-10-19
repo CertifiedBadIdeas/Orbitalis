@@ -22,7 +22,7 @@ license="Apache-2.0"
 modId="orbitalis"
 version="${mod_version}"
 displayName="Orbitalis"
-description='''Space exploration mod. Initial development scaffold.'''
+description='''Explore finite worlds, fly into orbit, and visit the Moon. Includes an orbital map, planetary gravity and optional Sable construction and Propulsion flight-control integrations.'''
 
 [[mixins]]
 config="orbitalis.mixins.json"
