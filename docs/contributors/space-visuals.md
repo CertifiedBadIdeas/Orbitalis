@@ -139,7 +139,9 @@ The last observed Overworld cloud height persists through travel, with bottom at
 native FANCY thickness, top inset, side inset, face shading and alpha. Four cached perimeter
 quads close column cuts at the finite world boundary. Their runtime UVs follow the same moving
 mask, sampled just inside the footprint; empty columns remain empty. The perimeter buffer is
-rebuilt only when the selected body width changes.
+rebuilt only when the selected body width changes. Fragment footprint clipping applies only to
+the oversized repeating period mesh: the already-bounded caps must bypass it because perspective
+interpolation can round a fixed boundary coordinate just outside its plane.
 
 Clouds use the map's shared scene depth. In the world, their pass follows level rendering and samples
 the private planet depth while writing physical projected fragment depth for native terrain and

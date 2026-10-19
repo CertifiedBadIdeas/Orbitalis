@@ -24,6 +24,7 @@ uniform mat4 ProjMat;
 uniform vec2 Viewport;
 uniform vec4 ColorModulator;
 uniform int WorldDepth;
+uniform int CloudBoundary;
 uniform float CloudHalfSize;
 in vec2 cloudUv;
 in vec4 cloudTint;
@@ -32,7 +33,9 @@ in vec3 cloudPosition;
 out vec4 fragColor;
 
 void main() {
-    if (abs(cloudPosition.x) > CloudHalfSize || abs(cloudPosition.z) > CloudHalfSize) discard;
+    // Caps are already bounded quads. Interpolating a fixed +/-half coordinate can round just
+    // outside that plane, so only the oversized repeating period mesh needs footprint clipping.
+    if (CloudBoundary == 0 && (abs(cloudPosition.x) > CloudHalfSize || abs(cloudPosition.z) > CloudHalfSize)) discard;
     vec4 cloud = texture(Sampler0, cloudUv) * cloudTint * ColorModulator;
     if (cloud.a < 0.1) discard;
     if (WorldDepth != 0) {

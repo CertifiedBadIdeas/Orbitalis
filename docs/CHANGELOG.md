@@ -22,6 +22,8 @@ limitations under the License.
 
 - Allow full orbital-map camera turns through both poles, retaining continuous orientation,
   marker projection and panning when viewing rotating planets.
+- Keep finite cloud-cap interiors intact when perspective interpolation rounds their boundary
+  coordinates outside the footprint, preventing flickering holes near planet corners.
 - Resolve cloud colour and self-depth in a separate float-depth target, then compose the layer
   once against physical terrain depth to prevent speckled overlapping side faces.
 - Give distant FANCY clouds native-height volume, sharp texture sampling and matching movement,
