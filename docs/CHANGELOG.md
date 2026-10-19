@@ -20,6 +20,9 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Require a prepared live Minecraft client for visual review, with the relevant scene and camera
+  ready for user inspection; screenshots supplement the handoff unless explicitly preferred.
+
 - Keep free-player mouse yaw and pitch in the local planetary horizon. Bound elevation near its
   zenith and nadir to prevent repeated horizon flips when looking vertically near the Moon.
 

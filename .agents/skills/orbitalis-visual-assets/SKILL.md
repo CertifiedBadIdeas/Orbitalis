@@ -30,6 +30,14 @@ The Compukters addon visual-preview helper is not installed here and is not an O
 Build resources first, compare relevant states/orientations, lighting, item view and scale, and retain
 screenshots plus the reviewed revision. Resource-only F3+T reload can support iteration; removed files
 and code changes require rebuilding with the client stopped. Stop managed clients before another build.
-Present subjective appearance for user review before integration unless the user waives review; do all
-build/preview work before asking. Preserve worlds and never invent approval. Record unavailable visual
-evidence as pending. Add source, license and attribution for each imported asset.
+Present subjective appearance for user review before integration unless the user waives review.
+For Minecraft, prepare a live client handoff: launch the owning task's client, open the preview world,
+navigate to the affected location and set a useful camera angle. Use the consumer module's own wrapper
+when the scenario needs that stand. Verify the requested scene is visible, then leave the client open
+for the user and briefly identify the window, what to inspect and any controls needed for comparison.
+Screenshots supplement this handoff; they replace it only when the user explicitly chooses that format.
+Complete build checks before the final preview launch so the prepared client can remain open while
+awaiting review. Once handed over, coordinate further input or closure with the user; do not close the
+preview merely to finish the task. If a live preview cannot be prepared, explain the concrete blocker
+and keep visual acceptance pending. Preserve worlds and never infer approval from a successful launch,
+screenshots or silence. Add source, license and attribution for each imported asset.
