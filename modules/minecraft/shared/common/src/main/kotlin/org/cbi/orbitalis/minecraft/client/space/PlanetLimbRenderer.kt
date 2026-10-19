@@ -31,15 +31,15 @@ import org.lwjgl.opengl.GL14
 
 /** Luminous feathered upper-edge halo, illustrative rather than an atmosphere scattering model. */
 object PlanetLimbRenderer {
-    private data class Vertex(
+    internal data class Vertex(
         val position: Vector3,
         val alpha: Int,
         val color: Int,
     )
 
-    private val vertices: List<Vertex> =
+    internal fun vertices(halfSize: Double): List<Vertex> =
         buildList {
-            val h = SpaceScene.HALF_SIZE
+            val h = halfSize
             val corners = listOf(-h to -h, h to -h, h to h, -h to h)
             // A narrow pale core and a broad blue falloff, without a bloom framebuffer or post-process.
             val rows =
@@ -85,19 +85,23 @@ object PlanetLimbRenderer {
         }
 
     private var mesh: VertexBuffer? = null
+    private var meshHalfSize = Double.NaN
 
     fun clear() {
         RenderSystem.assertOnRenderThread()
         mesh?.close()
         mesh = null
+        meshHalfSize = Double.NaN
     }
 
     private fun buffer(): VertexBuffer {
-        mesh?.let { return it }
+        val halfSize = SpaceScene.HALF_SIZE
+        mesh?.let { if (meshHalfSize == halfSize) return it }
+        clear()
         val gpu = VertexBuffer(VertexBuffer.Usage.STATIC)
         try {
             val builder = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR)
-            for ((v, alpha, color) in vertices) {
+            for ((v, alpha, color) in vertices(halfSize)) {
                 builder.addVertex(v.x.toFloat(), v.y.toFloat(), v.z.toFloat()).setColor(
                     color shr 16 and 255,
                     color shr 8 and 255,
@@ -114,6 +118,7 @@ object PlanetLimbRenderer {
                 }
             }
             mesh = gpu
+            meshHalfSize = halfSize
             return gpu
         } catch (error: Throwable) {
             gpu.close()
