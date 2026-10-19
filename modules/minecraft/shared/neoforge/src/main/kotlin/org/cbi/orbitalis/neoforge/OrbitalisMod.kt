@@ -52,7 +52,13 @@ class OrbitalisMod(
         }
 
         if (ModList.get().isLoaded("sable")) {
+            if (ModList.get().isLoaded("createpropulsion")) {
+                org.cbi.orbitalis.minecraft.flight.control.FlightEngines.backend =
+                    org.cbi.orbitalis.minecraft.integration.propulsion.PropulsionFlightBackend
+            }
             SableFlightIntegration.install()
+            org.cbi.orbitalis.neoforge.integration.FlightControlIntegration
+                .install()
         } else {
             NeoForge.EVENT_BUS.addListener { event: ServerTickEvent.Post ->
                 event.server.playerList.players

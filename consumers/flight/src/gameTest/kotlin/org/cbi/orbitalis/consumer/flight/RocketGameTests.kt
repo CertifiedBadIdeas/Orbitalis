@@ -36,9 +36,19 @@ import net.minecraft.world.level.block.entity.ChestBlockEntity
 import net.minecraft.world.phys.AABB
 import net.minecraft.world.phys.Vec3
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
+import org.cbi.orbitalis.core.flight.OrbitalGuidance
+import org.cbi.orbitalis.core.flight.RocketAttitudeControl
 import org.cbi.orbitalis.core.planet.CartesianState
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
+import org.cbi.orbitalis.minecraft.flight.control.AutopilotFlightLoading
+import org.cbi.orbitalis.minecraft.flight.control.FlightBody
+import org.cbi.orbitalis.minecraft.flight.control.FlightGuidanceFrames
+import org.cbi.orbitalis.minecraft.flight.control.LaunchSites
+import org.cbi.orbitalis.minecraft.flight.control.RocketMission
+import org.cbi.orbitalis.minecraft.integration.propulsion.AutopilotSession
+import org.cbi.orbitalis.minecraft.integration.propulsion.RocketDrive
+import org.cbi.orbitalis.minecraft.integration.propulsion.RocketSteering
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
 import org.joml.Vector3d
 import java.util.UUID
@@ -221,7 +231,7 @@ object RocketGameTests {
             }
             if (mission == null && tick >= assembledAt + 120) {
                 val b = body!!
-                val p = AutopilotSession.position(b)
+                val p = FlightBody.position(b)
                 pilot.player.teleportTo(level, p.x, p.y + 3, p.z, emptySet(), 0f, 0f)
                 pilot.acknowledge(b)
                 val loose =
@@ -337,7 +347,7 @@ object RocketGameTests {
                     val orientation = org.joml.Quaterniond(b.logicalPose().orientation())
                     val nose =
                         sample.rootDirection(
-                            AutopilotSession.vector(orientation.transform(Vector3d(0.0, 1.0, 0.0))),
+                            FlightBody.vector(orientation.transform(Vector3d(0.0, 1.0, 0.0))),
                             b.level.dimension(),
                         )
                     if (previousWorld == b.level.dimension()) {
@@ -439,7 +449,7 @@ object RocketGameTests {
                                 val expectedRate = v.cross(gravity) * (1.0 / v.dot(v))
                                 val rate =
                                     sample.rootAngular(
-                                        AutopilotSession.vector(handle.getAngularVelocity(Vector3d())),
+                                        FlightBody.vector(handle.getAngularVelocity(Vector3d())),
                                         b.level.dimension(),
                                     )
                                 if (active.phase == RocketMission.Phase.COAST) {
@@ -455,7 +465,7 @@ object RocketGameTests {
                                 }
                                 val nose =
                                     sample.rootDirection(
-                                        AutopilotSession.vector(b.logicalPose().orientation().transform(Vector3d(0.0, 1.0, 0.0))),
+                                        FlightBody.vector(b.logicalPose().orientation().transform(Vector3d(0.0, 1.0, 0.0))),
                                         b.level.dimension(),
                                     )
                                 helper.assertTrue(
@@ -531,7 +541,7 @@ object RocketGameTests {
                 }
                 if (tick % 200 == 0 && !active.body.isRemoved) {
                     println(
-                        "ORBITALIS_ROCKET_POSE p=${AutopilotSession.position(active.body)} q=${active.body.logicalPose().orientation()}",
+                        "ORBITALIS_ROCKET_POSE p=${FlightBody.position(active.body)} q=${active.body.logicalPose().orientation()}",
                     )
                 }
                 if (landed) {
@@ -539,7 +549,7 @@ object RocketGameTests {
                         handoffs == 2 && requested && (reload || seated || coastBeforeLanding > 2 * Math.PI),
                         "Rocket did not complete the separately requested orbit and landing",
                     )
-                    helper.assertTrue((AutopilotSession.position(active.body) - site!!.position).length() < 0.5, "Rocket missed its pad")
+                    helper.assertTrue((FlightBody.position(active.body) - site!!.position).length() < 0.5, "Rocket missed its pad")
                     val cargo =
                         active.body.plot.loadedChunks
                             .flatMap { it.chunk.blockEntities.values }
@@ -689,12 +699,12 @@ object RocketGameTests {
                 level.resetEmptyTime()
                 val rocket = checkNotNull(body)
                 val handle = SubLevelPhysicsSystem.require(level).getPhysicsHandle(rocket)
-                val position = AutopilotSession.position(rocket)
+                val position = FlightBody.position(rocket)
                 drive!!.update(
                     FlightGuidanceFrames.rootAcceleration(
                         rocket,
                         OrbitalGuidance.point(
-                            CartesianState(position, AutopilotSession.vector(handle.getLinearVelocity(Vector3d()))),
+                            CartesianState(position, FlightBody.vector(handle.getLinearVelocity(Vector3d()))),
                             target,
                             12.0,
                         ),
@@ -743,7 +753,7 @@ object RocketGameTests {
                 engines.forEach { (it as RocketSteering).clearRocketVector() }
                 helper.runAfterDelay(30) {
                     drive = RocketDrive(rocket, true)
-                    target = AutopilotSession.position(rocket) + Vector3(0.0, 20.0, 0.0)
+                    target = FlightBody.position(rocket) + Vector3(0.0, 20.0, 0.0)
                     val handle = SubLevelPhysicsSystem.require(level).getPhysicsHandle(rocket)
                     // Arrange the initial disturbance once; recovery thereafter uses native engines.
                     handle.addLinearAndAngularVelocity(

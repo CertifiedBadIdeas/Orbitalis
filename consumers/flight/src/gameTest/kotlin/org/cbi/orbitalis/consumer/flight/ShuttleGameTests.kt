@@ -39,10 +39,17 @@ import net.minecraft.world.level.block.entity.ChestBlockEntity
 import net.minecraft.world.phys.AABB
 import net.minecraft.world.phys.Vec3
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
+import org.cbi.orbitalis.core.planet.CartesianState
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.flight.CelestialFlight
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
+import org.cbi.orbitalis.minecraft.flight.SpaceTravelReservations
+import org.cbi.orbitalis.minecraft.flight.control.FlightBody
+import org.cbi.orbitalis.minecraft.flight.control.FlightEnvironment
+import org.cbi.orbitalis.minecraft.integration.propulsion.AutopilotSession
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
+import org.cbi.orbitalis.minecraft.surface.FlatOverworld
 import org.joml.Quaterniond
 import org.joml.Vector3d
 import java.util.UUID
@@ -173,7 +180,12 @@ object ShuttleGameTests {
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 300, batch = "overworld_assembly")
     fun nativeOverworldAssembly(helper: GameTestHelper) {
         val level = helper.level.server.overworld()
-        helper.assertTrue(level.worldBorder.size == FlatPlanetSpace.HALF_SIZE * 2.0, "Overworld border was not initialized")
+        val footprint = FlatOverworld.footprint(level)
+        helper.assertTrue(
+            footprint.maxX - footprint.minX == FlatPlanetSpace.HALF_SIZE.toInt() * 2 &&
+                footprint.maxZ - footprint.minZ == FlatPlanetSpace.HALF_SIZE.toInt() * 2,
+            "Finite Overworld terrain footprint was not initialized",
+        )
         val shuttle = Shuttle(helper, level, BlockPos(600, 180, 8))
         var attempts = 0
 
@@ -188,11 +200,19 @@ object ShuttleGameTests {
                 shuttle.checkLayout(helper)
                 val handle = SubLevelPhysicsSystem.require(level).getPhysicsHandle(shuttle.body)
                 val before = handle.getLinearVelocity(Vector3d())
+                val beforeAcceleration = SableFlightGravity.reading(shuttle.body).acceleration + FlightEnvironment.nativeDrag(shuttle.body)
                 helper.runAfterDelay(20) {
                     shuttle.checkLayout(helper)
                     val delta = handle.getLinearVelocity(Vector3d()).sub(before)
                     helper.assertTrue(delta.y < -8.0 && delta.y > -12.0, "Normal Overworld gravity changed: $delta")
-                    helper.assertTrue(abs(delta.x) < 0.01 && abs(delta.z) < 0.01, "Overworld acquired planetary lateral gravity")
+                    // The surface chart rotates: falling velocity has Coriolis acceleration.
+                    val afterAcceleration =
+                        SableFlightGravity.reading(shuttle.body).acceleration + FlightEnvironment.nativeDrag(shuttle.body)
+                    val predictedDelta = (beforeAcceleration + afterAcceleration) * 0.5
+                    helper.assertTrue(
+                        (FlightBody.vector(delta) - predictedDelta).length() < 0.08,
+                        "Native surface fall disagrees with rotating-frame gravity/drag: measured=$delta expected=$predictedDelta",
+                    )
                     helper.succeed()
                 }
             }
@@ -227,7 +247,7 @@ object ShuttleGameTests {
                 val flightTick = tick - assembledAt
                 if (flightTick == 10) {
                     shuttle.checkLayout(helper)
-                    val start = AutopilotSession.position(shuttle.body)
+                    val start = FlightBody.position(shuttle.body)
                     attitude = Quaterniond(shuttle.body.logicalPose().orientation())
                     shuttle.session = AutopilotSession(shuttle.body, Vector3(start.x, start.y + 16, start.z))
                     // Initial test disturbance only; installed engines power all recovery.
@@ -241,7 +261,7 @@ object ShuttleGameTests {
                     shuttle.checkLayout(helper)
                     val handle = physics.getPhysicsHandle(shuttle.body)
                     helper.assertTrue(
-                        (AutopilotSession.position(shuttle.body) - shuttle.session!!.target).length() < 1,
+                        (FlightBody.position(shuttle.body) - shuttle.session!!.target).length() < 1,
                         "Shuttle ascent/hold failed: ${shuttle.session!!.status()}",
                     )
                     helper.assertTrue(handle.getLinearVelocity(Vector3d()).length() < 0.4, "Shuttle did not settle translation")
@@ -271,8 +291,12 @@ object ShuttleGameTests {
                 Vector3(FlatPlanetSpace.HALF_SIZE * 0.5, 240.0, 0.0),
                 Vector3(FlatPlanetSpace.HALF_SIZE * 0.5, (320.0 + FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ASCENT_HEIGHT) * 0.5, 0.0),
                 Vector3(FlatPlanetSpace.HALF_SIZE * 0.5, FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ORBIT_HEIGHT, 0.0),
-                Vector3(FlatPlanetSpace.HALF_SIZE * 0.5, 4096.0 + FlatPlanetSpace.SEA_LEVEL + FlatPlanetSpace.ORBIT_HEIGHT, 0.0),
             )
+        // These are force measurements within fixed native frames; automatic travel has its own
+        // roundtrip scenarios. Without a lease the high-altitude sample transfers its fixture.
+        val trialOwner = Any()
+        val leased = mutableListOf<UUID>()
+        onFinished(helper) { leased.forEach { SpaceTravelReservations.release(it, trialOwner) } }
         val measured = mutableListOf<Vector3>()
 
         class Trial : Runnable {
@@ -283,7 +307,13 @@ object ShuttleGameTests {
                 shuttle.checkLayout(helper)
                 val handle = SubLevelPhysicsSystem.require(shuttle.level).getPhysicsHandle(shuttle.body)
                 // Arrange trial initial conditions; no state corrections during measurement.
-                val delta = points[index] - AutopilotSession.position(shuttle.body)
+                val target =
+                    if (index == 4) {
+                        CelestialFlight.sample(shuttle.level).point(points[3], Level.OVERWORLD, FlatPlanetSpace.SPACE)
+                    } else {
+                        points[index]
+                    }
+                val delta = target - FlightBody.position(shuttle.body)
                 handle.teleport(
                     Vector3d(shuttle.body.logicalPose().position()).add(delta.x, delta.y, delta.z),
                     shuttle.body.logicalPose().orientation(),
@@ -293,9 +323,13 @@ object ShuttleGameTests {
                     handle.getAngularVelocity(Vector3d()).negate(),
                 )
                 helper.runAfterDelay(8) {
-                    val position = AutopilotSession.position(shuttle.body)
+                    val position = FlightBody.position(shuttle.body)
                     val global = FlightSpaceCoordinates.globalPosition(shuttle.level, position)
                     val expected = SableFlightGravity.acceleration(shuttle.level, position)
+                    val sample = CelestialFlight.sample(shuttle.level)
+                    val frame = sample.frames.frame(CelestialFlight.world(shuttle.level.dimension()))
+                    val initial = CartesianState(position, Vector3.ZERO)
+                    val rootExpected = sample.dynamics.acceleration(frame.toParent(initial).position)
                     // Overworld has native atmospheric drag. Measure the initial acceleration from
                     // rest over one server tick; a one-second fall also measures accumulated drag.
                     handle.addLinearAndAngularVelocity(
@@ -303,7 +337,7 @@ object ShuttleGameTests {
                         handle.getAngularVelocity(Vector3d()).negate(),
                     )
                     helper.runAfterDelay(1) {
-                        val actual = AutopilotSession.vector(handle.getLinearVelocity(Vector3d())) * 20.0
+                        val actual = FlightBody.vector(handle.getLinearVelocity(Vector3d())) * 20.0
                         helper.assertTrue(
                             (actual - expected).length() < 0.08,
                             "Native gravity mismatch at $global: measured=$actual, field=$expected",
@@ -316,17 +350,22 @@ object ShuttleGameTests {
                                 .all { it.currentThrust == 0.0f },
                             "Free-fall trial has engine output",
                         )
+                        val rootMeasured = frame.toParentAcceleration(initial, actual)
+                        helper.assertTrue(
+                            (rootMeasured - rootExpected).length() < 0.08,
+                            "Native force disagrees with inertial gravity after frame transport: measured=$rootMeasured expected=$rootExpected",
+                        )
                         measured.add(actual)
                         println(
                             "ORBITALIS_SHUTTLE_GRAVITY frame=${shuttle.level.dimension().location()} global=$global field=$expected measured=$actual",
                         )
-                        if (++index < points.size) {
+                        if (++index < craft.size) {
                             helper.runAfterDelay(1) { run() }
                         } else {
                             helper.assertTrue(abs(measured[1].x) < 0.02, "Surface field gained lateral acceleration")
                             helper.assertTrue(measured[2].x < -0.01, "Transition field lacks centreward lateral force")
                             helper.assertTrue(measured[3].length() < measured[1].length() * 0.5, "High field did not weaken")
-                            helper.assertTrue((measured[3] - measured[4]).length() < 0.03, "Frame translation changed gravity")
+
                             helper.succeed()
                         }
                     }
@@ -342,6 +381,10 @@ object ShuttleGameTests {
                 if (surface.ready() && orbit.ready()) {
                     surface.assemble(helper)
                     orbit.assemble(helper)
+                    for (shuttle in listOf(surface, orbit)) {
+                        SpaceTravelReservations.reserve(shuttle.body.uniqueId, trialOwner)
+                        leased.add(shuttle.body.uniqueId)
+                    }
                     helper.runAfterDelay(10, Trial())
                 } else {
                     helper.runAfterDelay(1) { run() }

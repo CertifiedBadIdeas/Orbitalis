@@ -23,7 +23,8 @@
     "ServerLevelEntityCheckpointMixin",
     "ServerGamePacketListenerTeleportMixin",
     "DiagnosticBorderMixin",
-    "DiagnosticBorderPacketsMixin"
+    "DiagnosticBorderPacketsMixin",
+    "RocketVectorMixin"
   ],
   "injectors": {
     "defaultRequire": 1

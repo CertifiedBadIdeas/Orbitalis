@@ -24,6 +24,7 @@ import net.minecraft.nbt.CompoundTag
 import net.minecraft.world.level.Level
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.flight.control.LaunchSites
 import org.joml.Quaterniond
 import java.util.UUID
 import kotlin.math.abs

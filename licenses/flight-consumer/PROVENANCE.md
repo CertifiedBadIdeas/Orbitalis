@@ -19,7 +19,7 @@ limitations under the License.
 # Flight consumer provenance
 
 These are external development dependencies of the independent `consumers/flight` build.
-Production Orbitalis no longer compiles against Create or Ponder; the former cube seam adapters are retired.
+Production Orbitalis compiles against the pinned Create, Propulsion, Ponder and Registrate APIs for its isolated optional engine adapter. The former cube seam adapters remain retired.
 No upstream implementation, models, textures, sounds or branding are copied into Orbitalis sources
 or production archives. Gradle resolves the original artifacts and Loom prepares the local development
 classpath. Embedded notices remain in the extracted libraries. This is not a redistributed modpack
@@ -36,12 +36,14 @@ remain unchanged. No Compukters mod, addon, VM, compiler or assets are required.
 
 ## Original consumer adapter
 
-The Java autopilot and its GameTests under `consumers/flight/src` are original Orbitalis Apache-2.0
-code. They compile against the pinned upstream public APIs exclusively in this development build.
-No upstream implementation or assets are copied. Engine capacity uses native configured/measured
-output; Propulsion's private atmospheric formula is not reproduced. Unit tests reuse the repository-pinned
-JUnit version as test tooling. No additional game dependency or asset was introduced for the controller.
-These classes are never bundled in an Orbitalis production archive.
+The Kotlin guidance and engine adapter are original Orbitalis Apache-2.0 code, now promoted from
+this consumer into the main mod. Independent models and tests are in core, server flight lifecycle
+in shared/common, and native engine access only in the optional Propulsion adapter. No upstream
+implementation or assets are copied. The production build uses compile-only APIs and never nests
+these external mods; the independently installed runtime remains subject to the terms below.
+Fixture functions and native integration GameTests stay in this consumer and are excluded from
+production. Engine capacity uses native configured/measured output; Propulsion's private atmospheric
+formula is not reproduced. Unit tests use the repository-pinned JUnit tooling.
 
 ## Runtime inventory
 

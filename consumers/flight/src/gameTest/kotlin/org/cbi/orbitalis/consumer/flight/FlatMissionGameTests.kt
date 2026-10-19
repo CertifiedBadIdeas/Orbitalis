@@ -35,9 +35,15 @@ import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.level.block.entity.ChestBlockEntity
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
+import org.cbi.orbitalis.core.flight.OrbitalGuidance
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
+import org.cbi.orbitalis.minecraft.flight.control.FlatOrbitalMission
+import org.cbi.orbitalis.minecraft.flight.control.FlightBody
+import org.cbi.orbitalis.minecraft.flight.control.FlightGuidanceFrames
+import org.cbi.orbitalis.minecraft.flight.control.LaunchSites
+import org.cbi.orbitalis.minecraft.integration.propulsion.AutopilotSession
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipTransfer
 import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferPilotSync
@@ -138,7 +144,7 @@ object FlatMissionGameTests {
                 ).setItem(0, ItemStack(Items.DIAMOND, 7))
             }
             if (tick == 120) {
-                val p = AutopilotSession.position(rig.body)
+                val p = FlightBody.position(rig.body)
                 helper.assertTrue(pilot.player.teleportTo(rig.level, p.x, p.y + 3, p.z, emptySet(), 0f, 0f), "Pilot placement failed")
                 pilot.acknowledge(rig.body)
                 site = LaunchSites.Site(rig.body.uniqueId, p, Quaterniond(rig.body.logicalPose().orientation()), Level.OVERWORLD)
@@ -169,7 +175,7 @@ object FlatMissionGameTests {
                 if (tick % 500 == 0) {
                     println("ORBITALIS_FLAT_MISSION tick=$tick ${active.status()}")
                     if (active.phase == FlatOrbitalMission.Phase.APPROACH) {
-                        val p = AutopilotSession.position(active.body)
+                        val p = FlightBody.position(active.body)
                         val q = active.body.logicalPose().orientation()
                         val v = SubLevelPhysicsSystem.require(active.body.level).getPhysicsHandle(active.body).getLinearVelocity(Vector3d())
                         println(
@@ -250,7 +256,7 @@ object FlatMissionGameTests {
                 if (landed) {
                     helper.assertTrue(returned && handoffs == 2 && active.body.level === rig.level, "Round trip incomplete")
                     helper.assertTrue(
-                        (AutopilotSession.position(active.body) - checkNotNull(site).position).length() < 0.5,
+                        (FlightBody.position(active.body) - checkNotNull(site).position).length() < 0.5,
                         "Missed launch pad",
                     )
                     val cargo =

@@ -38,6 +38,9 @@ import org.cbi.orbitalis.core.planet.ManeuverPlan
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.flight.CelestialFlight
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
+import org.cbi.orbitalis.minecraft.flight.control.AutopilotFlightLoading
+import org.cbi.orbitalis.minecraft.flight.control.FlightGuidanceFrames
+import org.cbi.orbitalis.minecraft.flight.control.ManeuverMission
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
 import org.joml.Vector3d
 

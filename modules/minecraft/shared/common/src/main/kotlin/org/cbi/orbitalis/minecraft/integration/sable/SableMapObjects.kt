@@ -18,8 +18,6 @@
 
 package org.cbi.orbitalis.minecraft.integration.sable
 
-import dev.ryanhcode.sable.api.sublevel.SubLevelContainer
-import dev.ryanhcode.sable.sublevel.ServerSubLevel
 import dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem
 import net.minecraft.server.MinecraftServer
 import net.minecraft.world.level.Level
@@ -43,18 +41,7 @@ object SableMapObjects {
         val level = server.getLevel(FlatPlanetSpace.SPACE) ?: return emptyList()
         val data = level.dataStorage.get(OrbitalObjectData.FACTORY, OrbitalObjectData.NAME)
         val sample = CelestialFlight.trySample(server)
-        val live =
-            CelestialFlight.dimensions.filter { sample != null || it != org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY }.flatMap { key ->
-                server
-                    .getLevel(key)
-                    ?.let { world ->
-                        SubLevelContainer
-                            .getContainer(world)
-                            ?.allSubLevels
-                            ?.filterIsInstance<ServerSubLevel>()
-                            ?.filter { !it.isRemoved }
-                    }.orEmpty()
-            }
+        val live = SableShipDirectory.loaded(server)
         val liveIds = live.map { it.uniqueId }.toSet()
         val result = mutableListOf<MapObject>()
         // Read the existing motion index only. Do not open a holding chunk or create an orbital service.

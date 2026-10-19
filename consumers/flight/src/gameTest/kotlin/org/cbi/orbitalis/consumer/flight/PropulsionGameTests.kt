@@ -48,6 +48,10 @@ import net.neoforged.fml.common.EventBusSubscriber
 import net.neoforged.neoforge.event.RegisterGameTestsEvent
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.flight.control.AutopilotFlightLoading
+import org.cbi.orbitalis.minecraft.flight.control.FlightBody
+import org.cbi.orbitalis.minecraft.flight.control.LaunchSites
+import org.cbi.orbitalis.minecraft.integration.propulsion.AutopilotSession
 import org.joml.Quaterniond
 import org.joml.Vector3d
 import java.io.File
@@ -95,7 +99,11 @@ object PropulsionGameTests {
     fun register(event: RegisterGameTestsEvent) {
         GlobalTestReporter.replaceWith(JUnitLikeTestReporter(File(System.getProperty("orbitalis.consumerGameTestReport"))))
         val suite = System.getProperty("orbitalis.consumerGameTestSuite", "all")
-        require(suite in setOf("all", "flat", "rocket", "rcs", "maneuver")) { "Unknown consumer GameTest suite: $suite" }
+        require(suite in setOf("all", "flat", "rocket", "rcs", "maneuver", "shuttle")) { "Unknown consumer GameTest suite: $suite" }
+        if (suite == "shuttle") {
+            event.register(ShuttleGameTests::class.java)
+            return
+        }
         if (suite == "rcs") {
             event.register(RocketGameTests::class.java.getDeclaredMethod("nativeRocketRcsFlip", GameTestHelper::class.java))
             return
@@ -353,7 +361,7 @@ object PropulsionGameTests {
                 tick++
                 if (tick == 10) {
                     rig.configure()
-                    val start = AutopilotSession.position(rig.body)
+                    val start = FlightBody.position(rig.body)
                     target = Vector3(start.x, start.y + 12, start.z)
                     attitude = Quaterniond(rig.body.logicalPose().orientation())
                     helper.assertTrue(rig.engines.size == 24, "Native connectivity split the engine rig")
@@ -381,7 +389,7 @@ object PropulsionGameTests {
                     val handle = physics.getPhysicsHandle(rig.body)
                     helper.assertTrue(peakOutput > 0, "No native engine output occurred")
                     helper.assertTrue(
-                        (AutopilotSession.position(rig.body) - target).length() < 1.0,
+                        (FlightBody.position(rig.body) - target).length() < 1.0,
                         "Powered ascent/hold did not reach target: ${rig.session!!.status()}",
                     )
                     helper.assertTrue(handle.getLinearVelocity(Vector3d()).length() < 0.4, "Hold did not settle velocity")
@@ -421,7 +429,7 @@ object PropulsionGameTests {
             engine.setRedstoneInput(15)
             val rejected =
                 try {
-                    rig.session = AutopilotSession(rig.body, AutopilotSession.position(rig.body))
+                    rig.session = AutopilotSession(rig.body, FlightBody.position(rig.body))
                     false
                 } catch (expected: IllegalArgumentException) {
                     expected.message.orEmpty().contains("inputs off")
@@ -451,7 +459,7 @@ object PropulsionGameTests {
             rig.configure()
             val rejected =
                 try {
-                    rig.session = AutopilotSession(rig.body, AutopilotSession.position(rig.body))
+                    rig.session = AutopilotSession(rig.body, FlightBody.position(rig.body))
                     false
                 } catch (expected: IllegalArgumentException) {
                     expected.message.orEmpty().contains("cannot balance gravity")

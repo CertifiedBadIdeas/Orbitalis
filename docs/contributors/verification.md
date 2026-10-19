@@ -35,7 +35,7 @@ Use ./gradlew-sandbox-dev-parallel-summary for noninteractive Gradle commands. v
 verifyTooling, verifyArchitecture and :core:check. verifyLocalFull adds common/check, loader/check and
 production archive inspection. Core tests cover finite rectangular-body potential, the conservative surface layer, numerical low
 orbits, spherical/two-body fields and flight/frame math. This is mathematical coverage, not evidence of Minecraft/Sable gameplay. NO-SOURCE is not coverage.
-Run `:v1_21_1-neoforge:runGameTestServer` separately. The focused `terrain` suite checks four native partially intersecting corners, exterior empty/full/light
+Run `:v1_21_1-neoforge:runGameTestServer` separately. The `control` suite verifies native command registration and disabled engine execution with Sable present and Propulsion absent; consumer GameTests exercise the promoted flight runtime with native engines. The focused `terrain` suite checks four native partially intersecting corners, exterior empty/full/light
 completion, void biomes and heightmaps, feature/entity rejection and ordinary runtime writes.
 The default `all` suite also includes these two scenarios and requires four surface-atlas sampling/persistence/backfill/packet scenarios, ten surface
 border/footprint-persistence/preload/void-floor/player-motion scenarios, eleven finite-orbit/ship-transfer/retirement/travel scenarios, two navigation scenarios, five sparse-vacuum scenarios and four orbital-object/clock scenarios, with no

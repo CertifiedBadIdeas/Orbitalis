@@ -30,10 +30,16 @@ extra["orbitalisMinecraftVersion"] = libs.versions.minecraft.v1211.get()
 apply(plugin = "orbitalis-minecraft-shared")
 base.archivesName.set("orbitalis-neoforge-${libs.versions.minecraft.v1211.get()}")
 repositories {
+    maven("https://maven.createmod.net")
+    maven("https://maven.ithundxr.dev/snapshots")
     maven("https://api.modrinth.com/maven") { content { includeGroup("maven.modrinth") } }
     maven("https://maven.ryanhcode.dev/releases") { content { includeGroup("dev.ryanhcode.sable-companion") } }
 }
 dependencies {
+    "modCompileOnly"(libs.propulsion.v1211) { isTransitive = false }
+    "modCompileOnly"(variantOf(libs.create.v1211) { classifier("slim") }) { isTransitive = false }
+    "modCompileOnly"(libs.ponder.v1211) { isTransitive = false }
+    "modCompileOnly"(libs.registrate.v1211) { isTransitive = false }
     "modCompileOnly"(libs.sable.v1211) { isTransitive = false }
     compileOnly(libs.sable.companion) { isTransitive = false }
     minecraft(libs.minecraft.v1211)
@@ -197,7 +203,7 @@ val generateGameTestResources = tasks.register("generateGameTestResources") {
 gameTest.resources.srcDir(generateGameTestResources.map { generatedGameTestResources.get() })
 
 val gameTestSuite = providers.gradleProperty("orbitalisGameTestSuite").orElse("all").get()
-require(gameTestSuite in setOf("all", "surface", "transfer", "flat", "travel", "navigation", "sparse", "atlas", "objects", "terrain", "map", "moon", "settings", "scaled")) { "Unknown GameTest suite: $gameTestSuite" }
+require(gameTestSuite in setOf("all", "surface", "transfer", "flat", "travel", "navigation", "sparse", "atlas", "objects", "terrain", "map", "moon", "settings", "scaled", "control")) { "Unknown GameTest suite: $gameTestSuite" }
 apply(from = "${rootProject.projectDir}/gradle/gametest-lifecycle.gradle.kts")
 val gameTestReport = layout.buildDirectory.file("test-results/gameTestServer/results.xml")
 loom.runs.register("gameTestServer") {
@@ -256,6 +262,7 @@ tasks.configureEach {
             val mapNames = setOf("mappacketandlease", "mapnativeorbitalobjects")
             val requiredNames = when (gameTestSuite) {
                 "moon" -> setOf("nativelunarterrain", "nativelunargroundcontact", "lunarshiproundtrip", "lunarsideroundtrip", "lunarundersideroundtrip", "fastcreativelunarplayer", "fastspectatorlunaredge", "fastsurvivallunarunderside")
+                "control" -> setOf("flightcontrolwithoutpropulsion")
                 "settings" -> setOf("nativeworldcreationsettings")
                 "scaled" -> setOf("nativesmallcelestialsystem")
                 "map" -> mapNames
@@ -268,7 +275,7 @@ tasks.configureEach {
                 "flat" -> setOf("nativefinitebodyfreeorbit")
                 "surface" -> surfaceNames
                 "transfer" -> transferNames + travelNames
-                else -> setOf("nativelunarterrain", "nativelunargroundcontact", "lunarshiproundtrip", "lunarsideroundtrip", "lunarundersideroundtrip", "fastcreativelunarplayer", "fastspectatorlunaredge", "fastsurvivallunarunderside") + mapNames + objectNames + terrainNames + atlasNames + surfaceNames + transferNames + travelNames + navigationNames + sparseNames + setOf("nativefinitebodyfreeorbit", "nativeworldcreationsettings")
+                else -> setOf("nativelunarterrain", "nativelunargroundcontact", "lunarshiproundtrip", "lunarsideroundtrip", "lunarundersideroundtrip", "fastcreativelunarplayer", "fastspectatorlunaredge", "fastsurvivallunarunderside") + mapNames + objectNames + terrainNames + atlasNames + surfaceNames + transferNames + travelNames + navigationNames + sparseNames + setOf("nativefinitebodyfreeorbit", "nativeworldcreationsettings", "flightcontrolwithoutpropulsion")
             }
             check(names.containsAll(requiredNames)) {
                 "GameTest run did not execute its required $gameTestSuite scenarios: $names"

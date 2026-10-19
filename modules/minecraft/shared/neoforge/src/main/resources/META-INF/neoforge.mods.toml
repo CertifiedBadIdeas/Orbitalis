@@ -62,3 +62,11 @@ type="optional"
 versionRange="[2.4.2]"
 ordering="AFTER"
 side="CLIENT"
+
+# Engine integration is optional; implementations remain independently installed.
+[[dependencies.orbitalis]]
+modId="createpropulsion"
+type="optional"
+versionRange="[1.1.5]"
+ordering="AFTER"
+side="BOTH"
