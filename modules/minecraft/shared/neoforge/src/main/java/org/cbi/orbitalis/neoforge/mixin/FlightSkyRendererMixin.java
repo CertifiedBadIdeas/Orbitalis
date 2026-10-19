@@ -62,7 +62,11 @@ public abstract class FlightSkyRendererMixin {
                                       Operation<Void> original) {
         // Wrap the entire method, including renderer replacements injected by Sodium.
         // One height/phase-matched layer owns the elevated view: coincident sheets would z-fight.
-        if (FlightSky.INSTANCE.weight(level, Minecraft.getInstance().gameRenderer.getMainCamera()) > 0) return;
+        if (FlightSky.INSTANCE.weight(level, Minecraft.getInstance().gameRenderer.getMainCamera()) > 0) {
+            net.minecraft.client.renderer.FogRenderer.levelFogColor();
+            PlanetCloudRenderer.INSTANCE.captureFog();
+            return;
+        }
         original.call(poses, view, projection, partialTick, x, y, z);
     }
 

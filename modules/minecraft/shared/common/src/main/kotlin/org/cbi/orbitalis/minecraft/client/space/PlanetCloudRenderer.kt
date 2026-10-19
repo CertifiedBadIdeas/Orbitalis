@@ -19,14 +19,13 @@
 package org.cbi.orbitalis.minecraft.client.space
 
 import com.mojang.blaze3d.systems.RenderSystem
-import com.mojang.blaze3d.vertex.BufferUploader
 import com.mojang.blaze3d.vertex.DefaultVertexFormat
 import com.mojang.blaze3d.vertex.Tesselator
+import com.mojang.blaze3d.vertex.VertexBuffer
 import com.mojang.blaze3d.vertex.VertexFormat
 import net.minecraft.client.CloudStatus
 import net.minecraft.client.Minecraft
 import net.minecraft.client.multiplayer.ClientLevel
-import net.minecraft.client.renderer.GameRenderer
 import net.minecraft.client.renderer.ShaderInstance
 import net.minecraft.client.renderer.texture.SimpleTexture
 import net.minecraft.resources.ResourceLocation
@@ -35,10 +34,10 @@ import net.minecraft.world.level.Level
 import net.minecraft.world.phys.Vec3
 import org.cbi.orbitalis.core.planet.Vector3
 import org.joml.Matrix4f
+import org.lwjgl.BufferUtils
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL12
 import org.lwjgl.opengl.GL14
-import org.lwjgl.opengl.GL30
 
 /** Finite cloud overview using the runtime Minecraft texture and the native renderer's phase. */
 object PlanetCloudRenderer {
@@ -47,6 +46,28 @@ object PlanetCloudRenderer {
     private var registered = false
     var worldShader: ShaderInstance? = null
     private var scene: Scene? = null
+    private var fancyBuffer: VertexBuffer? = null
+    private var fastBuffer: VertexBuffer? = null
+
+    private data class Fog(
+        val start: Float,
+        val end: Float,
+        val shape: Int,
+        val color: FloatArray,
+    )
+
+    private var nativeFog: Fog? = null
+
+    /** The native cloud call has the authoritative terrain fog, before renderLevel resets it. */
+    fun captureFog() {
+        nativeFog =
+            Fog(
+                RenderSystem.getShaderFogStart(),
+                RenderSystem.getShaderFogEnd(),
+                RenderSystem.getShaderFogShape().index,
+                RenderSystem.getShaderFogColor().copyOf(),
+            )
+    }
 
     private data class Scene(
         val level: ClientLevel,
@@ -66,11 +87,10 @@ object PlanetCloudRenderer {
             val filter =
                 com.mojang.blaze3d.pipeline.RenderCall {
                     bind()
-                    GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL12.GL_TEXTURE_MAX_LEVEL, 8)
+                    GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL12.GL_TEXTURE_MAX_LEVEL, 0)
                     GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL11.GL_REPEAT)
                     GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL11.GL_REPEAT)
-                    GL30.glGenerateMipmap(GL11.GL_TEXTURE_2D)
-                    setFilter(true, true)
+                    setFilter(false, false)
                 }
             if (RenderSystem.isOnRenderThreadOrInit()) filter.execute() else RenderSystem.recordRenderCall(filter)
         }
@@ -96,6 +116,7 @@ object PlanetCloudRenderer {
         surfaceColor: Vec3,
     ) {
         scene = null
+        nativeFog = null
         time = nativeTime
         if (surfaceHeight != null) height = surfaceHeight
         nativeColor = surfaceColor
@@ -106,6 +127,11 @@ object PlanetCloudRenderer {
         height = 192f
         nativeColor = Vec3(1.0, 1.0, 1.0)
         scene = null
+        nativeFog = null
+        fancyBuffer?.close()
+        fastBuffer?.close()
+        fancyBuffer = null
+        fastBuffer = null
         if (registered) Minecraft.getInstance().textureManager.release(filtered)
         registered = false
     }
@@ -136,7 +162,11 @@ object PlanetCloudRenderer {
         val frame = scene ?: return
         scene = null
         if (Minecraft.getInstance().level !== frame.level || worldShader == null) return
-        render(frame.observer, frame.view, frame.projection, frame.scale, frame)
+        try {
+            render(frame.observer, frame.view, frame.projection, frame.scale, frame)
+        } finally {
+            nativeFog = null
+        }
     }
 
     fun render(
@@ -155,9 +185,9 @@ object PlanetCloudRenderer {
     ) {
         val mc = Minecraft.getInstance()
         val clouds = mc.options.cloudsType
-        if (clouds == CloudStatus.OFF || !height.isFinite()) return
-        // The distant overview is one masked sheet, matching native FAST or FANCY upper height.
-        val y = height + 0.33f + if (clouds == CloudStatus.FANCY) 4f else 0f
+        if (clouds == CloudStatus.OFF || !height.isFinite() || worldShader == null) return
+        val fancy = clouds == CloudStatus.FANCY
+        val y = height + 0.33f
         val modelView =
             Matrix4f(
                 view,
@@ -165,19 +195,22 @@ object PlanetCloudRenderer {
                 scale.toFloat(),
             ).translate(-observer.x.toFloat(), -observer.y.toFloat(), -observer.z.toFloat())
                 .mul(CelestialView.earthRotation())
-        val shader = checkNotNull(if (frame == null) GameRenderer.getPositionTexColorShader() else worldShader)
+        val shader = checkNotNull(worldShader)
         val depth = GL11.glIsEnabled(GL11.GL_DEPTH_TEST)
         val write = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK)
         val cull = GL11.glIsEnabled(GL11.GL_CULL_FACE)
         val blend = GL11.glIsEnabled(GL11.GL_BLEND)
+        val depthFunction = GL11.glGetInteger(GL11.GL_DEPTH_FUNC)
+        val colorMask = BufferUtils.createByteBuffer(4).also { GL11.glGetBooleanv(GL11.GL_COLOR_WRITEMASK, it) }
         val src = GL11.glGetInteger(GL14.GL_BLEND_SRC_RGB)
         val dst = GL11.glGetInteger(GL14.GL_BLEND_DST_RGB)
         val srcAlpha = GL11.glGetInteger(GL14.GL_BLEND_SRC_ALPHA)
         val dstAlpha = GL11.glGetInteger(GL14.GL_BLEND_DST_ALPHA)
         try {
             RenderSystem.enableDepthTest()
-            RenderSystem.depthMask(false)
-            RenderSystem.disableCull()
+            RenderSystem.depthMask(true)
+            RenderSystem.depthFunc(GL11.GL_LEQUAL)
+            if (fancy) RenderSystem.enableCull() else RenderSystem.disableCull()
             RenderSystem.enableBlend()
             RenderSystem.defaultBlendFunc()
             shader.MODEL_VIEW_MATRIX?.set(modelView)
@@ -185,28 +218,70 @@ object PlanetCloudRenderer {
             val color = frame?.color ?: Vec3(1.0, 1.0, 1.0)
             shader.COLOR_MODULATOR?.set(color.x.toFloat(), color.y.toFloat(), color.z.toFloat(), 1f)
             shader.setSampler("Sampler0", textureId())
-            if (frame != null) {
-                shader.setSampler("Sampler1", frame.depth)
-                shader.getUniform("SceneScale")?.set(scale.toFloat())
-                shader.getUniform("Viewport")?.set(frame.width.toFloat(), frame.height.toFloat())
+            shader.setSampler("Sampler1", frame?.depth ?: textureId())
+            shader.getUniform("SceneScale")?.set(scale.toFloat())
+            shader.getUniform("Viewport")?.set(frame?.width?.toFloat() ?: 1f, frame?.height?.toFloat() ?: 1f)
+            shader.getUniform("WorldDepth")?.set(if (frame != null) 1 else 0)
+            shader.getUniform("CloudHalfSize")?.set(SpaceScene.HALF_SIZE.toFloat())
+            val fog = if (frame != null) nativeFog else null
+            shader.getUniform("FogStart")?.set(fog?.start ?: Float.MAX_VALUE / 2f)
+            shader.getUniform("FogEnd")?.set(fog?.end ?: Float.MAX_VALUE)
+            shader.getUniform("FogShape")?.set(fog?.shape ?: 0)
+            val fogColor = fog?.color ?: floatArrayOf(0f, 0f, 0f, 0f)
+            shader.getUniform("FogColor")?.set(fogColor[0], fogColor[1], fogColor[2], fogColor[3])
+            val tiles = PlanetCloudMesh.tiles(SpaceScene.HALF_SIZE, time)
+            val vertices = buffer(fancy)
+            vertices.bind()
+
+            fun drawTiles() {
+                for (tile in tiles) {
+                    shader.getUniform("CloudOffset")?.set(tile.x, y, tile.z)
+                    shader.apply()
+                    vertices.draw()
+                }
             }
-            shader.apply()
-            val buffer = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR)
-            val h = SpaceScene.HALF_SIZE.toFloat()
-            for ((x, z) in listOf(-h to -h, h to -h, h to h, -h to h)) {
-                // Native cloud pixels cover 12 metres; texture period is 256 pixels.
-                val u = (x + time * 0.03f) / 3072f
-                val v = (z / 12f + 0.33f) / 256f
-                buffer.addVertex(x, y, z).setUv(u, v).setColor(255, 255, 255, 204)
+            if (fancy) {
+                RenderSystem.colorMask(false, false, false, false)
+                drawTiles()
+                RenderSystem.colorMask(
+                    colorMask[0].toInt() != 0,
+                    colorMask[1].toInt() != 0,
+                    colorMask[2].toInt() != 0,
+                    colorMask[3].toInt() != 0,
+                )
+                RenderSystem.depthMask(false)
             }
-            BufferUploader.draw(buffer.buildOrThrow())
+            drawTiles()
         } finally {
+            VertexBuffer.unbind()
             shader.clear()
+            RenderSystem.colorMask(
+                colorMask[0].toInt() != 0,
+                colorMask[1].toInt() != 0,
+                colorMask[2].toInt() != 0,
+                colorMask[3].toInt() != 0,
+            )
+            RenderSystem.depthFunc(depthFunction)
             RenderSystem.blendFuncSeparate(src, dst, srcAlpha, dstAlpha)
             if (depth) RenderSystem.enableDepthTest() else RenderSystem.disableDepthTest()
             RenderSystem.depthMask(write)
             if (cull) RenderSystem.enableCull() else RenderSystem.disableCull()
             if (blend) RenderSystem.enableBlend() else RenderSystem.disableBlend()
+        }
+    }
+
+    private fun buffer(fancy: Boolean): VertexBuffer {
+        (if (fancy) fancyBuffer else fastBuffer)?.let { return it }
+        val builder = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR)
+        for (v in PlanetCloudMesh.vertices(fancy)) {
+            val shade = (v.shade * 255f).toInt()
+            builder.addVertex(v.x, v.y, v.z).setUv(v.u, v.v).setColor(shade, shade, shade, 204)
+        }
+        return VertexBuffer(VertexBuffer.Usage.STATIC).also {
+            it.bind()
+            it.upload(builder.buildOrThrow())
+            VertexBuffer.unbind()
+            if (fancy) fancyBuffer = it else fastBuffer = it
         }
     }
 }

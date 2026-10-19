@@ -56,9 +56,9 @@ only a top height/colour, not a full side scan. Loaded native chunks render in f
 after opaque geometry: a narrow pale core fades into a broad blue outer glow, using additive RGB
 blending while preserving destination alpha for the later sky composite. No post-process bloom target
 is allocated. Its static vertex buffer is uploaded once, shared by map/world and released on
-disconnect; rendering does not rebuild or upload the rim each frame. It tests existing
-scene depth without writing depth; clouds remain a separate
-pass and foreground ships still draw against the normal world. This bounded geometric halo is not
+disconnect; rendering does not rebuild or upload the rim each frame. The map tests existing scene depth without writing depth. In the world, a post-level pass
+combines the private planet mask with physical front-atmosphere depth, as detailed below;
+clouds remain a separate pass and nearer foreground ships retain depth occlusion. This bounded geometric halo is not
 physical atmospheric scattering. The shell is decoration, with no collision or terrain generation;
 it does not change the mass model, gravity field, coordinate frames or transfer altitudes.
 
@@ -124,31 +124,47 @@ quads (about 74 MiB). A full interior sector has at most 1,024 tops and 2,048 in
 No terrain requests are introduced. Sky is hidden in fluids, powder snow and under blindness/darkness;
 medium-specific fog is retained.
 
-`PlanetCloudRenderer` draws one translucent, alpha-masked sheet over the finite footprint. The map
-uses its existing shared scene depth. In the world, the cloud pass runs after level rendering and
-writes physical projected fragment depth, so clouds can cover detailed terrain below them while ships
-and mountains in front remain visible. The shader additionally samples the private sky depth to
-preserve atlas-relief/underside occlusion. Clouds do not write depth or overwrite the main world's
-projection, framebuffer or viewport.
+`PlanetCloudRenderer` shares a cached periodic mesh between the map and world. FANCY uses
+native-height four-metre columns with shaded tops, undersides and sides; FAST remains a flat sheet
+and OFF hides clouds. The runtime `minecraft:textures/environment/clouds.png` supplies the mask.
+Nearest sampling without mipmaps keeps its native pixel boundaries sharp. A private texture instance
+preserves the surface texture's state, reloads with resource packs and is released on disconnect;
+no Minecraft texture is copied or bundled.
 
-At transition heights the native camera's far plane grows to enclose the reference body. Keeping clouds
-and distant terrain inside the same physical depth range avoids far-plane saturation, including LOD
-terrain which can remain visible beyond the ordinary chunk far plane. This adjusts camera projection,
-not terrain tickets, chunk generation, fog distance or render-distance settings. Frame matrices and the
-planet depth target are captured together each sky pass and consumed once after that level renders;
-a skipped sky, changed level, fluid/effect restriction or disconnect cannot reuse a stale cloud frame.
+One 3,072-metre period contains two caps and 1,024 textured side slices. Runtime alpha masks those
+slices, matching native 12-metre columns without decoding or copying the texture on the CPU. The same
+period buffer repeats over at most 64 tiles for a 20,000-block planet; fragment clipping keeps the
+finite footprint. The native float clock supplies 0.03-metre/tick drift and the one-third-cell Z phase.
+The last observed Overworld cloud height persists through travel, with bottom at height + 0.33 and
+native FANCY thickness, top inset, side inset, face shading and alpha.
 
-The runtime `minecraft:textures/environment/clouds.png` resource supplies native 12-metre pixels,
-texture phase and 0.03-metre/tick drift. A private SimpleTexture generates filtered mipmaps for the
-overview without altering the surface cloud texture. Resource reload rebuilds them, and disconnect
-releases the private texture. No Minecraft asset is copied or bundled. The native OFF option hides
-the overview. FAST uses the native base height and FANCY its upper height; this overview has no
-volumetric sides. The last observed Overworld cloud height is retained through travel (192 by default);
-the same LevelRenderer clock is sampled before either sky pass. Above the visual transition start,
-this height/phase-matched overview replaces the entire native cloud method, including Sodium's
-replacement. A single elevated layer prevents coplanar depth flicker; colour blends from native
-surface cloud colour towards orbital white. The native cloud pass remains below that boundary.
-This is presentation, not weather simulation or cloud shadows.
+Clouds use the map's shared scene depth. In the world, their pass follows level rendering and samples
+the private planet depth while writing physical projected fragment depth for native terrain and
+ship occlusion. FANCY resolves the nearest volume surface in a depth-only pass before its translucent
+colour pass; empty mask fragments never write depth. All tiles finish the depth pass before colour.
+The pass restores depth, colour-write, culling and blending state without replacing the framebuffer,
+viewport or projection.
+
+At the beginning of the elevated transition, the original native cloud method is replaced once,
+including Sodium replacements. Geometry, phase and nearest texture sampling coincide instead of
+cross-fading overlapping volumes. The wrapper captures the actual native cloud-pass fog start/end,
+shape and colour before native rendering resets them. The distant shader preserves alpha and blends
+RGB through the same fog function, using per-fragment physical distance for period-sized caps.
+It therefore inherits the continuous atmospheric fog fade instead of abruptly introducing an
+unfogged layer. Native rendering remains below the transition; custom cloud renderers and shader
+packs need separate compatibility checks.
+
+At transition heights the camera's far plane encloses the reference body, keeping compressed planet
+geometry and physical clouds in a valid native depth range. This changes projection, not terrain
+tickets or render distance. Each cloud frame is consumed once and rejects changed levels; fluid and
+effect restrictions cannot reuse a stale frame. This is presentation, not cloud weather or shadows.
+
+In the world, the limb feather also has a dedicated post-level pass. Its private planet-depth mask
+retains near/far-side visibility, while physical depth uses the ray's front intersection with the
+finite atmospheric envelope. Loaded mountains therefore do not cut the feather off at their chunk
+silhouettes, and objects closer than the atmospheric entry still occlude it. Objects inside the
+layer receive front haze. The map retains its ordinary scene limb pass. This geometric front-scatter
+model remains illustrative, rather than a physical atmospheric scattering simulation.
 
 The new [finite-body route](flat-gravity.md) uses `orbitalis:space`, with represented Y equal to
 physical Y+4096. Its geometry shares the initial surface size and sea-level constants with this mesh.

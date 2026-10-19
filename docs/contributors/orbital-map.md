@@ -19,7 +19,8 @@ limitations under the License.
 # Orbital map
 
 Press **M** (rebindable in the Orbitalis controls category) in Overworld or `orbitalis:space` to open
-the orbital map. Drag with the left mouse button to orbit; middle-button drag or Shift+left drag
+the orbital map. Drag with the left mouse button to orbit through unrestricted full turns on either axis;
+the camera keeps a continuous up direction through both poles; middle-button drag or Shift+left drag
 moves the scene in its current camera plane. Hold WASD or the arrow keys for continuous panning
 at a zoom-relative speed; diagonal input is normalized. Keyboard panning stops on release, window
 focus loss, reset, resize or closing the screen and is disabled while editing a maneuver field.

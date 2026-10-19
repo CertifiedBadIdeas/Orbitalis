@@ -20,6 +20,13 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Allow full orbital-map camera turns through both poles, retaining continuous orientation,
+  marker projection and panning when viewing rotating planets.
+- Give distant FANCY clouds native-height volume, sharp texture sampling and matching movement,
+  shading and fog; retain FAST/OFF modes and avoid an abrupt fogged/native cloud switch.
+- Compose the planetary limb after native terrain using front-atmosphere depth, preventing loaded
+  chunks from cutting its glow while retaining occlusion by nearer foreground objects.
+
 - Keep free-player mouse yaw and pitch in the local planetary horizon. Bound elevation near its
   zenith and nadir to prevent repeated horizon flips when looking vertically near the Moon.
 

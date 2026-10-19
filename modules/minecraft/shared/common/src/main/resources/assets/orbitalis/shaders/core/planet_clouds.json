@@ -88,6 +88,67 @@
         1,
         1
       ]
+    },
+    {
+      "name": "CloudOffset",
+      "type": "float",
+      "count": 3,
+      "values": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "WorldDepth",
+      "type": "int",
+      "count": 1,
+      "values": [
+        1
+      ]
+    },
+    {
+      "name": "CloudHalfSize",
+      "type": "float",
+      "count": 1,
+      "values": [
+        5000
+      ]
+    },
+    {
+      "name": "FogStart",
+      "type": "float",
+      "count": 1,
+      "values": [
+        0
+      ]
+    },
+    {
+      "name": "FogEnd",
+      "type": "float",
+      "count": 1,
+      "values": [
+        1
+      ]
+    },
+    {
+      "name": "FogShape",
+      "type": "int",
+      "count": 1,
+      "values": [
+        0
+      ]
+    },
+    {
+      "name": "FogColor",
+      "type": "float",
+      "count": 4,
+      "values": [
+        0,
+        0,
+        0,
+        0
+      ]
     }
   ]
 }

@@ -24,12 +24,15 @@ in vec4 Color;
 uniform mat4 ModelViewMat;
 uniform mat4 ProjMat;
 uniform float SceneScale;
+uniform vec3 CloudOffset;
 out vec2 cloudUv;
 out vec4 cloudTint;
 out vec3 actualView;
+out vec3 cloudPosition;
 
 void main() {
-    vec4 compressed = ModelViewMat * vec4(Position, 1.0);
+    cloudPosition = Position + CloudOffset;
+    vec4 compressed = ModelViewMat * vec4(cloudPosition, 1.0);
     gl_Position = ProjMat * compressed;
     actualView = compressed.xyz / SceneScale;
     cloudUv = UV0;
