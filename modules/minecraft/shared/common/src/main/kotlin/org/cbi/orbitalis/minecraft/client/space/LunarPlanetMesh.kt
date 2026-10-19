@@ -21,7 +21,7 @@ package org.cbi.orbitalis.minecraft.client.space
 import org.cbi.orbitalis.core.planet.LunarSurface
 import org.cbi.orbitalis.core.planet.SurfaceAtlas
 
-/** Deterministic 16m sectors use the shared slab mesh with lunar geology and no atmosphere. */
+/** Deterministic bounded detail uses the shared slab mesh with lunar geology and no atmosphere. */
 object LunarPlanetMesh {
     val half: Double get() =
         org.cbi.orbitalis.minecraft.flight.CelestialFlight.clientProfileSnapshot
@@ -63,21 +63,39 @@ object LunarPlanetMesh {
         halfSize: Double = half,
     ): Sequence<SpaceScene.Face> {
         val half = halfSize
-        val low = kotlin.math.floor(-half / 16.0).toInt()
-        val high = kotlin.math.floor((half - 1.0) / 16.0).toInt()
+        val step = cellStep(half)
+        val low = kotlin.math.floor(-half / step).toInt()
+        val high = kotlin.math.ceil(half / step).toInt() - 1
+        val perSector = (SurfacePlanetMesh.SECTOR_CHUNKS * SurfacePlanetMesh.STEP / step).toInt()
         val terrain = LunarSurface(seed, half)
-        val atlas = SurfaceAtlas()
+        val cells = linkedMapOf<Pair<Int, Int>, SurfaceAtlas.Cell>()
+        // Explicit transient mesh cells, independent of the saved atlas's native chunk identifiers.
         // One-cell halo seals height discontinuities across separately prepared sectors.
-        for (x in maxOf(low, sector.x * 32 - 1)..minOf(high, (sector.x + 1) * 32)) {
-            for (z in maxOf(low, sector.z * 32 - 1)..minOf(high, (sector.z + 1) * 32)) {
-                val px = (x * 16 + 8).coerceIn(kotlin.math.ceil(-half).toInt(), kotlin.math.ceil(half).toInt() - 1)
-                val pz = (z * 16 + 8).coerceIn(kotlin.math.ceil(-half).toInt(), kotlin.math.ceil(half).toInt() - 1)
+        for (x in maxOf(low, sector.x * perSector - 1)..minOf(high, (sector.x + 1) * perSector)) {
+            for (z in maxOf(low, sector.z * perSector - 1)..minOf(high, (sector.z + 1) * perSector)) {
+                val px =
+                    kotlin.math.floor(x * step + step / 2).toInt().coerceIn(
+                        kotlin.math.ceil(-half).toInt(),
+                        kotlin.math.ceil(half).toInt() - 1,
+                    )
+                val pz =
+                    kotlin.math.floor(z * step + step / 2).toInt().coerceIn(
+                        kotlin.math.ceil(-half).toInt(),
+                        kotlin.math.ceil(half).toInt() - 1,
+                    )
                 val height = checkNotNull(terrain.height(px, pz))
                 val gray = (150 + (height - 64) / 4).coerceIn(125, 165)
-                atlas.put(SurfaceAtlas.Sample(x, z, height + 1, (gray shl 16) or (gray shl 8) or (gray + 2)))
+                cells[x to z] = SurfaceAtlas.Cell(x, z, height + 1.0, (gray shl 16) or (gray shl 8) or (gray + 2), 1)
             }
         }
-        return SurfacePlanetMesh.faces(atlas, sector, half, -64.0, strata)
+        return SurfacePlanetMesh.facesFromCells(cells, sector, half, -64.0, strata, step)
+    }
+
+    /** Preserve legacy 16m detail; small bodies retain at least 128 cells across their relief. */
+    internal fun cellStep(halfSize: Double): Double {
+        var step = SurfacePlanetMesh.STEP
+        while (step > 1.0 && halfSize * 2.0 / step < 128.0) step /= 2.0
+        return step
     }
 
     fun underside(): Sequence<SpaceScene.Face> = PlanetRockShell.underside(half, -64.0, 0x66676b).asSequence()

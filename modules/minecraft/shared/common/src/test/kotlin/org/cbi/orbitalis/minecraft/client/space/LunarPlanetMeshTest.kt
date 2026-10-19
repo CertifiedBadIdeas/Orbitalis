@@ -24,6 +24,43 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class LunarPlanetMeshTest {
+    @Test fun smallMoonLodBoundsNativeHeightErrorWithinFixedBudget() {
+        val seed = 719L
+        val half = 136.5
+        val terrain = LunarSurface(seed, half)
+        val tops =
+            (-1..0)
+                .flatMap { x ->
+                    (-1..0).flatMap { z -> LunarPlanetMesh.faces(seed, SurfacePlanetMesh.Sector(x, z), half).toList() }
+                }.filter { it.normal.y > 0.0 }
+        assertEquals(2.0, LunarPlanetMesh.cellStep(half))
+        assertEquals(16.0, LunarPlanetMesh.cellStep(1400.0))
+        assertEquals(16.0, LunarPlanetMesh.cellStep(2730.0))
+        assertEquals(
+            273.0 * 273.0,
+            tops.sumOf { face ->
+                val a = face.vertices[0]
+                val b = face.vertices[2]
+                (b.x - a.x) * (b.z - a.z)
+            },
+        )
+        assertTrue(tops.size <= 256 * 256)
+        assertTrue(tops.all { face -> face.vertices.all { it.x in -half..half && it.z in -half..half } })
+        var maximumError = 0.0
+        for (face in tops) {
+            val a = face.vertices[0]
+            val b = face.vertices[2]
+            for (x in kotlin.math.ceil(a.x).toInt() until kotlin.math.ceil(b.x).toInt()) {
+                for (z in kotlin.math.ceil(a.z).toInt() until kotlin.math.ceil(b.z).toInt()) {
+                    val native = terrain.height(x, z) ?: continue
+                    maximumError = maxOf(maximumError, kotlin.math.abs(a.y - native - 1.0))
+                }
+            }
+        }
+        println("Small Moon maximum LOD/native height error: $maximumError m")
+        assertTrue(maximumError <= 4.0, "Small Moon LOD differs from native relief by $maximumError m")
+    }
+
     @Test fun sectorsCoverNativeFootprintAndUseSeededGrayRelief() {
         val seed = 719L
         val terrain = LunarSurface(seed)

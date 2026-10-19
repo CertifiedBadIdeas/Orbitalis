@@ -106,11 +106,22 @@ object SurfacePlanetMesh {
         halfSize: Double = SpaceScene.HALF_SIZE,
         bottom: Double = SpaceScene.BOTTOM,
         strata: List<Int> = listOf(0x64686a, 0x7d7f7d, 0x8f887c, 0x8a8274),
+    ): Sequence<SpaceScene.Face> = facesFromCells(atlas.overview(), sector, halfSize, bottom, strata)
+
+    /** Transient render-cell coordinates; only faces(atlas) interprets persisted native chunk samples. */
+    internal fun facesFromCells(
+        cells: Map<Pair<Int, Int>, SurfaceAtlas.Cell>,
+        sector: Sector? = null,
+        halfSize: Double = SpaceScene.HALF_SIZE,
+        bottom: Double = SpaceScene.BOTTOM,
+        strata: List<Int> = listOf(0x64686a, 0x7d7f7d, 0x8f887c, 0x8a8274),
+        step: Double = STEP,
     ): Sequence<SpaceScene.Face> =
         sequence {
-            val low = floor(-halfSize / STEP).toInt()
-            val high = floor((halfSize - 1.0) / STEP).toInt()
-            val cells = atlas.overview()
+            require(step > 0.0 && SECTOR_CHUNKS * STEP % step == 0.0)
+            val low = floor(-halfSize / step).toInt()
+            val high = kotlin.math.ceil(halfSize / step).toInt() - 1
+            val cellsPerSector = (SECTOR_CHUNKS * STEP / step).toInt()
 
             fun height(
                 x: Int,
@@ -120,14 +131,14 @@ object SurfacePlanetMesh {
             fun color(
                 x: Int,
                 z: Int,
-            ) = cells[x to z]?.color ?: fallback(x * STEP, z * STEP)
+            ) = cells[x to z]?.color ?: fallback(x * step, z * step)
             val xs =
                 if (sector ==
                     null
                 ) {
                     low..high
                 } else {
-                    maxOf(low, sector.x * SECTOR_CHUNKS)..minOf(high, (sector.x + 1) * SECTOR_CHUNKS - 1)
+                    maxOf(low, sector.x * cellsPerSector)..minOf(high, (sector.x + 1) * cellsPerSector - 1)
                 }
             val zs =
                 if (sector ==
@@ -135,14 +146,14 @@ object SurfacePlanetMesh {
                 ) {
                     low..high
                 } else {
-                    maxOf(low, sector.z * SECTOR_CHUNKS)..minOf(high, (sector.z + 1) * SECTOR_CHUNKS - 1)
+                    maxOf(low, sector.z * cellsPerSector)..minOf(high, (sector.z + 1) * cellsPerSector - 1)
                 }
             for (x in xs) {
                 for (z in zs) {
-                    val x0 = maxOf(-halfSize, x * STEP)
-                    val x1 = minOf(halfSize, (x + 1) * STEP)
-                    val z0 = maxOf(-halfSize, z * STEP)
-                    val z1 = minOf(halfSize, (z + 1) * STEP)
+                    val x0 = maxOf(-halfSize, x * step)
+                    val x1 = minOf(halfSize, (x + 1) * step)
+                    val z0 = maxOf(-halfSize, z * step)
+                    val z1 = minOf(halfSize, (z + 1) * step)
                     val h = height(x, z)
                     val rgb = color(x, z)
                     yield(
