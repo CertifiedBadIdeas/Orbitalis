@@ -23,9 +23,13 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat
 import com.mojang.blaze3d.vertex.Tesselator
 import com.mojang.blaze3d.vertex.VertexBuffer
 import com.mojang.blaze3d.vertex.VertexFormat
+import net.minecraft.client.Minecraft
+import net.minecraft.client.multiplayer.ClientLevel
 import net.minecraft.client.renderer.GameRenderer
+import net.minecraft.client.renderer.ShaderInstance
 import org.cbi.orbitalis.core.planet.Vector3
 import org.joml.Matrix4f
+import org.joml.Vector3f
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL14
 
@@ -84,11 +88,99 @@ object PlanetLimbRenderer {
             }
         }
 
+    var worldShader: ShaderInstance? = null
+    private var scene: Scene? = null
+
+    private data class Scene(
+        val level: ClientLevel,
+        val observer: Vector3,
+        val view: Matrix4f,
+        val projection: Matrix4f,
+        val rotation: Matrix4f,
+        val scale: Double,
+        val depth: Int,
+        val opacity: Float,
+        val width: Int,
+        val height: Int,
+    )
+
+    internal fun atmosphereBounds(halfSize: Double): Pair<Vector3, Vector3> =
+        Vector3(-halfSize - 280.0, SpaceScene.TOP - 220.0, -halfSize - 280.0) to
+            Vector3(halfSize + 280.0, SpaceScene.TOP + 280.0, halfSize + 280.0)
+
+    fun resetWorld() {
+        scene = null
+    }
+
+    fun prepareWorld(
+        level: ClientLevel,
+        observer: Vector3,
+        view: Matrix4f,
+        projection: Matrix4f,
+        scale: Double,
+        depth: Int,
+        opacity: Float,
+        width: Int,
+        height: Int,
+    ) {
+        scene =
+            Scene(
+                level,
+                observer,
+                Matrix4f(view),
+                Matrix4f(projection),
+                CelestialView.earthRotation(),
+                scale,
+                depth,
+                opacity,
+                width,
+                height,
+            )
+    }
+
+    /** The atmosphere in front of native terrain is composed after that terrain has written depth. */
+    fun renderWorld() {
+        val frame = scene ?: return
+        scene = null
+        val shader = worldShader ?: return
+        if (Minecraft.getInstance().level !== frame.level) return
+        val previousColor = RenderSystem.getShaderColor().copyOf()
+        val previousShader = RenderSystem.getShader()
+        val depthTest = GL11.glIsEnabled(GL11.GL_DEPTH_TEST)
+        val cull = GL11.glIsEnabled(GL11.GL_CULL_FACE)
+        val depthFunction = GL11.glGetInteger(GL11.GL_DEPTH_FUNC)
+        try {
+            RenderSystem.enableDepthTest()
+            RenderSystem.depthFunc(GL11.GL_LEQUAL)
+            RenderSystem.disableCull()
+            RenderSystem.setShaderColor(1f, 1f, 1f, frame.opacity)
+            val localObserver =
+                Matrix4f(frame.rotation).invert().transformPosition(
+                    Vector3f(frame.observer.x.toFloat(), frame.observer.y.toFloat(), frame.observer.z.toFloat()),
+                )
+            val (minimum, maximum) = atmosphereBounds(SpaceScene.HALF_SIZE)
+            shader.getUniform("Observer")?.set(localObserver.x, localObserver.y, localObserver.z)
+            shader.getUniform("BoundsMin")?.set(minimum.x.toFloat(), minimum.y.toFloat(), minimum.z.toFloat())
+            shader.getUniform("BoundsMax")?.set(maximum.x.toFloat(), maximum.y.toFloat(), maximum.z.toFloat())
+            shader.getUniform("SceneScale")?.set(frame.scale.toFloat())
+            shader.getUniform("Viewport")?.set(frame.width.toFloat(), frame.height.toFloat())
+            shader.setSampler("PlanetDepth", frame.depth)
+            render(frame.observer, frame.view, frame.projection, frame.scale, shader, frame.rotation)
+        } finally {
+            RenderSystem.setShader { previousShader }
+            RenderSystem.setShaderColor(previousColor[0], previousColor[1], previousColor[2], previousColor[3])
+            RenderSystem.depthFunc(depthFunction)
+            if (depthTest) RenderSystem.enableDepthTest() else RenderSystem.disableDepthTest()
+            if (cull) RenderSystem.enableCull() else RenderSystem.disableCull()
+        }
+    }
+
     private var mesh: VertexBuffer? = null
     private var meshHalfSize = Double.NaN
 
     fun clear() {
         RenderSystem.assertOnRenderThread()
+        resetWorld()
         mesh?.close()
         mesh = null
         meshHalfSize = Double.NaN
@@ -132,8 +224,19 @@ object PlanetLimbRenderer {
         projection: Matrix4f,
         scale: Double,
     ) {
-        RenderSystem.assertOnRenderThread()
         val shader = GameRenderer.getPositionColorShader() ?: return
+        render(observer, view, projection, scale, shader, CelestialView.earthRotation())
+    }
+
+    private fun render(
+        observer: Vector3,
+        view: Matrix4f,
+        projection: Matrix4f,
+        scale: Double,
+        shader: ShaderInstance,
+        rotation: Matrix4f,
+    ) {
+        RenderSystem.assertOnRenderThread()
         val write = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK)
         val blend = GL11.glIsEnabled(GL11.GL_BLEND)
         val src = GL11.glGetInteger(GL14.GL_BLEND_SRC_RGB)
@@ -154,7 +257,7 @@ object PlanetLimbRenderer {
                     ).scale(
                         scale.toFloat(),
                     ).translate(-observer.x.toFloat(), -observer.y.toFloat(), -observer.z.toFloat())
-                        .mul(CelestialView.earthRotation()),
+                        .mul(rotation),
                     projection,
                     shader,
                 )

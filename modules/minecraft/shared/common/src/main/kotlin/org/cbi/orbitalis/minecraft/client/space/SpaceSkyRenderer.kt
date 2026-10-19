@@ -46,6 +46,7 @@ object SpaceSkyRenderer {
     private var target: TextureTarget? = null
 
     fun clear() {
+        PlanetLimbRenderer.resetWorld()
         target?.destroyBuffers()
         target = null
     }
@@ -85,6 +86,7 @@ object SpaceSkyRenderer {
         foggy: Boolean,
         opacity: Float = 1f,
     ) {
+        PlanetLimbRenderer.resetWorld()
         if (opacity <= 0f || (level.dimension() == MoonWorld.KEY && !CelestialFlight.available(level))) return
         val sceneMatrix = CelestialView.rootView(level, matrix)
         if (foggy || camera.fluidInCamera != FogType.NONE) return
@@ -131,7 +133,14 @@ object SpaceSkyRenderer {
             RenderSystem.enableDepthTest()
             RenderSystem.depthMask(true)
             RenderSystem.depthFunc(GL11.GL_LEQUAL)
-            SurfacePlanetRenderer.renderScene(observer, sceneMatrix, RenderSystem.getProjectionMatrix(), scale, clouds = false)
+            SurfacePlanetRenderer.renderScene(
+                observer,
+                sceneMatrix,
+                RenderSystem.getProjectionMatrix(),
+                scale,
+                clouds = false,
+                limb = false,
+            )
             val sample = if (CelestialFlight.available(level)) CelestialView.sample() else null
             val lunarVisible =
                 level.dimension() != MoonWorld.KEY || LunarPlanetMesh.visibleFromSurface(Vector3(position.x, position.y, position.z))
@@ -147,6 +156,17 @@ object SpaceSkyRenderer {
                     sample.frames.seconds,
                 )
             }
+            PlanetLimbRenderer.prepareWorld(
+                level,
+                observer,
+                sceneMatrix,
+                RenderSystem.getProjectionMatrix(),
+                scale,
+                surface.depthTextureId,
+                opacity,
+                width,
+                height,
+            )
             PlanetCloudRenderer.prepareWorld(
                 level,
                 observer,

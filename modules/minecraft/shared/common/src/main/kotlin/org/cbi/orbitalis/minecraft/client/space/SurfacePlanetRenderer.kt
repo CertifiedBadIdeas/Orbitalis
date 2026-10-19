@@ -143,6 +143,7 @@ object SurfacePlanetRenderer {
         projection: Matrix4f,
         scale: Double,
         clouds: Boolean = true,
+        limb: Boolean = true,
     ) {
         updateMesh()
         val modelView =
@@ -160,7 +161,7 @@ object SurfacePlanetRenderer {
                 VertexBuffer.unbind()
             }
         }
-        PlanetLimbRenderer.render(observer, view, projection, scale)
+        if (limb) PlanetLimbRenderer.render(observer, view, projection, scale)
         if (clouds) PlanetCloudRenderer.render(observer, view, projection, scale)
     }
 }
