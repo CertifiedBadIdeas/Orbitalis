@@ -120,6 +120,9 @@ object PlanetCloudRenderer {
     }
 
     private var time = 0f
+
+    internal fun atmosphereCloudHeight(): Double = height.toDouble()
+
     private var height = 192f
     private var nativeColor = Vec3(1.0, 1.0, 1.0)
 

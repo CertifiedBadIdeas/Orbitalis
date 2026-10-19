@@ -30,9 +30,9 @@ limitations under the License.
   shading and closed finite-boundary cuts; retain FAST/OFF modes.
 - Remove ordinary terrain/cloud distance fog on Earth, Moon and in space, avoiding an altitude
   cutover while preserving fluid, blindness and darkness visibility effects.
-- Compose the planetary limb after native terrain using front-atmosphere depth, preventing loaded
-  chunks from cutting its glow while retaining occlusion by nearer foreground objects. Raise
-  the visible feather above the Overworld build ceiling, shared by world and orbital-map views.
+- Replace the elevated neon planetary outline with a finite blue scattering volume, anchored
+  at sea level and fading near native cloud height. Share the volume between orbital and map
+  views, with rounded edge falloff, view-dependent optical thickness and distant terrain occlusion.
 - Require a prepared live Minecraft client for visual review, with the relevant scene and camera
   ready for user inspection; screenshots supplement the handoff unless explicitly preferred.
 

@@ -52,15 +52,15 @@ fill to keep the unlit underside readable; this is not new stellar lighting. No 
 runtime rock textures are added. Cliff interiors/caves/materials remain illustrative: the atlas stores
 only a top height/colour, not a full side scan. Loaded native chunks render in front of the sky model.
 
-`PlanetLimbRenderer` adds a luminous blue feathered upper-edge halo to the shared map/world scene
-after opaque geometry: a narrow pale core fades into a broad blue outer glow, using additive RGB
-blending while preserving destination alpha for the later sky composite. No post-process bloom target
-is allocated. Its static vertex buffer is uploaded once, shared by map/world and released on
-disconnect; rendering does not rebuild or upload the rim each frame. The map tests existing scene depth without writing depth. In the world, a post-level pass
-combines the private planet mask with physical front-atmosphere depth, as detailed below;
-clouds remain a separate pass and nearer foreground ships retain depth occlusion. This bounded geometric halo is not
-physical atmospheric scattering. The shell is decoration, with no collision or terrain generation;
-it does not change the mass model, gravity field, coordinate frames or transfer altitudes.
+`PlanetLimbRenderer` integrates a bounded atmospheric volume shared by map and world views.
+The volume starts at sea level and fades out 24 metres above the synchronized native cloud height;
+it no longer floats above the build ceiling. Density decreases exponentially with altitude and
+smoothly at the top and rounded finite-body edges. A 32-sample view-ray integral produces optical
+thickness and blue single-scatter colour; additive RGB blending preserves destination alpha.
+The static bounding mesh is cached by body size and cloud height and released on disconnect.
+There is no bloom target or image postprocessing. This is an illustrative finite-slab atmosphere,
+not a solar illumination, weather or multiple-scattering simulation. No collision, terrain generation,
+gravity, coordinate frame or transfer altitude changes are introduced.
 
 Unknown overview cells keep the existing deterministic water/coast/land mosaic. Each known chunk replaces its 16-metre cell.
 The sampler never requests chunk generation or loading. Each normal full-chunk load/unload captures
@@ -172,14 +172,12 @@ geometry and physical clouds in a valid native depth range. This changes project
 tickets or render distance. Each cloud frame is consumed once and rejects changed levels; fluid and
 effect restrictions cannot reuse a stale frame. This is presentation, not cloud weather or shadows.
 
-In the world, the limb feather also has a dedicated post-level pass. Its private planet-depth mask
-retains near/far-side visibility. The entire mesh is elevated above the actual Overworld build
-ceiling (bright core at ceiling + 96 metres), with the same height used by map/world meshes,
-cache invalidation and atmospheric bounds. Physical depth uses the ray's front intersection with the
-finite atmospheric envelope. Loaded terrain within the build envelope therefore does not cut the feather off at its chunk
-silhouettes, and objects closer than the atmospheric entry still occlude it. Objects inside the
-layer receive front haze. The map retains its ordinary scene limb pass. This geometric front-scatter
-model remains illustrative, rather than a physical atmospheric scattering simulation.
+In the world, the atmosphere has a dedicated post-level pass. Its private planet-depth texture
+clips integration at the distant terrain rather than discarding all haze above terrain silhouettes.
+Physical depth uses the ray's front intersection with the finite atmosphere; foreground objects
+before that entry occlude it. Objects inside the atmosphere receive approximate front haze rather
+than a per-object optical-depth integration. The map uses the same volume shader with parallel
+view rays and its existing scene depth. It does not sample the current render target's depth texture.
 
 The new [finite-body route](flat-gravity.md) uses `orbitalis:space`, with represented Y equal to
 physical Y+4096. Its geometry shares the initial surface size and sea-level constants with this mesh.

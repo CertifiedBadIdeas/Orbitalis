@@ -114,6 +114,45 @@
         0,
         0
       ]
+    },
+    {
+      "name": "Feather",
+      "type": "float",
+      "count": 1,
+      "values": [
+        60
+      ]
+    },
+    {
+      "name": "UsePlanetDepth",
+      "type": "int",
+      "count": 1,
+      "values": [
+        0
+      ]
+    },
+    {
+      "name": "InverseProjMat",
+      "type": "matrix4x4",
+      "count": 16,
+      "values": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1
+      ]
     }
   ]
 }
