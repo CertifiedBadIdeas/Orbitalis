@@ -38,9 +38,13 @@ void main() {
     if (WorldDepth != 0) {
         // Private planet depth and these vertices use the same compressed sky coordinates.
         if (gl_FragCoord.z > texture(Sampler1, gl_FragCoord.xy / Viewport).r + 0.000001) discard;
-        // Compare physical distance with native terrain/ships, including the depth-only pass.
-        vec4 physical = ProjMat * vec4(actualView, 1.0);
-        gl_FragDepth = clamp(physical.z / physical.w * 0.5 + 0.5, 0.0, 1.0);
+        if (WorldDepth == 2) {
+            gl_FragDepth = gl_FragCoord.z;
+        } else {
+            // FAST clouds compare physical distance directly with native terrain/ships.
+            vec4 physical = ProjMat * vec4(actualView, 1.0);
+            gl_FragDepth = clamp(physical.z / physical.w * 0.5 + 0.5, 0.0, 1.0);
+        }
     } else {
         gl_FragDepth = gl_FragCoord.z;
     }

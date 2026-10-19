@@ -143,10 +143,17 @@ rebuilt only when the selected body width changes.
 
 Clouds use the map's shared scene depth. In the world, their pass follows level rendering and samples
 the private planet depth while writing physical projected fragment depth for native terrain and
-ship occlusion. FANCY resolves the nearest volume surface in a depth-only pass before its translucent
-colour pass; empty mask fragments never write depth. All tiles finish the depth pass before colour.
-The pass restores depth, colour-write, culling and blending state without replacing the framebuffer,
-viewport or projection.
+ship occlusion. In the world, FANCY resolves its colour and nearest depth together in a separate
+full-viewport RGBA/float-depth target using compressed scene coordinates. Blending is disabled in
+that target: the nearest fragment replaces earlier interior volume sheets with straight-alpha colour.
+A fullscreen pass then reconstructs physical depth from the compressed depth and compares it against
+native terrain/ships while blending the resolved colour once. Volume faces are never rerasterized
+against a different depth format. A physical-depth prepass alone loses precision between overlapping
+sheets; rerasterizing a float-depth selection into a depth24 target can also leave holes. The layer
+samples the separate planet mask, never its own active attachment. Empty mask fragments never write
+depth. The target is reused between frames, recreated on resize and destroyed on disconnect.
+Map clouds retain their shared compressed scene-depth pass. The pass restores framebuffer bindings,
+viewport, clear colour, depth, colour-write, culling and blending state.
 
 At the beginning of the elevated transition, the original native cloud method is replaced once,
 including Sodium replacements. Geometry, phase and nearest texture sampling coincide instead of

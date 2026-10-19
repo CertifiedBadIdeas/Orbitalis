@@ -40,6 +40,13 @@ object PlanetCloudShaders {
                 DefaultVertexFormat.POSITION_TEX_COLOR,
             ),
         ) { PlanetCloudRenderer.worldShader = it }
+        event.registerShader(
+            ShaderInstance(
+                event.resourceProvider,
+                ResourceLocation.fromNamespaceAndPath(Orbitalis.MOD_ID, "planet_cloud_composite"),
+                DefaultVertexFormat.POSITION_TEX,
+            ),
+        ) { PlanetCloudRenderer.compositeShader = it }
     }
 }
 

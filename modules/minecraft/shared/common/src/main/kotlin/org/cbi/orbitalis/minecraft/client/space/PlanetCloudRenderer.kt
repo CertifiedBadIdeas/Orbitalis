@@ -18,7 +18,9 @@
 
 package org.cbi.orbitalis.minecraft.client.space
 
+import com.mojang.blaze3d.pipeline.TextureTarget
 import com.mojang.blaze3d.systems.RenderSystem
+import com.mojang.blaze3d.vertex.BufferUploader
 import com.mojang.blaze3d.vertex.DefaultVertexFormat
 import com.mojang.blaze3d.vertex.Tesselator
 import com.mojang.blaze3d.vertex.VertexBuffer
@@ -38,6 +40,8 @@ import org.lwjgl.BufferUtils
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL12
 import org.lwjgl.opengl.GL14
+import org.lwjgl.opengl.GL30
+import java.nio.ByteBuffer
 
 /** Finite cloud overview using the runtime Minecraft texture and the native renderer's phase. */
 object PlanetCloudRenderer {
@@ -45,11 +49,13 @@ object PlanetCloudRenderer {
     private val filtered = ResourceLocation.fromNamespaceAndPath("orbitalis", "planet_clouds")
     private var registered = false
     var worldShader: ShaderInstance? = null
+    var compositeShader: ShaderInstance? = null
     private var scene: Scene? = null
     private var fancyBuffer: VertexBuffer? = null
     private var fastBuffer: VertexBuffer? = null
     private var boundaryBuffer: VertexBuffer? = null
     private var boundaryHalfSize = Double.NaN
+    private var cloudDepth: TextureTarget? = null
 
     private data class Scene(
         val level: ClientLevel,
@@ -87,6 +93,32 @@ object PlanetCloudRenderer {
         return manager.getTexture(filtered).id
     }
 
+    /** Keep nearest-cloud depth in compressed scene coordinates, before physical depth loses detail. */
+    private fun cloudDepth(
+        width: Int,
+        height: Int,
+    ): TextureTarget {
+        cloudDepth?.let { if (it.width == width && it.height == height) return it }
+        cloudDepth?.destroyBuffers()
+        return TextureTarget(width, height, true, Minecraft.ON_OSX).also {
+            // An exact float sample matches gl_FragCoord.z in the colour pass; normalized depth24
+            // would round it and reject some of the same surface's fragments.
+            RenderSystem.bindTexture(it.depthTextureId)
+            GL11.glTexImage2D(
+                GL11.GL_TEXTURE_2D,
+                0,
+                GL30.GL_DEPTH_COMPONENT32F,
+                width,
+                height,
+                0,
+                GL11.GL_DEPTH_COMPONENT,
+                GL11.GL_FLOAT,
+                null as ByteBuffer?,
+            )
+            cloudDepth = it
+        }
+    }
+
     private var time = 0f
     private var height = 192f
     private var nativeColor = Vec3(1.0, 1.0, 1.0)
@@ -115,6 +147,8 @@ object PlanetCloudRenderer {
         fastBuffer = null
         boundaryBuffer = null
         boundaryHalfSize = Double.NaN
+        cloudDepth?.destroyBuffers()
+        cloudDepth = null
         if (registered) Minecraft.getInstance().textureManager.release(filtered)
         registered = false
     }
@@ -144,7 +178,7 @@ object PlanetCloudRenderer {
     fun renderWorld() {
         val frame = scene ?: return
         scene = null
-        if (Minecraft.getInstance().level !== frame.level || worldShader == null) return
+        if (Minecraft.getInstance().level !== frame.level || worldShader == null || compositeShader == null) return
         render(frame.observer, frame.view, frame.projection, frame.scale, frame)
     }
 
@@ -181,6 +215,10 @@ object PlanetCloudRenderer {
         val blend = GL11.glIsEnabled(GL11.GL_BLEND)
         val depthFunction = GL11.glGetInteger(GL11.GL_DEPTH_FUNC)
         val colorMask = BufferUtils.createByteBuffer(4).also { GL11.glGetBooleanv(GL11.GL_COLOR_WRITEMASK, it) }
+        val drawFramebuffer = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING)
+        val readFramebuffer = GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING)
+        val viewport = IntArray(4).also { GL11.glGetIntegerv(GL11.GL_VIEWPORT, it) }
+        val clearColor = FloatArray(4).also { GL11.glGetFloatv(GL11.GL_COLOR_CLEAR_VALUE, it) }
         val src = GL11.glGetInteger(GL14.GL_BLEND_SRC_RGB)
         val dst = GL11.glGetInteger(GL14.GL_BLEND_DST_RGB)
         val srcAlpha = GL11.glGetInteger(GL14.GL_BLEND_SRC_ALPHA)
@@ -200,7 +238,7 @@ object PlanetCloudRenderer {
             shader.setSampler("Sampler1", frame?.depth ?: textureId())
             shader.getUniform("SceneScale")?.set(scale.toFloat())
             shader.getUniform("Viewport")?.set(frame?.width?.toFloat() ?: 1f, frame?.height?.toFloat() ?: 1f)
-            shader.getUniform("WorldDepth")?.set(if (frame != null) 1 else 0)
+            shader.getUniform("WorldDepth")?.set(if (frame == null) 0 else 3)
             shader.getUniform("CloudHalfSize")?.set(SpaceScene.HALF_SIZE.toFloat())
             val phase = PlanetCloudMesh.phase(time)
             shader.getUniform("CloudPhase")?.set(phase.x, phase.z)
@@ -224,19 +262,51 @@ object PlanetCloudRenderer {
                     boundary.draw()
                 }
             }
-            if (fancy) {
-                RenderSystem.colorMask(false, false, false, false)
+            if (fancy && frame != null) {
+                val nearest = cloudDepth(frame.width, frame.height)
+                nearest.bindWrite(true)
+                RenderSystem.colorMask(true, true, true, true)
+                RenderSystem.clearColor(0f, 0f, 0f, 0f)
+                RenderSystem.clearDepth(1.0)
+                RenderSystem.clear(GL11.GL_COLOR_BUFFER_BIT or GL11.GL_DEPTH_BUFFER_BIT, Minecraft.ON_OSX)
+                RenderSystem.disableBlend()
+                RenderSystem.depthFunc(GL11.GL_LESS)
+                shader.getUniform("WorldDepth")?.set(2)
+                // Opaque replacement into a transparent target selects one nearest straight-alpha
+                // cloud surface, without accumulating unresolved interior volume sheets.
                 drawTiles()
+                shader.clear()
+                GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, drawFramebuffer)
+                GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, readFramebuffer)
+                RenderSystem.viewport(viewport[0], viewport[1], viewport[2], viewport[3])
                 RenderSystem.colorMask(
                     colorMask[0].toInt() != 0,
                     colorMask[1].toInt() != 0,
                     colorMask[2].toInt() != 0,
                     colorMask[3].toInt() != 0,
                 )
-                RenderSystem.depthMask(false)
+                RenderSystem.depthFunc(GL11.GL_LEQUAL)
+                RenderSystem.enableBlend()
+                composite(nearest, projection, scale)
+            } else {
+                if (fancy) {
+                    RenderSystem.colorMask(false, false, false, false)
+                    drawTiles()
+                    RenderSystem.colorMask(
+                        colorMask[0].toInt() != 0,
+                        colorMask[1].toInt() != 0,
+                        colorMask[2].toInt() != 0,
+                        colorMask[3].toInt() != 0,
+                    )
+                    RenderSystem.depthMask(false)
+                }
+                drawTiles()
             }
-            drawTiles()
         } finally {
+            GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, drawFramebuffer)
+            GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, readFramebuffer)
+            RenderSystem.viewport(viewport[0], viewport[1], viewport[2], viewport[3])
+            RenderSystem.clearColor(clearColor[0], clearColor[1], clearColor[2], clearColor[3])
             VertexBuffer.unbind()
             shader.clear()
             RenderSystem.colorMask(
@@ -251,6 +321,33 @@ object PlanetCloudRenderer {
             RenderSystem.depthMask(write)
             if (cull) RenderSystem.enableCull() else RenderSystem.disableCull()
             if (blend) RenderSystem.enableBlend() else RenderSystem.disableBlend()
+        }
+    }
+
+    /** Compose one resolved cloud layer against native depth without rerasterizing its volume. */
+    private fun composite(
+        surface: TextureTarget,
+        projection: Matrix4f,
+        scale: Double,
+    ) {
+        val shader = checkNotNull(compositeShader)
+        VertexBuffer.unbind()
+        shader.setSampler("CloudColor", surface.colorTextureId)
+        shader.setSampler("CloudDepth", surface.depthTextureId)
+        shader.getUniform("InverseProjection")?.set(Matrix4f(projection).invert())
+        shader.PROJECTION_MATRIX?.set(projection)
+        shader.getUniform("SceneScale")?.set(scale.toFloat())
+        RenderSystem.disableCull()
+        shader.apply()
+        try {
+            val quad = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX)
+            quad.addVertex(-1f, -1f, 0f).setUv(0f, 0f)
+            quad.addVertex(1f, -1f, 0f).setUv(1f, 0f)
+            quad.addVertex(1f, 1f, 0f).setUv(1f, 1f)
+            quad.addVertex(-1f, 1f, 0f).setUv(0f, 1f)
+            BufferUploader.draw(quad.buildOrThrow())
+        } finally {
+            shader.clear()
         }
     }
 
