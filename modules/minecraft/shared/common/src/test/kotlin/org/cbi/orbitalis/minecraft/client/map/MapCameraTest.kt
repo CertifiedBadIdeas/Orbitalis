@@ -31,14 +31,26 @@ class MapCameraTest {
     @Test fun projectionMatchesActualSceneAtDifferentAspectsAndRotations() {
         val camera = MapCamera()
         for ((w, h) in listOf(144 to 148, 600 to 400, 1000 to 300)) {
-            repeat(8) {
+            repeat(64) {
                 camera.rotate(42.0, -14.0)
                 val d = camera.direction
+                val up = camera.up
                 val matrix =
                     Matrix4f()
                         .ortho(-w.toFloat() / h, w.toFloat() / h, -1f, 1f, -100f, 100f)
-                        .mul(Matrix4f().lookAt(d.x.toFloat(), d.y.toFloat(), d.z.toFloat(), 0f, 0f, 0f, 0f, 1f, 0f))
-                        .scale((1.0 / camera.range).toFloat())
+                        .mul(
+                            Matrix4f().lookAt(
+                                d.x.toFloat(),
+                                d.y.toFloat(),
+                                d.z.toFloat(),
+                                0f,
+                                0f,
+                                0f,
+                                up.x.toFloat(),
+                                up.y.toFloat(),
+                                up.z.toFloat(),
+                            ),
+                        ).scale((1.0 / camera.range).toFloat())
                 val p = Vector3(800.0, 300.0, -900.0)
                 val actual = assertNotNull(camera.project(p, w, h))
                 val clip = matrix.transform(Vector4f(p.x.toFloat(), p.y.toFloat(), p.z.toFloat(), 1f))
@@ -64,14 +76,14 @@ class MapCameraTest {
         assertEquals(200.0, camera.projectRaw(outside, 600, 400).y, 0.001)
     }
 
-    @Test fun zoomAndPolesStayBoundedAndResetRestoresOverview() {
+    @Test fun zoomStaysBoundedAndResetRestoresOverview() {
         val camera = MapCamera()
         repeat(100) {
             camera.zoom(20.0)
             camera.rotate(0.0, 10000.0)
         }
         assertEquals(128.0, camera.range)
-        assertTrue(camera.pitch < Math.PI / 2 && camera.up.length() > 0.999)
+        assertTrue(kotlin.math.abs(camera.pitch) <= Math.PI * 2 && camera.up.length() > 0.999)
         repeat(100) { camera.zoom(-20.0) }
         assertEquals(1e8, camera.range)
         camera.reset()
@@ -82,12 +94,13 @@ class MapCameraTest {
     @Test fun panMovesMarkersByTheRequestedScreenDistanceAtAnyZoomAndOrientation() {
         for ((width, height) in listOf(144 to 148, 600 to 400, 1000 to 300)) {
             val camera = MapCamera()
-            repeat(6) {
+            repeat(64) {
                 camera.rotate(32.0, -18.0)
                 camera.zoom(3.0)
                 val anchor = camera.focus
                 val before = assertNotNull(camera.project(anchor, width, height))
                 val direction = camera.direction
+                val up = camera.up
                 val range = camera.range
                 camera.pan(17.0, -11.0, height)
                 val after = assertNotNull(camera.project(anchor, width, height))
@@ -98,8 +111,19 @@ class MapCameraTest {
                 val matrix =
                     Matrix4f()
                         .ortho(-width.toFloat() / height, width.toFloat() / height, -1f, 1f, -100f, 100f)
-                        .mul(Matrix4f().lookAt(direction.x.toFloat(), direction.y.toFloat(), direction.z.toFloat(), 0f, 0f, 0f, 0f, 1f, 0f))
-                        .scale((1.0 / camera.range).toFloat())
+                        .mul(
+                            Matrix4f().lookAt(
+                                direction.x.toFloat(),
+                                direction.y.toFloat(),
+                                direction.z.toFloat(),
+                                0f,
+                                0f,
+                                0f,
+                                up.x.toFloat(),
+                                up.y.toFloat(),
+                                up.z.toFloat(),
+                            ),
+                        ).scale((1.0 / camera.range).toFloat())
                         .translate(-camera.focus.x.toFloat(), -camera.focus.y.toFloat(), -camera.focus.z.toFloat())
                 val clip = matrix.transform(Vector4f(anchor.x.toFloat(), anchor.y.toFloat(), anchor.z.toFloat(), 1f))
                 assertEquals((clip.x.toDouble() + 1) * width / 2, after.x, 0.001)
@@ -123,11 +147,72 @@ class MapCameraTest {
         assertEquals(Vector3.ZERO, camera.focus)
     }
 
+    @Test fun exactPolesAndInvertedViewKeepTheRenderedCameraBasis() {
+        val camera = MapCamera()
+        for (pitch in listOf(-Math.PI * 1.5, -Math.PI, -Math.PI / 2, 0.0, Math.PI / 2, Math.PI, Math.PI * 1.5)) {
+            camera.rotate(0.0, (pitch - camera.pitch) / 0.008)
+            repeat(4) {
+                camera.rotate(Math.PI / 2 / 0.008, 0.0)
+                val direction = camera.direction
+                val up = camera.up
+                val view =
+                    Matrix4f().lookAt(
+                        direction.x.toFloat(),
+                        direction.y.toFloat(),
+                        direction.z.toFloat(),
+                        0f,
+                        0f,
+                        0f,
+                        up.x.toFloat(),
+                        up.y.toFloat(),
+                        up.z.toFloat(),
+                    )
+                val horizontal = view.transform(Vector4f(camera.right.x.toFloat(), camera.right.y.toFloat(), camera.right.z.toFloat(), 0f))
+                val vertical = view.transform(Vector4f(up.x.toFloat(), up.y.toFloat(), up.z.toFloat(), 0f))
+                assertEquals(1.0, horizontal.x.toDouble(), 1e-6)
+                assertEquals(0.0, horizontal.y.toDouble(), 1e-6)
+                assertEquals(0.0, vertical.x.toDouble(), 1e-6)
+                assertEquals(1.0, vertical.y.toDouble(), 1e-6)
+                assertEquals(1.0, view.determinant().toDouble(), 1e-6)
+            }
+        }
+    }
+
+    @Test fun completeVerticalOrbitsPassBothPolesAndReturnToTheStartingBasis() {
+        for (sign in listOf(-1.0, 1.0)) {
+            val camera = MapCamera()
+            val direction = camera.direction
+            val right = camera.right
+            val up = camera.up
+            var previousDirection = direction
+            var previousUp = up
+            val step = sign * Math.PI / 180.0
+            repeat(720) {
+                camera.rotate(0.0, step / 0.008)
+                assertTrue(camera.direction.dot(previousDirection) > 0.999)
+                assertTrue(camera.up.dot(previousUp) > 0.999)
+                assertEquals(1.0, camera.direction.length(), 1e-10)
+                assertEquals(1.0, camera.right.length(), 1e-10)
+                assertEquals(1.0, camera.up.length(), 1e-10)
+                assertEquals(0.0, camera.direction.dot(camera.up), 1e-10)
+                previousDirection = camera.direction
+                previousUp = camera.up
+            }
+            assertTrue((direction - camera.direction).length() < 1e-10)
+            assertTrue((right - camera.right).length() < 1e-10)
+            assertTrue((up - camera.up).length() < 1e-10)
+        }
+    }
+
     @Test fun unavailableViewportOrInvalidMouseDeltasDoNotMoveTheCamera() {
         val camera = MapCamera()
+        val direction = camera.direction
+        camera.rotate(Double.NaN, 10.0)
+        camera.rotate(10.0, Double.POSITIVE_INFINITY)
         camera.pan(10.0, 10.0, 0)
         camera.pan(Double.NaN, 10.0, 400)
         camera.pan(10.0, Double.POSITIVE_INFINITY, 400)
         assertEquals(Vector3.ZERO, camera.focus)
+        assertEquals(direction, camera.direction)
     }
 }
