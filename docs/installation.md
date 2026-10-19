@@ -18,7 +18,7 @@ limitations under the License.
 
 # Installation and first flight
 
-The first Orbitalis Alpha, 0.1.0, is being prepared. Do not install a development/common JAR in a
+Orbitalis **0.1.0 Alpha** targets Minecraft 1.21.1 / NeoForge. Do not install a development/common JAR in a
 normal game. The distributable is the verified, remapped NeoForge production archive.
 
 ## Base installation
