@@ -19,11 +19,11 @@ limitations under the License.
 # Flight consumer development stand
 
 `consumers/flight` is an independent Gradle build for running the current Orbitalis checkout with
-Create, Sable, Create Aeronautics and Create Propulsion: Simulated. It owns a development-only control adapter with a separate mod identity,
+Create, Sable, Create Aeronautics and Create Propulsion: Simulated. It owns disposable fixtures and integration tests with a separate mod identity,
 `orbitalis_flight_consumer`, and produces no distributable umbrella JAR. The ordinary Orbitalis build does not include this build,
 resolve its external mod stack, or depend on it. Sable-only development runs remain available separately.
 
-The adapter, guidance, unit tests and GameTests are written in Kotlin. Keep new consumer code in
+Production guidance and its pure unit tests now live in Orbitalis; the consumer fixtures and GameTests are written in Kotlin. See [flight-control ownership](flight-control.md). Keep new consumer code in
 `src/main/kotlin`, `src/test/kotlin` or `src/gameTest/kotlin`. Kotlin and kotlinter versions come from
 the root version catalog; `check` includes Kotlin lint and the Java 21 compilation target.
 
@@ -303,7 +303,7 @@ native Propulsion scenarios. This headless pilot does not verify actual client i
 ## Gravity trials
 
 Native shuttle trials compare initial unpowered acceleration from rest at surface, transition and exterior positions,
-check torque and translated-frame agreement, and retain the real assembled blueprint with cargo.
+check torque and agreement after transport into the inertial frame, and retain the real assembled blueprint with cargo.
 Overworld assembly/hold, engine cutoff, unsafe-input/missing-lift rejection and the complete
 Overworld/space mission remain separate scenarios. Historical spherical and cube test results are
 not acceptance data for the finite-body route. Interactive cockpit continuity still needs client evidence.
@@ -327,7 +327,7 @@ status and stop. With multiple controllers, specify the UUID. Each ship has inde
 a remembered pad; landing retains the existing bookmark ownership check.
 
 Directory lookup and unavailable UUID selection never load ships or terrain. Starting guidance on an
-already loaded ship retains that native construction with a consumer-owned Sable ticket, including
+already loaded ship retains that native construction with a Orbitalis-owned Sable ticket, including
 unpowered coast; player proximity is no longer required. The controller follows the reconstructed
 native body after a dimension handoff, including its readiness delay, and releases only its own ticket
 on stop, landing, error or server shutdown. It does not retain orbital terrain or wake a dormant UUID. Genuine removal still
@@ -361,7 +361,7 @@ Then use:
 /orbitalis flight autopilot stop
 ```
 
-`orbit` detects the vector-engine layout and selects the consumer rocket controller. After a short
+`orbit` detects the vector-engine layout and selects the Orbitalis rocket controller. After a short
 vertical clearance leg it pitches over and accelerates horizontally during ascent, joining a numerically
 predicted orbit in the rotating finite-body field. The reference crown altitude is the larger of the
 Earth half-width and the ascent handoff distance plus 200 metres: 5000 metres for the default world,
@@ -424,8 +424,7 @@ requires a creative command owner, an upright rocket at launch, a clear pad and 
 approach. A passenger can stand on deck or use a plot-owned seat, but no passenger is required. It does not plan around arbitrary terrain or buildings. The shuttle fixture and its hold
 controller remain separate regression tools.
 
-All guidance, engine allocation, transient gimbal override and fixture resources belong to this removable
-consumer. Production transfers native-serializable block entities without a type allowlist through the
+Guidance and engine integration belong to Orbitalis; only fixture resources and integration GameTests belong to this removable consumer. Production transfers native-serializable block entities without a type allowlist through the
 existing journaled transfer boundary; saved fields remain subject to exact reconstruction checks.
 The native creative engine variants supply unlimited development power without fuel or FE. No external
 textures or models are imported. Steering overrides preserve manual signals and clear on load/stop.
@@ -461,7 +460,7 @@ retrograde turn, braking and supported landing at the saved pad. The controller 
 landing. Cabin visibility was insufficient for watching the flight; an external ship camera is a
 separate follow-up. This observation does not establish seated Create passenger support.
 
-The consumer owns digital commands while guidance is active. Propulsion 1.1.5 ignores changes of
+The optional Propulsion adapter owns digital commands while guidance is active. Propulsion 1.1.5 ignores changes of
 1e-4 or less, so a small positive digital command can survive a zero request, hide under NORMAL
 control and reactivate when PERIPHERAL control returns. `NativeThrusterInput` forces an exact zero
 through two synchronous public setter calls; those calls only dirty native state and run no physics
@@ -505,7 +504,7 @@ local-player capture and the graph's four-chunk batch geometry when updating the
 
 The map's **Execute** button or `/orbitalis flight autopilot execute [ship UUID]` runs a saved personal
 maneuver plan. `orbit` and `land` keep their separate existing behaviors; first reach orbital space,
-stop the old controller, then create/save a future plan. The executor requires an already loaded ship,
+stop the old controller, then create/save a future plan. The executor in Orbitalis requires an already loaded ship,
 creative owner and permission level 2. It never wakes a dormant UUID. Its normal flight ticket retains
 the active loaded body even without passengers and is released on completion/stop/error.
 
@@ -520,8 +519,7 @@ must be 30 seconds of turn lead plus half-burn margins between nodes. Zero/tiny 
 but execution requires at least 0.2 m/s per node. Late plans must be edited before execution.
 
 This is an orbital finite-burn prototype, not a terrain-aware ascent/landing planner or a guarantee that
-finite burns reproduce an impulsive preview exactly. Engine execution is transient; plans persist in
-Orbitalis and remain usable without this consumer. Space-travel reservations prevent a competing
+finite burns reproduce an impulsive preview exactly. Engine execution is transient; plans and their engine-independent executor belong to Orbitalis and remain usable without this consumer when a supported engine backend is installed. Space-travel reservations prevent a competing
 height-triggered transfer during a maneuver; normal travel resumes when the plan releases its lease.
 
 
@@ -542,3 +540,12 @@ Explicit landing switches to the moving
 surface chart and forecasts coast with Coriolis/centrifugal terms. Actual Propulsion engines
 and bounded RCS still supply every command. Distant body gravity becomes an exact same-mass
 monopole after its conservative potential transition; see [axial rotation](earth-rotation.md).
+
+### Focused shuttle fixture checks
+
+Use `-PorbitalisConsumerGameTestSuite=shuttle` for native surface assembly, hold and gravity sampling.
+The fixture checks the saved terrain footprint independently of the administrative world border.
+During force measurements it leases travel so the high Overworld sample remains in its selected
+native frame; automatic transfers remain covered by separate native roundtrips. Space sample
+positions and measured accelerations use the rotating/inertial frame transforms rather than a
+fixed Y translation. The surface-fall check includes native drag and Coriolis acceleration.

@@ -19,6 +19,7 @@
 package org.cbi.orbitalis.consumer.flight
 
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.flight.control.RocketAttitude
 import org.joml.Quaterniond
 import org.joml.Vector3d
 import org.junit.jupiter.api.Assertions.assertTrue

@@ -73,16 +73,16 @@ dependencies {
     testRuntimeOnly("org.jetbrains.kotlin:kotlin-stdlib:${orbitalis.versions.kotlin.get()}")
     originalSable(orbitalis.sable.v1211)
     physicsMods("maven.modrinth:create-aeronautics:44pLdPGg")
-    physicsMods("maven.modrinth:create-propulsion-simulated:H13U56dc")
+    physicsMods(orbitalis.propulsion.v1211)
     modImplementation(files(physicsMods))
     modImplementation(aeronauticsLibraries)
     modImplementation(orbitalis.sable.v1211) { isTransitive = false }
     modImplementation(sableLibraries)
     forgeRuntimeLibrary(veilLibraries)
-    modImplementation("com.simibubi.create:create-1.21.1:6.0.10-280:slim") { isTransitive = false }
-    modImplementation("net.createmod.ponder:ponder-neoforge:1.0.82+mc1.21.1")
+    modImplementation(variantOf(orbitalis.create.v1211) { classifier("slim") }) { isTransitive = false }
+    modImplementation(orbitalis.ponder.v1211)
     modRuntimeOnly("dev.engine-room.flywheel:flywheel-neoforge-1.21.1:1.0.6")
-    modRuntimeOnly("com.tterrag.registrate:Registrate:MC1.21-1.3.0+67")
+    modRuntimeOnly(orbitalis.registrate.v1211)
     forgeRuntimeLibrary("org.jetbrains.kotlin:kotlin-stdlib:${orbitalis.versions.kotlin.get()}") { isTransitive = false }
 }
 loom {
@@ -207,7 +207,7 @@ val testResources = files(layout.projectDirectory.dir(
 )).builtBy(gradle.includedBuild("Orbitalis").task(":v1_21_1-neoforge:generateGameTestResources"))
 gameTest.resources.srcDir(testResources)
 val consumerGameTestSuite = providers.gradleProperty("orbitalisConsumerGameTestSuite").getOrElse("all")
-require(consumerGameTestSuite in setOf("all", "flat", "rocket", "rcs", "maneuver")) { "Unknown consumer GameTest suite: $consumerGameTestSuite" }
+require(consumerGameTestSuite in setOf("all", "flat", "rocket", "rcs", "maneuver", "shuttle")) { "Unknown consumer GameTest suite: $consumerGameTestSuite" }
 apply(from = "../../gradle/gametest-lifecycle.gradle.kts")
 val gameTestReport = layout.buildDirectory.file("test-results/gameTestServer/results.xml")
 loom.runs.register("gameTestServer") {
@@ -237,7 +237,7 @@ tasks.matching { it.name == "runGameTestServer" }.configureEach {
         val document = factory.newDocumentBuilder().parse(report)
         val cases = document.getElementsByTagName("testcase")
         val names = (0 until cases.length).map { (cases.item(it) as org.w3c.dom.Element).getAttribute("name") }.toSet()
-        val required = if (consumerGameTestSuite == "rcs") setOf("nativerocketrcsflip") else if (consumerGameTestSuite == "maneuver") setOf("nativerocketmaneuverplan", "nativeshuttlemaneuverplan") else if (consumerGameTestSuite == "rocket") setOf("nativerocketassemblysteeringandhold", "nativerocketrcsflip", "nativerocketroundtrip", "nativerocketoffaxisroundtrip", "nativerocketcreateseatroundtrip") else if (consumerGameTestSuite == "flat") setOf("overworldlaunchfreeorbitandreturn", "launchbookmarkroundtripandvalidation") else setOf("nativerocketassemblysteeringandhold", "nativerocketrcsflip", "nativerocketroundtrip", "nativerocketoffaxisroundtrip", "nativerocketcreateseatroundtrip", "overworldlaunchfreeorbitandreturn", "nativeoverworldassembly", "shuttleassemblyandhold", "shuttlegravityprofile", "nativerocketmaneuverplan", "nativeshuttlemaneuverplan", "flighttoolsavailablebydefault", "uncrewedautopilotcommands", "nativepropulsionholdandcutoff", "preflightrejectsunsafeengines", "rejectsmissingliftauthority", "launchbookmarkroundtripandvalidation")
+        val required = if (consumerGameTestSuite == "shuttle") setOf("nativeoverworldassembly", "shuttleassemblyandhold", "shuttlegravityprofile") else if (consumerGameTestSuite == "rcs") setOf("nativerocketrcsflip") else if (consumerGameTestSuite == "maneuver") setOf("nativerocketmaneuverplan", "nativeshuttlemaneuverplan") else if (consumerGameTestSuite == "rocket") setOf("nativerocketassemblysteeringandhold", "nativerocketrcsflip", "nativerocketroundtrip", "nativerocketoffaxisroundtrip", "nativerocketcreateseatroundtrip") else if (consumerGameTestSuite == "flat") setOf("overworldlaunchfreeorbitandreturn", "launchbookmarkroundtripandvalidation") else setOf("nativerocketassemblysteeringandhold", "nativerocketrcsflip", "nativerocketroundtrip", "nativerocketoffaxisroundtrip", "nativerocketcreateseatroundtrip", "overworldlaunchfreeorbitandreturn", "nativeoverworldassembly", "shuttleassemblyandhold", "shuttlegravityprofile", "nativerocketmaneuverplan", "nativeshuttlemaneuverplan", "flighttoolsavailablebydefault", "uncrewedautopilotcommands", "nativepropulsionholdandcutoff", "preflightrejectsunsafeengines", "rejectsmissingliftauthority", "launchbookmarkroundtripandvalidation")
         check(names == required) {
             "Missing native propulsion scenarios: $names"
         }

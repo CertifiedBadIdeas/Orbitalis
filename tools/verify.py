@@ -56,7 +56,12 @@ def architecture():
         if relative.startswith('modules/minecraft/shared/common/') and any(
                 item.startswith('net.neoforged.') for item in imports):
             errors.append(f'{relative}: NeoForge imports in shared/common')
-        if re.search(r'\b(?:com\.simibubi|net\.createmod|dev\.propulsionteam|dev\.createpropulsionsimulated)\.', text):
+        propulsion_adapter = relative.startswith(
+            'modules/minecraft/shared/common/src/main/kotlin/org/cbi/orbitalis/minecraft/integration/propulsion/')
+        propulsion_mixin = relative == (
+            'modules/minecraft/shared/neoforge/src/main/kotlin/org/cbi/orbitalis/neoforge/mixin/RocketVectorMixin.kt')
+        if not (propulsion_adapter or propulsion_mixin) and re.search(
+                r'\b(?:com\.simibubi|net\.createmod|dev\.propulsionteam|dev\.createpropulsionsimulated)\.', text):
             errors.append(f'{relative}: consumer-only mod API referenced by production modules')
         if re.search(r'^package\s+net\.(?:minecraft|neoforged)(?:\.|\s|;)', text, re.M):
             errors.append(f'{relative}: project code in an upstream package')
@@ -97,7 +102,12 @@ def jar(path, version):
         if mod['modId'] != 'orbitalis' or mod['version'] != version or parsed['license'] != 'Apache-2.0':
             raise ValueError('Wrong mod identity, version or license')
         dependencies = {item['modId']: item for item in parsed['dependencies']['orbitalis']}
-        if CONSUMER_MOD_IDS.intersection(dependencies):
+        forbidden = CONSUMER_MOD_IDS.intersection(dependencies)
+        propulsion = dependencies.get('createpropulsion')
+        if propulsion and (propulsion.get('type'), propulsion.get('versionRange'), propulsion.get('side')) == (
+                'optional', '[1.1.5]', 'BOTH'):
+            forbidden -= {'createpropulsion'}
+        if forbidden:
             raise ValueError('Consumer-only dependency leaked into production metadata')
         if dependencies['minecraft']['versionRange'] != '[1.21.1,1.21.2)':
             raise ValueError('Wrong Minecraft compatibility range')

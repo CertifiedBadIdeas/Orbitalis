@@ -133,6 +133,22 @@ versionRange="[1.21.1,1.21.2)"
                     self.run_verifier()
                 self.files['META-INF/neoforge.mods.toml'] = original
 
+    def test_optional_pinned_propulsion_dependency_is_allowed(self):
+        original = self.files['META-INF/neoforge.mods.toml']
+        self.files['META-INF/neoforge.mods.toml'] = original + (
+            '\n[[dependencies.orbitalis]]\nmodId="createpropulsion"\n'
+            'type="optional"\nversionRange="[1.1.5]"\nside="BOTH"\n'
+        ).encode()
+        self.run_verifier()
+        for wrong in ('type="required"', 'versionRange="[1.1.6]"'):
+            with self.subTest(wrong=wrong):
+                good = self.files['META-INF/neoforge.mods.toml']
+                before = 'type="optional"' if wrong.startswith('type=') else 'versionRange="[1.1.5]"'
+                self.files['META-INF/neoforge.mods.toml'] = good.replace(before.encode(), wrong.encode())
+                with self.assertRaisesRegex(ValueError, 'Consumer-only dependency'):
+                    self.run_verifier()
+                self.files['META-INF/neoforge.mods.toml'] = good
+
     def test_consumer_implementations_are_rejected_directly_and_nested(self):
         for prefix in verify.EXTERNAL_CLASS_PREFIXES:
             for nested in (False, True):
@@ -196,6 +212,25 @@ class ArchitectureBoundaryTest(unittest.TestCase):
                             verify.architecture()
                 path.write_text('String supportedEntity = "create:super_glue";')
                 verify.architecture()
+
+    def test_propulsion_imports_are_confined_to_the_named_adapter(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ('LICENSE.md', 'NOTICE', 'licenses/README.md'):
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('fixture')
+            base = root / 'modules/minecraft/shared/common/src/main/kotlin/org/cbi/orbitalis/minecraft'
+            adapter = base / 'integration/propulsion/Example.kt'
+            adapter.parent.mkdir(parents=True)
+            adapter.write_text('import dev.propulsionteam.propulsionsimulated.Example')
+            with mock.patch.object(verify, 'ROOT', root):
+                verify.architecture()
+                guidance = base / 'flight/control/Example.kt'
+                guidance.parent.mkdir(parents=True)
+                guidance.write_text(adapter.read_text())
+                with self.assertRaisesRegex(ValueError, 'consumer-only mod API'):
+                    verify.architecture()
 
 
 if __name__ == '__main__':

@@ -21,7 +21,7 @@ license="Apache-2.0"
 modId="orbitalis_flight_consumer"
 version="0.0.0-dev"
 displayName="Orbitalis Flight Consumer"
-description="Development-only Propulsion autopilot. Not part of the Orbitalis distribution."
+description="Development-only ship fixtures and integration tests. Flight control belongs to Orbitalis."
 [[dependencies.orbitalis_flight_consumer]]
 modId="orbitalis"
 type="required"
@@ -32,6 +32,3 @@ modId="createpropulsion"
 type="required"
 versionRange="[1.1.5]"
 side="BOTH"
-
-[[mixins]]
-config="orbitalis-flight-consumer.mixins.json"

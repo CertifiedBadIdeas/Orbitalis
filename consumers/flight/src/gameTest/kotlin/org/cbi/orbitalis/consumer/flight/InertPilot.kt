@@ -34,6 +34,8 @@ import net.minecraft.server.level.ServerPlayer
 import net.minecraft.server.network.CommonListenerCookie
 import net.minecraft.server.network.ServerGamePacketListenerImpl
 import net.minecraft.world.level.GameType
+import org.cbi.orbitalis.minecraft.flight.control.FlightBody
+import org.cbi.orbitalis.minecraft.integration.propulsion.AutopilotSession
 import java.util.UUID
 
 /** Models server acknowledgments/contact for handoff tests; never claims a real game client. */
@@ -72,7 +74,7 @@ internal class InertPilot(
         // A seated pilot is positioned by the real seat entity; do not synthesize deck contact.
         if (player.vehicle != null) return
         (player as EntityMovementExtension).`sable$setTrackingSubLevel`(body)
-        val p = AutopilotSession.position(body)
+        val p = FlightBody.position(body)
         player.setPos(p.x, p.y + 3, p.z)
     }
 

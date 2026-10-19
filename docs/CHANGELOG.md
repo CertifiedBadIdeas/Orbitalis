@@ -20,6 +20,12 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Promote flight guidance, native mission control, maneuver execution, launch bookmarks and active
+  ship-loading leases from the development consumer into Orbitalis. Isolate Propulsion engine access
+  behind an optional backend; keep fixture ships and native integration tests in the consumer.
+  Preserve command paths, existing bounded creative-engine behaviour and saved bookmark/ticket IDs;
+  expose ship-directory commands without Propulsion while keeping map execution unavailable.
+
 - Allow full orbital-map camera turns through both poles, retaining continuous orientation,
   marker projection and panning when viewing rotating planets.
 - Keep finite cloud-cap interiors intact when perspective interpolation rounds their boundary
