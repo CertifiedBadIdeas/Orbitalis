@@ -18,9 +18,9 @@ limitations under the License.
 
 # Changelog
 
-## 0.1.0-SNAPSHOT — First release in preparation
+## 0.1.0 — Alpha
 
-Planned publication channel: **Alpha**. Release date pending acceptance checks.
+First Alpha. Version frozen on 2026-10-20; publication is a separate step.
 
 ### Worlds and physics
 

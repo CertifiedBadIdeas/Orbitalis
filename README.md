@@ -20,7 +20,7 @@ limitations under the License.
 
 Orbitalis is a space exploration mod for **Minecraft 1.21.1 / NeoForge**. Fly from a finite
 Overworld into orbit, visit the Moon, and build orbital constructions with optional Sable support.
-The first **Alpha**, version **0.1.0**, is in preparation.
+The first **Alpha**, version **0.1.0**, is frozen for publication.
 
 ## Features
 
@@ -77,7 +77,7 @@ Read and accept Minecraft's EULA yourself before launching a dedicated server.
 
 Contributor documentation: [development](docs/contributors/development.md),
 [architecture](docs/contributors/architecture.md), [verification](docs/contributors/verification.md),
-[flight stand](docs/contributors/flight-consumer.md), and [release preparation](docs/contributors/release-0.1.0.md).
+[flight stand](docs/contributors/flight-consumer.md), and [release record](docs/contributors/release-0.1.0.md).
 Agent guidelines are in [AGENTS.md](AGENTS.md).
 
 Original code is licensed under [Apache-2.0](LICENSE.md). See [NOTICE](NOTICE) and

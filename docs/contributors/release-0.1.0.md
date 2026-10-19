@@ -16,12 +16,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-# Preparing Orbitalis 0.1.0
+# Orbitalis 0.1.0 Alpha
 
-Status: local release preparation; not published or declared ready. No release date is assigned.
-The selected CurseForge channel is **Alpha**, with mod version **0.1.0**.
-The development branch stays at `0.1.0-SNAPSHOT` until final acceptance. Build a candidate using the
-existing `-PmodVersion=0.1.0` override; no release-only branch of gameplay is maintained.
+Status: version frozen locally on **2026-10-20** for the first **Alpha**, **0.1.0**. Not uploaded,
+pushed or tagged. The user reported that the mod works and authorized freezing this version.
+That report is user acceptance, not an independently observed client or multiplayer test matrix.
+The default build version is now `0.1.0`; no command-line version override is needed.
+The next development version will be selected when a new development cycle starts.
 
 ## Release contents
 
@@ -36,9 +37,9 @@ Development fixture functions and the consumer entry point are excluded from dis
 Use an isolated task checkout and run `./worktree-task doctor` first:
 
 ```sh
-./gradlew-sandbox-dev-parallel-summary -PmodVersion=0.1.0 verifyLocalFull :v1_21_1-neoforge:buildProductionJar
-./gradlew-sandbox-dev-parallel-summary -PmodVersion=0.1.0 :v1_21_1-neoforge:runGameTestServer
-./gradlew-sandbox-dev-parallel-summary -PmodVersion=0.1.0 -p consumers/flight check runGameTestServer
+./gradlew-sandbox-dev-parallel-summary verifyLocalFull :v1_21_1-neoforge:buildProductionJar
+./gradlew-sandbox-dev-parallel-summary :v1_21_1-neoforge:runGameTestServer
+./gradlew-sandbox-dev-parallel-summary -p consumers/flight check runGameTestServer
 ```
 
 Inspect the real remapped archive under `modules/minecraft/v1_21_1/v1_21_1-neoforge/build/libs`,
@@ -47,7 +48,19 @@ source commit and command logs beside the candidate outside the temporary checko
 checks metadata, bytecode, bundled Kotlin and legal notices; it does not prove a normal installed game.
 The full native suites exercise development classpaths, not a clean installed production archive.
 
-## Acceptance still required before publication
+## Verification record
+
+The preparation candidate at source `20956cd346ec6ff6e6af3fde43fd94d524a4664d` passed
+`verifyLocalFull`, production archive verification, 159 core tests, 50 main native GameTests,
+one small-system native scenario and 17 Propulsion native scenarios. Two consumer unit tests also
+passed. Reports and exact commands are retained with the candidate under ignored `build/releases`.
+Finalization changes only the default version and documentation, with fresh archive/full checks.
+The final artifact manifest records its hash and comparison with the accepted candidate.
+
+## Manual coverage and publication follow-up
+
+The user's working-mod report does not specify a complete matrix. The following remain useful
+explicit acceptance scenarios; do not mark them as independently passed without evidence:
 
 - Install the exact hashed production JAR in a clean normal NeoForge client with optional mods absent;
   create a new world, open the map, visit space as an independent player, save, exit and reopen.
@@ -62,11 +75,11 @@ The full native suites exercise development classpaths, not a clean installed pr
   versions, graphics hardware and any driver requirements observed during manual review.
 - Use the selected **Alpha** channel on CurseForge and complete project-page links, description,
   screenshots, dependency relationships and known limitations. Use original game screenshots.
-- Freeze the final version/changelog only after acceptance. Any later code change needs a rebuilt
-  candidate and checks appropriate to its scope. Tagging, pushing and uploading need explicit authorization.
+- Version and changelog are frozen. Any later code change needs a rebuilt artifact and checks
+  appropriate to its scope. Tagging, pushing and uploading need explicit authorization.
 
-Do not label the candidate release-ready while these checks remain pending. Record concrete failures
-and missing evidence, rather than representing build success as completed player acceptance.
+Record concrete failures and missing evidence separately from user acceptance. Successful automated
+checks do not establish a complete installed-client or multiplayer matrix.
 
 ## CurseForge description draft
 
