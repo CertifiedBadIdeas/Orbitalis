@@ -136,7 +136,10 @@ slices, matching native 12-metre columns without decoding or copying the texture
 period buffer repeats over at most 64 tiles for a 20,000-block planet; fragment clipping keeps the
 finite footprint. The native float clock supplies 0.03-metre/tick drift and the one-third-cell Z phase.
 The last observed Overworld cloud height persists through travel, with bottom at height + 0.33 and
-native FANCY thickness, top inset, side inset, face shading and alpha.
+native FANCY thickness, top inset, side inset, face shading and alpha. Four cached perimeter
+quads close column cuts at the finite world boundary. Their runtime UVs follow the same moving
+mask, sampled just inside the footprint; empty columns remain empty. The perimeter buffer is
+rebuilt only when the selected body width changes.
 
 Clouds use the map's shared scene depth. In the world, their pass follows level rendering and samples
 the private planet depth while writing physical projected fragment depth for native terrain and
@@ -147,12 +150,13 @@ viewport or projection.
 
 At the beginning of the elevated transition, the original native cloud method is replaced once,
 including Sodium replacements. Geometry, phase and nearest texture sampling coincide instead of
-cross-fading overlapping volumes. The wrapper captures the actual native cloud-pass fog start/end,
-shape and colour before native rendering resets them. The distant shader preserves alpha and blends
-RGB through the same fog function, using per-fragment physical distance for period-sized caps.
-It therefore inherits the continuous atmospheric fog fade instead of abruptly introducing an
-unfogged layer. Native rendering remains below the transition; custom cloud renderers and shader
-packs need separate compatibility checks.
+cross-fading overlapping volumes. Ordinary terrain distance fog is disabled throughout Overworld,
+Moon and space with finite fog distances beyond the playable volume, independently of altitude.
+The distant cloud shader likewise adds no distance haze, and native clouds inherit the no-fog
+terrain range, avoiding a fog cutover between the two renderers. Fluid, blindness and darkness
+fog remain native, as do unrelated dimensions. Native rendering remains below the transition;
+custom cloud renderers, shader packs and independent third-party weather fog need separate
+compatibility checks.
 
 At transition heights the camera's far plane encloses the reference body, keeping compressed planet
 geometry and physical clouds in a valid native depth range. This changes projection, not terrain
@@ -160,8 +164,10 @@ tickets or render distance. Each cloud frame is consumed once and rejects change
 effect restrictions cannot reuse a stale frame. This is presentation, not cloud weather or shadows.
 
 In the world, the limb feather also has a dedicated post-level pass. Its private planet-depth mask
-retains near/far-side visibility, while physical depth uses the ray's front intersection with the
-finite atmospheric envelope. Loaded mountains therefore do not cut the feather off at their chunk
+retains near/far-side visibility. The entire mesh is elevated above the actual Overworld build
+ceiling (bright core at ceiling + 96 metres), with the same height used by map/world meshes,
+cache invalidation and atmospheric bounds. Physical depth uses the ray's front intersection with the
+finite atmospheric envelope. Loaded terrain within the build envelope therefore does not cut the feather off at its chunk
 silhouettes, and objects closer than the atmospheric entry still occlude it. Objects inside the
 layer receive front haze. The map retains its ordinary scene limb pass. This geometric front-scatter
 model remains illustrative, rather than a physical atmospheric scattering simulation.
@@ -213,7 +219,7 @@ and ascent (3064) triggers. Both frames therefore show the same sky at their han
 uses the existing route coordinate transform and scale constants, not distance from a dimension's
 native Y origin. Side and lower presentation additionally follow the existing compact atmospheric
 falloff, reaching vacuum within 256 m outside the footprint/below the body. Atlas subscriptions and
-held-frame forecasts include these edge/underside approaches. At and below the start, native sky rendering remains unchanged. Fog, native cloud
+held-frame forecasts include these edge/underside approaches. At and below the start, native sky rendering remains unchanged. Sky colour, native cloud
 presentation, rendered rain strength and exposed lightmap colours approach the orbital presentation with
 the same weight. Fluid and effect-specific sky restrictions remain. A lightmap adapter wraps only
 the native Overworld effects and delegates its render hooks; unrelated effects implementations stay

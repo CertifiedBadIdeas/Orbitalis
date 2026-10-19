@@ -48,26 +48,8 @@ object PlanetCloudRenderer {
     private var scene: Scene? = null
     private var fancyBuffer: VertexBuffer? = null
     private var fastBuffer: VertexBuffer? = null
-
-    private data class Fog(
-        val start: Float,
-        val end: Float,
-        val shape: Int,
-        val color: FloatArray,
-    )
-
-    private var nativeFog: Fog? = null
-
-    /** The native cloud call has the authoritative terrain fog, before renderLevel resets it. */
-    fun captureFog() {
-        nativeFog =
-            Fog(
-                RenderSystem.getShaderFogStart(),
-                RenderSystem.getShaderFogEnd(),
-                RenderSystem.getShaderFogShape().index,
-                RenderSystem.getShaderFogColor().copyOf(),
-            )
-    }
+    private var boundaryBuffer: VertexBuffer? = null
+    private var boundaryHalfSize = Double.NaN
 
     private data class Scene(
         val level: ClientLevel,
@@ -116,7 +98,6 @@ object PlanetCloudRenderer {
         surfaceColor: Vec3,
     ) {
         scene = null
-        nativeFog = null
         time = nativeTime
         if (surfaceHeight != null) height = surfaceHeight
         nativeColor = surfaceColor
@@ -127,11 +108,13 @@ object PlanetCloudRenderer {
         height = 192f
         nativeColor = Vec3(1.0, 1.0, 1.0)
         scene = null
-        nativeFog = null
         fancyBuffer?.close()
         fastBuffer?.close()
+        boundaryBuffer?.close()
         fancyBuffer = null
         fastBuffer = null
+        boundaryBuffer = null
+        boundaryHalfSize = Double.NaN
         if (registered) Minecraft.getInstance().textureManager.release(filtered)
         registered = false
     }
@@ -162,11 +145,7 @@ object PlanetCloudRenderer {
         val frame = scene ?: return
         scene = null
         if (Minecraft.getInstance().level !== frame.level || worldShader == null) return
-        try {
-            render(frame.observer, frame.view, frame.projection, frame.scale, frame)
-        } finally {
-            nativeFog = null
-        }
+        render(frame.observer, frame.view, frame.projection, frame.scale, frame)
     }
 
     fun render(
@@ -223,21 +202,26 @@ object PlanetCloudRenderer {
             shader.getUniform("Viewport")?.set(frame?.width?.toFloat() ?: 1f, frame?.height?.toFloat() ?: 1f)
             shader.getUniform("WorldDepth")?.set(if (frame != null) 1 else 0)
             shader.getUniform("CloudHalfSize")?.set(SpaceScene.HALF_SIZE.toFloat())
-            val fog = if (frame != null) nativeFog else null
-            shader.getUniform("FogStart")?.set(fog?.start ?: Float.MAX_VALUE / 2f)
-            shader.getUniform("FogEnd")?.set(fog?.end ?: Float.MAX_VALUE)
-            shader.getUniform("FogShape")?.set(fog?.shape ?: 0)
-            val fogColor = fog?.color ?: floatArrayOf(0f, 0f, 0f, 0f)
-            shader.getUniform("FogColor")?.set(fogColor[0], fogColor[1], fogColor[2], fogColor[3])
+            val phase = PlanetCloudMesh.phase(time)
+            shader.getUniform("CloudPhase")?.set(phase.x, phase.z)
             val tiles = PlanetCloudMesh.tiles(SpaceScene.HALF_SIZE, time)
             val vertices = buffer(fancy)
-            vertices.bind()
+            val boundary = if (fancy) boundaryBuffer(SpaceScene.HALF_SIZE) else null
 
             fun drawTiles() {
+                vertices.bind()
+                shader.getUniform("CloudBoundary")?.set(0)
                 for (tile in tiles) {
                     shader.getUniform("CloudOffset")?.set(tile.x, y, tile.z)
                     shader.apply()
                     vertices.draw()
+                }
+                if (boundary != null) {
+                    boundary.bind()
+                    shader.getUniform("CloudBoundary")?.set(1)
+                    shader.getUniform("CloudOffset")?.set(0f, y, 0f)
+                    shader.apply()
+                    boundary.draw()
                 }
             }
             if (fancy) {
@@ -270,10 +254,25 @@ object PlanetCloudRenderer {
         }
     }
 
+    private fun boundaryBuffer(halfSize: Double): VertexBuffer {
+        boundaryBuffer?.let { if (boundaryHalfSize == halfSize) return it }
+        boundaryBuffer?.close()
+        return upload(PlanetCloudMesh.boundary(halfSize)).also {
+            boundaryBuffer = it
+            boundaryHalfSize = halfSize
+        }
+    }
+
     private fun buffer(fancy: Boolean): VertexBuffer {
         (if (fancy) fancyBuffer else fastBuffer)?.let { return it }
+        return upload(PlanetCloudMesh.vertices(fancy)).also {
+            if (fancy) fancyBuffer = it else fastBuffer = it
+        }
+    }
+
+    private fun upload(vertices: List<PlanetCloudMesh.Vertex>): VertexBuffer {
         val builder = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR)
-        for (v in PlanetCloudMesh.vertices(fancy)) {
+        for (v in vertices) {
             val shade = (v.shade * 255f).toInt()
             builder.addVertex(v.x, v.y, v.z).setUv(v.u, v.v).setColor(shade, shade, shade, 204)
         }
@@ -281,7 +280,6 @@ object PlanetCloudRenderer {
             it.bind()
             it.upload(builder.buildOrThrow())
             VertexBuffer.unbind()
-            if (fancy) fancyBuffer = it else fastBuffer = it
         }
     }
 }

@@ -116,23 +116,7 @@
       ]
     },
     {
-      "name": "FogStart",
-      "type": "float",
-      "count": 1,
-      "values": [
-        0
-      ]
-    },
-    {
-      "name": "FogEnd",
-      "type": "float",
-      "count": 1,
-      "values": [
-        1
-      ]
-    },
-    {
-      "name": "FogShape",
+      "name": "CloudBoundary",
       "type": "int",
       "count": 1,
       "values": [
@@ -140,12 +124,10 @@
       ]
     },
     {
-      "name": "FogColor",
+      "name": "CloudPhase",
       "type": "float",
-      "count": 4,
+      "count": 2,
       "values": [
-        0,
-        0,
         0,
         0
       ]

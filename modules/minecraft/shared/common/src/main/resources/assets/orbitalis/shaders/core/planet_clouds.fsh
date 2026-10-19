@@ -25,10 +25,6 @@ uniform vec2 Viewport;
 uniform vec4 ColorModulator;
 uniform int WorldDepth;
 uniform float CloudHalfSize;
-uniform float FogStart;
-uniform float FogEnd;
-uniform int FogShape;
-uniform vec4 FogColor;
 in vec2 cloudUv;
 in vec4 cloudTint;
 in vec3 actualView;
@@ -48,10 +44,5 @@ void main() {
     } else {
         gl_FragDepth = gl_FragCoord.z;
     }
-    // Read the actual native cloud-pass fog, including the gradual atmospheric fade.
-    // Per-fragment distance also works for period-sized caps without distant corner fog.
-    float distance = FogShape == 0 ? length(actualView) : max(length(actualView.xz), abs(actualView.y));
-    float fog = FogEnd > FogStart ? smoothstep(FogStart, FogEnd, distance) : step(FogEnd, distance);
-    cloud.rgb = mix(cloud.rgb, FogColor.rgb, fog * FogColor.a);
     fragColor = cloud;
 }

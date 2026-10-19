@@ -43,12 +43,45 @@ internal object PlanetCloudMesh {
         val z: Float,
     )
 
+    fun phase(time: Float): Tile = Tile((((time * 0.03f).toDouble() % PERIOD + PERIOD) % PERIOD).toFloat(), Z_PHASE.toFloat())
+
+    /** Close arbitrary cuts through native columns, sampling just inside the finite footprint. */
+    fun boundary(half: Double): List<Vertex> {
+        require(half.isFinite() && half > 0.0 && half <= 10000.0)
+        val h = half.toFloat()
+        return buildList {
+            fun wall(
+                xAxis: Boolean,
+                positive: Boolean,
+            ) {
+                val fixed = if (positive) h else -h
+                val sample = fixed + if (positive) -INSET else INSET
+                val corners =
+                    if (positive == xAxis) {
+                        listOf(0f to -h, THICKNESS to -h, THICKNESS to h, 0f to h)
+                    } else {
+                        listOf(0f to -h, 0f to h, THICKNESS to h, THICKNESS to -h)
+                    }
+                for ((y, along) in corners) {
+                    add(
+                        if (xAxis) {
+                            Vertex(fixed, y, along, sample, along, 0.9f)
+                        } else {
+                            Vertex(along, y, fixed, along, sample, 0.8f)
+                        },
+                    )
+                }
+            }
+            for (axis in listOf(true, false)) for (positive in listOf(false, true)) wall(axis, positive)
+        }
+    }
+
     fun tiles(
         half: Double,
         time: Float,
     ): List<Tile> {
         require(half.isFinite() && half > 0.0 && half <= 10000.0)
-        val phase = ((time * 0.03f).toDouble() % PERIOD + PERIOD) % PERIOD
+        val phase = phase(time).x.toDouble()
         val xs = floor((-half + phase) / PERIOD).toInt() until ceil((half + phase) / PERIOD).toInt()
         val zs = floor((-half + Z_PHASE) / PERIOD).toInt() until ceil((half + Z_PHASE) / PERIOD).toInt()
         return xs.flatMap { x -> zs.map { z -> Tile((x * PERIOD - phase).toFloat(), (z * PERIOD - Z_PHASE).toFloat()) } }

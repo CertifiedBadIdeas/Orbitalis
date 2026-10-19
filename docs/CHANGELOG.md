@@ -23,9 +23,12 @@ limitations under the License.
 - Allow full orbital-map camera turns through both poles, retaining continuous orientation,
   marker projection and panning when viewing rotating planets.
 - Give distant FANCY clouds native-height volume, sharp texture sampling and matching movement,
-  shading and fog; retain FAST/OFF modes and avoid an abrupt fogged/native cloud switch.
+  shading and closed finite-boundary cuts; retain FAST/OFF modes.
+- Remove ordinary terrain/cloud distance fog on Earth, Moon and in space, avoiding an altitude
+  cutover while preserving fluid, blindness and darkness visibility effects.
 - Compose the planetary limb after native terrain using front-atmosphere depth, preventing loaded
-  chunks from cutting its glow while retaining occlusion by nearer foreground objects.
+  chunks from cutting its glow while retaining occlusion by nearer foreground objects. Raise
+  the visible feather above the Overworld build ceiling, shared by world and orbital-map views.
 
 - Keep free-player mouse yaw and pitch in the local planetary horizon. Bound elevation near its
   zenith and nadir to prevent repeated horizon flips when looking vertically near the Moon.
