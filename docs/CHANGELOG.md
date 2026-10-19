@@ -20,6 +20,9 @@ limitations under the License.
 
 ## 0.1.0-SNAPSHOT — In development
 
+- Retain lunar relief detail on small bodies with a bounded finer render grid, while preserving
+  existing atlas data and the original sampling density for larger moons.
+
 - Fade native terrain distance fog out in vacuum so nearby lunar chunks join the distant surface
   without a dark frontier; retain fluid fog and visibility effects.
 
