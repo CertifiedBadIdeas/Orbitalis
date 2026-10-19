@@ -19,6 +19,9 @@
 package org.cbi.orbitalis.neoforge.client
 
 import net.minecraft.client.Minecraft
+import net.minecraft.client.renderer.FogRenderer
+import net.minecraft.world.effect.MobEffects
+import net.minecraft.world.entity.LivingEntity
 import net.minecraft.world.level.material.FogType
 import net.neoforged.api.distmarker.Dist
 import net.neoforged.bus.api.SubscribeEvent
@@ -29,6 +32,23 @@ import org.cbi.orbitalis.minecraft.client.space.FlightSky
 
 @EventBusSubscriber(modid = Orbitalis.MOD_ID, value = [Dist.CLIENT])
 object SpaceViewportEvents {
+    @JvmStatic
+    @SubscribeEvent
+    fun fogDistance(event: ViewportEvent.RenderFog) {
+        val level = Minecraft.getInstance().level ?: return
+        if (event.type != FogType.NONE || event.mode != FogRenderer.FogMode.FOG_TERRAIN) return
+        val entity = event.camera.entity
+        if (entity is LivingEntity && (entity.hasEffect(MobEffects.BLINDNESS) || entity.hasEffect(MobEffects.DARKNESS))) return
+        val weight = FlightSky.weight(level, event.camera)
+        if (weight <= 0f) return
+        // Native distance fog must not paint an opaque frontier over the matching distant body.
+        // The existing atmospheric transition reduces fog density continuously into vacuum.
+        val atmosphere = 1f - weight
+        event.nearPlaneDistance = if (atmosphere > 0f) event.nearPlaneDistance / atmosphere else Float.MAX_VALUE / 2f
+        event.farPlaneDistance = if (atmosphere > 0f) event.farPlaneDistance / atmosphere else Float.MAX_VALUE
+        event.isCanceled = true
+    }
+
     @JvmStatic
     @SubscribeEvent
     fun fogColor(event: ViewportEvent.ComputeFogColor) {
