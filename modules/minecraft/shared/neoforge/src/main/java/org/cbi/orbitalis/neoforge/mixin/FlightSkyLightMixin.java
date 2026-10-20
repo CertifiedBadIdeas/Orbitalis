@@ -23,12 +23,13 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.BlockAndTintGetter;
 import net.minecraft.world.level.LightLayer;
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace;
+import org.cbi.orbitalis.minecraft.client.space.CelestialSkylight;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-/** No static terrain can occlude sky above the building ceiling, even without a light chunk. */
+/** Dynamic external light: celestial occlusion precedes Sable's native plot/cabin combination. */
 @Mixin(BlockAndTintGetter.class)
 public interface FlightSkyLightMixin {
     @Inject(method = "getBrightness", at = @At("HEAD"), cancellable = true)
@@ -36,7 +37,15 @@ public interface FlightSkyLightMixin {
         if (layer == LightLayer.SKY && (Object) this instanceof ClientLevel level &&
             FlatPlanetSpace.INSTANCE.contains(level) && position.getY() >= level.getMaxBuildHeight()) {
             // Plot positions remain below the ceiling: Sable can still apply native cabin occlusion.
-            callback.setReturnValue(15);
+            callback.setReturnValue(CelestialSkylight.scale(level, position, 15));
+        }
+    }
+
+    @Inject(method = "getBrightness", at = @At("RETURN"), cancellable = true)
+    private void orbitalis$celestialShadow(LightLayer layer, BlockPos position, CallbackInfoReturnable<Integer> callback) {
+        if (layer == LightLayer.SKY && (Object) this instanceof ClientLevel level &&
+            position.getY() < level.getMaxBuildHeight()) {
+            callback.setReturnValue(CelestialSkylight.scale(level, position, callback.getReturnValueI()));
         }
     }
 }

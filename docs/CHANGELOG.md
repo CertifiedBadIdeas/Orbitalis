@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.2.0 — In development
 
+- Dynamic external skylight accounts for overlapping celestial shadows and penumbrae. Native Sable
+  cabin skylight and local block lights are preserved; distant candidates are culled before testing
+  the finite solar source, and client samples are cached per tick.
+
 - Procedural Sun in orbital/lunar skies and the orbital map, using the existing celestial ephemeris.
   A ray-intersected cubic photosphere has animated cellular granulation, paired sunspot groups with
   umbrae/penumbrae, wavelength-dependent limb darkening, a volumetric white streamer corona
