@@ -57,7 +57,7 @@ float granules(vec3 n, vec3 flow, float footprint) {
                 vec3 offset = vec3(x,y,z);
                 vec3 random = hash3(cell + offset);
                 vec3 centre = offset + 0.18 + random * 0.64;
-                centre += 0.065 * sin(vec3(Phase * 12.0) + random.yzx * 6.283185);
+                centre += 0.18 * sin(vec3(Phase * 23.0) + random.yzx * 6.283185);
                 vec3 d = centre - f;
                 float distance2 = dot(d,d);
                 if (distance2 < nearest) {
@@ -73,8 +73,17 @@ float granules(vec3 n, vec3 flow, float footprint) {
     float width = max(0.045, footprint * frequency * 0.16);
     float interior = smoothstep(0.015, 0.10 + width, sqrt(second) - sqrt(nearest));
     float hot = exp(-nearest * 3.0);
-    float brightness = (0.58 + 0.42 * interior + 0.14 * hot) * (0.93 + seed * 0.14);
+    // Cell-specific heating/cooling evolves independently of the domain flow. Integer
+    // temporal harmonics keep values and their derivatives continuous at the clock wrap.
+    float heat = 0.88 + 0.24 * (0.5 + 0.5 * sin(Phase * 31.0 + seed * 6.283185));
+    float brightness = (0.58 + 0.42 * interior + 0.14 * hot) * heat;
     return mix(0.91, brightness, resolved);
+}
+
+vec3 solarCoordinates(vec3 p) {
+    float angle = Phase * 2.0;
+    return vec3(cos(angle) * p.x + sin(angle) * p.y,
+                -sin(angle) * p.x + cos(angle) * p.y, p.z);
 }
 
 vec3 activeCentre(int i) {
@@ -126,22 +135,28 @@ float loopDistance(vec3 p) {
         vec3 side = cross(radial, tangent);
         vec3 offset = p - radial * 1.002;
         float height = dot(offset, radial);
-        float radius = 0.066 + float(i) * 0.008 + 0.004 * sin(Phase * 2.0 + float(i));
+        float radius = 0.066 + float(i) * 0.008 + 0.008 * sin(Phase * 10.0 + float(i));
         float u = dot(offset, tangent);
         float angle = atan(height, u);
         float arch = radius * (0.95 + 0.09 * sin(angle * 3.0 + float(i)));
-        float ring = length(vec2(u + height * 0.24, height * 1.16)) - arch;
         float sway = 0.017 * sin(u * 19.0 + float(i)) * sin(height * 23.0);
-        float width = 0.0018 + 0.0014 * (0.5 + 0.5 * sin(angle * 7.0 + float(i)));
-        float tube = length(vec2(ring, dot(offset, side) - sway)) - width;
-        distance = min(distance, max(tube, -height));
+        // A bundle of separate strands, anchored at the surface; displacement grows with height.
+        float anchored = smoothstep(0.0, 0.025, height);
+        sway += 0.004 * sin(angle * 4.0 - Phase * 17.0 + float(i)) * anchored;
+        for (int strand = 0; strand < 3; strand++) {
+            float layer = float(strand) - 1.0;
+            float ring = length(vec2(u + height * 0.24, height * 1.16)) - arch - layer * 0.004 * anchored;
+            float width = 0.0012 + 0.0006 * (0.5 + 0.5 * sin(angle * 7.0 - Phase * 29.0 + float(i)));
+            float tube = length(vec2(ring, dot(offset, side) - sway - layer * 0.004 * anchored)) - width;
+            distance = min(distance, max(tube, -height));
+        }
     }
     return distance;
 }
 float prominences(vec3 closest, vec3 ray, float impact, float along) {
     if (impact > 1.13) return 0.0;
-    vec3 p0 = mat3(InverseView) * closest;
-    vec3 direction = mat3(InverseView) * ray;
+    vec3 p0 = solarCoordinates(mat3(InverseView) * closest);
+    vec3 direction = solarCoordinates(mat3(InverseView) * ray);
     float chord = sqrt(max(0.0, 1.13 * 1.13 - impact * impact));
     float travel = max(-chord, -along);
     float nearest = 10.0;
@@ -154,8 +169,21 @@ float prominences(vec3 closest, vec3 ray, float impact, float along) {
         if (distance < 0.0008) break;
         travel += max(0.001, distance * 0.65);
     }
-    float strands = noise(nearestPoint * 190.0 + vec3(sin(Phase * 12.0), cos(Phase * 11.0), 0.0) * 0.2);
-    return exp(-max(nearest, 0.0) * 185.0) * (0.22 + 0.78 * strands);
+    float emission = 0.0;
+    for (int i = 1; i <= 2; i++) {
+        vec3 radial = activeCentre(i);
+        vec3 tangent = normalize(cross(radial, vec3(0,0,1)));
+        vec3 offset = nearestPoint - radial * 1.002;
+        float height = max(0.0, dot(offset, radial));
+        float angle = atan(height, dot(offset, tangent));
+        // Bright plasma knots travel along the arch rather than flashing the whole loop.
+        float knots = pow(0.5 + 0.5 * sin(angle * 9.0 - Phase * 120.0 + float(i)), 3.0);
+        float footpoints = exp(-height * 100.0);
+        float local = exp(-length(offset) * 5.0) * (0.18 + 0.65 * knots + 0.45 * footpoints);
+        emission = max(emission, local);
+    }
+    float strands = noise(nearestPoint * 190.0 + vec3(sin(Phase * 37.0), cos(Phase * 41.0), 0.0) * 0.35);
+    return exp(-max(nearest, 0.0) * 270.0) * emission * (0.55 + 0.45 * strands);
 }
 
 vec3 displayLight(vec3 radiance) {
@@ -187,7 +215,10 @@ void main() {
     // Evaluate derivatives before the divergent photosphere/corona branch. Neighbouring
     // helper fragments use the tangent normal outside the limb instead of an undefined value.
     float footprint = max(length(dFdx(n)), length(dFdy(n)));
-    vec3 flow = vec3(sin(Phase * 12.0), cos(Phase * 13.0), sin(Phase * 11.0)) * 0.13;
+    // Apparent rotation transports the surface and corona together. It is presentation
+    // motion, independent of the physical Sun frame and ephemeris.
+    n = solarCoordinates(n);
+    vec3 flow = vec3(sin(Phase * 19.0), cos(Phase * 23.0), sin(Phase * 17.0)) * 0.65;
     if (impact <= 1.0) {
         float t = along - sqrt(max(0.0, 1.0 - impact * impact));
         if (t < 0.0) t = along + sqrt(max(0.0, 1.0 - impact * impact));
@@ -214,14 +245,17 @@ void main() {
         for (int i = 0; i < 8; i++) {
             vec3 p = closest + ray * (start + (float(i) + 0.5) * stepLength);
             float radius = length(p);
-            vec3 direction = mat3(InverseView) * (p / radius);
+            vec3 direction = solarCoordinates(mat3(InverseView) * (p / radius));
             float latitude = abs(direction.z);
             float belt = 0.22 + 0.78 * pow(1.0 - latitude * latitude, 2.0);
-            float field = noise(direction * 11.0 + flow * 0.15);
+            float field = noise(direction * 11.0 + flow * 0.4);
             float streamers = pow(smoothstep(0.32, 0.79, field), 3.0);
-            float filaments = noise(direction * 43.0 + flow * 0.25);
+            float filaments = noise(direction * 43.0 + flow * 0.35);
+            // Phase fronts propagate outwards; each angular flux tube has its own phase.
+            float packet = 0.5 + 0.5 * sin(radius * 24.0 - Phase * 96.0 + field * 9.0);
             float density = pow(1.0 / radius, 6.0) * (0.16 + 2.4 * streamers) * belt;
-            density *= (0.60 + 0.40 * filaments) * (1.0 - smoothstep(2.2, outerRadius, radius));
+            density *= (0.50 + 0.50 * filaments) * (0.65 + 0.55 * packet);
+            density *= 1.0 - smoothstep(2.2, outerRadius, radius);
             column += density * stepLength;
         }
         float loops = prominences(closest, ray, impact, along);

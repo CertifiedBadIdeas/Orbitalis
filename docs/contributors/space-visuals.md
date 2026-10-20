@@ -288,7 +288,14 @@ convection has no UV seam: a bounded 27-neighbour Voronoi search
 produces bright granules and dark intergranular lanes. Derivative filtering fades unresolved
 cells before their expensive evaluation at long distance. Derivatives are evaluated before the
 photosphere/corona branch to keep tangent helper fragments defined at the limb. Periodic simulation-time
-animation remains continuous across its bounded phase wrap. Four prescribed active regions contain
+animation remains continuous across its bounded phase wrap. Cell feature points deform and their
+individual heat cycles evolve on different harmonics. A shared apparent axial rotation transports
+surface active regions and coronal structures without moving the physical Sun frame. Coronal phase
+fronts propagate outwards; prominence knots travel along three anchored strands per arch, whose
+height and displacement evolve more slowly. These intentionally accelerated presentation timescales
+are not the physical rotation period or plasma velocities. The same simulation clock drives the map
+and sky, including fractional ticks; pausing the simulation freezes the presentation.
+Four prescribed active regions contain
 paired spots with dark umbrae, ragged penumbrae and
 resolved radial filaments. These are illustrative patterns, not a magnetohydrodynamic simulation.
 Wavelength-dependent limb darkening and photographic compression replace flat yellow vertex colour.

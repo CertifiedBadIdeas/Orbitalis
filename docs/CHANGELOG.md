@@ -23,7 +23,8 @@ limitations under the License.
 - Procedural Sun in orbital/lunar skies and the orbital map, using the existing celestial ephemeris.
   A ray-intersected photosphere has animated cellular granulation, paired sunspot groups with
   umbrae/penumbrae, wavelength-dependent limb darkening, a volumetric white streamer corona
-  and small red prominence loops above active regions.
+  and small red prominence loops above active regions. Surface cells evolve, coronal flows travel
+  outwards and plasma knots move along slowly deforming prominence strands, on a shared simulation clock.
   Photographic exposure preserves map detail and a white-hot distant disc.
   Solar radius scales with the selected system to retain an apparent diameter near 0.53 degrees.
   Overworld daylight and existing ship/planet illumination are unchanged.
