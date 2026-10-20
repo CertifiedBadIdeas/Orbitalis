@@ -32,6 +32,8 @@ limitations under the License.
   culling depth local so astronomical distances cannot stall Minecraft's frustum update.
 - Frame map close-ups above each body's current surface and identify Earth alongside its Moon;
   preserve the visible Sun when near-surface sky projection has an infinite far plane.
+- Illuminate exposed players and hands below a planet's native chunk floor using physical solar
+  visibility, preserving celestial shadows, local block lights and Sable cabin occlusion.
 - Dynamic external skylight accounts for overlapping celestial shadows and penumbrae. Native Sable
   cabin skylight and local block lights are preserved; distant candidates are culled before testing
   the finite solar source, and client samples are cached per tick.

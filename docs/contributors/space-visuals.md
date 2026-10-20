@@ -441,6 +441,10 @@ rectangular gravity envelope and the same sampled orientation as its visible ter
 `SolarLightScene` resolves one immutable geocentric sample. `CelestialSkylight` caches queried physical
 points per client tick (bounded to 4,096 points), with a per-thread cache and world/profile invalidation.
 Only dynamic external sky sampling is attenuated; block light and plot coordinates are not rewritten.
+Outside native chunk-light storage, above its ceiling or below its floor, the external baseline is
+full sky before physical visibility is applied. This permits sunlight under a finite slab: absent
+native light sections do not imply darkness. The result is attenuated exactly once; queries within
+the build range retain native terrain occlusion, and Sable plot queries retain cabin light storage.
 Sable's existing native external-light scale combines this with cabin skylight for its vanilla/fancy
 hulls, entities and block entities. Thus separate ships can be illuminated and eclipsed in one frame,
 without a camera-wide lightmap reduction or rebuilding hull meshes. The Overworld surface retains
