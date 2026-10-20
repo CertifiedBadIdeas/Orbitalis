@@ -130,8 +130,12 @@ class OrbitalMapScreen(
 
     fun accept(value: MapSnapshot) {
         if (value.token != token || value.tick < (snapshot?.tick ?: -1L)) return
+        val initial = snapshot == null
         snapshot = value
         celestialBodies = value.celestialProfile?.let { CelestialMapScene.sample(it, value.simulationTick) }.orEmpty()
+        if (initial && bodyFocus == SolarSystemProfile.EARTH) {
+            value.celestialProfile?.let { CelestialMapScene.orientSurface(camera, it, SolarSystemProfile.EARTH, value.simulationTick) }
+        }
         bodyFocus?.let { id -> celestialBodies.firstOrNull { it.id == id }?.let { camera.focus = it.position } }
         items =
             value.objects
@@ -287,13 +291,12 @@ class OrbitalMapScreen(
             }
         }
         for (body in celestialBodies) {
-            if (body.id == SolarSystemProfile.EARTH) continue
             val point = camera.project(body.position, viewWidth, viewHeight) ?: continue
             val x = viewX + point.x.roundToInt()
             val y = viewY + point.y.roundToInt()
             val color = if (body.id == SolarSystemProfile.SUN) 0xFFE19B else 0xCFD9E5
             val solarPixels = if (body.id == SolarSystemProfile.SUN) body.radius / camera.range * viewHeight * 0.5 else 0.0
-            if (solarPixels <= 6.0) {
+            if (body.radius / camera.range * viewHeight * 0.5 <= 6.0) {
                 for (row in -4..4) {
                     val extent = kotlin.math.sqrt((16 - row * row).toDouble()).toInt()
                     graphics.fill(x - extent, y + row, x + extent + 1, y + row + 1, color or 0xFF000000.toInt())
@@ -366,10 +369,11 @@ class OrbitalMapScreen(
 
     private fun resetEarthView() {
         clearCameraInput()
-        bodyFocus = null
+        bodyFocus = SolarSystemProfile.EARTH
         camera.reset()
         val profile = snapshot?.celestialProfile ?: org.cbi.orbitalis.minecraft.flight.CelestialFlight.clientProfileSnapshot
         camera.frame(Vector3.ZERO, (profile?.geometry?.earthHalfSize ?: 5000.0) * 1.7, viewWidth, viewHeight)
+        profile?.let { CelestialMapScene.orientSurface(camera, it, SolarSystemProfile.EARTH, celestialRenderTick, celestialRenderSeconds) }
     }
 
     private fun frameBody(
@@ -379,6 +383,7 @@ class OrbitalMapScreen(
         val body = celestialBodies.firstOrNull { it.id == id } ?: return
         bodyFocus = id
         camera.frame(body.position, range, viewWidth, viewHeight)
+        snapshot?.celestialProfile?.let { CelestialMapScene.orientSurface(camera, it, id, celestialRenderTick, celestialRenderSeconds) }
     }
 
     private fun drawPlanet() {

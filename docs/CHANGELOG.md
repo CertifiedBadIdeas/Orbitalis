@@ -30,6 +30,8 @@ limitations under the License.
   projection for deferred clouds, avoiding clipped nearby surfaces at astronomical distances.
 - Keep free-player horizons continuous near inner planets and across sector handoffs; keep native
   culling depth local so astronomical distances cannot stall Minecraft's frustum update.
+- Frame map close-ups above each body's current surface and identify Earth alongside its Moon;
+  preserve the visible Sun when near-surface sky projection has an infinite far plane.
 - Dynamic external skylight accounts for overlapping celestial shadows and penumbrae. Native Sable
   cabin skylight and local block lights are preserved; distant candidates are culled before testing
   the finite solar source, and client samples are cached per tick.

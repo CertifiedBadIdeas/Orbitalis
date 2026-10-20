@@ -77,6 +77,14 @@ class MapCamera {
         this.range = (range * maxOf(1.0, height.toDouble() / width)).coerceIn(128.0, 1e8)
     }
 
+    /** Start a body close-up above its current top face rather than a fixed root-space horizon. */
+    fun orientSurface(orientation: org.cbi.orbitalis.core.orbit.Rotation3) {
+        val local = Vector3(sin(0.65) * cos(0.85), sin(0.85), cos(0.65) * cos(0.85))
+        val direction = orientation.apply(local)
+        yaw = kotlin.math.atan2(direction.x, direction.z)
+        pitch = kotlin.math.asin(direction.y.coerceIn(-1.0, 1.0))
+    }
+
     fun reset() {
         focus = Vector3.ZERO
         range = 8500.0

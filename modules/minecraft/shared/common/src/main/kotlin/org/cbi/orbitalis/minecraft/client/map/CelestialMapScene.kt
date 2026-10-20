@@ -31,6 +31,23 @@ object CelestialMapScene {
         val orbit: List<Vector3> = emptyList(),
     )
 
+    fun orientSurface(
+        camera: MapCamera,
+        profile: SolarSystemProfile,
+        id: String,
+        tick: Long,
+        seconds: Double = 0.0,
+    ) {
+        val frame =
+            when (id) {
+                SolarSystemProfile.EARTH -> profile.earthSurfaceFrame(tick, seconds)
+                SolarSystemProfile.MOON -> profile.lunarSurfaceFrame(tick, seconds)
+                SolarSystemProfile.MERCURY, SolarSystemProfile.VENUS -> profile.innerPlanetSurfaceFrame(id, tick, seconds)
+                else -> return
+            }
+        camera.orientSurface(frame.orientation)
+    }
+
     fun follow(
         camera: MapCamera,
         id: String?,
