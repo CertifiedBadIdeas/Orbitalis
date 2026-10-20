@@ -1,0 +1,8 @@
+{
+  "type": "orbitalis:venus",
+  "generator": {
+    "type": "orbitalis:inner_planet_surface",
+    "biome": "orbitalis:venus_surface",
+    "planet": "venus"
+  }
+}
