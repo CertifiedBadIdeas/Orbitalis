@@ -59,6 +59,29 @@ class SurfaceAtlasTest {
         assertFalse(cells.containsKey(-2 to -2))
     }
 
+    @Test fun waterCoverageIsExplicitAveragedAndChangesStreamRevision() {
+        val atlas = SurfaceAtlas()
+        val dryBlue = SurfaceAtlas.Sample(-2, -2, 70, 0x0000ff)
+        val water = dryBlue.copy(x = -1, waterCoverage = 255)
+        atlas.put(dryBlue)
+        atlas.put(water)
+        assertEquals(0.0, atlas.overview().getValue(-2 to -2).waterCoverage)
+        assertEquals(1.0, atlas.overview().getValue(-1 to -2).waterCoverage)
+        assertEquals(0.5, atlas.overview(2).getValue(-1 to -1).waterCoverage)
+        val cursor = atlas.revision
+        atlas.put(water.copy(waterCoverage = 128))
+        assertEquals(
+            128,
+            atlas
+                .after(cursor, 1)
+                .second
+                .single()
+                .waterCoverage,
+        )
+        assertThrows(IllegalArgumentException::class.java) { dryBlue.copy(waterCoverage = -1) }
+        assertThrows(IllegalArgumentException::class.java) { dryBlue.copy(waterCoverage = 256) }
+    }
+
     @Test fun boundsIncludePartialEdgeChunksAndRejectBadRecords() {
         val low = SurfaceAtlas.Sample(SurfaceAtlas.MIN_CHUNK, SurfaceAtlas.MIN_CHUNK, -64, 0)
         val high = SurfaceAtlas.Sample(SurfaceAtlas.MAX_CHUNK, SurfaceAtlas.MAX_CHUNK, 320, 0xffffff)

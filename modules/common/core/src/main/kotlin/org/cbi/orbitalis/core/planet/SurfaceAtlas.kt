@@ -27,10 +27,12 @@ class SurfaceAtlas {
         val z: Int,
         val height: Int,
         val color: Int,
+        val waterCoverage: Int = 0,
     ) {
         init {
             require(x in MIN_CHUNK..MAX_CHUNK && z in MIN_CHUNK..MAX_CHUNK)
             require(height in -4096..4096 && color in 0..0xffffff)
+            require(waterCoverage in 0..255)
         }
 
         val key get() = (x - MIN_CHUNK) * WIDTH + z - MIN_CHUNK
@@ -76,6 +78,7 @@ class SurfaceAtlas {
         val height: Double,
         val color: Int,
         val known: Int,
+        val waterCoverage: Double = 0.0,
     )
 
     /** Native 16m cells by default; optional 32m aggregation combines four known chunk samples. */
@@ -84,12 +87,13 @@ class SurfaceAtlas {
         val groups = hashMapOf<Pair<Int, Int>, LongArray>()
         for (sample in samples.values) {
             val key = Math.floorDiv(sample.x, chunksPerCell) to Math.floorDiv(sample.z, chunksPerCell)
-            val sum = groups.getOrPut(key) { LongArray(5) }
+            val sum = groups.getOrPut(key) { LongArray(6) }
             sum[0] += sample.height.toLong()
             sum[1] += (sample.color shr 16 and 255).toLong()
             sum[2] += (sample.color shr 8 and 255).toLong()
             sum[3] += (sample.color and 255).toLong()
             sum[4]++
+            sum[5] += sample.waterCoverage.toLong()
         }
         return groups.mapValues { (key, sum) ->
             val n = sum[4]
@@ -99,6 +103,7 @@ class SurfaceAtlas {
                 sum[0].toDouble() / n,
                 ((sum[1] / n).toInt() shl 16) or ((sum[2] / n).toInt() shl 8) or (sum[3] / n).toInt(),
                 n.toInt(),
+                sum[5].toDouble() / (n * 255),
             )
         }
     }
