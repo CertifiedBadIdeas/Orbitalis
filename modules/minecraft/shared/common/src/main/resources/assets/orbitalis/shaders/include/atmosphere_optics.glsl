@@ -70,3 +70,18 @@ vec3 atmosphereSunTransmission(vec3 point, vec3 sunDirection) {
     return exp(-RayleighCoefficient * column.x - vec3(MieCoefficient * column.y));
 }
 
+// Aerial perspective for an already visible surface; integrate only its finite segment to the observer.
+vec3 atmosphereViewTransmission(vec3 point, vec3 observer) {
+    vec3 difference = observer - point;
+    float lengthToObserver = length(difference);
+    if (lengthToObserver < 0.0001) return vec3(1.0);
+    vec3 ray = difference / lengthToObserver;
+    float extent = AtmosphereHalfSize + AtmosphereFeather;
+    float entry;
+    float exit;
+    if (!atmosphereBoxInterval(point, ray, vec3(-extent, AtmosphereBottom, -extent), vec3(extent, AtmosphereTop, extent), entry, exit)) return vec3(1.0);
+    float start = max(0.0, entry);
+    float distance = max(0.0, min(lengthToObserver, exit) - start);
+    vec2 column = atmosphereColumns(point.y + ray.y * start - AtmosphereBottom, ray.y, distance);
+    return exp(-RayleighCoefficient * column.x - vec3(MieCoefficient * column.y));
+}
