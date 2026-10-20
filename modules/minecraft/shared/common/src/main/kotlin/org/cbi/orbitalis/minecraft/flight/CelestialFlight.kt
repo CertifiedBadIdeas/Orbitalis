@@ -110,7 +110,7 @@ class CelestialFlight(
     ): Vector3 = nativeAngular(rootAngular(value, from), to)
 
     fun destination(
-        level: ServerLevel,
+        level: Level,
         state: CartesianState,
     ): ResourceKey<Level>? {
         val current = chart(level.dimension())

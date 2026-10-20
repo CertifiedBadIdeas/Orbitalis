@@ -51,7 +51,7 @@ object OrbitalSectors {
         val data = Catalogue.open(server)
         check(data.compatible) { "Unknown or malformed orbital sector catalogue; preserved unchanged" }
         check(key.location().toString() in data.keys || data.keys.size < MAX_SECTORS) { "Orbital sector catalogue limit reached" }
-        // Persist intent before opening a world whose entities/ships can become independently durable.
+        // This is an asynchronous index; a durable canonical player/journal key can rebuild it.
         if (data.keys.add(key.location().toString())) {
             data.setDirty()
             server.overworld().dataStorage.save()
@@ -81,7 +81,7 @@ object OrbitalSectors {
         val token = server to key
         if (token in materializing) return null
         val data = Catalogue.open(server)
-        if (!data.compatible || key.location().toString() !in data.keys) return null
+        check(data.compatible) { "Unknown or malformed orbital sector catalogue; preserved unchanged" }
         materializing.add(token)
         return try {
             ensure(server, key)

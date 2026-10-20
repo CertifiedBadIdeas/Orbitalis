@@ -265,7 +265,7 @@ tasks.configureEach {
                 "control" -> setOf("flightcontrolwithoutpropulsion")
                 "settings" -> setOf("nativeworldcreationsettings", "nativeskylightingsettings")
                 "scaled" -> setOf("nativesmallcelestialsystem")
-                "sectors" -> setOf("nativesectorlifecycle", "nativesectorplayer", "nativesectorship")
+                "sectors" -> setOf("nativesectorlifecycle", "nativesectorplayer", "nativesectorship", "nativesectorjournalrecovery", "nativesectormounted")
                 "map" -> mapNames
                 "objects" -> objectNames
                 "terrain" -> terrainNames

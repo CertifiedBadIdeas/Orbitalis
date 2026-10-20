@@ -39,14 +39,15 @@ the ID and already synchronized celestial sample; it requires no per-sector pack
 
 `orbitalis_orbital_sectors` is version-one SavedData in the Overworld. It records
 at most 4,096 unique keys. Unknown/malformed records are retained unchanged and
-refuse new sector creation. Intent is saved before a native level is created.
+refuse new sector creation. The catalogue is an asynchronous index, not sole world authority; a canonical key in
+a durable player or transfer record can reconstruct a missing index entry.
 The loader creates a separate native ServerLevel from the existing sparse vacuum
 stem, installs it into the native server level map, marks its level cache dirty,
 and emits the ordinary level-load event. Each level owns its normal independent
 save directory, entity storage, chunks and Sable container.
 
 Startup validates the catalogue without constructing every level. A server-thread
-native `getLevel` fallback lazily materializes registered sectors for login and
+native `getLevel` fallback lazily materializes canonical sector keys for login and
 recovery, with a recursion guard. A maximum of 256 native sectors can be loaded in
 one server session; exceeding it refuses travel before source authority is removed.
 There is no automatic loaded-sector eviction in this version.
