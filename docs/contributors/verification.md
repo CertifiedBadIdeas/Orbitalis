@@ -175,3 +175,21 @@ The sky settings case executes operator commands, saves/reads compressed NBT, pr
 records and rejects mutation, validates both network modes/invalid byte, and checks native daytime
 independence plus return to vanilla, native tick-sprint start/stop and the loaded-ship guard. Client visual evidence must separately cover both Overworld
 modes, physical day/night, distant Earth/Moon illumination, clouds and native resource reload.
+
+## Inner planets and local orbital sectors
+
+The `-PorbitalisGameTestSuite=planets` suite requires six native cases: finite Mercury/Venus
+terrain and bounded seed packets, independent-player round trips for each planet, and ship
+round trips for each planet. Ship scenarios verify exact arrival pose/velocity and chest cargo,
+contact with generated native terrain for five ticks, downward gravity and automatic ascent
+back into a bounded heliocentric sector. Explicit fixture loading leases permit observing
+collision and departure; these scenarios do not establish unloaded-autopilot operation.
+
+The `-PorbitalisGameTestSuite=sectors` suite requires five native cases: sector lifecycle and
+canonical cold lookup, independent-player and unmanned-ship crossing, mounted survival
+passenger crossing, and PREPARED/COMMITTED journal-v8 recovery after reopening its manager.
+Unsafe native destinations are rejected before source mutation. Both suites are mandatory
+in `all`. Core tests cover physical/native frame transport and camera-horizon continuity;
+client handoff, map appearance and external ship illumination still need an observed client.
+Long cold coasts across multiple sectors retain their payload and refuse unsafe restoration;
+these checks do not establish holding-to-holding migration.

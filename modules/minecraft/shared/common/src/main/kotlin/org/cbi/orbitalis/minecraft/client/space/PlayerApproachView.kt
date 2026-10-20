@@ -26,7 +26,7 @@ import org.cbi.orbitalis.minecraft.client.ship.ShipCameraAccess
 import org.cbi.orbitalis.minecraft.flight.CelestialFlight
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 
-/** Free-player horizon follows the lunar surface before its native frame handoff. Aim stays native. */
+/** Free-player horizon follows the nearby surface before its native frame handoff. Aim stays native. */
 object PlayerApproachView {
     private val reference = LunarApproachView()
     private var connection: Any? = null
@@ -50,7 +50,7 @@ object PlayerApproachView {
             reference.up(
                 CelestialView.sample().frames,
                 Vector3(player.x, player.y, player.z),
-                CelestialFlight.world(level.dimension()),
+                CelestialFlight.chart(level.dimension()),
             )
         if ((up - Vector3(0.0, 1.0, 0.0)).length() < 1e-9) return null
         val look = player.lookAngle
@@ -136,7 +136,7 @@ object PlayerApproachView {
         }
         val p = camera.position
         val frames = CelestialView.sample().frames
-        val world = CelestialFlight.world(level.dimension())
+        val world = CelestialFlight.chart(level.dimension())
         val orientation = frames.frame(world).orientation
         val desired = reference.up(frames, Vector3(p.x, p.y, p.z), world)
         horizonUp = desired

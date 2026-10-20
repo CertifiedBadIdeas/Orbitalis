@@ -23,6 +23,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
 import org.cbi.orbitalis.core.planet.Vector3;
 import org.cbi.orbitalis.minecraft.client.space.FlightSky;
+import org.cbi.orbitalis.minecraft.client.space.CelestialView;
+import org.cbi.orbitalis.minecraft.client.space.SkyProjection;
 import org.cbi.orbitalis.minecraft.client.space.SpaceScene;
 import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates;
 import org.spongepowered.asm.mixin.Mixin;
@@ -34,12 +36,12 @@ public abstract class PlanetCloudProjectionMixin {
     @ModifyReturnValue(method = "getDepthFar", at = @At("RETURN"))
     private float orbitalis$planetDepth(float original) {
         Minecraft mc = Minecraft.getInstance();
-        if (mc.level == null) return original;
+        if (mc.level == null || !CelestialView.INSTANCE.hasFrame(mc.level)) return original;
         var camera = mc.gameRenderer.getMainCamera();
         if (FlightSky.INSTANCE.weight(mc.level, camera) <= 0) return original;
         var p = camera.getPosition();
         var observer = FlightSpaceCoordinates.INSTANCE.globalPosition(mc.level, new Vector3(p.x, p.y, p.z));
         double extent = new Vector3(SpaceScene.INSTANCE.getHALF_SIZE(), 4096.0, SpaceScene.INSTANCE.getHALF_SIZE()).length();
-        return (float) Math.max(original, (observer.length() + extent) * 2.0);
+        return SkyProjection.INSTANCE.nativeFar(original, (observer.length() + extent) * 2.0);
     }
 }

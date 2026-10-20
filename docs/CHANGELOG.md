@@ -28,6 +28,8 @@ limitations under the License.
 - Synchronize derived Mercury/Venus terrain seeds through the updated client ephemeris protocol.
 - Use a shared celestial depth domain with an adaptive sky near plane and separate native-depth
   projection for deferred clouds, avoiding clipped nearby surfaces at astronomical distances.
+- Keep free-player horizons continuous near inner planets and across sector handoffs; keep native
+  culling depth local so astronomical distances cannot stall Minecraft's frustum update.
 - Dynamic external skylight accounts for overlapping celestial shadows and penumbrae. Native Sable
   cabin skylight and local block lights are preserved; distant candidates are culled before testing
   the finite solar source, and client samples are cached per tick.

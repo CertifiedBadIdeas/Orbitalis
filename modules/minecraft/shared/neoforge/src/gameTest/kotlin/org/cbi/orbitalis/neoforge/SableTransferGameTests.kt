@@ -459,7 +459,7 @@ object SableTransferGameTests {
             SpaceTravelReservations.release(ship, owner)
             manager.close()
             journal.close()
-            org.cbi.orbitalis.minecraft.flight.CelestialFlight.dimensions.mapNotNull(server::getLevel).forEach { world ->
+            org.cbi.orbitalis.minecraft.flight.CelestialFlight.levels(server).forEach { world ->
                 SubLevelPhysicsSystem.require(world).paused = false
             }
             player.discard()
@@ -479,8 +479,9 @@ object SableTransferGameTests {
                 ) {
                     System.err.println("Ship transfer GameTest failed: ${test.error}")
                     runCatching { cleanup() }.onFailure { it.printStackTrace() }
-                    for (key in org.cbi.orbitalis.minecraft.flight.CelestialFlight.dimensions) {
-                        SubLevelPhysicsSystem.require(checkNotNull(server.getLevel(key))).paused = false
+                    for (world in org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                        .levels(server)) {
+                        SubLevelPhysicsSystem.require(world).paused = false
                     }
                 }
 

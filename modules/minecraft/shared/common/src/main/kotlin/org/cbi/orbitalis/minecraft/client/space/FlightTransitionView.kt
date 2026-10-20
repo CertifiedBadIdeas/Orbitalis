@@ -129,7 +129,7 @@ object FlightTransitionView {
             }
             return
         }
-        if (!supported(level.dimension()) || mc.screen != null) {
+        if (!supported(level.dimension()) || !CelestialView.hasFrame(level) || mc.screen != null) {
             releaseImage()
             return
         }

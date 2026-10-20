@@ -45,9 +45,8 @@ object TrajectoryRenderer {
         val end = snapshot.prediction.end
         val warning = end == CoastPrediction.End.SURFACE_ENTRY || end == CoastPrediction.End.BODY_INTERSECTION
         if (points.size < 2 && marker == null && !warning) return
-        if (level.dimension() == org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY &&
-            !org.cbi.orbitalis.minecraft.flight.CelestialFlight
-                .available(level)
+        if (!org.cbi.orbitalis.minecraft.client.space.CelestialView
+                .hasFrame(level)
         ) {
             return
         }

@@ -55,7 +55,14 @@ relative offsets are subtracted in double precision. The shared renderer sorts n
 far to near in one depth domain, including ties at the precision limit of the private sky target.
 The private perspective near plane adapts to the nearest surface. Deferred Earth clouds/atmosphere
 retain the original native projection for interactions with terrain, while decoding the sky buffer
-using its scene projection. Orthographic map projection is unchanged.
+using its scene projection. The native far extension is capped at 65,536 metres to preserve its
+float culling planes; astronomical range belongs to the private sky target. A transient non-finite
+native startup projection defers drawing until the camera supplies a valid matrix. Orthographic
+map projection is unchanged.
+
+Free-player horizons use the same generic surface/sector frame keys as physical travel. The nearby
+body captures the horizon smoothly before handoff, with phase unwrapping reset when the selected
+body changes. Surface-to-sector rebasing retains the same physical screen-up reference.
 
 The first surface implementation does not add pressure, heat damage, chemistry or survival propulsion
 management. Those systems require separate gameplay decisions; visual terrain and physical travel do

@@ -63,7 +63,7 @@ object SpaceEffects : DimensionSpecialEffects(Float.NaN, false, SkyType.NONE, fa
         setupFog: Runnable,
     ): Boolean {
         setupFog.run()
-        SpaceSkyRenderer.render(level, camera, modelViewMatrix, isFoggy)
+        SpaceSkyRenderer.render(level, camera, modelViewMatrix, isFoggy, nativeProjection = projectionMatrix)
         return true
     }
 

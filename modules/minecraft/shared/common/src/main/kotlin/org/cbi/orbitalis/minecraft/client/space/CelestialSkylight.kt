@@ -24,7 +24,6 @@ import net.minecraft.world.level.Level
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.flight.CelestialFlight
 import org.cbi.orbitalis.minecraft.flight.FlightAtmosphere
-import org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
 import org.cbi.orbitalis.minecraft.lighting.SolarLightScene
 import kotlin.math.roundToInt
 
@@ -40,7 +39,7 @@ object CelestialSkylight {
         var profile: org.cbi.orbitalis.core.orbit.SolarSystemProfile? = null
         var flight: CelestialFlight? = null
         var scene: SolarLightScene? = null
-        val values = HashMap<Long, Double>()
+        val values = HashMap<BlockPos, Double>()
     }
 
     @JvmStatic
@@ -67,7 +66,8 @@ object CelestialSkylight {
         // Preserve ordinary surface lighting; fade towards the same physical field before the handoff.
         val weight = if (dimension == Level.OVERWORLD) FlightAtmosphere.vacuum(p, profile.geometry).toDouble() else 1.0
         if (weight <= 0.0) return native
-        val key = position.asLong()
+        // Packed BlockPos longs truncate Y; orbital sectors deliberately use heights near 1M.
+        val key = position.immutable()
         val visibility =
             cache.values[key] ?: run {
                 val root = checkNotNull(cache.flight).rootPoint(p, dimension)

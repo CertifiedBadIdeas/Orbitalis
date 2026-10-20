@@ -29,6 +29,11 @@ import org.joml.Matrix4f
 object CelestialView {
     fun sample() = CelestialFlight.sampleClient(Minecraft.getInstance().timer.getGameTimeDeltaPartialTick(false))
 
+    /** Surface/sector roots need the authoritative ephemeris; only legacy charts have a static fallback. */
+    fun hasFrame(level: Level): Boolean =
+        CelestialFlight.available(level) || level.dimension() == Level.OVERWORLD ||
+            level.dimension() == org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace.SPACE
+
     fun globalPosition(
         level: Level,
         position: Vector3,
@@ -83,7 +88,7 @@ object CelestialView {
         localView: Matrix4f,
     ): Matrix4f {
         if (!CelestialFlight.available(level)) return Matrix4f(localView)
-        val r = sample().frames.frame(CelestialFlight.world(level.dimension())).orientation
+        val r = sample().frames.frame(CelestialFlight.chart(level.dimension())).orientation
         return Matrix4f(localView).mul(rotation(r).transpose())
     }
 }

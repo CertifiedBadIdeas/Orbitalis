@@ -25,6 +25,15 @@ import org.joml.Matrix4f
  * the private sky target; native terrain and deferred physical depth retain their own projection.
  */
 object SkyProjection {
+    /** Distant sky has its own projection. An astronomical native far plane degenerates float frustum planes. */
+    fun nativeFar(
+        original: Float,
+        requested: Double,
+    ): Float = maxOf(original, minOf(requested, 65536.0).toFloat())
+
+    /** Native camera startup can expose a zero-FOV projection before its first interpolation tick. */
+    fun isReady(native: Matrix4f): Boolean = native.get(FloatArray(16)).all(Float::isFinite)
+
     fun forScene(
         native: Matrix4f,
         scale: Double,
@@ -32,7 +41,7 @@ object SkyProjection {
     ): Matrix4f {
         require(scale.isFinite() && scale > 0.0)
         require(nearestSurfaceDistance.isFinite() && nearestSurfaceDistance >= 0.0)
-        require(native.get(FloatArray(16)).all(Float::isFinite))
+        require(isReady(native)) { "Non-finite native sky projection: $native" }
         val result = Matrix4f(native)
         if (native.m33() != 0f) return result
         require(native.m23() == -1f)
