@@ -100,6 +100,85 @@ class LunarApproachViewTest {
         }
     }
 
+    @Test fun `inner planet surface horizon matches every orbital sector handoff face`() {
+        for (width in listOf(1000, 2000, 5000, 10000)) {
+            val profile = SolarSystemProfile(11.0, earthSpinEpochTick = 0L, selectedEarthWidth = width)
+            for (tick in listOf(0L, 350000L, 1500000L, 4000000L)) {
+                val frames = SurfaceFlightFrames(profile, tick)
+                for (planet in profile.innerPlanets) {
+                    val surface = FlightFrame.Surface(planet.id)
+                    val extent = planet.halfSize + planet.envelope.ascentDistance
+                    for (local in listOf(Vector3(0.0, extent, 0.0), Vector3(extent, 0.0, 0.0), Vector3(0.0, -extent, 0.0))) {
+                        val root = frames.frame(surface).toParent(CartesianState(local, Vector3.ZERO)).position
+                        val heliocentric =
+                            root +
+                                profile.earthOrbit
+                                    .sample(tick)
+                                    .origin.position
+                        val sector = FlightFrame.Sector(OrbitalSector.containing(heliocentric))
+                        val native = frames.frame(sector).fromParent(CartesianState(root, Vector3.ZERO)).position
+                        val view = LunarApproachView()
+                        val before = view.up(frames, native, sector)
+                        val after = view.up(frames, local, surface)
+                        val transported = frames.frame(surface).orientation.inverse(frames.frame(sector).orientation.apply(before))
+                        assertTrue((transported - after).length() < 1e-9, planet.id)
+                        assertTrue((after - up).length() < 1e-9, planet.id)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test fun `inner planet Hill blend is continuous and sector translation does not turn horizon`() {
+        val profile = SolarSystemProfile(11.0)
+        val frames = SurfaceFlightFrames(profile, 3000000L)
+        for (planet in profile.innerPlanets) {
+            val surface = frames.frame(FlightFrame.Surface(planet.id))
+            val centre = surface.origin.position
+            val heliocentric =
+                centre +
+                    profile.earthOrbit
+                        .sample(frames.tick)
+                        .origin.position
+            val sector = OrbitalSector.containing(heliocentric)
+            val firstChart = FlightFrame.Sector(sector)
+            val nextChart = FlightFrame.Sector(sector.copy(x = sector.x + 1))
+            val view = LunarApproachView()
+            var previous: Vector3? = null
+            for (step in 0..1000) {
+                val distance = planet.hillRadius * (1.01 - step * 0.001)
+                val root = centre + Vector3(0.0, 0.0, distance)
+                val local = frames.frame(firstChart).fromParent(CartesianState(root, Vector3.ZERO)).position
+                val now = view.up(frames, local, firstChart)
+                previous?.let { assertTrue((now - it).length() < 0.02, planet.id) }
+                previous = now
+                if (step == 0) assertTrue((now - up).length() < 1e-9)
+                val rebased = frames.frame(nextChart).fromParent(CartesianState(root, Vector3.ZERO)).position
+                assertTrue((view.up(frames, rebased, nextChart) - now).length() < 1e-9)
+            }
+        }
+    }
+
+    @Test fun `body changes reset unwrapped approach phase`() {
+        val profile = SolarSystemProfile(11.0)
+        val mercury = profile.innerPlanets.first { it.id == SolarSystemProfile.MERCURY }
+        val halfTurn = (kotlin.math.abs(mercury.spinPeriodSeconds) * 10.0).toLong()
+        val reused = LunarApproachView()
+        for (tick in (halfTurn - 100L)..(halfTurn + 100L) step 10L) {
+            val frames = SurfaceFlightFrames(profile, tick)
+            val surface = frames.frame(FlightFrame.Surface(mercury.id))
+            val root = surface.origin.position + Vector3(0.0, 0.0, mercury.hillRadius * 0.8)
+            val native = frames.frame(FlightFrame.LegacySpace).fromParent(CartesianState(root, Vector3.ZERO)).position
+            reused.up(frames, native, FlightFrame.LegacySpace)
+        }
+        val frames = SurfaceFlightFrames(profile, halfTurn + 100L)
+        val venus = profile.innerPlanets.first { it.id == SolarSystemProfile.VENUS }
+        val root = frames.frame(FlightFrame.Surface(venus.id)).origin.position + Vector3(0.0, 0.0, venus.hillRadius * 0.8)
+        val native = frames.frame(FlightFrame.LegacySpace).fromParent(CartesianState(root, Vector3.ZERO)).position
+        val expected = LunarApproachView().up(frames, native, FlightFrame.LegacySpace)
+        assertTrue((expected - reused.up(frames, native, FlightFrame.LegacySpace)).length() < 1e-12)
+    }
+
     @Test fun `wire rotations reject shear reflection and scale`() {
         val x = Vector3(1.0, 0.0, 0.0)
         val z = Vector3(0.0, 0.0, 1.0)

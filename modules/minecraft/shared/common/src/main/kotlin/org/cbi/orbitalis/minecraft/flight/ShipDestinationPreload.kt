@@ -99,7 +99,13 @@ class ShipDestinationPreload : AutoCloseable {
         val extended =
             OrbitalSectors.sector(currentKey) != null ||
                 currentKey.location().toString() in setOf("orbitalis:mercury", "orbitalis:venus")
-        for (step in 0..21) {
+        val legacyRadius = minOf(262144.0, sample.frames.profile.flightRange)
+        val mayExitLegacy =
+            FlightSpaceCoordinates.isOrbital(currentKey) &&
+                physicalPosition.length() + observed.length() * 21.0 + acceleration.length() * 220.5 >= legacyRadius
+        // Keep ordinary terrestrial/lunar approach forecasts on their existing inexpensive path.
+        val sectorForecast = if (extended || mayExitLegacy) 0..21 else IntRange.EMPTY
+        for (step in sectorForecast) {
             val delay = step.toDouble()
             val future = CelestialFlight(SurfaceFlightFrames(sample.frames.profile, sample.frames.tick + step * 20L))
             val crossing =

@@ -206,6 +206,13 @@ object SableOrbitalObjects {
             // Never reconstruct a native body at astronomical coordinates. Keep durable holding
             // ownership until a bounded frame migration is requested by its authoritative owner.
             service.data.put(current.copy(pointer = holding.pointer()?.let(::pointer)))
+            if (service.blockedNative.add(current.id)) {
+                Sable.LOGGER.warn(
+                    "Unloaded ship {} requires cold inter-sector migration from {}; native payload retained without unsafe reconstruction",
+                    current.id,
+                    level.dimension().location(),
+                )
+            }
             return false
         }
         pose.position().set(joml(nativeState.position))
@@ -305,6 +312,7 @@ object SableOrbitalObjects {
     ) : AutoCloseable {
         val data = level.dataStorage.computeIfAbsent(OrbitalObjectData.FACTORY, OrbitalObjectData.NAME)
         val restoring = mutableMapOf<UUID, Pair<Record, Vector3d>>()
+        val blockedNative = mutableSetOf<UUID>()
 
         // Retain a native holding reference only until its pointer has been checkpointed.
         val holdingRefs = mutableMapOf<UUID, HoldingSubLevel>()

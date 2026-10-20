@@ -26,63 +26,123 @@ import kotlin.math.atan2
 class LunarApproachView {
     private var angle: Double? = null
     private var earthPhase: Double? = null
+    private var bodyId: String? = null
 
     fun clear() {
         angle = null
         earthPhase = null
+        bodyId = null
     }
 
     fun up(
         frames: SurfaceFlightFrames,
         position: Vector3,
         world: SurfaceFlightFrames.World,
+    ): Vector3 =
+        up(
+            frames,
+            position,
+            when (world) {
+                SurfaceFlightFrames.World.EARTH -> FlightFrame.Surface(SolarSystemProfile.EARTH)
+                SurfaceFlightFrames.World.MOON -> FlightFrame.Surface(SolarSystemProfile.MOON)
+                SurfaceFlightFrames.World.SPACE -> FlightFrame.LegacySpace
+            },
+        )
+
+    /** One physical horizon regardless of whether the observer uses a surface or orbital sector chart. */
+    fun up(
+        frames: SurfaceFlightFrames,
+        position: Vector3,
+        world: FlightFrame,
     ): Vector3 {
-        val earth = frames.frame(SurfaceFlightFrames.World.EARTH)
+        val chart = frames.frame(world)
         val root =
-            frames
-                .frame(world)
+            chart
                 .toParent(
                     org.cbi.orbitalis.core.planet
                         .CartesianState(position, Vector3.ZERO),
                 ).position
+        val earth = frames.frame(SurfaceFlightFrames.World.EARTH)
         val dimensions = frames.profile.geometry
         val earthInner =
             minOf(
-                Vector3(
-                    dimensions.earthHalfSize,
-                    64.0,
-                    dimensions.earthHalfSize,
-                ).length() + dimensions.earthEnvelope.ascentDistance + 200.0,
+                Vector3(dimensions.earthHalfSize, 64.0, dimensions.earthHalfSize).length() +
+                    dimensions.earthEnvelope.ascentDistance + 200.0,
                 frames.profile.earthHillRadius * 0.95,
             )
         val earthT = ((root.length() - earthInner) / (frames.profile.earthHillRadius - earthInner)).coerceIn(0.0, 1.0)
         val principalEarth = atan2(earth.orientation.xAxis.y, earth.orientation.xAxis.x)
         val prior = if (earthT == 0.0 || earthT == 1.0) principalEarth else earthPhase ?: principalEarth
-        val unwrappedEarth = prior + atan2(kotlin.math.sin(principalEarth - prior), kotlin.math.cos(principalEarth - prior))
+        val unwrappedEarth = unwrap(principalEarth, prior)
         earthPhase = if (earthT == 1.0) null else unwrappedEarth
-        val earthWeight = 1.0 - earthT * earthT * earthT * (10.0 + earthT * (-15.0 + 6.0 * earthT))
-        val earthAngle = unwrappedEarth * earthWeight
-        val earthUp = Rotation3.axisAngle(Vector3(0.0, 0.0, 1.0), earthAngle).yAxis
-        val moon = frames.frame(SurfaceFlightFrames.World.MOON)
-        val local = frames.point(position, world, SurfaceFlightFrames.World.MOON)
-        // Start only inside the body's Hill sphere, fully matching all surface handoff faces.
-        val outer = frames.profile.moonHillRadius
-        val body = frames.profile.moonGravity
-        val bounds = Vector3(body.halfWidth, body.halfHeight, body.halfDepth).length()
-        val inner = minOf(bounds + frames.profile.geometry.moonEnvelope.ascentDistance + 200.0, outer * 0.95)
-        val t = ((local.length() - inner) / (outer - inner)).coerceIn(0.0, 1.0)
-        if (t == 1.0) {
-            angle = null
-            return frames.frame(world).orientation.inverse(earthUp)
+        val earthAngle = unwrappedEarth * weight(earthT)
+
+        // The nearest body's presentation sphere captures the horizon. It encloses the full
+        // handoff even when a small preset places that envelope beyond its physical Hill radius.
+        // The enclosing Earth field remains
+        // the base for lunar approach, preserving its existing smooth release into interplanetary space.
+        var selected: HorizonBody? = null
+        var nearest = if (root.length() < frames.profile.earthHillRadius) root.length() else Double.POSITIVE_INFINITY
+
+        fun consider(candidate: HorizonBody) {
+            val distance = (root - candidate.frame.origin.position).length()
+            if (distance < candidate.outer && distance < nearest) {
+                selected = candidate
+                nearest = distance
+            }
         }
-        val principal = atan2(moon.orientation.xAxis.y, moon.orientation.xAxis.x) - earthAngle
+        val moon = frames.profile.moonGravity
+        consider(
+            HorizonBody(
+                SolarSystemProfile.MOON,
+                frames.frame(SurfaceFlightFrames.World.MOON),
+                Vector3(moon.halfWidth, moon.halfHeight, moon.halfDepth).length() + dimensions.moonEnvelope.ascentDistance + 200.0,
+                frames.profile.moonHillRadius,
+            ),
+        )
+        for (planet in frames.profile.innerPlanets) {
+            consider(
+                HorizonBody(
+                    planet.id,
+                    frames.frame(FlightFrame.Surface(planet.id)),
+                    Vector3(planet.halfSize, 64.0, planet.halfSize).length() + planet.envelope.ascentDistance + 200.0,
+                    planet.hillRadius,
+                ),
+            )
+        }
+        val body = selected
+        if (body?.id != bodyId) {
+            angle = null
+            bodyId = body?.id
+        }
+        if (body == null) {
+            return chart.orientation.inverse(Rotation3.axisAngle(Vector3(0.0, 0.0, 1.0), earthAngle).yAxis)
+        }
+        val inner = minOf(body.inner, body.outer * 0.95)
+        val t = ((nearest - inner) / (body.outer - inner)).coerceIn(0.0, 1.0)
+        val principal = atan2(body.frame.orientation.xAxis.y, body.frame.orientation.xAxis.x) - earthAngle
         val previous = if (t == 0.0) principal else angle ?: principal
-        val unwrapped = previous + atan2(kotlin.math.sin(principal - previous), kotlin.math.cos(principal - previous))
+        val unwrapped = unwrap(principal, previous)
         angle = unwrapped
-        val weight = 1.0 - t * t * t * (10.0 + t * (-15.0 + 6.0 * t))
-        val rootUp = Rotation3.axisAngle(Vector3(0.0, 0.0, 1.0), earthAngle + unwrapped * weight).yAxis
-        return frames.frame(world).orientation.inverse(rootUp)
+        val rootUp = Rotation3.axisAngle(Vector3(0.0, 0.0, 1.0), earthAngle + unwrapped * weight(t)).yAxis
+        return chart.orientation.inverse(rootUp)
     }
+
+    private data class HorizonBody(
+        val id: String,
+        val frame: FrameKinematics,
+        val inner: Double,
+        val hillRadius: Double,
+    ) {
+        val outer: Double get() = maxOf(hillRadius, inner / 0.95)
+    }
+
+    private fun weight(t: Double): Double = 1.0 - t * t * t * (10.0 + t * (-15.0 + 6.0 * t))
+
+    private fun unwrap(
+        principal: Double,
+        prior: Double,
+    ): Double = prior + atan2(kotlin.math.sin(principal - prior), kotlin.math.cos(principal - prior))
 
     companion object {
         /** At the viewing pole gravity has no screen projection; retain transported screen up. */

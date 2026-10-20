@@ -363,7 +363,11 @@ data class ShipTransferRecord(
                                 .legacyRootPosition(dimension, native)
                         }
                     require(
-                        FlatPlanetSpace.validTransferPosition(physical, frozenFrame?.frames?.profile),
+                        if (version == 8) {
+                            FlatPlanetSpace.validTransferPosition(physical, frozenFrame?.frames?.profile)
+                        } else {
+                            physical.length() <= (frozenFrame?.frames?.profile?.flightRange ?: FlatPlanetSpace.MAX_TRANSFER_DISTANCE)
+                        },
                     ) { "Pose outside bounded physical flight coordinates" }
                 } else {
                     val heights = if (orbitalSnapshot) 4160.0..20352.0 else 64.0..16256.0
