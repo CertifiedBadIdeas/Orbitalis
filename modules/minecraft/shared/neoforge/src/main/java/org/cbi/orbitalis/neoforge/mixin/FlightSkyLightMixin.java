@@ -22,7 +22,6 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.BlockAndTintGetter;
 import net.minecraft.world.level.LightLayer;
-import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace;
 import org.cbi.orbitalis.minecraft.client.space.CelestialSkylight;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -35,8 +34,9 @@ public interface FlightSkyLightMixin {
     @Inject(method = "getBrightness", at = @At("HEAD"), cancellable = true)
     private void orbitalis$exposedSky(LightLayer layer, BlockPos position, CallbackInfoReturnable<Integer> callback) {
         if (layer == LightLayer.SKY && (Object) this instanceof ClientLevel level &&
-            FlatPlanetSpace.INSTANCE.contains(level) && position.getY() >= level.getMaxBuildHeight()) {
-            // Plot positions remain below the ceiling: Sable can still apply native cabin occlusion.
+            CelestialSkylight.outsideLightStorage(level, position)) {
+            // Missing chunk light storage is not darkness; sample the physical Sun, including below a slab.
+            // Plot queries are excluded so native Sable cabin occlusion remains authoritative.
             callback.setReturnValue(CelestialSkylight.scale(level, position, 15));
         }
     }
@@ -44,7 +44,7 @@ public interface FlightSkyLightMixin {
     @Inject(method = "getBrightness", at = @At("RETURN"), cancellable = true)
     private void orbitalis$celestialShadow(LightLayer layer, BlockPos position, CallbackInfoReturnable<Integer> callback) {
         if (layer == LightLayer.SKY && (Object) this instanceof ClientLevel level &&
-            position.getY() < level.getMaxBuildHeight()) {
+            position.getY() >= level.getMinBuildHeight() && position.getY() < level.getMaxBuildHeight()) {
             callback.setReturnValue(CelestialSkylight.scale(level, position, callback.getReturnValueI()));
         }
     }

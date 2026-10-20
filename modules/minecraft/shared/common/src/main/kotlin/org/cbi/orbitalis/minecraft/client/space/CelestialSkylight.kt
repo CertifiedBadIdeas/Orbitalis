@@ -42,6 +42,15 @@ object CelestialSkylight {
         val values = HashMap<BlockPos, Double>()
     }
 
+    /** Chunk skylight has no storage below the world floor or above its ceiling, unlike physical space. */
+    @JvmStatic
+    fun outsideLightStorage(
+        level: ClientLevel,
+        position: BlockPos,
+    ): Boolean =
+        CelestialFlight.supported(level.dimension()) && !isPlot(level, position) &&
+            (position.y < level.minBuildHeight || position.y >= level.maxBuildHeight)
+
     @JvmStatic
     fun scale(
         level: ClientLevel,
