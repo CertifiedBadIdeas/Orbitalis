@@ -31,7 +31,12 @@ object FlightSky {
         level: ClientLevel,
         camera: Camera,
     ): Float {
-        if (level.dimension() == FlatPlanetSpace.SPACE || level.dimension() == org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY) return 1f
+        if (FlightSpaceCoordinates.isOrbital(level.dimension()) || level.dimension() == org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY ||
+            level.dimension().location().toString() in
+            setOf(org.cbi.orbitalis.core.orbit.SolarSystemProfile.MERCURY, org.cbi.orbitalis.core.orbit.SolarSystemProfile.VENUS)
+        ) {
+            return 1f
+        }
         if (level.dimension() != Level.OVERWORLD) return 0f
         val p = camera.position
         return FlightAtmosphere.vacuum(

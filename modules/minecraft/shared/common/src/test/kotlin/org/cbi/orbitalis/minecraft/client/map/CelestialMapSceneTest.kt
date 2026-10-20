@@ -59,13 +59,28 @@ class CelestialMapSceneTest {
         val tick = 12000L
         val scene = CelestialMapScene.sample(profile, tick).associateBy { it.id }
         val snapshot = profile.system.sample(tick)
-        assertEquals(setOf(SolarSystemProfile.SUN, SolarSystemProfile.EARTH, SolarSystemProfile.MOON), scene.keys)
+        assertEquals(
+            setOf(
+                SolarSystemProfile.SUN,
+                SolarSystemProfile.EARTH,
+                SolarSystemProfile.MOON,
+                SolarSystemProfile.MERCURY,
+                SolarSystemProfile.VENUS,
+            ),
+            scene.keys,
+        )
         val sun = scene.getValue(SolarSystemProfile.SUN)
         val earth = scene.getValue(SolarSystemProfile.EARTH)
         val moon = scene.getValue(SolarSystemProfile.MOON)
         assertEquals(Vector3.ZERO, earth.position)
         assertEquals(snapshot.frame(SolarSystemProfile.SUN, SolarSystemProfile.EARTH).origin.position, sun.position)
         assertEquals(snapshot.frame(SolarSystemProfile.MOON, SolarSystemProfile.EARTH).origin.position, moon.position)
+        for (planet in profile.innerPlanets) {
+            val body = scene.getValue(planet.id)
+            assertEquals(snapshot.frame(planet.id, SolarSystemProfile.EARTH).origin.position, body.position)
+            assertTrue((body.orbit.first() - body.position).length() < 1e-7)
+            assertTrue(body.orbit.all { kotlin.math.abs((it - sun.position).length() - planet.orbitRadius) < 1e-7 })
+        }
         assertTrue(sun.orbit.isEmpty())
         assertTrue(earth.orbit.first().length() < 1e-8)
         assertTrue((moon.orbit.first() - moon.position).length() < 1e-8)
@@ -80,7 +95,7 @@ class CelestialMapSceneTest {
         for ((width, height) in listOf(144 to 321, 144 to 148, 600 to 400, 1000 to 300)) {
             camera.frame(Vector3.ZERO, profile.moonOrbitRadius * 1.3, width, height)
             val bodies = CelestialMapScene.sample(profile, 1200)
-            for (body in bodies.filter { it.id != SolarSystemProfile.SUN }) {
+            for (body in bodies.filter { it.id == SolarSystemProfile.EARTH || it.id == SolarSystemProfile.MOON }) {
                 assertTrue(camera.project(body.position, width, height) != null)
             }
             repeat(12) {

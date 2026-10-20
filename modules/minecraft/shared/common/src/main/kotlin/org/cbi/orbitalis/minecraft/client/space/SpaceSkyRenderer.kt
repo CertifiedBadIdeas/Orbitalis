@@ -90,7 +90,7 @@ object SpaceSkyRenderer {
         foggy: Boolean,
         opacity: Float = 1f,
         celestialsOnly: Boolean = false,
-        projection: Matrix4f = RenderSystem.getProjectionMatrix(),
+        nativeProjection: Matrix4f = RenderSystem.getProjectionMatrix(),
     ) {
         if (!celestialsOnly) PlanetLimbRenderer.resetWorld()
         if (opacity <= 0f || (level.dimension() == MoonWorld.KEY && !CelestialFlight.available(level))) return
@@ -111,6 +111,27 @@ object SpaceSkyRenderer {
             } else {
                 SpaceScene.scale(observer, 4096.0)
             }
+        val flight = if (CelestialFlight.available(level)) CelestialView.sample() else null
+        val nearest =
+            flight?.let { sample ->
+                val profile = sample.frames.profile
+                val earth = profile.earthSurfaceFrame(sample.frames.tick, sample.frames.seconds)
+                val moon = profile.lunarSurfaceFrame(sample.frames.tick, sample.frames.seconds)
+                minOf(
+                    profile.geometry.earthEnvelope.distance(earth.orientation.inverse(observer - earth.origin.position)),
+                    profile.geometry.moonEnvelope.distance(moon.orientation.inverse(observer - moon.origin.position)),
+                    profile.innerPlanets.minOf { planet ->
+                        val frame =
+                            planet.surfaceFrame(
+                                profile.system.sample(sample.frames.tick, sample.frames.seconds),
+                                sample.frames.tick,
+                                sample.frames.seconds,
+                            )
+                        planet.envelope.distance(frame.orientation.inverse(observer - frame.origin.position))
+                    },
+                )
+            } ?: 1000.0
+        val projection = SkyProjection.forScene(nativeProjection, scale, nearest)
         val minecraft = Minecraft.getInstance()
         val width = minecraft.mainRenderTarget.width
         val height = minecraft.mainRenderTarget.height
@@ -153,16 +174,30 @@ object SpaceSkyRenderer {
             RenderSystem.enableDepthTest()
             RenderSystem.depthMask(true)
             RenderSystem.depthFunc(GL11.GL_LEQUAL)
-            val sample = if (CelestialFlight.available(level)) CelestialView.sample() else null
-            // The vanilla Overworld mode alone retains native celestial bodies during ascent.
-            if (sample != null &&
-                (
-                    level.dimension() != net.minecraft.world.level.Level.OVERWORLD ||
-                        org.cbi.orbitalis.minecraft.lighting.SkyLighting
-                            .physicalOverworld(level)
-                )
-            ) {
-                SolarRenderer.render(
+            val sample = flight
+            if (sample != null) {
+                val nativeBody =
+                    when (level.dimension()) {
+                        MoonWorld.KEY -> {
+                            if (!LunarPlanetMesh.visibleFromSurface(
+                                    Vector3(position.x, position.y, position.z),
+                                )
+                            ) {
+                                org.cbi.orbitalis.core.orbit.SolarSystemProfile.MOON
+                            } else {
+                                null
+                            }
+                        }
+
+                        else -> {
+                            sample.frames.profile.innerPlanets
+                                .firstOrNull { planet ->
+                                    level.dimension().location().toString() == planet.id &&
+                                        planet.envelope.distance(Vector3(position.x, position.y, position.z)) < 32.0
+                                }?.id
+                        }
+                    }
+                CelestialBodiesRenderer.render(
                     sample.frames.profile,
                     sample.frames.tick,
                     sample.frames.seconds,
@@ -170,31 +205,15 @@ object SpaceSkyRenderer {
                     sceneMatrix,
                     projection,
                     scale,
+                    includeEarth = !celestialsOnly,
+                    includeSun =
+                        level.dimension() != net.minecraft.world.level.Level.OVERWORLD ||
+                            org.cbi.orbitalis.minecraft.lighting.SkyLighting
+                                .physicalOverworld(level),
+                    excludeBody = nativeBody,
                 )
-            }
-            if (!celestialsOnly) {
-                SurfacePlanetRenderer.renderScene(
-                    observer,
-                    sceneMatrix,
-                    projection,
-                    scale,
-                    clouds = false,
-                    limb = false,
-                )
-            }
-            val lunarVisible =
-                level.dimension() != MoonWorld.KEY || LunarPlanetMesh.visibleFromSurface(Vector3(position.x, position.y, position.z))
-            if (sample != null && lunarVisible) {
-                LunarPlanetRenderer.render(
-                    sample.frames.profile,
-                    sample.frames.tick,
-                    CelestialFlight.lunarSeed,
-                    observer,
-                    sceneMatrix,
-                    projection,
-                    scale,
-                    sample.frames.seconds,
-                )
+            } else if (!celestialsOnly) {
+                SurfacePlanetRenderer.renderScene(observer, sceneMatrix, projection, scale, clouds = false, limb = false)
             }
             if (!celestialsOnly) {
                 PlanetLimbRenderer.prepareWorld(
@@ -207,6 +226,7 @@ object SpaceSkyRenderer {
                     opacity,
                     width,
                     height,
+                    nativeProjection,
                 )
                 PlanetCloudRenderer.prepareWorld(
                     level,
@@ -218,6 +238,7 @@ object SpaceSkyRenderer {
                     opacity,
                     width,
                     height,
+                    nativeProjection,
                 )
             }
             GlStateManager._glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, drawFramebuffer)

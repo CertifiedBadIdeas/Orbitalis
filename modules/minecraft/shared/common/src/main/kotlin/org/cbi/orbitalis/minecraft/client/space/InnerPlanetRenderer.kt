@@ -149,11 +149,13 @@ object InnerPlanetRenderer {
         scale: Double,
         seconds: Double = 0.0,
         excludeBody: String? = null,
+        includeBody: String? = null,
+        updateMeshes: Boolean = true,
     ) {
-        update(profile, seeds)
+        if (updateMeshes) update(profile, seeds)
         val sun = SkyLighting.sunPosition(profile, tick, seconds)
         for (definition in profile.innerPlanets) {
-            if (definition.id == excludeBody) continue
+            if (definition.id == excludeBody || (includeBody != null && definition.id != includeBody)) continue
             val entry = entries.getValue(definition.id)
             val frame = profile.innerPlanetSurfaceFrame(definition.id, tick, seconds)
             val r = frame.orientation

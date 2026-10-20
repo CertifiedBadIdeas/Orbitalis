@@ -179,8 +179,10 @@ object SableShipView : ShipViewHooks.Controller {
         val level = minecraft.level ?: return
         if (!org.cbi.orbitalis.minecraft.flight.CelestialFlight
                 .available(level) ||
-            source !in org.cbi.orbitalis.minecraft.flight.CelestialFlight.dimensions ||
-            target !in org.cbi.orbitalis.minecraft.flight.CelestialFlight.dimensions
+            !org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                .supported(source) ||
+            !org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                .supported(target)
         ) {
             return
         }

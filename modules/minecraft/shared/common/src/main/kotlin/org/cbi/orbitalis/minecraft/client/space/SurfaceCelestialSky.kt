@@ -34,6 +34,6 @@ object SurfaceCelestialSky {
         foggy: Boolean,
     ) {
         if (!enabled(level)) return
-        SpaceSkyRenderer.render(level, camera, view, foggy, celestialsOnly = true, projection = projection)
+        SpaceSkyRenderer.render(level, camera, view, foggy, celestialsOnly = true, nativeProjection = projection)
     }
 }

@@ -51,7 +51,7 @@ object CelestialSkylight {
     ): Int {
         if (native <= 0 || !CelestialFlight.available(level) || isPlot(level, position)) return native
         val dimension = level.dimension()
-        if (dimension !in CelestialFlight.dimensions && !FlightSpaceCoordinates.isOrbital(dimension)) return native
+        if (!CelestialFlight.supported(dimension)) return native
         val profile = CelestialFlight.clientProfileSnapshot ?: return native
         val cache = local.get()
         if (cache.level !== level || cache.time != level.gameTime || cache.profile !== profile) {

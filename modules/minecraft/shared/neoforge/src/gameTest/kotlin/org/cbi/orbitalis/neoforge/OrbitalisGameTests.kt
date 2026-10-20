@@ -57,6 +57,7 @@ object OrbitalisGameTests {
                     "settings",
                     "scaled",
                     "sectors",
+                    "planets",
                 ),
         ) {
             "Unknown GameTest suite: $suite"
@@ -67,6 +68,8 @@ object OrbitalisGameTests {
             event.register(ScaledSystemGameTests::class.java)
             return
         }
+        if (suite == "all" || suite == "planets") event.register(InnerPlanetGameTests::class.java)
+        if (suite == "planets") return
         if (suite == "all" || suite == "control") event.register(FlightControlGameTests::class.java)
         if (suite == "control") return
         if (suite == "all" || suite == "settings") event.register(WorldSystemSettingsGameTests::class.java)
