@@ -46,13 +46,17 @@ object PlanetMeshBuffers {
     ): PreparedMesh {
         val storage = ByteBufferBuilder(1 shl 16)
         try {
-            val buffer = BufferBuilder(storage, VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR)
+            val buffer = BufferBuilder(storage, VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR_NORMAL)
             for (face in faces) {
-                val light = face.ambient + (1.0 - face.ambient) * maxOf(0.0, face.normal.dot(SpaceScene.SUN_DIRECTION))
-                val r = ((face.color shr 16 and 255) * light).toInt()
-                val g = ((face.color shr 8 and 255) * light).toInt()
-                val b = ((face.color and 255) * light).toInt()
-                for (v in face.vertices) buffer.addVertex(v.x.toFloat(), v.y.toFloat(), v.z.toFloat()).setColor(r, g, b, 255)
+                val r = face.color shr 16 and 255
+                val g = face.color shr 8 and 255
+                val b = face.color and 255
+                for (v in face.vertices) {
+                    buffer
+                        .addVertex(v.x.toFloat(), v.y.toFloat(), v.z.toFloat())
+                        .setColor(r, g, b, (face.ambient.coerceIn(0.0, 1.0) * 255).toInt())
+                        .setNormal(face.normal.x.toFloat(), face.normal.y.toFloat(), face.normal.z.toFloat())
+                }
             }
             return PreparedMesh(storage, buffer.buildOrThrow(), revision, generation)
         } catch (error: Throwable) {

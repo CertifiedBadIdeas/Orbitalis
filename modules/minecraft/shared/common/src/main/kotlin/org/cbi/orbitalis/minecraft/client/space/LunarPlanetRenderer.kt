@@ -145,10 +145,11 @@ object LunarPlanetRenderer {
             Matrix4f(
                 view,
             ).scale(scale.toFloat()).translate(offset.x.toFloat(), offset.y.toFloat(), offset.z.toFloat()).mul(rotation)
+        val shader = PlanetLighting.prepareMoon(profile, tick, seconds)
         for (gpu in meshes.values + listOfNotNull(body)) {
             gpu.bind()
             try {
-                gpu.drawWithShader(transform, projection, checkNotNull(GameRenderer.getPositionColorShader()))
+                gpu.drawWithShader(transform, projection, shader)
             } finally {
                 VertexBuffer.unbind()
             }

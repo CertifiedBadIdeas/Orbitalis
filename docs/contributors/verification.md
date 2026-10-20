@@ -166,7 +166,12 @@ with a seated survival player and chest cargo, real lunar ground contact and aut
 to space, plus real seated/cargo entry and departure beside and underneath the Moon. The default suite includes all five. Core checks cover moving-frame/force/hysteresis behavior.
 These scenarios do not prove client rendering or third-party engine compatibility.
 
-The focused `-PorbitalisGameTestSuite=settings` suite requires `nativeworldcreationsettings`, also
+The focused `-PorbitalisGameTestSuite=settings` suite requires `nativeworldcreationsettings` and `nativeskylightingsettings`, also
 included by `all`. It exercises real LevelSettings copy/parse, PrimaryLevelData save, compressed NBT
 disk roundtrip and legacy/future/malformed metadata preservation. World-creation tab input and layout
 require a separate observed client preview; this fixture does not prove scaled physical geometry.
+
+The sky settings case executes operator commands, saves/reads compressed NBT, preserves unknown
+records and rejects mutation, validates both network modes/invalid byte, and checks native daytime
+independence plus return to vanilla, native tick-sprint start/stop and the loaded-ship guard. Client visual evidence must separately cover both Overworld
+modes, physical day/night, distant Earth/Moon illumination, clouds and native resource reload.

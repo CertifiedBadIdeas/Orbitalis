@@ -271,3 +271,158 @@ optional-mod-absent startup check remains separate from flight-client visual acc
 
 The placeholder Sun square is no longer drawn in the flight sky. The prescribed Sun remains part
 of the celestial catalogue and orbital map; physical solar illumination remains deferred.
+
+
+## Procedural solar presentation
+
+`SolarRenderer` ray-intersects an analytical rotating cube in the existing sky target and map viewport.
+`SolarScene` samples the authoritative Earth-relative Sun ephemeris and fractional simulation clock.
+`SolarSystemProfile.sunRadius` is derived as 0.004650401069518716 times Earth orbit radius, about
+95,344 m half-edge at 10,000 m Earth width and 11 m/s². This existing derived property now names
+the inscribed radius: the cube edge equals the previous spherical diameter. Diagonal views are
+wider; mass, orbit and stored profile fields do not change. No profile/NBT/packet field is added. The map uses the
+same half-edge. The former fixed 30 km map marker radius is retired.
+
+All camera-relative subtraction happens in Double before GPU conversion into solar-radius units.
+The shader reconstructs perspective or parallel rays using the caller's projection; no tessellated
+sphere, chunks, remote ClientLevel or Sable construction is allocated. Position-based 3D cellular
+convection has no UV seam: a bounded 27-neighbour Voronoi search
+produces bright granules and dark intergranular lanes. Derivative filtering fades unresolved
+cells before their expensive evaluation at long distance. Derivatives are evaluated before the
+photosphere/corona branch to keep tangent helper fragments defined at the limb. Periodic simulation-time
+animation remains continuous across its bounded phase wrap. Cell feature points deform and their
+individual heat cycles evolve on different harmonics. A shared apparent axial rotation transports
+surface active regions and coronal structures without moving the physical Sun frame. Coronal phase
+fronts propagate outwards; prominence knots travel along three anchored strands per arch, whose
+height and displacement evolve more slowly. These intentionally accelerated presentation timescales
+are not the physical rotation period or plasma velocities. The same simulation clock drives the map
+and sky, including fractional ticks; pausing the simulation freezes the presentation.
+Four prescribed active regions contain
+paired spots with dark umbrae, ragged penumbrae and
+resolved radial filaments. These are illustrative patterns, not a magnetohydrodynamic simulation.
+Wavelength-dependent limb darkening and photographic compression replace flat yellow vertex colour.
+A detail-preserving map exposure and brighter perspective exposure share the same radiance shader.
+A bounded convex distance search gives soft glare the projected cube silhouette; it does not retain
+an old spherical rim at edges/corners. Perspective optical glare extends to 20 half-edges, beyond
+the bounded 3.5-half-edge coronal volume; this is a presentation exposure effect, not additional
+physical plasma or a change in stellar radius. Surface plasma and loop anchors use the same stellar chart.
+The transparent native sky target accumulates solar coverage, then composites premultiplied colour;
+otherwise preserving zero target alpha hides the Sun or double-attenuates its faint corona.
+A dedicated `sky_composite` shader preserves all alpha levels: native `position_tex_color` discards
+texture alpha below 0.1, turning otherwise smooth solar glare into a visibly bounded disc. Opaque
+scene composition and held transition screenshots retain their existing native shader.
+The opaque photosphere and an eight-sample optically thin coronal volume share one pass.
+Angular density produces radial streamers and a fainter polar corona; smooth radial support ends
+at 3.5 half-edges. Within 2.2 half-edges, a bounded 40-step local SDF march adds
+two small, asymmetric red prominence arches anchored above those active regions.
+Their nonplanar shape, varying thickness and noise-modulated emission avoid uniform wire rings.
+Staggered one-minute presentation events stretch each arch upwards and fade its emission before
+resetting its geometry. More prominent plasma knots move along the arch on a separate, faster
+harmonic. The event envelope reaches zero before the periodic reset; no flash or abrupt visible
+collapse is intended. These are local illustrative eruptions, not globally flashing coronal light.
+The pass renders off-disc emission, not absorption filaments across the photosphere or a physical
+magnetic field.
+White coronal emission is deliberately exposure-compressed for presentation,
+not a prediction of the real corona/photosphere luminance ratio. Depth uses the planetary scene's
+scale and projection, clamped just inside the far plane when the Sun is outside that sky volume.
+The current Earth/Moon operating envelope keeps the Sun beyond those bodies. Near-Sun travel and
+universal celestial depth ordering need the future local-sector architecture; this renderer does
+not make native physics at astronomical coordinates safe.
+
+The loader registers/reloads the client shader; it owns no persistent mesh or framebuffer resources.
+The pinned Veil 4.3.2/glsl-processor 0.2.3 dynamic rewrite loses parentheses around a ternary
+nested in vector multiplication. Avoid such nested ternaries;
+check both original GLSL and rewritten shader compilation when changing those expressions.
+Rendering restores depth, cull, blend factors and shader state. The sky target is composed before
+native terrain/hulls, so opaque native objects hide the Sun. Planet meshes cover it through their
+existing target depth. Overworld uses native celestial bodies by default; the optional `cosmic` mode draws the same
+physical Sun/Moon at the surface and during the ascent blend.
+The orthographic map uses the same shader and ephemeris. The small selection marker remains an
+interface affordance at system scale.
+
+Solar emission does not implement heating, irradiance, construction shadows or an accessible solar
+neighbourhood. Distant Earth/Moon surfaces now use a normal-bearing `planet_surface` shader with
+Earth-/Moon-local ephemeris sun direction. Sector buffers retain albedo and ambient floor rather
+than a baked direction; changing light does not rebuild or upload sector geometry. Overview clouds
+and atmospheric scattering use the same Earth-local solar elevation. A small shadow floor preserves
+readability. Native ship/block face shading and directional construction shadows remain separate work;
+space's exposed native lightmap is still the existing readability approximation.
+
+### Optional physical Overworld sky
+
+Operator commands `/orbitalis sky vanilla` and `/orbitalis sky cosmic` select the saved world mode;
+`/orbitalis sky` reports it. Space always uses physical stellar presentation and LOD illumination.
+New and legacy worlds default to vanilla. The common `SkyLightingData` SavedData lives in Overworld
+as `orbitalis_sky_lighting`, schema1 with `Version` integer and `Overworld`=`vanilla`/`cosmic` string.
+Unknown versions/malformed records retain their original compound, fall back to vanilla and reject
+mutation. Selection marks data dirty; login and changes send a dedicated version1 `sky_lighting`
+S2C payload, with one validated0/1 byte. The receiver runs on the main thread; disconnect clears
+client mode so it cannot leak between servers. Existing physical-state packet schemas are unchanged.
+
+A common-side `LevelTimeAccess` hook replaces only the opted-in Overworld sky angle with the solar
+hour angle in Earth's native rotating chart. Native sky colour, fog, cloud colour and daylight
+brightness therefore follow the same physical Sun on server and client. Sleep and `/time` change
+only vanilla time; they never move ships, ephemeris or physical sky. Switching back restores native
+time immediately. The renderer suppresses the two native celestial texture draws by texture identity
+and draws the actual Sun/Moon through the same root-view transform. Native atmospheric background,
+weather and stars stay in their own renderer. Distant celestial bodies use the same private colour/depth target as space, then composite colour
+without writing native terrain depth. Solar/lunar self-occlusion is resolved in that private depth
+buffer; compressed sky depth must not hide native blocks. Arbitrary third-party sky replacements and shader packs require separate compatibility checks.
+
+Client acceptance: inspect the distant disc from space, a close view through the system map,
+an Earth/Moon occultation, native hull occlusion, resource reload and a return to Overworld.
+`SolarSceneTest` covers fractional ephemeris, camera-relative precision, apparent-size scaling,
+near/far geometry and phase wrap; it does not prove shader compilation or framebuffer appearance.
+
+
+Solar morphology references (observation only, no imported images or shader code):
+[NSO Inouye photospheric granulation and sunspots](https://nso.edu/press-release/new-images-released-by-nsfs-inouye-solar-telescope/)
+and [NASA solar layers and visible white corona](https://science.nasa.gov/sun/facts/).
+
+### Forward time acceleration
+
+`/orbitalis time add <seconds>` (1..1200) requests a native tick sprint, processing every real
+simulation tick forwards. `/orbitalis time set sunrise|day|noon|sunset|night|midnight` and
+`/orbitalis time set <0..23999>` compute the next matching physical solar time, at most one solar day
+ahead. `set` never assigns a past epoch or rolls objects backwards. `/orbitalis time stop` ends the
+sprint. Ordinary `/time` remains a separate native-time command.
+
+Acceleration requires no loaded Sable ships in the supported flight dimensions and no paused
+physical simulation/current sprint. This is a first-stage restriction; it is not on-rails ship warp.
+Native ticks process players, weather, fluids, crops and unloaded-orbit services as usual, as fast
+as the server can run. The command therefore affects the whole world, not just sky animation.
+There is no instantaneous clock jump and no promised wall-clock duration. A server already using
+50ms or more per tick has no spare tick throughput, so the sprint cannot materially accelerate time. Native tick sprint can
+still be controlled by its existing administrative commands.
+
+Client ephemeris correction smoothing has a cumulative10-tick budget. A tick sprint can deliver
+many individually small corrections between frames; exceeding the budget snaps to the new epoch
+instead of accumulating minutes of display delay. Ordinary early/late snapshots keep their smooth
+interpolation. A regression test feeds a full solar day's worth of burst snapshots.
+
+### Lunar eclipses
+
+The cosmic Overworld sky already displays the catalogue Moon through `LunarPlanetRenderer`,
+shared with space and the orbital map. The current catalogue contains only Sun, Earth and Moon;
+this change does not add other planets or illustrative sky sprites.
+
+`SolarOcclusion` in core samples 32 points on the visible faces of the emitting cube against
+Earth's opaque rectangular gravity envelope. Visible source faces are weighted by projected area;
+this distant-source approximation ignores within-face irradiance variation. The renderer transforms
+Moon mesh positions and solar half-edge axes into Earth's rotating local chart, normalized by Earth
+half-width. `SolarShape` supplies the same wrapped phase/orientation to the visible cube and eclipse
+sampling. The surface shader mirrors the bounded face quadrature and segment/slab intersections. Source size creates a penumbra;
+Earth's rotation and thin edge-on silhouette affect the shadow. No spherical Earth proxy is used.
+The shader tests a conservative bounding sphere first; it does not rebuild sector meshes.
+Earth draws explicitly disable the eclipse uniforms to prevent shared-program state leakage.
+The cosmic native-sky pass uses the same unculled slab drawing and private depth target as space.
+Back-face culling discarded shared top-face winding; disabling depth also let the underside paint
+over the lit relief. The shared pass fixes both without clearing or writing native terrain depth.
+
+The muted red umbra is an artistic approximation of atmosphere-filtered sunlight, not atmospheric
+ray tracing or spectral refraction. This pass does not cast Moon shadows on Earth, eclipse native
+lunar terrain lighting, shade Sable hulls or accelerate time analytically. Core tests cover umbra,
+penumbra, source/observer ordering, edge-on geometry, scaling and actual catalogue alignment.
+Geometry tests and GLSL validation do not replace live visual review.
+
+Scientific reference (no imported assets): [NASA lunar eclipses](https://science.nasa.gov/moon/eclipses/).

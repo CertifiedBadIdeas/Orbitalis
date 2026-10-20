@@ -26,6 +26,7 @@ uniform float SceneScale;
 uniform vec2 Viewport;
 uniform vec4 ColorModulator;
 uniform vec3 Observer;
+uniform vec3 SunDirection;
 uniform vec3 BoundsMin;
 uniform vec3 BoundsMax;
 uniform float Feather;
@@ -83,5 +84,9 @@ void main() {
     vec4 physical = ProjMat * front;
     gl_FragDepth = clamp(physical.z / physical.w * 0.5 + 0.5, 0.0, 1.0);
     vec3 tint = mix(vec3(0.12, 0.38, 0.90), vec3(0.40, 0.64, 1.0), scattering);
-    fragColor = vec4(tint, scattering * 0.65) * ColorModulator;
+    float day = smoothstep(-0.06, 0.15, SunDirection.y);
+    float forward = pow(max(0.0, dot(ray, SunDirection)), 8.0);
+    float twilight = (1.0 - abs(day * 2.0 - 1.0)) * forward;
+    tint = mix(tint, vec3(1.0, 0.34, 0.09), twilight * 0.65);
+    fragColor = vec4(tint * (0.035 + 0.965 * day), scattering * 0.65) * ColorModulator;
 }

@@ -65,6 +65,11 @@ object SableFlightIntegration {
         org.cbi.orbitalis.minecraft.integration.sable.SableMapObjects
             .install()
         SableOrbitalObjects.mayAdvance = { server -> transfers[server]?.busy == false }
+        OrbitalSimulation.canAccelerate = { server ->
+            org.cbi.orbitalis.minecraft.integration.sable.SableShipDirectory
+                .loaded(server)
+                .isEmpty()
+        }
         OrbitalSimulation.surfaceGravity = { server -> SableFlightGravity.flatField(server.overworld()).body.surfaceAcceleration }
         OrbitalSimulation.mayAdvance = { server ->
             SableOrbitalObjects.mayAdvance(server) && server.getLevel(FlatPlanetSpace.SPACE)?.let {

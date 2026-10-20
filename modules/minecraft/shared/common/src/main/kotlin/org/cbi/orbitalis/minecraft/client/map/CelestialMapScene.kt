@@ -48,7 +48,7 @@ object CelestialMapScene {
         val sun = snapshot.frame(SolarSystemProfile.SUN, SolarSystemProfile.EARTH).origin.position
         val moon = snapshot.frame(SolarSystemProfile.MOON, SolarSystemProfile.EARTH).origin.position
         return listOf(
-            Body(SolarSystemProfile.SUN, sun, SolarSystemProfile.SUN_VISUAL_RADIUS),
+            Body(SolarSystemProfile.SUN, sun, profile.sunRadius),
             Body(
                 SolarSystemProfile.EARTH,
                 Vector3.ZERO,
