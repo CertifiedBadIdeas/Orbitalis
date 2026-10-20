@@ -101,7 +101,7 @@ object PlayerSpaceTravel {
                     ).velocity
             } ?: Vector3(velocity.x, velocity.y, velocity.z) * 20.0
         val key = destination(player.level(), current, nativeVelocity) ?: return false
-        val target = player.server.getLevel(key) ?: return false
+        val target = OrbitalSectors.ensure(player.server, key) ?: return false
         val state =
             sample.state(
                 org.cbi.orbitalis.core.planet

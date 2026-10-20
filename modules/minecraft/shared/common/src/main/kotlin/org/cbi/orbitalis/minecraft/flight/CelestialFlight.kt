@@ -23,6 +23,8 @@ import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.world.level.Level
 import org.cbi.orbitalis.core.orbit.CelestialDynamics
+import org.cbi.orbitalis.core.orbit.FlightFrame
+import org.cbi.orbitalis.core.orbit.OrbitalSector
 import org.cbi.orbitalis.core.orbit.SolarSystemProfile
 import org.cbi.orbitalis.core.orbit.SurfaceFlightFrames
 import org.cbi.orbitalis.core.planet.CartesianState
@@ -39,18 +41,18 @@ class CelestialFlight(
     fun rootState(
         value: CartesianState,
         from: ResourceKey<Level>,
-    ): CartesianState = frames.frame(world(from)).toParent(value)
+    ): CartesianState = frames.frame(chart(from)).toParent(value)
 
     fun nativeState(
         value: CartesianState,
         to: ResourceKey<Level>,
-    ): CartesianState = frames.frame(world(to)).fromParent(value)
+    ): CartesianState = frames.frame(chart(to)).fromParent(value)
 
     fun rootPoint(
         value: Vector3,
         from: ResourceKey<Level>,
     ): Vector3 =
-        frames.frame(world(from)).let {
+        frames.frame(chart(from)).let {
             it.origin.position +
                 it.orientation.apply(value)
         }
@@ -59,62 +61,110 @@ class CelestialFlight(
         value: Vector3,
         to: ResourceKey<Level>,
     ): Vector3 =
-        frames.frame(world(to)).let {
+        frames.frame(chart(to)).let {
             it.orientation.inverse(value - it.origin.position)
         }
 
     fun rootDirection(
         value: Vector3,
         from: ResourceKey<Level>,
-    ): Vector3 = frames.frame(world(from)).orientation.apply(value)
+    ): Vector3 = frames.frame(chart(from)).orientation.apply(value)
 
     fun nativeDirection(
         value: Vector3,
         to: ResourceKey<Level>,
-    ): Vector3 = frames.frame(world(to)).orientation.inverse(value)
+    ): Vector3 = frames.frame(chart(to)).orientation.inverse(value)
 
     fun rootAngular(
         value: Vector3,
         from: ResourceKey<Level>,
-    ): Vector3 = frames.frame(world(from)).toParentAngularVelocity(value)
+    ): Vector3 = frames.frame(chart(from)).toParentAngularVelocity(value)
 
     fun nativeAngular(
         value: Vector3,
         to: ResourceKey<Level>,
-    ): Vector3 = frames.frame(world(to)).fromParentAngularVelocity(value)
+    ): Vector3 = frames.frame(chart(to)).fromParentAngularVelocity(value)
 
     fun state(
         value: CartesianState,
         from: ResourceKey<Level>,
         to: ResourceKey<Level>,
-    ): CartesianState = frames.state(value, world(from), world(to))
+    ): CartesianState = nativeState(rootState(value, from), to)
 
     fun point(
         value: Vector3,
         from: ResourceKey<Level>,
         to: ResourceKey<Level>,
-    ): Vector3 = frames.point(value, world(from), world(to))
+    ): Vector3 = nativePoint(rootPoint(value, from), to)
 
     fun direction(
         value: Vector3,
         from: ResourceKey<Level>,
         to: ResourceKey<Level>,
-    ): Vector3 = frames.direction(value, world(from), world(to))
+    ): Vector3 = nativeDirection(rootDirection(value, from), to)
 
     fun angular(
         value: Vector3,
         from: ResourceKey<Level>,
         to: ResourceKey<Level>,
-    ): Vector3 = frames.angularVelocity(value, world(from), world(to))
+    ): Vector3 = nativeAngular(rootAngular(value, from), to)
 
     fun destination(
-        level: ServerLevel,
+        level: Level,
         state: CartesianState,
-    ): ResourceKey<Level>? = frames.destination(state, world(level.dimension()))?.let(::dimension)
+    ): ResourceKey<Level>? {
+        val current = chart(level.dimension())
+        val root = rootState(state, level.dimension())
+        if (current is FlightFrame.Surface) {
+            val envelope =
+                when (current.body) {
+                    SolarSystemProfile.EARTH -> {
+                        frames.profile.geometry.earthEnvelope
+                    }
+
+                    SolarSystemProfile.MOON -> {
+                        frames.profile.geometry.moonEnvelope
+                    }
+
+                    else -> {
+                        frames.profile.innerPlanets
+                            .single { it.id == current.body }
+                            .envelope
+                    }
+                }
+            if (envelope.distance(state.position) < envelope.ascentDistance) return null
+        } else {
+            for (body in listOf(SolarSystemProfile.EARTH, SolarSystemProfile.MOON) + frames.profile.innerPlanets.map { it.id }) {
+                val surface = FlightFrame.Surface(body)
+                val native = frames.frame(surface).fromParent(root)
+                val envelope =
+                    when (body) {
+                        SolarSystemProfile.EARTH -> {
+                            frames.profile.geometry.earthEnvelope
+                        }
+
+                        SolarSystemProfile.MOON -> {
+                            frames.profile.geometry.moonEnvelope
+                        }
+
+                        else -> {
+                            frames.profile.innerPlanets
+                                .single { it.id == body }
+                                .envelope
+                        }
+                    }
+                if (envelope.distance(native.position) <= envelope.descentDistance) return dimension(surface)
+            }
+        }
+        val destination = frames.orbitalDestination(root, current)
+        return dimension(destination).takeUnless { it == level.dimension() }
+    }
 
     companion object {
         private var clientProfile: SolarSystemProfile? = null
         val clientProfileSnapshot get() = clientProfile
+        var innerPlanetSeeds: Map<String, Long> = emptyMap()
+            private set
         var lunarSeed = 0L
             private set
         private val clientClock = ClientEphemerisClock()
@@ -124,8 +174,10 @@ class CelestialFlight(
             tick: Long,
             seed: Long = 0,
             advancing: Boolean = true,
+            innerSeeds: Map<String, Long> = emptyMap(),
         ) {
             clientProfile = profile
+            innerPlanetSeeds = innerSeeds.toMap()
             lunarSeed = seed
             clientClock.accept(tick, advancing)
         }
@@ -155,6 +207,70 @@ class CelestialFlight(
             val clock = OrbitalSimulation.data(server)?.clock ?: return null
             return CelestialFlight(SurfaceFlightFrames(profile, clock))
         }
+
+        fun chart(key: ResourceKey<Level>): FlightFrame =
+            when (key) {
+                Level.OVERWORLD -> {
+                    FlightFrame.Surface(SolarSystemProfile.EARTH)
+                }
+
+                FlatPlanetSpace.SPACE -> {
+                    FlightFrame.LegacySpace
+                }
+
+                MoonWorld.KEY -> {
+                    FlightFrame.Surface(SolarSystemProfile.MOON)
+                }
+
+                else -> {
+                    val id = key.location()
+                    val sector = if (id.namespace == "orbitalis") OrbitalSector.parse(id.path) else null
+                    when {
+                        sector != null -> FlightFrame.Sector(sector)
+                        id.toString() in setOf("orbitalis:mercury", "orbitalis:venus") -> FlightFrame.Surface(id.toString())
+                        else -> throw IllegalArgumentException("Unsupported flight dimension: $key")
+                    }
+                }
+            }
+
+        fun supported(key: ResourceKey<Level>): Boolean = runCatching { chart(key) }.isSuccess
+
+        fun dimension(frame: FlightFrame): ResourceKey<Level> =
+            when (frame) {
+                FlightFrame.LegacySpace -> {
+                    FlatPlanetSpace.SPACE
+                }
+
+                is FlightFrame.Sector -> {
+                    ResourceKey.create(
+                        net.minecraft.core.registries.Registries.DIMENSION,
+                        net.minecraft.resources.ResourceLocation
+                            .fromNamespaceAndPath("orbitalis", frame.sector.path),
+                    )
+                }
+
+                is FlightFrame.Surface -> {
+                    when (frame.body) {
+                        SolarSystemProfile.EARTH -> {
+                            Level.OVERWORLD
+                        }
+
+                        SolarSystemProfile.MOON -> {
+                            MoonWorld.KEY
+                        }
+
+                        else -> {
+                            ResourceKey.create(
+                                net.minecraft.core.registries.Registries.DIMENSION,
+                                net.minecraft.resources.ResourceLocation
+                                    .parse(frame.body),
+                            )
+                        }
+                    }
+                }
+            }
+
+        fun levels(server: MinecraftServer): List<ServerLevel> = server.allLevels.filter { supported(it.dimension()) }.toList()
 
         fun world(key: ResourceKey<Level>): SurfaceFlightFrames.World =
             when (key) {

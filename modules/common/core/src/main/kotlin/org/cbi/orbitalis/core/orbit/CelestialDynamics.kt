@@ -27,7 +27,7 @@ import kotlin.math.abs
 class CelestialDynamics(
     val profile: SolarSystemProfile,
     val epochTick: Long,
-    earthCompatibility: Double = profile.surfaceGravity,
+    private val earthCompatibility: Double = profile.surfaceGravity,
     moonCompatibility: Double = profile.surfaceGravity * profile.geometry.moonGravityRatio,
 ) {
     val earth =
@@ -63,6 +63,19 @@ class CelestialDynamics(
         val earthFrame = profile.earthSurfaceFrame(epochTick, seconds)
         val moonFrame = profile.lunarSurfaceFrame(epochTick, seconds)
         private val earthOrbit = profile.earthOrbit.sample(epochTick, seconds)
+        private val inner =
+            profile.innerPlanets.map { body ->
+                val frame = profile.innerPlanetSurfaceFrame(body.id, epochTick, seconds)
+                val gravity =
+                    SurfaceGravityLayer(
+                        body.gravity,
+                        earthCompatibility * body.surfaceGravity / profile.surfaceGravity,
+                        nearHeight = 128.0,
+                        fullHeight = body.envelope.ascentDistance,
+                        edgeWidth = 128.0,
+                    )
+                Triple(body, frame, gravity)
+            }
         private val earthOriginMoonForce =
             moonFrame.orientation.apply(
                 moon.acceleration(
@@ -81,13 +94,27 @@ class CelestialDynamics(
             val nativeForce = earth.acceleration(terrestrial)
             val terrestrialForce = earthFrame.orientation.apply(nativeForce)
             val supportedEarth = earthFrame.toParentAcceleration(CartesianState(terrestrial, Vector3.ZERO), nativeForce)
+            var innerForce = Vector3.ZERO
+            for ((_, frame, gravity) in inner) {
+                val localPosition = frame.orientation.inverse(position - frame.origin.position)
+                innerForce += frame.orientation.apply(gravity.acceleration(localPosition)) -
+                    frame.orientation.apply(gravity.acceleration(frame.orientation.inverse(frame.origin.position * -1.0)))
+            }
             val field =
                 terrestrialForce + (supportedEarth - terrestrialForce) * terrestrialWindow +
-                    (moonForce - earthOriginMoonForce + sunTide) * (1.0 - terrestrialWindow)
+                    (moonForce - earthOriginMoonForce + sunTide + innerForce) * (1.0 - terrestrialWindow)
             val lunarWindow = window(local, profile.geometry.moonHalfSize, 128.0, 600.0, 128.0)
-            if (lunarWindow == 0.0) return field
             val supported = moonFrame.toParentAcceleration(CartesianState(local, Vector3.ZERO), moon.acceleration(local))
-            return field * (1.0 - lunarWindow) + supported * lunarWindow
+            var result = field * (1.0 - lunarWindow) + supported * lunarWindow
+            for ((body, frame, gravity) in inner) {
+                val native = frame.orientation.inverse(position - frame.origin.position)
+                val blend = window(native, body.halfSize, 128.0, body.envelope.ascentDistance, 128.0)
+                if (blend > 0.0) {
+                    val supportedInner = frame.toParentAcceleration(CartesianState(native, Vector3.ZERO), gravity.acceleration(native))
+                    result = result * (1.0 - blend) + supportedInner * blend
+                }
+            }
+            return result
         }
 
         fun earthAcceleration(state: CartesianState): Vector3 {

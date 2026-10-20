@@ -31,8 +31,10 @@ data class PlayerGravityPayload(
     val profile: SolarSystemProfile? = null,
     val lunarSeed: Long = 0,
     val advancing: Boolean = true,
+    val innerPlanetSeeds: Map<String, Long> = emptyMap(),
 ) : CustomPacketPayload {
     init {
+        require(innerPlanetSeeds.keys.all { it == SolarSystemProfile.MERCURY || it == SolarSystemProfile.VENUS })
         require(profile?.earthSpinEpochTick?.let { it <= simulationTick } != false)
         require(simulationTick >= 0 && (profile == null || profile.epochTick <= simulationTick))
         require(profile == null || profile.surfaceGravity == acceleration)
@@ -52,6 +54,14 @@ data class PlayerGravityPayload(
                     buffer.writeDouble(payload.acceleration)
                     buffer.writeLong(payload.simulationTick)
                     buffer.writeLong(payload.lunarSeed)
+                    val planets = listOf(SolarSystemProfile.MERCURY, SolarSystemProfile.VENUS)
+                    val mask =
+                        planets.withIndex().fold(0) { value, (index, id) ->
+                            value or
+                                (if (id in payload.innerPlanetSeeds) 1 shl index else 0)
+                        }
+                    buffer.writeByte(mask)
+                    planets.forEach { id -> payload.innerPlanetSeeds[id]?.let(buffer::writeLong) }
                     buffer.writeBoolean(payload.advancing)
                     buffer.writeBoolean(payload.profile != null)
                     payload.profile?.let {
@@ -70,6 +80,14 @@ data class PlayerGravityPayload(
                     val acceleration = buffer.readDouble()
                     val tick = buffer.readLong()
                     val lunarSeed = buffer.readLong()
+                    val mask = buffer.readUnsignedByte().toInt()
+                    require(mask in 0..3) { "Unknown inner planet seed flags" }
+                    val seeds =
+                        buildMap {
+                            listOf(SolarSystemProfile.MERCURY, SolarSystemProfile.VENUS).forEachIndexed { index, id ->
+                                if (mask and (1 shl index) != 0) put(id, buffer.readLong())
+                            }
+                        }
                     val advancing = buffer.readBoolean()
                     val profile =
                         if (buffer.readBoolean()) {
@@ -88,7 +106,7 @@ data class PlayerGravityPayload(
                         } else {
                             null
                         }
-                    return PlayerGravityPayload(acceleration, tick, profile, lunarSeed, advancing)
+                    return PlayerGravityPayload(acceleration, tick, profile, lunarSeed, advancing, seeds)
                 }
             }
     }

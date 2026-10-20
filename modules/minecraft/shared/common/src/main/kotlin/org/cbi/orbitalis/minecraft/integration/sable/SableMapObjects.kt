@@ -38,14 +38,16 @@ object SableMapObjects {
     }
 
     fun snapshot(server: MinecraftServer): List<MapObject> {
-        val level = server.getLevel(FlatPlanetSpace.SPACE) ?: return emptyList()
-        val data = level.dataStorage.get(OrbitalObjectData.FACTORY, OrbitalObjectData.NAME)
+        val indices =
+            server.allLevels
+                .filter { FlightSpaceCoordinates.isOrbital(it.dimension()) }
+                .mapNotNull { it.dataStorage.get(OrbitalObjectData.FACTORY, OrbitalObjectData.NAME) }
         val sample = CelestialFlight.trySample(server)
         val live = SableShipDirectory.loaded(server)
         val liveIds = live.map { it.uniqueId }.toSet()
         val result = mutableListOf<MapObject>()
         // Read the existing motion index only. Do not open a holding chunk or create an orbital service.
-        if (data?.readable == true) {
+        for (data in indices.filter { it.readable }) {
             for (record in data.records.values) {
                 if (record.id !in
                     liveIds
@@ -73,7 +75,7 @@ object SableMapObjects {
                     .orEmpty()
                     .filterNot { it.isISOControl() }
                     .take(32)
-            result.add(MapObject(body.uniqueId, name, pos, state.velocity, true, data?.clock ?: 0L))
+            result.add(MapObject(body.uniqueId, name, pos, state.velocity, true, sample?.frames?.tick ?: 0L))
         }
         return result
     }

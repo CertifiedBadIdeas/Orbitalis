@@ -65,7 +65,13 @@ object SableOrbitalObjects {
 
     private fun service(level: ServerLevel): Service? {
         if (!SpaceWorlds.objects(level)) return null
-        return services.getOrPut(level) { Service(level) }
+        return services.getOrPut(level) { Service(level) }.also {
+            if (level.dimension() != FlatPlanetSpace.SPACE) {
+                org.cbi.orbitalis.minecraft.orbit.OrbitalSimulation.data(level.server)?.let { clock ->
+                    it.data.synchronizeClock(clock.clock)
+                }
+            }
+        }
     }
 
     fun data(level: ServerLevel): OrbitalObjectData = checkNotNull(service(level)).data
@@ -107,7 +113,10 @@ object SableOrbitalObjects {
                 UUID.randomUUID(),
                 service.data.clock,
                 service.data.clock,
-                CartesianState(FlatPlanetFrame.toSurface(vector(position)), vector(velocity)),
+                CelestialFlight
+                    .sample(
+                        body.level.server,
+                    ).rootState(CartesianState(vector(position), vector(velocity)), body.level.dimension()),
                 radius,
                 body.lastSerializationPointer?.let(::pointer),
             )
@@ -192,7 +201,14 @@ object SableOrbitalObjects {
         }
         val pose = SableNBTUtils.readPose3d(holding.data().fullTag().getCompound("pose"))
         val oldPosition = Vector3d(pose.position())
-        pose.position().set(joml(FlatPlanetFrame.toSpace(current.state.position)))
+        val nativeState = CelestialFlight.sample(level.server).nativeState(current.state, level.dimension())
+        if (nativeState.position.length() > 2e6) {
+            // Never reconstruct a native body at astronomical coordinates. Keep durable holding
+            // ownership until a bounded frame migration is requested by its authoritative owner.
+            service.data.put(current.copy(pointer = holding.pointer()?.let(::pointer)))
+            return false
+        }
+        pose.position().set(joml(nativeState.position))
         if (angular.length() > 0.0) {
             val rotation =
                 Quaterniond().rotationAxis(
@@ -227,7 +243,13 @@ object SableOrbitalObjects {
         physics.pipeline.onStatsChanged(body)
         physics.pipeline.prePhysicsTicks()
         physics.pipeline.resetVelocity(body)
-        physics.getPhysicsHandle(body).addLinearAndAngularVelocity(joml(record.state.velocity), angular)
+        physics
+            .getPhysicsHandle(
+                body,
+            ).addLinearAndAngularVelocity(
+                joml(CelestialFlight.sample(level.server).nativeState(record.state, level.dimension()).velocity),
+                angular,
+            )
         physics.pipeline.prePhysicsTicks()
         body.updateLastPose()
     }
@@ -365,7 +387,7 @@ object SableOrbitalObjects {
             val sample = CelestialFlight.sample(level.server)
             for (record in data.records.values.toList()) {
                 if (container.getSubLevel(record.id) != null || data.clock - record.tick > 40) continue
-                val nativePosition = FlatPlanetFrame.toSpace(record.state.position)
+                val nativePosition = sample.nativePoint(record.state.position, level.dimension())
                 val nearbyPlayer =
                     level.players().any { player ->
                         nativePosition.minus(Vector3(player.x, player.y, player.z)).length() <
@@ -388,7 +410,18 @@ object SableOrbitalObjects {
                     sample.frames.profile.geometry.moonEnvelope.let { envelope ->
                         envelope.distance(moonLocal.position) < envelope.ascentDistance + record.radius + 256.0
                     }
-                if (!nearbyPlayer && !nearbyShip && !approachingSurface && !approachingMoon) continue
+                val approachingInner =
+                    sample.frames.profile.innerPlanets.any { planet ->
+                        val local =
+                            sample.frames.profile
+                                .innerPlanetSurfaceFrame(planet.id, data.clock)
+                                .fromParent(record.state)
+                        planet.envelope.distance(local.position) < planet.envelope.ascentDistance + record.radius + 256.0
+                    }
+                val migrating =
+                    sample.frames.orbitalDestination(record.state, CelestialFlight.chart(level.dimension())) !=
+                        CelestialFlight.chart(level.dimension())
+                if (!nearbyPlayer && !nearbyShip && !approachingSurface && !approachingMoon && !approachingInner && !migrating) continue
                 requestNativeLoad(level, record.id)
                 (container.getSubLevel(record.id) as? ServerSubLevel)?.let { body ->
                     // Only add/remove our ticket if no other owner already holds this native key.

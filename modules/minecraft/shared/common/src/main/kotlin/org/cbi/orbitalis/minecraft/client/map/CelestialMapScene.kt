@@ -43,6 +43,7 @@ object CelestialMapScene {
         profile: SolarSystemProfile,
         tick: Long,
         seconds: Double = 0.0,
+        includeOrbits: Boolean = true,
     ): List<Body> {
         val snapshot = profile.system.sample(tick, seconds)
         val sun = snapshot.frame(SolarSystemProfile.SUN, SolarSystemProfile.EARTH).origin.position
@@ -53,12 +54,25 @@ object CelestialMapScene {
                 SolarSystemProfile.EARTH,
                 Vector3.ZERO,
                 profile.geometry.earthHalfSize,
-                profile.earthOrbit.curve(tick = tick).map {
+                (if (includeOrbits) profile.earthOrbit.curve(tick = tick) else emptyList()).map {
                     it +
                         sun
                 },
             ),
-            Body(SolarSystemProfile.MOON, moon, profile.geometry.moonHalfSize, profile.moonOrbit.curve(tick = tick)),
-        )
+            Body(
+                SolarSystemProfile.MOON,
+                moon,
+                profile.geometry.moonHalfSize,
+                if (includeOrbits) profile.moonOrbit.curve(tick = tick) else emptyList(),
+            ),
+        ) +
+            profile.innerPlanets.map { planet ->
+                Body(
+                    planet.id,
+                    snapshot.frame(planet.id, SolarSystemProfile.EARTH).origin.position,
+                    planet.halfSize,
+                    (if (includeOrbits) planet.orbit.curve(tick = tick) else emptyList()).map { it + sun },
+                )
+            }
     }
 }

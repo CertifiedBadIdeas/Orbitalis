@@ -21,6 +21,7 @@
 uniform sampler2D PlanetDepth;
 uniform mat4 ModelViewMat;
 uniform mat4 ProjMat;
+uniform mat4 NativeProjection;
 uniform mat4 InverseProjMat;
 uniform float SceneScale;
 uniform vec2 Viewport;
@@ -81,7 +82,7 @@ void main() {
     vec4 front = ModelViewMat * vec4(origin + ray * entry, 1.0);
     // Native depth belongs to physical metres; the distant/map target uses compressed metres.
     if (UsePlanetDepth != 0) front.xyz /= SceneScale;
-    vec4 physical = ProjMat * front;
+    vec4 physical = UsePlanetDepth != 0 ? NativeProjection * front : ProjMat * front;
     gl_FragDepth = clamp(physical.z / physical.w * 0.5 + 0.5, 0.0, 1.0);
     vec3 tint = mix(vec3(0.12, 0.38, 0.90), vec3(0.40, 0.64, 1.0), scattering);
     float day = smoothstep(-0.06, 0.15, SunDirection.y);

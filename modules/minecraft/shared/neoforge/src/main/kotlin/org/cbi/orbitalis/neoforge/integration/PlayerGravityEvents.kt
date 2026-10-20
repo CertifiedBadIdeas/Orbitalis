@@ -52,6 +52,16 @@ object PlayerGravityEvents {
                     } ?: 0L,
                     org.cbi.orbitalis.minecraft.orbit.OrbitalSimulation
                         .mayAdvance(player.server),
+                    org.cbi.orbitalis.minecraft.innerplanets.NativeInnerPlanets.dimensions
+                        .mapNotNull { key ->
+                            val generator =
+                                player.server
+                                    .getLevel(
+                                        key,
+                                    )?.chunkSource
+                                    ?.generator as? org.cbi.orbitalis.minecraft.innerplanets.InnerPlanetChunkGenerator
+                            generator?.terrain?.seed?.let { key.location().toString() to it }
+                        }.toMap(),
                 ),
             ),
         )

@@ -51,4 +51,48 @@ object InnerPlanetGameTests {
         }
         helper.succeed()
     }
+
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "inner_planet_packet", timeoutTicks = 100)
+    fun innerPlanetSeedPacket(helper: GameTestHelper) {
+        val profile =
+            org.cbi.orbitalis.core.orbit
+                .SolarSystemProfile(11.0, selectedEarthWidth = 2000)
+        val seeds =
+            mapOf(
+                org.cbi.orbitalis.core.orbit.SolarSystemProfile.MERCURY to Long.MIN_VALUE,
+                org.cbi.orbitalis.core.orbit.SolarSystemProfile.VENUS to Long.MAX_VALUE,
+            )
+        for (selected in listOf(emptyMap(), seeds.filterKeys { it.endsWith("mercury") }, seeds)) {
+            val buffer =
+                net.minecraft.network.FriendlyByteBuf(
+                    io.netty.buffer.Unpooled
+                        .buffer(),
+                )
+            try {
+                val payload =
+                    org.cbi.orbitalis.minecraft.flight
+                        .PlayerGravityPayload(11.0, 0L, profile, 123L, true, selected)
+                org.cbi.orbitalis.minecraft.flight.PlayerGravityPayload.CODEC
+                    .encode(buffer, payload)
+                val decoded =
+                    org.cbi.orbitalis.minecraft.flight.PlayerGravityPayload.CODEC
+                        .decode(buffer)
+                helper.assertTrue(decoded == payload && !buffer.isReadable, "Derived terrain seeds/profile did not roundtrip")
+                buffer.readerIndex(0)
+                buffer.setByte(24, 4)
+                var rejected = false
+                try {
+                    org.cbi.orbitalis.minecraft.flight.PlayerGravityPayload.CODEC
+                        .decode(buffer)
+                } catch (_: IllegalArgumentException) {
+                    rejected = true
+                }
+                helper.assertTrue(rejected, "Unknown seed flags accepted")
+            } finally {
+                buffer.release()
+            }
+        }
+        helper.succeed()
+    }
 }

@@ -52,11 +52,14 @@ object FlightTransitionView {
     private var previousPosition: Vector3? = null
     private var previousAt = 0.0
     private var previousDimension: ResourceKey<Level>? = null
+    private var predictionAt = 0.0
+    private var predictionDimension: ResourceKey<Level>? = null
+    private var predictedEligible = false
     val active get() = timing.active
 
     private fun now() = System.nanoTime() * 1e-9
 
-    private fun supported(dimension: ResourceKey<Level>) = dimension in CelestialFlight.dimensions
+    private fun supported(dimension: ResourceKey<Level>) = CelestialFlight.supported(dimension)
 
     fun begin(target: ResourceKey<Level>) {
         val mc = Minecraft.getInstance()
@@ -68,7 +71,8 @@ object FlightTransitionView {
         }
         if (target == level.dimension()) return
         if (!supported(target) || !supported(level.dimension()) ||
-            (target != FlatPlanetSpace.SPACE && level.dimension() != FlatPlanetSpace.SPACE) || mc.player?.isAlive != true
+            (!FlightSpaceCoordinates.isOrbital(target) && !FlightSpaceCoordinates.isOrbital(level.dimension())) ||
+            mc.player?.isAlive != true
         ) {
             clear()
             return
@@ -141,60 +145,38 @@ object FlightTransitionView {
         previousPosition = position
         previousAt = time
         previousDimension = level.dimension()
-        val geometry =
-            if (CelestialFlight.available(
-                    level,
-                )
-            ) {
-                CelestialFlight
-                    .sample(level)
-                    .frames.profile.geometry
-            } else {
-                org.cbi.orbitalis.core.planet
-                    .CelestialGeometry()
-            }
-        val ascending = level.dimension() == Level.OVERWORLD
-        val earthArrival =
-            if (level.dimension() == org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY) {
-                null
-            } else {
-                if (CelestialFlight.available(level)) {
-                    val native =
-                        CelestialFlight
-                            .sample(
-                                level,
-                            ).nativeState(
-                                org.cbi.orbitalis.core.planet
-                                    .CartesianState(position, velocity),
-                                Level.OVERWORLD,
-                            )
-                    geometry.earthEnvelope.arrival(native.position, native.velocity, Vector3.ZERO, ascending, 3.0)
-                } else {
-                    null
-                }
-            }
-        val lunarArrival =
+        val eligible =
             if (CelestialFlight.available(level)) {
-                val sample = CelestialFlight.sample(level)
-                val native =
-                    sample.nativeState(
+                val sampled = CelestialView.sample()
+                val profile = sampled.frames.profile
+                // A short ballistic prediction covers surface and grid-sector boundaries alike.
+                // It only schedules a bounded frame copy; the server still decides every transfer.
+                val acceleration = sampled.dynamics.acceleration(position, sampled.frames.seconds)
+                (0..6).any { index ->
+                    val seconds = index * 0.5
+                    val forecast =
+                        CelestialFlight(
+                            org.cbi.orbitalis.core.orbit.SurfaceFlightFrames(
+                                profile,
+                                sampled.frames.tick,
+                                sampled.frames.seconds + seconds,
+                            ),
+                        )
+                    val future =
                         org.cbi.orbitalis.core.planet.CartesianState(
-                            position,
-                            velocity,
-                        ),
-                        org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY,
-                    )
-                geometry.moonEnvelope.arrival(
-                    native.position,
-                    native.velocity,
-                    Vector3.ZERO,
-                    level.dimension() == org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY,
-                    3.0,
-                )
+                            position + velocity * seconds + acceleration * (seconds * seconds * 0.5),
+                            velocity + acceleration * seconds,
+                        )
+                    forecast.destination(level, forecast.nativeState(future, level.dimension())) != null
+                }
             } else {
-                null
+                false
             }
-        val eligible = earthArrival != null || lunarArrival != null
+        if (predictionDimension != level.dimension() || time - predictionAt >= 0.1) {
+            predictionDimension = level.dimension()
+            predictionAt = time
+            predictedEligible = eligible
+        }
         if (!eligible) {
             if (time - capturedAt > 1.0) releaseImage()
             return

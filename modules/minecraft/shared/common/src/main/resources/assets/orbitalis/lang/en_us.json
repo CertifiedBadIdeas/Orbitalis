@@ -56,5 +56,9 @@
   "body.orbitalis.moon": "Moon",
   "world.orbitalis.size": "Earth size",
   "world.orbitalis.size.blocks": "%s blocks",
-  "world.orbitalis.size.tooltip": "Scales Earth, Moon and the physical solar system. Fixed when the world is created. 1000 blocks is useful for visual previews."
+  "world.orbitalis.size.tooltip": "Scales Earth, Moon and the physical solar system. Fixed when the world is created. 1000 blocks is useful for visual previews.",
+  "body.orbitalis.mercury": "Mercury",
+  "body.orbitalis.venus": "Venus",
+  "map.orbitalis.view.mercury": "Mercury",
+  "map.orbitalis.view.venus": "Venus"
 }

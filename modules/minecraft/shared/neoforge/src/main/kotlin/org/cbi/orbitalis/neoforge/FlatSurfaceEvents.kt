@@ -36,6 +36,17 @@ object FlatSurfaceEvents {
     fun load(event: LevelEvent.Load) {
         val level = event.level as? ServerLevel ?: return
         if (level.dimension() == Level.OVERWORLD) FlatOverworld.prepare(level)
+        (level.chunkSource.generator as? org.cbi.orbitalis.minecraft.innerplanets.InnerPlanetChunkGenerator)?.let { generator ->
+            val profile =
+                org.cbi.orbitalis.core.orbit.SolarSystemProfile(
+                    11.0,
+                    selectedEarthWidth =
+                        org.cbi.orbitalis.minecraft.world.WorldSystemSettings
+                            .get(level.server)
+                            ?.earthWidth,
+                )
+            profile.innerPlanets.firstOrNull { it.id == level.dimension().location().toString() }?.let(generator::configure)
+        }
         if (level.dimension() == org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY) {
             (level.chunkSource.generator as? org.cbi.orbitalis.minecraft.moon.LunarChunkGenerator)?.configure(
                 org.cbi.orbitalis.core.planet.CelestialGeometry(

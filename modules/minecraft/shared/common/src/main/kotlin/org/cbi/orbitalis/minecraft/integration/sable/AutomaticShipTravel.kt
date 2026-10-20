@@ -71,8 +71,8 @@ class AutomaticShipTravel(
             return
         }
         val seen = mutableSetOf<UUID>()
-        for (key in CelestialFlight.dimensions) {
-            val world = server.getLevel(key) ?: continue
+        for (world in CelestialFlight.levels(server)) {
+            val key = world.dimension()
             val container = SubLevelContainer.getContainer(world) ?: continue
             for (body in container.allSubLevels.filterIsInstance<ServerSubLevel>().toList()) {
                 if (body.isRemoved || SpaceTravelReservations.reserved(body.uniqueId, owner) || body.uniqueId in retry) continue

@@ -20,6 +20,18 @@ limitations under the License.
 
 ## 0.2.0 — In development
 
+- Mercury and Venus with scaled circular orbits, gravity, spin, separate finite surface dimensions
+  and terrain-derived LOD in space and on the orbital map. Map views can focus either planet.
+- Local heliocentric orbital sectors keep native physics coordinates bounded during interplanetary
+  travel. Explicit journal routes preserve ships, cargo and mounted passengers between sectors and
+  surfaces; old Earth/Moon routes remain readable.
+- Synchronize derived Mercury/Venus terrain seeds through the updated client ephemeris protocol.
+- Use a shared celestial depth domain with an adaptive sky near plane and separate native-depth
+  projection for deferred clouds, avoiding clipped nearby surfaces at astronomical distances.
+- Dynamic external skylight accounts for overlapping celestial shadows and penumbrae. Native Sable
+  cabin skylight and local block lights are preserved; distant candidates are culled before testing
+  the finite solar source, and client samples are cached per tick.
+
 - Procedural Sun in orbital/lunar skies and the orbital map, using the existing celestial ephemeris.
   A ray-intersected cubic photosphere has animated cellular granulation, paired sunspot groups with
   umbrae/penumbrae, wavelength-dependent limb darkening, a volumetric white streamer corona

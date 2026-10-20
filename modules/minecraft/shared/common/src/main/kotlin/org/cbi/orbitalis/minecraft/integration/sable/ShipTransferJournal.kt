@@ -83,13 +83,34 @@ data class ShipTransferRecord(
     val sourcePassengers: ListTag = ListTag(),
     val destinationPassengers: ListTag = ListTag(),
     val frozenFrame: CelestialFlight? = null,
+    val explicitSource: ResourceKey<Level>? = null,
+    val explicitDestination: ResourceKey<Level>? = null,
 ) {
+    val sourceDimension: ResourceKey<Level> get() = explicitSource ?: if (sourceIsOrbit) orbitalDimension else surfaceDimension
+    val destinationDimension: ResourceKey<Level> get() = explicitDestination ?: if (sourceIsOrbit) surfaceDimension else orbitalDimension
+
     fun encode(): CompoundTag =
         CompoundTag().also {
+            require((explicitSource == null) == (explicitDestination == null)) { "Incomplete explicit route" }
             require(
-                surfaceDimension in setOf(Level.OVERWORLD, MoonWorld.KEY) && orbitalDimension == FlatPlanetSpace.SPACE,
+                sourceDimension != destinationDimension && CelestialFlight.supported(sourceDimension) &&
+                    CelestialFlight.supported(destinationDimension),
             ) { "Invalid transfer route" }
-            it.putInt("version", if (frozenFrame != null) 7 else 5)
+            require(explicitSource == null || frozenFrame != null) { "Explicit route requires frozen frames" }
+            it.putInt(
+                "version",
+                if (explicitSource != null) {
+                    8
+                } else if (frozenFrame != null) {
+                    7
+                } else {
+                    5
+                },
+            )
+            if (explicitSource != null) {
+                it.putString("source_dimension", sourceDimension.location().toString())
+                it.putString("destination_dimension", destinationDimension.location().toString())
+            }
             if (frozenFrame != null) {
                 val sample = frozenFrame
                 it.put(
@@ -109,14 +130,16 @@ data class ShipTransferRecord(
                     },
                 )
             }
-            it.putString("surface_dimension", surfaceDimension.location().toString())
-            it.putString("orbital_dimension", orbitalDimension.location().toString())
+            if (explicitSource == null) {
+                it.putString("surface_dimension", surfaceDimension.location().toString())
+                it.putString("orbital_dimension", orbitalDimension.location().toString())
+                it.putBoolean("source_is_orbit", sourceIsOrbit)
+            }
             it.putUUID("transaction", transaction)
             it.putUUID("ship", ship)
             pilot?.let { id -> it.putUUID("pilot", id) }
             it.put("source_passengers", passengerPayload(sourcePassengers))
             it.put("destination_passengers", passengerPayload(destinationPassengers))
-            it.putBoolean("source_is_orbit", sourceIsOrbit)
             // A completed checkpoint needs only a receipt; never retain stale cargo as a backup.
             it.put(
                 "source",
@@ -163,15 +186,33 @@ data class ShipTransferRecord(
             require(!RetiredFlightData.isDiagnosticJournal(tag)) {
                 "Retired diagnostic ship route; finish recovery with the previous Orbitalis version"
             }
-            require(version in 3..7) { "Unsupported ship transfer journal version" }
+            require(version in 3..8) { "Unsupported ship transfer journal version" }
+
+            fun explicitDimension(name: String): ResourceKey<Level> {
+                require(tag.contains(name, 8)) { "Missing explicit transfer route" }
+                val id =
+                    net.minecraft.resources.ResourceLocation
+                        .tryParse(tag.getString(name))
+                        ?: throw IllegalArgumentException("Invalid transfer dimension")
+                val key = ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION, id)
+                require(CelestialFlight.supported(key)) { "Unsupported transfer dimension" }
+                return key
+            }
+            val explicitSource = if (version == 8) explicitDimension("source_dimension") else null
+            val explicitDestination = if (version == 8) explicitDimension("destination_dimension") else null
+            require(version != 8 || explicitSource != explicitDestination) { "Identical transfer dimensions" }
             val surfaceDimension =
-                when (tag.getString("surface_dimension")) {
-                    Level.OVERWORLD.location().toString() -> Level.OVERWORLD
-                    MoonWorld.KEY.location().toString() -> MoonWorld.KEY
-                    else -> throw IllegalArgumentException("Invalid transfer surface")
+                if (version == 8) {
+                    Level.OVERWORLD
+                } else {
+                    when (tag.getString("surface_dimension")) {
+                        Level.OVERWORLD.location().toString() -> Level.OVERWORLD
+                        MoonWorld.KEY.location().toString() -> MoonWorld.KEY
+                        else -> throw IllegalArgumentException("Invalid transfer surface")
+                    }
                 }
-            require(tag.getString("orbital_dimension") == FlatPlanetSpace.SPACE.location().toString())
-            require(version == 7 || surfaceDimension == if (version == 6) MoonWorld.KEY else Level.OVERWORLD)
+            require(version == 8 || tag.getString("orbital_dimension") == FlatPlanetSpace.SPACE.location().toString())
+            require(version >= 7 || surfaceDimension == if (version == 6) MoonWorld.KEY else Level.OVERWORLD)
             val orbitalDimension = FlatPlanetSpace.SPACE
             val frozenFrame =
                 if (version >= 6) {
@@ -218,7 +259,10 @@ data class ShipTransferRecord(
                 } else {
                     null
                 }
-            require(tag.contains("source_is_orbit", 1) && tag.contains("pilot_pending", 1) && tag.contains("recovered_source", 1)) {
+            require(
+                (version == 8 || tag.contains("source_is_orbit", 1)) && tag.contains("pilot_pending", 1) &&
+                    tag.contains("recovered_source", 1),
+            ) {
                 "Missing transfer flags"
             }
             val phase = ShipTransferPhase.valueOf(tag.getString("phase"))
@@ -293,7 +337,24 @@ data class ShipTransferRecord(
                     val native =
                         org.cbi.orbitalis.core.planet
                             .Vector3(decoded.position().x, decoded.position().y, decoded.position().z)
-                    val dimension = if (orbitalSnapshot) FlatPlanetSpace.SPACE else surfaceDimension
+                    val dimension =
+                        if (version ==
+                            8
+                        ) {
+                            checkNotNull(
+                                if (index ==
+                                    0
+                                ) {
+                                    explicitSource
+                                } else {
+                                    explicitDestination
+                                },
+                            )
+                        } else if (orbitalSnapshot) {
+                            FlatPlanetSpace.SPACE
+                        } else {
+                            surfaceDimension
+                        }
                     val physical =
                         if (frozenFrame != null) {
                             frozenFrame.rootPoint(native, dimension)
@@ -342,8 +403,8 @@ data class ShipTransferRecord(
                 if (phase != ShipTransferPhase.DONE) {
                     val expected =
                         if (frozenFrame != null) {
-                            val from = if (tag.getBoolean("source_is_orbit")) orbitalDimension else surfaceDimension
-                            val to = if (tag.getBoolean("source_is_orbit")) surfaceDimension else orbitalDimension
+                            val from = explicitSource ?: if (tag.getBoolean("source_is_orbit")) orbitalDimension else surfaceDimension
+                            val to = explicitDestination ?: if (tag.getBoolean("source_is_orbit")) surfaceDimension else orbitalDimension
                             ShipFrameTransform(frozenFrame, from, to).passengers(sourcePassengers, source, destination)
                         } else {
                             ShipTransferPassengers.translated(sourcePassengers, source, destination)
@@ -382,6 +443,8 @@ data class ShipTransferRecord(
                 sourcePassengers.copy(),
                 destinationPassengers.copy(),
                 frozenFrame,
+                explicitSource,
+                explicitDestination,
             )
         }
     }

@@ -36,7 +36,11 @@ public abstract class OrbitalShipHeightMixin {
     private double orbitalisOrbitalHeightBound(ModConfigSpec.DoubleValue setting) {
         double configured = setting.getAsDouble();
         ServerSubLevel body = (ServerSubLevel) (Object) this;
-        if (body.getLevel().dimension() != FlatPlanetSpace.INSTANCE.getSPACE()) return configured;
+        if (!org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates.INSTANCE.isOrbital(body.getLevel().dimension())) return configured;
+        if (org.cbi.orbitalis.minecraft.flight.OrbitalSectors.INSTANCE.sector(body.getLevel().dimension()) != null) {
+            return setting == SableConfig.SUB_LEVEL_REMOVE_MIN
+                ? Math.min(configured, 0.0) : Math.max(configured, 2000000.0);
+        }
         double offset = -FlatPlanetFrame.INSTANCE.getOrigin().getY();
         double extent = FlatPlanetSpace.INSTANCE.transferRange(body.getLevel()) + 64.0;
         return setting == SableConfig.SUB_LEVEL_REMOVE_MIN

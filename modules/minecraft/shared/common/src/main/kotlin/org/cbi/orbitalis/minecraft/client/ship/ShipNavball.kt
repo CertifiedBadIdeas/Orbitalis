@@ -75,22 +75,16 @@ object ShipNavball {
         val sample =
             org.cbi.orbitalis.minecraft.flight.CelestialFlight
                 .sample(body.level)
-        val acceleration =
-            if (body.level.dimension() == org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY) {
-                sample.dynamics.lunarAcceleration(
-                    org.cbi.orbitalis.core.planet
-                        .CartesianState(Vector3(position.x(), position.y(), position.z()), Vector3.ZERO),
-                )
-            } else {
-                if (body.level.dimension() == net.minecraft.world.level.Level.OVERWORLD) {
-                    sample.dynamics.earthAcceleration(
-                        org.cbi.orbitalis.core.planet
-                            .CartesianState(Vector3(position.x(), position.y(), position.z()), Vector3.ZERO),
-                    )
-                } else {
-                    sample.dynamics.acceleration(global)
-                }
-            }
+        val nativeState =
+            org.cbi.orbitalis.core.planet
+                .CartesianState(Vector3(position.x(), position.y(), position.z()), Vector3.ZERO)
+        val chart =
+            sample.frames.frame(
+                org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                    .chart(body.level.dimension()),
+            )
+        val physical = chart.toParent(nativeState)
+        val acceleration = chart.fromParentAcceleration(physical, sample.dynamics.acceleration(physical.position))
         if (acceleration.length() < 1e-8) return
         val upWorld = acceleration.normalized() * -1.0
 

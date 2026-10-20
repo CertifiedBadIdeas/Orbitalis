@@ -28,9 +28,8 @@ import org.cbi.orbitalis.minecraft.moon.MoonWorld
 object SableShipDirectory {
     fun loaded(server: MinecraftServer): List<ServerSubLevel> {
         val sample = CelestialFlight.trySample(server)
-        return CelestialFlight.dimensions.filter { sample != null || it != MoonWorld.KEY }.flatMap { key ->
-            server
-                .getLevel(key)
+        return CelestialFlight.levels(server).filter { sample != null || it.dimension() != MoonWorld.KEY }.flatMap { world ->
+            world
                 ?.let { level ->
                     SubLevelContainer
                         .getContainer(level)

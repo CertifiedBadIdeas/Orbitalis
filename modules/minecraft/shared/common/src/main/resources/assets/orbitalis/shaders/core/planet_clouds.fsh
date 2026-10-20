@@ -21,6 +21,7 @@
 uniform sampler2D Sampler0;
 uniform sampler2D Sampler1;
 uniform mat4 ProjMat;
+uniform mat4 NativeProjection;
 uniform vec2 Viewport;
 uniform vec4 ColorModulator;
 uniform int WorldDepth;
@@ -45,7 +46,7 @@ void main() {
             gl_FragDepth = gl_FragCoord.z;
         } else {
             // FAST clouds compare physical distance directly with native terrain/ships.
-            vec4 physical = ProjMat * vec4(actualView, 1.0);
+            vec4 physical = NativeProjection * vec4(actualView, 1.0);
             gl_FragDepth = clamp(physical.z / physical.w * 0.5 + 0.5, 0.0, 1.0);
         }
     } else {

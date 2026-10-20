@@ -56,5 +56,9 @@
   "body.orbitalis.moon": "Луна",
   "world.orbitalis.size": "Размер Земли",
   "world.orbitalis.size.blocks": "%s блоков",
-  "world.orbitalis.size.tooltip": "Размер Земли, Луны и физический масштаб солнечной системы. Выбирается при создании мира. Для проверки визуала подойдёт 1000 блоков."
+  "world.orbitalis.size.tooltip": "Размер Земли, Луны и физический масштаб солнечной системы. Выбирается при создании мира. Для проверки визуала подойдёт 1000 блоков.",
+  "body.orbitalis.mercury": "Меркурий",
+  "body.orbitalis.venus": "Венера",
+  "map.orbitalis.view.mercury": "Меркурий",
+  "map.orbitalis.view.venus": "Венера"
 }

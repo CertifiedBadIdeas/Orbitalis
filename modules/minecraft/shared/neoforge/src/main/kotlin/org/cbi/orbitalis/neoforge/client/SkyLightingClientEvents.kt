@@ -30,5 +30,26 @@ object SkyLightingClientEvents {
     @JvmStatic @SubscribeEvent
     fun logout(event: ClientPlayerNetworkEvent.LoggingOut) {
         SkyLightingData.clientCosmic = false
+        org.cbi.orbitalis.minecraft.client.space.CelestialSkylight
+            .clear()
+    }
+}
+
+@EventBusSubscriber(modid = Orbitalis.MOD_ID, value = [Dist.CLIENT], bus = EventBusSubscriber.Bus.MOD)
+object SolarLightRegistration {
+    @JvmStatic @SubscribeEvent
+    fun setup(event: net.neoforged.fml.event.lifecycle.FMLClientSetupEvent) {
+        if (!net.neoforged.fml.ModList
+                .get()
+                .isLoaded("sable")
+        ) {
+            return
+        }
+        event.enqueueWork(
+            Runnable {
+                org.cbi.orbitalis.minecraft.client.space.CelestialSkylight.isPlot =
+                    org.cbi.orbitalis.minecraft.client.space.SableSkyLight::isPlot
+            },
+        )
     }
 }
