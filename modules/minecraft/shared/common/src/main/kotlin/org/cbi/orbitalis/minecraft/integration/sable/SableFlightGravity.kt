@@ -100,13 +100,12 @@ object SableFlightGravity {
             return flatField(level as ServerLevel).acceleration(globalPosition(level, position))
         }
         val sample = CelestialFlight.sample(level)
-        return if (level.dimension() == MoonWorld.KEY) {
-            sample.dynamics.lunarAcceleration(CartesianState(position, velocity), offsetSeconds)
-        } else if (level.dimension() == Level.OVERWORLD) {
-            sample.dynamics.earthAcceleration(CartesianState(position, velocity), offsetSeconds)
-        } else {
-            sample.dynamics.acceleration(globalPosition(level, position), offsetSeconds)
-        }
+        val frame =
+            org.cbi.orbitalis.core.orbit
+                .SurfaceFlightFrames(sample.frames.profile, sample.frames.tick, offsetSeconds)
+                .frame(CelestialFlight.chart(level.dimension()))
+        val physical = frame.toParent(CartesianState(position, velocity))
+        return frame.fromParentAcceleration(physical, sample.dynamics.acceleration(physical.position, offsetSeconds))
     }
 
     /** Split the field around native drift while Sable owns body integration. */
@@ -158,7 +157,7 @@ object SableFlightGravity {
             // Euler's rigid-body equation in rotating terrain axes. Without this transport
             // torque a freely spinning asymmetric hull acquires an artificial inertial rotation.
             if (CelestialFlight.available(level)) {
-                val frame = CelestialFlight.sample(level).frames.frame(CelestialFlight.world(level.dimension()))
+                val frame = CelestialFlight.sample(level).frames.frame(CelestialFlight.chart(level.dimension()))
                 val frameSpin = frame.orientation.inverse(frame.angularVelocity)
                 val frameAcceleration = frame.orientation.inverse(frame.angularAcceleration)
                 if (frameSpin.length() > 0.0 || frameAcceleration.length() > 0.0) {

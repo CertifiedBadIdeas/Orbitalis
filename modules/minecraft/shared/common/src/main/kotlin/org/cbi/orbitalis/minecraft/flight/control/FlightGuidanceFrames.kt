@@ -51,7 +51,7 @@ object FlightGuidanceFrames {
         rootAcceleration: Vector3,
     ): Vector3 {
         val sample = CelestialFlight.sample(body.level)
-        return sample.frames.frame(CelestialFlight.world(body.level.dimension())).fromParentAcceleration(rootState(body), rootAcceleration)
+        return sample.frames.frame(CelestialFlight.chart(body.level.dimension())).fromParentAcceleration(rootState(body), rootAcceleration)
     }
 
     fun rootDirection(

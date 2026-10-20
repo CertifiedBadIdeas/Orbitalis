@@ -39,6 +39,44 @@ class SurfaceFlightFrames(
             World.MOON -> profile.lunarSurfaceFrame(tick, seconds)
         }
 
+    fun frame(world: FlightFrame): FrameKinematics =
+        when (world) {
+            is FlightFrame.Surface -> {
+                when (world.body) {
+                    SolarSystemProfile.EARTH -> frame(World.EARTH)
+                    SolarSystemProfile.MOON -> frame(World.MOON)
+                    else -> profile.innerPlanetSurfaceFrame(world.body, tick, seconds)
+                }
+            }
+
+            FlightFrame.LegacySpace -> {
+                frame(World.SPACE)
+            }
+
+            is FlightFrame.Sector -> {
+                world.sector.frame(profile, tick, seconds)
+            }
+        }
+
+    /** Native orbital charts are selected geometrically, with overlap to prevent seam chatter. */
+    fun orbitalDestination(
+        root: CartesianState,
+        current: FlightFrame,
+    ): FlightFrame {
+        val legacyRadius = minOf(262144.0, profile.flightRange)
+        val exitRadius = legacyRadius + OrbitalSector.HYSTERESIS
+        if (root.position.length() < if (current == FlightFrame.LegacySpace) exitRadius else legacyRadius) {
+            return FlightFrame.LegacySpace
+        }
+        val heliocentric =
+            root.position +
+                profile.earthOrbit
+                    .sample(tick, seconds)
+                    .origin.position
+        if (current is FlightFrame.Sector && current.sector.retains(heliocentric)) return current
+        return FlightFrame.Sector(OrbitalSector.containing(heliocentric))
+    }
+
     fun state(
         value: CartesianState,
         from: World,

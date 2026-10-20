@@ -94,6 +94,39 @@ class ShipDestinationPreload : AutoCloseable {
         previousPosition = physicalPosition
         previousVelocity = if (velocity != null || dt > 0.0) observed else null
         val sample = CelestialFlight.sample(level.server)
+        // Interplanetary routes are predicted in physical time, including moving frame origins.
+        val currentKey = level.dimension()
+        val extended =
+            OrbitalSectors.sector(currentKey) != null ||
+                currentKey.location().toString() in setOf("orbitalis:mercury", "orbitalis:venus")
+        for (step in 0..21) {
+            val delay = step.toDouble()
+            val future = CelestialFlight(SurfaceFlightFrames(sample.frames.profile, sample.frames.tick + step * 20L))
+            val crossing =
+                CartesianState(
+                    physicalPosition + observed * delay + acceleration * (0.5 * delay * delay),
+                    observed + acceleration * delay,
+                )
+            val native = future.nativeState(crossing, currentKey)
+            val key = future.destination(level, native) ?: continue
+            if (!extended && OrbitalSectors.sector(key) == null &&
+                key.location().toString() !in setOf("orbitalis:mercury", "orbitalis:venus")
+            ) {
+                break
+            }
+            val destination = OrbitalSectors.ensure(level.server, key) ?: return false
+            val lead = (budgets.getOrPut(destination, ::Budget).seconds * 2.0 + 1.0).coerceIn(2.0, 21.0)
+            if (delay > lead || (!allowNewTicket && !active)) {
+                close()
+                return false
+            }
+            forecastDestination(destination, future.nativePoint(crossing.position, key), observed.length())
+            return true
+        }
+        if (extended) {
+            close()
+            return false
+        }
         val nativeMoon = sample.nativeState(CartesianState(physicalPosition, observed), MoonWorld.KEY)
         val fromMoon = level.dimension() == MoonWorld.KEY
         val lunarAcceleration = sample.dynamics.lunarAcceleration(nativeMoon)

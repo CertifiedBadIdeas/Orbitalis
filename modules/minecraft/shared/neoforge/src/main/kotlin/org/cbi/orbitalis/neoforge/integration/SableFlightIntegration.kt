@@ -39,6 +39,7 @@ import net.neoforged.neoforge.event.server.ServerStartedEvent
 import net.neoforged.neoforge.event.server.ServerStoppedEvent
 import net.neoforged.neoforge.event.tick.EntityTickEvent
 import net.neoforged.neoforge.event.tick.ServerTickEvent
+import org.cbi.orbitalis.minecraft.flight.CelestialFlight
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import org.cbi.orbitalis.minecraft.flight.PlayerSpaceTravel
 import org.cbi.orbitalis.minecraft.integration.sable.AutomaticShipTravel
@@ -80,9 +81,10 @@ object SableFlightIntegration {
         }
         // Apply before Sable compiles and sends its native dimension-physics packet.
         NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST) { event: OnDatapackSyncEvent ->
-            event.playerList.server
-                .getLevel(FlatPlanetSpace.SPACE)
-                ?.let(SableVacuumWorld::configure)
+            CelestialFlight.levels(event.playerList.server).forEach(SableVacuumWorld::configure)
+        }
+        NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST) { event: net.neoforged.neoforge.event.level.LevelEvent.Load ->
+            (event.level as? ServerLevel)?.let(SableVacuumWorld::configure)
         }
         org.cbi.orbitalis.minecraft.flight.PlayerGravity.serverAcceleration = { SableFlightGravity.flatField(it).nativeAcceleration }
         NeoForge.EVENT_BUS.addListener { event: EntityTickEvent.Pre ->
@@ -93,7 +95,7 @@ object SableFlightIntegration {
             }
         }
         NeoForge.EVENT_BUS.addListener { event: ServerStartedEvent ->
-            event.server.getLevel(FlatPlanetSpace.SPACE)?.let(SableVacuumWorld::configure)
+            CelestialFlight.levels(event.server).forEach(SableVacuumWorld::configure)
             transfers[event.server] =
                 SableShipTransfer(
                     event.server,
@@ -114,7 +116,7 @@ object SableFlightIntegration {
                 .end(event.server)
         }
         NeoForge.EVENT_BUS.addListener { event: ServerTickEvent.Post ->
-            event.server.getLevel(FlatPlanetSpace.SPACE)?.let(SableOrbitalObjects::tick)
+            CelestialFlight.levels(event.server).forEach(SableOrbitalObjects::tick)
             transfers[event.server]?.let { manager ->
                 manager.tick()
                 if (!manager.busy) {

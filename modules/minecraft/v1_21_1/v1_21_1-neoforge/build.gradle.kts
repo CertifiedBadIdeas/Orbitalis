@@ -203,7 +203,7 @@ val generateGameTestResources = tasks.register("generateGameTestResources") {
 gameTest.resources.srcDir(generateGameTestResources.map { generatedGameTestResources.get() })
 
 val gameTestSuite = providers.gradleProperty("orbitalisGameTestSuite").orElse("all").get()
-require(gameTestSuite in setOf("all", "surface", "transfer", "flat", "travel", "navigation", "sparse", "atlas", "objects", "terrain", "map", "moon", "settings", "scaled", "control")) { "Unknown GameTest suite: $gameTestSuite" }
+require(gameTestSuite in setOf("all", "surface", "transfer", "flat", "travel", "navigation", "sparse", "atlas", "objects", "terrain", "map", "moon", "settings", "scaled", "sectors", "control")) { "Unknown GameTest suite: $gameTestSuite" }
 apply(from = "${rootProject.projectDir}/gradle/gametest-lifecycle.gradle.kts")
 val gameTestReport = layout.buildDirectory.file("test-results/gameTestServer/results.xml")
 loom.runs.register("gameTestServer") {
@@ -265,6 +265,7 @@ tasks.configureEach {
                 "control" -> setOf("flightcontrolwithoutpropulsion")
                 "settings" -> setOf("nativeworldcreationsettings", "nativeskylightingsettings")
                 "scaled" -> setOf("nativesmallcelestialsystem")
+                "sectors" -> setOf("nativesectorlifecycle", "nativesectorplayer", "nativesectorship")
                 "map" -> mapNames
                 "objects" -> objectNames
                 "terrain" -> terrainNames

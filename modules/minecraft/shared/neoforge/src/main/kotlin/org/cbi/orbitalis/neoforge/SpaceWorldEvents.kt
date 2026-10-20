@@ -37,7 +37,11 @@ object SpaceWorldEvents {
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     fun load(event: LevelEvent.Load) {
         val level = event.level as? ServerLevel ?: return
-        if (level.dimension() != FlatPlanetSpace.SPACE) return
+        if (!org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
+                .isOrbital(level.dimension())
+        ) {
+            return
+        }
         val objects = SpaceWorlds.initialize(level)
         logger.info("Orbital world model: {}", if (objects) "physical objects in sparse vacuum" else "legacy terrain (preserved)")
     }
