@@ -76,14 +76,39 @@ data class SolarSystemProfile(
     val flightRange = maxOf(100000.0, moonOrbitRadius + 100000.0)
     val earthOrbit = KeplerOrbit(sunMu, earthOrbitRadius, meanAnomalyAtEpoch = earthPhase, epochTick = epochTick)
     val moonOrbit = KeplerOrbit(earthGravity.body.mu, moonOrbitRadius, meanAnomalyAtEpoch = moonPhase, epochTick = epochTick)
+
+    // NASA NSSDCA fact sheets: widths 0.383/0.949 of Earth; gravity uses 9.81 m/s²
+    // as the reference to preserve the selected Earth's game acceleration (normally 11 m/s²).
+    val mercury = InnerPlanetDefinition(MERCURY, geometry.earthWidth, surfaceGravity, sunMu, 0.383, 3.70 / 9.81, 87.969, 58.646, PI / 3.0)
+    val venus = InnerPlanetDefinition(VENUS, geometry.earthWidth, surfaceGravity, sunMu, 0.949, 8.87 / 9.81, 224.701, -243.025, -PI / 3.0)
+    val innerPlanets = listOf(mercury, venus)
     val system =
         CelestialSystem(
             listOf(
                 CelestialBody(SUN, null, sunMu),
                 CelestialBody(EARTH, SUN, earthGravity.body.mu, earthOrbit),
                 CelestialBody(MOON, EARTH, moonGravity.mu, moonOrbit),
+                CelestialBody(MERCURY, SUN, mercury.gravity.mu, mercury.orbit),
+                CelestialBody(VENUS, SUN, venus.gravity.mu, venus.orbit),
             ),
         )
+
+    /** Derived surface frame in the same nonrotating Earth-centred root as the lunar frame. */
+    fun innerPlanetSurfaceFrame(
+        body: String,
+        tick: Long,
+        seconds: Double = 0.0,
+    ): FrameKinematics = innerPlanets.first { it.id == body }.surfaceFrame(system.sample(tick, seconds), tick, seconds)
+
+    fun mercurySurfaceFrame(
+        tick: Long,
+        seconds: Double = 0.0,
+    ): FrameKinematics = innerPlanetSurfaceFrame(MERCURY, tick, seconds)
+
+    fun venusSurfaceFrame(
+        tick: Long,
+        seconds: Double = 0.0,
+    ): FrameKinematics = innerPlanetSurfaceFrame(VENUS, tick, seconds)
 
     /** Native Earth rotates in the nonrotating geocentric parent; null preserves frozen legacy axes. */
     fun earthSurfaceFrame(
@@ -184,6 +209,8 @@ data class SolarSystemProfile(
         const val SUN = "orbitalis:sun"
         const val EARTH = "orbitalis:overworld"
         const val MOON = "orbitalis:moon"
+        const val MERCURY = "orbitalis:mercury"
+        const val VENUS = "orbitalis:venus"
         const val LEGACY_EARTH_ORBIT_RADIUS = 2000000.0
         const val LEGACY_MOON_ORBIT_RADIUS = 20000.0
         val MOON_HALF_SIZE = LunarSurface.HALF_SIZE.toDouble()
