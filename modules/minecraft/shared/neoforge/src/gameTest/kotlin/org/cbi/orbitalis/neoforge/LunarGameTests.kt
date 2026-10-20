@@ -461,7 +461,7 @@ object LunarGameTests {
                     SpaceTravelReservations.release(body.uniqueId, owner)
                     // A fixture may start during the real coordinator's asynchronous startup pause.
                     // Restoring that transient state would freeze all subsequent batches.
-                    CelestialFlight.dimensions.mapNotNull(server::getLevel).forEach { world ->
+                    CelestialFlight.levels(server).forEach { world ->
                         SubLevelPhysicsSystem.require(world).paused = false
                     }
                     containers.forEach { (_, container) ->
@@ -628,17 +628,34 @@ object LunarGameTests {
                             "Lunar departure outran native chunk readiness: distance=$distance",
                         )
                     }
-                    expected = expectedAt(b, space.dimension())
-                    automatic.tick()
-                    if (manager.busy) {
-                        departureDistance = distance
-                        phase = 2
+                    val reading = SableFlightGravity.reading(b)
+                    val selected =
+                        CelestialFlight.sample(server).destination(
+                            moon,
+                            CartesianState(reading.position, Vector3(reading.velocity.x, reading.velocity.y, reading.velocity.z)),
+                        )
+                    // Other batches may leave unreserved bodies for the global coordinator. Do not
+                    // mistake their transfer for this fixture's ascent while our ship is below exit.
+                    if (selected != null) {
+                        helper.assertTrue(selected == space.dimension(), "Unexpected lunar ascent chart: $selected")
+                        expected = expectedAt(b, selected)
+                        automatic.tick()
+                        if (manager.busy) {
+                            departureDistance = distance
+                            phase = 2
+                        }
                     }
                 }
 
                 phase == 2 && !manager.busy -> {
                     val returned = containers.getValue(space).getSubLevel(body.uniqueId) as? ServerSubLevel
-                    helper.assertTrue(returned != null && landed, "Lunar landing and ascent did not complete")
+                    helper.assertTrue(
+                        returned != null && landed,
+                        "Lunar landing and ascent did not complete: landed=$landed " +
+                            "levels=${CelestialFlight.levels(
+                                server,
+                            ).filter { SubLevelContainer.getContainer(it)?.getSubLevel(body.uniqueId) != null }.map { it.dimension() }}",
+                    )
                     assertArrival(checkNotNull(returned), checkNotNull(expected))
                     println(
                         "ORBITALIS_LUNAR_ROUNDTRIP seatedPilot=true cargo=16 groundContact=$groundContact outward=$outward departureDistance=$departureDistance",
