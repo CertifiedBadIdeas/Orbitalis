@@ -354,8 +354,9 @@ brightness therefore follow the same physical Sun on server and client. Sleep an
 only vanilla time; they never move ships, ephemeris or physical sky. Switching back restores native
 time immediately. The renderer suppresses the two native celestial texture draws by texture identity
 and draws the actual Sun/Moon through the same root-view transform. Native atmospheric background,
-weather and stars stay in their own renderer. Distant celestial draws do not write native terrain
-depth, including the analytical Sun pass; compressed sky depth must not hide native blocks. Arbitrary third-party sky replacements and shader packs require separate compatibility checks.
+weather and stars stay in their own renderer. Distant celestial bodies use the same private colour/depth target as space, then composite colour
+without writing native terrain depth. Solar/lunar self-occlusion is resolved in that private depth
+buffer; compressed sky depth must not hide native blocks. Arbitrary third-party sky replacements and shader packs require separate compatibility checks.
 
 Client acceptance: inspect the distant disc from space, a close view through the system map,
 an Earth/Moon occultation, native hull occlusion, resource reload and a return to Overworld.
@@ -387,3 +388,28 @@ Client ephemeris correction smoothing has a cumulative10-tick budget. A tick spr
 many individually small corrections between frames; exceeding the budget snaps to the new epoch
 instead of accumulating minutes of display delay. Ordinary early/late snapshots keep their smooth
 interpolation. A regression test feeds a full solar day's worth of burst snapshots.
+
+### Lunar eclipses
+
+The cosmic Overworld sky already displays the catalogue Moon through `LunarPlanetRenderer`,
+shared with space and the orbital map. The current catalogue contains only Sun, Earth and Moon;
+this change does not add other planets or illustrative sky sprites.
+
+`SolarOcclusion` in core samples 32 equal-area points on the solar disc against Earth's opaque
+rectangular gravity envelope. The renderer transforms Moon mesh positions and solar-disc axes into
+Earth's rotating local chart, normalized by Earth half-width. The surface shader uses the same
+bounded golden-angle quadrature and segment/slab intersections. Source size creates a penumbra;
+Earth's rotation and thin edge-on silhouette affect the shadow. No spherical Earth proxy is used.
+The shader tests a conservative bounding sphere first; it does not rebuild sector meshes.
+Earth draws explicitly disable the eclipse uniforms to prevent shared-program state leakage.
+The cosmic native-sky pass uses the same unculled slab drawing and private depth target as space.
+Back-face culling discarded shared top-face winding; disabling depth also let the underside paint
+over the lit relief. The shared pass fixes both without clearing or writing native terrain depth.
+
+The muted red umbra is an artistic approximation of atmosphere-filtered sunlight, not atmospheric
+ray tracing or spectral refraction. This pass does not cast Moon shadows on Earth, eclipse native
+lunar terrain lighting, shade Sable hulls or accelerate time analytically. Core tests cover umbra,
+penumbra, source/observer ordering, edge-on geometry, scaling and actual catalogue alignment.
+Geometry tests and GLSL validation do not replace live visual review.
+
+Scientific reference (no imported assets): [NASA lunar eclipses](https://science.nasa.gov/moon/eclipses/).

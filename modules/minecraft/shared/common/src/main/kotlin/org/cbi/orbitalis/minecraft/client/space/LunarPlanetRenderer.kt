@@ -145,12 +145,7 @@ object LunarPlanetRenderer {
             Matrix4f(
                 view,
             ).scale(scale.toFloat()).translate(offset.x.toFloat(), offset.y.toFloat(), offset.z.toFloat()).mul(rotation)
-        val sunDirection =
-            frame.orientation.inverse(
-                org.cbi.orbitalis.minecraft.lighting.SkyLighting
-                    .direction(profile, tick, seconds, frame.origin.position),
-            )
-        val shader = PlanetLighting.prepare(sunDirection)
+        val shader = PlanetLighting.prepareMoon(profile, tick, seconds)
         for (gpu in meshes.values + listOfNotNull(body)) {
             gpu.bind()
             try {

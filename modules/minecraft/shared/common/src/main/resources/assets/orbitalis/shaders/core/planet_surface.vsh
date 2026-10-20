@@ -22,10 +22,16 @@ in vec4 Color;
 in vec3 Normal;
 uniform mat4 ModelViewMat;
 uniform mat4 ProjMat;
+uniform vec3 ShadowOrigin;
+uniform vec3 ShadowAxisX;
+uniform vec3 ShadowAxisY;
+uniform vec3 ShadowAxisZ;
+out vec3 shadowPosition;
 out vec4 surfaceColor;
 out vec3 surfaceNormal;
 void main() {
     gl_Position = ProjMat * ModelViewMat * vec4(Position, 1.0);
+    shadowPosition = ShadowOrigin + ShadowAxisX * Position.x + ShadowAxisY * Position.y + ShadowAxisZ * Position.z;
     surfaceColor = Color;
     surfaceNormal = Normal;
 }

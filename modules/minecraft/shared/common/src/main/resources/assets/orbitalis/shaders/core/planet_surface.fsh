@@ -18,12 +18,61 @@
 
 #version 150
 uniform vec3 SunDirection;
+uniform float EclipseEnabled;
+uniform vec3 ShadowSun;
+uniform vec3 ShadowDiscU;
+uniform vec3 ShadowDiscV;
+uniform vec3 ShadowHalfSize;
+in vec3 shadowPosition;
 in vec4 surfaceColor;
 in vec3 surfaceNormal;
 out vec4 fragColor;
+
+// Segment/slab intersection: an occluder behind either endpoint cannot cast a shadow.
+float blocked(vec3 start, vec3 target) {
+    vec3 delta = target - start;
+    float near = 0.0;
+    float far = 1.0;
+    for (int axis = 0; axis < 3; axis++) {
+        float d = delta[axis];
+        float h = ShadowHalfSize[axis];
+        if (abs(d) < 0.0000001) {
+            if (abs(start[axis]) > h) return 0.0;
+        } else {
+            float a = (-h - start[axis]) / d;
+            float b = (h - start[axis]) / d;
+            near = max(near, min(a, b));
+            far = min(far, max(a, b));
+        }
+    }
+    return float(far >= near && far > 0.0 && near < 1.0);
+}
+
+float visibility() {
+    if (EclipseEnabled < 0.5) return 1.0;
+    // Broad-phase sphere around the actual slab; most lunar views miss Earth entirely.
+    vec3 direction = normalize(ShadowSun - shadowPosition);
+    float along = -dot(shadowPosition, direction);
+    vec3 closest = shadowPosition + direction * max(0.0, along);
+    float spread = length(ShadowDiscU) * max(0.0, along + length(ShadowHalfSize)) / length(ShadowSun - shadowPosition);
+    if (along < 0.0 || length(closest) > length(ShadowHalfSize) + spread) return 1.0;
+    float light = 0.0;
+    // Equal-area golden-angle solar-disc quadrature, matching core SolarOcclusion.
+    for (int i = 0; i < 32; i++) {
+        float radius = sqrt((float(i) + 0.5) / 32.0);
+        float angle = float(i) * 2.399963229728653;
+        vec3 target = ShadowSun + radius * (cos(angle) * ShadowDiscU + sin(angle) * ShadowDiscV);
+        light += 1.0 - blocked(shadowPosition, target);
+    }
+    return light / 32.0;
+}
+
 void main() {
     float direct = max(0.0, dot(normalize(surfaceNormal), SunDirection));
-    // Retain a small readability floor in shadow, independent of surface albedo.
+    float visible = visibility();
     float ambient = min(surfaceColor.a, 0.075);
-    fragColor = vec4(surfaceColor.rgb * (ambient + (1.0 - ambient) * direct), 1.0);
+    // Artistic approximation of atmosphere-filtered light, not a refraction simulation.
+    vec3 transmitted = vec3(0.075, 0.009, 0.003);
+    vec3 illumination = mix(transmitted, vec3(1.0), visible);
+    fragColor = vec4(surfaceColor.rgb * illumination * (ambient + (1.0 - ambient) * direct), 1.0);
 }

@@ -44,11 +44,14 @@ import kotlin.random.Random
 /** Distant presentation mesh; no remote chunks, block entities or optional mod APIs are loaded. */
 object SpaceSkyRenderer {
     private var target: TextureTarget? = null
+    private var celestialTarget: TextureTarget? = null
 
     fun clear() {
         PlanetLimbRenderer.resetWorld()
         target?.destroyBuffers()
         target = null
+        celestialTarget?.destroyBuffers()
+        celestialTarget = null
     }
 
     private data class Star(
@@ -79,14 +82,17 @@ object SpaceSkyRenderer {
             }
         }
 
+    @JvmOverloads
     fun render(
         level: ClientLevel,
         camera: Camera,
         matrix: Matrix4f,
         foggy: Boolean,
         opacity: Float = 1f,
+        celestialsOnly: Boolean = false,
+        projection: Matrix4f = RenderSystem.getProjectionMatrix(),
     ) {
-        PlanetLimbRenderer.resetWorld()
+        if (!celestialsOnly) PlanetLimbRenderer.resetWorld()
         if (opacity <= 0f || (level.dimension() == MoonWorld.KEY && !CelestialFlight.available(level))) return
         val sceneMatrix = CelestialView.rootView(level, matrix)
         if (foggy || camera.fluidInCamera != FogType.NONE) return
@@ -94,7 +100,17 @@ object SpaceSkyRenderer {
         if (entity is LivingEntity && (entity.hasEffect(MobEffects.BLINDNESS) || entity.hasEffect(MobEffects.DARKNESS))) return
         val position = camera.position
         val observer = CelestialView.globalPosition(level, Vector3(position.x, position.y, position.z))
-        val scale = SpaceScene.scale(observer, 4096.0)
+        val scale =
+            if (celestialsOnly) {
+                60.0 / (
+                    observer.length() +
+                        CelestialView
+                            .sample()
+                            .frames.profile.earthOrbitRadius
+                )
+            } else {
+                SpaceScene.scale(observer, 4096.0)
+            }
         val minecraft = Minecraft.getInstance()
         val width = minecraft.mainRenderTarget.width
         val height = minecraft.mainRenderTarget.height
@@ -109,10 +125,12 @@ object SpaceSkyRenderer {
         val depthWrite = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK)
         val cull = GL11.glIsEnabled(GL11.GL_CULL_FACE)
         val blend = GL11.glIsEnabled(GL11.GL_BLEND)
+        // Ascent atmosphere/cloud passes retain target depth until their later world stages.
+        val previousTarget = if (celestialsOnly) celestialTarget else target
         val surface =
-            target ?: TextureTarget(width, height, true, Minecraft.ON_OSX).also {
-                it.setClearColor(0f, 0f, 0f, 1f)
-                target = it
+            previousTarget ?: TextureTarget(width, height, true, Minecraft.ON_OSX).also {
+                it.setClearColor(0f, 0f, 0f, if (celestialsOnly) 0f else 1f)
+                if (celestialsOnly) celestialTarget = it else target = it
             }
         if (surface.width != width || surface.height != height) surface.resize(width, height, Minecraft.ON_OSX)
         RenderSystem.depthMask(true)
@@ -125,11 +143,13 @@ object SpaceSkyRenderer {
         RenderSystem.setShaderColor(1f, 1f, 1f, 1f)
         RenderSystem.setShader(GameRenderer::getPositionColorShader)
         try {
-            val buffer = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR)
-            for (star in stars) {
-                for (vertex in star.vertices) add(buffer, sceneMatrix, vertex, star.brightness, star.brightness, star.brightness)
+            if (!celestialsOnly) {
+                val buffer = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR)
+                for (star in stars) {
+                    for (vertex in star.vertices) add(buffer, sceneMatrix, vertex, star.brightness, star.brightness, star.brightness)
+                }
+                BufferUploader.drawWithShader(buffer.buildOrThrow())
             }
-            BufferUploader.drawWithShader(buffer.buildOrThrow())
             RenderSystem.enableDepthTest()
             RenderSystem.depthMask(true)
             RenderSystem.depthFunc(GL11.GL_LEQUAL)
@@ -148,18 +168,20 @@ object SpaceSkyRenderer {
                     sample.frames.seconds,
                     observer,
                     sceneMatrix,
-                    RenderSystem.getProjectionMatrix(),
+                    projection,
                     scale,
                 )
             }
-            SurfacePlanetRenderer.renderScene(
-                observer,
-                sceneMatrix,
-                RenderSystem.getProjectionMatrix(),
-                scale,
-                clouds = false,
-                limb = false,
-            )
+            if (!celestialsOnly) {
+                SurfacePlanetRenderer.renderScene(
+                    observer,
+                    sceneMatrix,
+                    projection,
+                    scale,
+                    clouds = false,
+                    limb = false,
+                )
+            }
             val lunarVisible =
                 level.dimension() != MoonWorld.KEY || LunarPlanetMesh.visibleFromSurface(Vector3(position.x, position.y, position.z))
             if (sample != null && lunarVisible) {
@@ -169,33 +191,35 @@ object SpaceSkyRenderer {
                     CelestialFlight.lunarSeed,
                     observer,
                     sceneMatrix,
-                    RenderSystem.getProjectionMatrix(),
+                    projection,
                     scale,
                     sample.frames.seconds,
                 )
             }
-            PlanetLimbRenderer.prepareWorld(
-                level,
-                observer,
-                sceneMatrix,
-                RenderSystem.getProjectionMatrix(),
-                scale,
-                surface.depthTextureId,
-                opacity,
-                width,
-                height,
-            )
-            PlanetCloudRenderer.prepareWorld(
-                level,
-                observer,
-                sceneMatrix,
-                RenderSystem.getProjectionMatrix(),
-                scale,
-                surface.depthTextureId,
-                opacity,
-                width,
-                height,
-            )
+            if (!celestialsOnly) {
+                PlanetLimbRenderer.prepareWorld(
+                    level,
+                    observer,
+                    sceneMatrix,
+                    projection,
+                    scale,
+                    surface.depthTextureId,
+                    opacity,
+                    width,
+                    height,
+                )
+                PlanetCloudRenderer.prepareWorld(
+                    level,
+                    observer,
+                    sceneMatrix,
+                    projection,
+                    scale,
+                    surface.depthTextureId,
+                    opacity,
+                    width,
+                    height,
+                )
+            }
             GlStateManager._glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, drawFramebuffer)
             GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, readFramebuffer)
             RenderSystem.viewport(viewport[0], viewport[1], viewport[2], viewport[3])

@@ -19,6 +19,8 @@
 package org.cbi.orbitalis.minecraft.client.space
 
 import net.minecraft.client.renderer.ShaderInstance
+import org.cbi.orbitalis.core.orbit.SolarSystemProfile
+import org.cbi.orbitalis.core.planet.SolarOcclusion
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.lighting.SkyLighting
 
@@ -44,6 +46,41 @@ object PlanetLighting {
     fun prepare(direction: Vector3): ShaderInstance {
         val result = checkNotNull(shader)
         result.getUniform("SunDirection")?.set(direction.x.toFloat(), direction.y.toFloat(), direction.z.toFloat())
+        result.getUniform("EclipseEnabled")?.set(0f)
+        return result
+    }
+
+    /** Earth-local eclipse coordinates are normalized to Earth half-width for GPU precision. */
+    fun prepareMoon(
+        profile: SolarSystemProfile,
+        tick: Long,
+        seconds: Double,
+    ): ShaderInstance {
+        val moon = profile.lunarSurfaceFrame(tick, seconds)
+        val earth = profile.earthSurfaceFrame(tick, seconds).orientation
+        val sun = SkyLighting.sunPosition(profile, tick, seconds)
+        val result = prepare(moon.orientation.inverse((sun - moon.origin.position).normalized()))
+        val scale = profile.geometry.earthHalfSize
+        val origin = earth.inverse(moon.origin.position) * (1.0 / scale)
+        val localSun = earth.inverse(sun) * (1.0 / scale)
+        val half = Vector3(1.0, org.cbi.orbitalis.core.planet.FlatPlanetDefinition.SEA_LEVEL / scale, 1.0)
+        val disc = SolarOcclusion.disc(localSun, profile.sunRadius / scale, origin, half)
+
+        fun vector(
+            name: String,
+            value: Vector3,
+        ) {
+            result.getUniform(name)?.set(value.x.toFloat(), value.y.toFloat(), value.z.toFloat())
+        }
+        vector("ShadowOrigin", origin)
+        vector("ShadowAxisX", earth.inverse(moon.orientation.xAxis) * (1.0 / scale))
+        vector("ShadowAxisY", earth.inverse(moon.orientation.yAxis) * (1.0 / scale))
+        vector("ShadowAxisZ", earth.inverse(moon.orientation.zAxis) * (1.0 / scale))
+        vector("ShadowSun", disc.sun)
+        vector("ShadowDiscU", disc.discU)
+        vector("ShadowDiscV", disc.discV)
+        vector("ShadowHalfSize", disc.halfSize)
+        result.getUniform("EclipseEnabled")?.set(1f)
         return result
     }
 }

@@ -32,10 +32,14 @@ limitations under the License.
 - `/orbitalis sky` reports the world-owned Overworld sky mode; operators select `vanilla` (default)
   or `cosmic`. Cosmic mode renders the system Sun/Moon and derives native daylight from Earth spin,
   independently of sleep and `/time`. The setting is saved and synchronized; space has no mode switch.
+- Lunar eclipses in the cosmic Overworld sky, space and map: a finite solar disc casts
+  Earth's rotating rectangular shadow onto the Moon, with penumbra and a muted red umbra.
 - Forward time acceleration: `/orbitalis time add <seconds>`, `set <solar time>` and `stop` process
   real native ticks, with no backward clock assignments. Initially requires no loaded flight ships.
 - Bound client ephemeris smoothing during accelerated time so the sky catches up promptly.
 - Prevent the physical Sun from occluding Overworld terrain through compressed sky depth writes.
+- Share the offscreen celestial depth pass with the cosmic Overworld sky, preserving visible lunar
+  relief and preventing the underside from painting over the illuminated surface.
 
 ## 0.1.0 — Alpha
 
