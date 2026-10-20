@@ -81,6 +81,7 @@ object SurfacePlanetMesh {
                             ),
                             (surfaceColor ?: fallback((a + b) / 2, (c + d) / 2)),
                             Vector3(0.0, 1.0, 0.0),
+                            waterCoverage = if (surfaceColor == null && fallbackLand((a + b) / 2, (c + d) / 2) <= 0.15) 1.0 else 0.0,
                         ),
                     )
                     yieldAll(
@@ -161,6 +162,7 @@ object SurfacePlanetMesh {
                             listOf(Vector3(x0, h, z0), Vector3(x1, h, z0), Vector3(x1, h, z1), Vector3(x0, h, z1)),
                             rgb,
                             Vector3(0.0, 1.0, 0.0),
+                            waterCoverage = cells[x to z]?.waterCoverage ?: if (fallbackLand(x * step, z * step) <= 0.15) 1.0 else 0.0,
                         ),
                     )
                     // Each shared edge is emitted once, including known/fallback and unequal terrain heights.
@@ -210,10 +212,7 @@ object SurfacePlanetMesh {
         x: Double,
         z: Double,
     ): Int {
-        val step = SpaceScene.HALF_SIZE * 2.0 / 32.0
-        val i = floor((x + SpaceScene.HALF_SIZE) / step).coerceIn(0.0, 31.0)
-        val j = floor((z + SpaceScene.HALF_SIZE) / step).coerceIn(0.0, 31.0)
-        val land = kotlin.math.sin(i * 0.31) + kotlin.math.cos(j * 0.27) + kotlin.math.sin((i + j) * 0.47)
+        val land = fallbackLand(x, z)
         return if (land > 0.45) {
             0x56834c
         } else if (land > 0.15) {
@@ -221,5 +220,15 @@ object SurfacePlanetMesh {
         } else {
             0x245a85
         }
+    }
+
+    private fun fallbackLand(
+        x: Double,
+        z: Double,
+    ): Double {
+        val step = SpaceScene.HALF_SIZE * 2.0 / 32.0
+        val i = floor((x + SpaceScene.HALF_SIZE) / step).coerceIn(0.0, 31.0)
+        val j = floor((z + SpaceScene.HALF_SIZE) / step).coerceIn(0.0, 31.0)
+        return kotlin.math.sin(i * 0.31) + kotlin.math.cos(j * 0.27) + kotlin.math.sin((i + j) * 0.47)
     }
 }

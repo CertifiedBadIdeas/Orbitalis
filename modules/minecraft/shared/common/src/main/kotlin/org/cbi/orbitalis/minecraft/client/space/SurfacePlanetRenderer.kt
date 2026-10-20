@@ -153,7 +153,8 @@ object SurfacePlanetRenderer {
                 scale.toFloat(),
             ).translate(-observer.x.toFloat(), -observer.y.toFloat(), -observer.z.toFloat())
                 .mul(CelestialView.earthRotation())
-        val shader = PlanetLighting.prepare(PlanetLighting.earthDirection())
+        val shader = PlanetLighting.prepareEarth()
+        PlanetLighting.prepareView(shader, modelView, projection)
         for (mesh in meshes.values + listOfNotNull(body)) {
             mesh.bind()
             try {

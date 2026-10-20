@@ -186,7 +186,12 @@ object InnerPlanetRenderer {
                 Matrix4f(
                     view,
                 ).translate(offset.x.toFloat(), offset.y.toFloat(), offset.z.toFloat()).scale(scale.toFloat()).mul(rotation)
-            val shader = PlanetLighting.prepare(r.inverse((sun - frame.origin.position).normalized()))
+            val shader =
+                PlanetLighting.prepare(
+                    r.inverse((sun - frame.origin.position).normalized()),
+                    Vector3(1.0, 1.0, 1.0) * (profile.earthOrbitRadius / (sun - frame.origin.position).length()).let { it * it },
+                )
+            PlanetLighting.prepareView(shader, transform, projection)
             for (gpu in entry.refined.values + listOfNotNull(entry.underside, entry.fallback)) {
                 gpu.bind()
                 try {

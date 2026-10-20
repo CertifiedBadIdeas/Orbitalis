@@ -154,6 +154,120 @@
         0,
         0
       ]
+    },
+    {
+      "name": "Observer",
+      "type": "float",
+      "count": 3,
+      "values": [
+        0,
+        10000,
+        0
+      ]
+    },
+    {
+      "name": "SunRadiance",
+      "type": "float",
+      "count": 3,
+      "values": [
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "name": "AtmosphereBottom",
+      "type": "float",
+      "count": 1,
+      "values": [
+        63
+      ]
+    },
+    {
+      "name": "AtmosphereTop",
+      "type": "float",
+      "count": 1,
+      "values": [
+        216
+      ]
+    },
+    {
+      "name": "AtmosphereHalfSize",
+      "type": "float",
+      "count": 1,
+      "values": [
+        5000
+      ]
+    },
+    {
+      "name": "AtmosphereFeather",
+      "type": "float",
+      "count": 1,
+      "values": [
+        0
+      ]
+    },
+    {
+      "name": "RayleighCoefficient",
+      "type": "float",
+      "count": 3,
+      "values": [
+        0.0026,
+        0.006,
+        0.0144
+      ]
+    },
+    {
+      "name": "MieCoefficient",
+      "type": "float",
+      "count": 1,
+      "values": [
+        0.0023
+      ]
+    },
+    {
+      "name": "RayleighHeight",
+      "type": "float",
+      "count": 1,
+      "values": [
+        38.25
+      ]
+    },
+    {
+      "name": "MieHeight",
+      "type": "float",
+      "count": 1,
+      "values": [
+        15.3
+      ]
+    },
+    {
+      "name": "SunDirection",
+      "type": "float",
+      "count": 3,
+      "values": [
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "name": "ViewDirection",
+      "type": "float",
+      "count": 3,
+      "values": [
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "name": "ParallelView",
+      "type": "float",
+      "count": 1,
+      "values": [
+        0
+      ]
     }
   ]
 }

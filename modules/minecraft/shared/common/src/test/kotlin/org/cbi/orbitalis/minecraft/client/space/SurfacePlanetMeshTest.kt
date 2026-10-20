@@ -25,6 +25,16 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class SurfacePlanetMeshTest {
+    @Test fun waterMaterialFollowsSampleCoverageRatherThanDisplayColor() {
+        val atlas = SurfaceAtlas()
+        atlas.put(SurfaceAtlas.Sample(0, 0, 63, 0x245a85, 0))
+        atlas.put(SurfaceAtlas.Sample(1, 0, 63, 0x245a85, 128))
+        val tops = SurfacePlanetMesh.faces(atlas, SurfacePlanetMesh.Sector(0, 0)).filter { it.normal.y > 0 }.toList()
+        assertEquals(0.0, tops.single { it.vertices[0].x == 0.0 && it.vertices[0].z == 0.0 }.waterCoverage)
+        assertEquals(128.0 / 255.0, tops.single { it.vertices[0].x == 16.0 && it.vertices[0].z == 0.0 }.waterCoverage)
+        assertTrue(SurfacePlanetMesh.coarse(SurfacePlanetMesh.Sector(0, 0), surfaceColor = 0x245a85).all { it.waterCoverage == 0.0 })
+    }
+
     @Test fun unknownAtlasCoversWholeFootprintWithFallbackAndHasBoundedGeometry() {
         val faces = SurfacePlanetMesh.faces(SurfaceAtlas()).toList()
         val tops = faces.filter { it.normal.y > 0.0 }

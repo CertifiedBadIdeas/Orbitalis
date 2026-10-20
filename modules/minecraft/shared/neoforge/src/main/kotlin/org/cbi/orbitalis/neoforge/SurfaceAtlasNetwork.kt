@@ -29,7 +29,7 @@ import org.cbi.orbitalis.minecraft.surface.SurfaceAtlasReceiver
 object SurfaceAtlasNetwork {
     @JvmStatic @SubscribeEvent
     fun register(event: RegisterPayloadHandlersEvent) {
-        event.registrar("1").playToClient(SurfaceAtlasPayload.TYPE, SurfaceAtlasPayload.CODEC) { payload, _ ->
+        event.registrar("2").playToClient(SurfaceAtlasPayload.TYPE, SurfaceAtlasPayload.CODEC) { payload, _ ->
             SurfaceAtlasReceiver.accept(payload)
         }
     }

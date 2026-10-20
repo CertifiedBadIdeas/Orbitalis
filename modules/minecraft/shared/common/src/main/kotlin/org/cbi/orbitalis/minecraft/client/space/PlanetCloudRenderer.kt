@@ -239,9 +239,11 @@ object PlanetCloudRenderer {
             shader.PROJECTION_MATRIX?.set(projection)
             shader.getUniform("NativeProjection")?.set(frame?.nativeProjection ?: projection)
             val sunlight = PlanetLighting.earthDirection()
-            val brightness = (0.065 + 0.935 * maxOf(0.0, sunlight.y)).toFloat()
-            val color = Vec3(brightness.toDouble(), brightness.toDouble(), brightness.toDouble())
-            shader.COLOR_MODULATOR?.set(color.x.toFloat(), color.y.toFloat(), color.z.toFloat(), 1f)
+            PlanetLighting.vector(shader, "SunDirection", sunlight)
+            PlanetLighting.vector(shader, "SunRadiance", PlanetLighting.earthSunRadiance())
+            PlanetLighting.prepareView(shader, modelView, projection)
+            PlanetLighting.prepareAtmosphere(shader)
+            shader.COLOR_MODULATOR?.set(1f, 1f, 1f, 1f)
             shader.setSampler("Sampler0", textureId())
             shader.setSampler("Sampler1", frame?.depth ?: textureId())
             shader.getUniform("SceneScale")?.set(scale.toFloat())
@@ -380,8 +382,7 @@ object PlanetCloudRenderer {
     private fun upload(vertices: List<PlanetCloudMesh.Vertex>): VertexBuffer {
         val builder = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR)
         for (v in vertices) {
-            val shade = (v.shade * 255f).toInt()
-            builder.addVertex(v.x, v.y, v.z).setUv(v.u, v.v).setColor(shade, shade, shade, 204)
+            builder.addVertex(v.x, v.y, v.z).setUv(v.u, v.v).setColor(255, 255, 255, 204)
         }
         return VertexBuffer(VertexBuffer.Usage.STATIC).also {
             it.bind()

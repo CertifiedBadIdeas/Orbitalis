@@ -17,6 +17,14 @@
  */
 
 #version 150
+#moj_import <orbitalis:atmosphere_optics.glsl>
+uniform float AtmosphereEnabled;
+uniform vec3 Observer;
+uniform vec3 ViewDirection;
+uniform float ParallelView;
+uniform vec3 SunRadiance;
+in vec3 localPosition;
+in float waterCoverage;
 uniform vec3 SunDirection;
 uniform float EclipseEnabled;
 uniform vec3 ShadowSun;
@@ -79,14 +87,43 @@ float visibility() {
     return light / 32.0;
 }
 
+// Atlas colours are display encoded. BRDF and optical attenuation operate in linear light.
+vec3 linearColor(vec3 c) {
+    return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c));
+}
+vec3 displayColor(vec3 c) {
+    c = 1.0 - exp(-max(c, vec3(0.0)) * 1.35);
+    return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), c));
+}
 void main() {
-    float direct = max(0.0, dot(normalize(surfaceNormal), SunDirection));
-    float visible = visibility();
-    // Illustrative fill keeps the finite slab readable without adding direct sunlight to its night side.
-    // Retain material contrast: terrain uses 18%, rock undersides/walls at most 22% of their day albedo.
-    float ambient = min(surfaceColor.a, 0.22);
-    // Artistic approximation of atmosphere-filtered light, not a refraction simulation.
-    vec3 transmitted = vec3(0.075, 0.009, 0.003);
-    vec3 illumination = mix(transmitted, vec3(1.0), visible);
-    fragColor = vec4(surfaceColor.rgb * illumination * (ambient + (1.0 - ambient) * direct), 1.0);
+    vec3 n = normalize(surfaceNormal);
+    vec3 v = (ParallelView > 0.5 ? ViewDirection : normalize(Observer - localPosition));
+    vec3 l = normalize(SunDirection);
+    float nl = max(0.0, dot(n, l));
+    float nv = max(0.001, dot(n, v));
+    vec3 sunlight = SunRadiance * visibility();
+    if (AtmosphereEnabled > 0.5) sunlight *= atmosphereSunTransmission(localPosition + n * 0.02, l);
+    vec3 albedo = linearColor(surfaceColor.rgb);
+    // Small illustrative indirect floor; full multi-bounce transport is not simulated.
+    vec3 indirect = vec3(0.020) * min(surfaceColor.a / 0.18, 1.22);
+    if (AtmosphereEnabled > 0.5) {
+        indirect += vec3(0.018, 0.034, 0.065) * max(0.0, l.y) * max(0.0, n.y);
+    }
+    float wet = clamp(waterCoverage, 0.0, 1.0);
+    vec3 radiance = albedo * (indirect + sunlight * nl * (1.0 - wet * 0.08));
+    if (wet > 0.0 && nl > 0.0 && dot(n, v) > 0.0) {
+        vec3 h = normalize(l + v);
+        float nh = max(0.0, dot(n, h));
+        float vh = max(0.0, dot(v, h));
+        // Rough GGX water surface; no mirror glints on dry blue blocks or airless rock.
+        float a2 = 0.00234256; // roughness .22, squared twice
+        float denom = nh * nh * (a2 - 1.0) + 1.0;
+        float distribution = a2 / (3.14159265 * denom * denom);
+        float k = 0.18605; // (roughness + 1)^2 / 8
+        float geometry = nv / (nv * (1.0 - k) + k) * nl / (nl * (1.0 - k) + k);
+        float fresnel = 0.02 + 0.98 * pow(1.0 - vh, 5.0);
+        radiance += sunlight * wet * distribution * geometry * fresnel / (4.0 * nv);
+    }
+    if (AtmosphereEnabled > 0.5) radiance *= atmosphereViewTransmission(localPosition, ParallelView > 0.5 ? localPosition + ViewDirection * (AtmosphereHalfSize * 4.0 + AtmosphereTop) : Observer);
+    fragColor = vec4(displayColor(radiance), 1.0);
 }
