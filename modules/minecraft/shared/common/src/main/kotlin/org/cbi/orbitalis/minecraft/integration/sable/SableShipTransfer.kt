@@ -84,13 +84,13 @@ class SableShipTransfer(
         checkNotNull(
             org.cbi.orbitalis.minecraft.flight.OrbitalSectors
                 .ensure(server, record.sourceDimension),
-        )
+        ).also { if (pauses.isNotEmpty()) pause() }
 
     private fun destinationLevel(record: ShipTransferRecord): ServerLevel =
         checkNotNull(
             org.cbi.orbitalis.minecraft.flight.OrbitalSectors
                 .ensure(server, record.destinationDimension),
-        )
+        ).also { if (pauses.isNotEmpty()) pause() }
 
     private fun worlds(): List<ServerLevel> = CelestialFlight.levels(server)
 
@@ -333,7 +333,25 @@ class SableShipTransfer(
         }
         val sourceDimension = body.level.dimension()
         val sourceOrbit = FlightSpaceCoordinates.isOrbital(sourceDimension)
-        val destinationDimension = targetDimension ?: if (sourceOrbit) Level.OVERWORLD else FlatPlanetSpace.SPACE
+        val sample = CelestialFlight.sample(server)
+        val destinationDimension =
+            targetDimension ?: if (sourceDimension == FlatPlanetSpace.SPACE) {
+                Level.OVERWORLD
+            } else {
+                val reading = SableFlightGravity.reading(body)
+                val state =
+                    org.cbi.orbitalis.core.planet.CartesianState(
+                        reading.position,
+                        Vector3(reading.velocity.x, reading.velocity.y, reading.velocity.z),
+                    )
+                if (sourceOrbit) {
+                    requireNotNull(sample.destination(body.level, state)) { "No orbital chart crossing; specify a destination" }
+                } else {
+                    CelestialFlight.dimension(
+                        sample.frames.orbitalDestination(sample.rootState(state, sourceDimension), CelestialFlight.chart(sourceDimension)),
+                    )
+                }
+            }
         require(CelestialFlight.supported(destinationDimension) && destinationDimension != sourceDimension) { "Unsupported transfer route" }
         val surfaceDimension = if (sourceOrbit) destinationDimension else sourceDimension
         val orbitalDimension = if (sourceOrbit) sourceDimension else destinationDimension
@@ -585,6 +603,7 @@ class SableShipTransfer(
         }
         require(container.getSubLevel(snapshot.getUUID("uuid")) == null) { "Destination already contains this ship" }
         val pose = SableNBTUtils.readPose3d(snapshot.getCompound("pose"))
+        require(pose.position().isFinite && pose.position().length() <= 2e6) { "Destination exceeds safe native chart coordinates" }
         val bounds = SableNBTUtils.readBoundingBox(snapshot.getCompound("world_bounds"))
         require(bounds.maxX() - bounds.minX() <= 32 && bounds.maxZ() - bounds.minZ() <= 32) { "Diagnostic craft is too wide" }
         for (cx in (kotlin.math.floor(bounds.minX()).toInt() shr 4)..(kotlin.math.floor(bounds.maxX()).toInt() shr 4)) {

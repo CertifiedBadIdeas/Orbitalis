@@ -20,7 +20,12 @@ package org.cbi.orbitalis.core.orbit
 
 import org.cbi.orbitalis.core.planet.CartesianState
 import org.cbi.orbitalis.core.planet.Vector3
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class OrbitalSectorTest {
     @Test fun canonicalAddressesRejectAliasesAndOverflow() {

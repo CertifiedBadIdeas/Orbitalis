@@ -28,7 +28,7 @@ import org.cbi.orbitalis.core.planet.SurfaceGravityLayer
 import org.cbi.orbitalis.core.planet.Vector3
 import org.cbi.orbitalis.minecraft.surface.FlatOverworld
 
-/** Ordinary surface and the sole orbital frame. */
+/** Native surface/orbital membership and physical travel bounds. */
 object FlatPlanetSpace {
     val SPACE: ResourceKey<Level> = ResourceKey.create(Registries.DIMENSION, ResourceLocation.fromNamespaceAndPath("orbitalis", "space"))
     const val SEA_LEVEL = FlatPlanetDefinition.SEA_LEVEL
@@ -71,8 +71,7 @@ object FlightSpaceCoordinates {
                         .parse(dimension.location().path) != null
             )
 
-    fun hasIndependentBorder(level: Level): Boolean =
-        isOrbital(level.dimension()) || level.dimension() == org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY
+    fun hasIndependentBorder(level: Level): Boolean = level.dimension() != Level.OVERWORLD && CelestialFlight.supported(level.dimension())
 
     fun globalPosition(
         level: Level,
