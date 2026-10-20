@@ -186,6 +186,82 @@
         1,
         0
       ]
+    },
+    {
+      "name": "SunRadiance",
+      "type": "float",
+      "count": 3,
+      "values": [
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "name": "RayleighCoefficient",
+      "type": "float",
+      "count": 3,
+      "values": [
+        0.001,
+        0.0023,
+        0.0055
+      ]
+    },
+    {
+      "name": "MieCoefficient",
+      "type": "float",
+      "count": 1,
+      "values": [
+        0.00035
+      ]
+    },
+    {
+      "name": "AtmosphereBottom",
+      "type": "float",
+      "count": 1,
+      "values": [
+        63
+      ]
+    },
+    {
+      "name": "AtmosphereTop",
+      "type": "float",
+      "count": 1,
+      "values": [
+        216
+      ]
+    },
+    {
+      "name": "AtmosphereHalfSize",
+      "type": "float",
+      "count": 1,
+      "values": [
+        5000
+      ]
+    },
+    {
+      "name": "AtmosphereFeather",
+      "type": "float",
+      "count": 1,
+      "values": [
+        160
+      ]
+    },
+    {
+      "name": "RayleighHeight",
+      "type": "float",
+      "count": 1,
+      "values": [
+        38.25
+      ]
+    },
+    {
+      "name": "MieHeight",
+      "type": "float",
+      "count": 1,
+      "values": [
+        15.3
+      ]
     }
   ]
 }
