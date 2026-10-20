@@ -42,7 +42,11 @@ object SpaceWorlds {
             .normalize()
 
     fun initialize(level: ServerLevel): Boolean {
-        if (level.dimension() != FlatPlanetSpace.SPACE) return false
+        if (!org.cbi.orbitalis.minecraft.flight.FlightSpaceCoordinates
+                .isOrbital(level.dimension())
+        ) {
+            return false
+        }
         return levels.getOrPut(level) {
             val folder = regionFolder(level)
             val generator = level.chunkSource.generator is VacuumChunkGenerator

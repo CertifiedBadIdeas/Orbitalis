@@ -58,7 +58,7 @@ class OrbitalObjectData private constructor(
     ) {
         init {
             require(snapshotTick >= 0 && tick >= snapshotTick)
-            require(state.position.length() <= 1e8 && state.velocity.length() <= 10000.0)
+            require(state.position.length() <= 2e9 && state.velocity.length() <= 10000.0)
             require(radius.isFinite() && radius in 0.0..2048.0)
         }
     }
@@ -85,6 +85,15 @@ class OrbitalObjectData private constructor(
     fun advanceClock() {
         if (readable) {
             clock = Math.addExact(clock, 1)
+            setDirty()
+        }
+    }
+
+    /** Sector-local indices share the authoritative clock; closed sectors catch up when opened. */
+    fun synchronizeClock(target: Long) {
+        require(target >= clock) { "Orbital clock cannot move backwards" }
+        if (readable && target != clock) {
+            clock = target
             setDirty()
         }
     }
