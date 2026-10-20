@@ -21,7 +21,10 @@ limitations under the License.
 ## 0.2.0 — In development
 
 - Procedural Sun in orbital/lunar skies and the orbital map, using the existing celestial ephemeris.
-  A ray-intersected photosphere has animated granulation, spots, limb darkening and a soft corona.
+  A ray-intersected photosphere has animated cellular granulation, paired sunspot groups with
+  umbrae/penumbrae, wavelength-dependent limb darkening, a volumetric white streamer corona
+  and small red prominence loops above active regions.
+  Photographic exposure preserves map detail and a white-hot distant disc.
   Solar radius scales with the selected system to retain an apparent diameter near 0.53 degrees.
   Overworld daylight and existing ship/planet illumination are unchanged.
 

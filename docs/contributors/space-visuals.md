@@ -283,16 +283,34 @@ same radius. The former fixed 30 km map marker radius is retired.
 
 All camera-relative subtraction happens in Double before GPU conversion into solar-radius units.
 The shader reconstructs perspective or parallel rays using the caller's projection; no tessellated
-sphere, chunks, remote ClientLevel or Sable construction is allocated. Normal-based 3D procedural
-noise has no UV seam. Derivative filtering suppresses unresolved granulation at long distance;
-periodic simulation-time animation remains continuous across its bounded phase wrap. The opaque
-photosphere and bounded, smoothly faded corona share one pass. Depth uses the planetary scene's
+sphere, chunks, remote ClientLevel or Sable construction is allocated. Normal-based 3D cellular
+convection has no UV seam: a bounded 27-neighbour Voronoi search
+produces bright granules and dark intergranular lanes. Derivative filtering fades unresolved
+cells before their expensive evaluation at long distance. Derivatives are evaluated before the
+photosphere/corona branch to keep tangent helper fragments defined at the limb. Periodic simulation-time
+animation remains continuous across its bounded phase wrap. Four prescribed active regions contain
+paired spots with dark umbrae, ragged penumbrae and
+resolved radial filaments. These are illustrative patterns, not a magnetohydrodynamic simulation.
+Wavelength-dependent limb darkening and photographic compression replace flat yellow vertex colour.
+A detail-preserving map exposure and brighter perspective exposure share the same radiance shader.
+The opaque photosphere and an eight-sample optically thin coronal volume share one pass.
+Angular density produces radial streamers and a fainter polar corona; smooth radial support ends
+at 2.8 photosphere radii. Within 1.13 radii, a bounded 20-step local SDF march adds
+two small, asymmetric red prominence arches anchored above those active regions.
+Their nonplanar shape, varying thickness and noise-modulated emission avoid uniform wire rings.
+The pass renders off-disc emission, not absorption filaments across the photosphere or a physical
+magnetic field.
+White coronal emission is deliberately exposure-compressed for presentation,
+not a prediction of the real corona/photosphere luminance ratio. Depth uses the planetary scene's
 scale and projection, clamped just inside the far plane when the Sun is outside that sky volume.
 The current Earth/Moon operating envelope keeps the Sun beyond those bodies. Near-Sun travel and
 universal celestial depth ordering need the future local-sector architecture; this renderer does
 not make native physics at astronomical coordinates safe.
 
 The loader registers/reloads the client shader; it owns no persistent mesh or framebuffer resources.
+The pinned Veil 4.3.2/glsl-processor 0.2.3 dynamic rewrite loses parentheses around a ternary
+nested in vector multiplication. Keep the normal's signed chord selection in an explicit statement;
+check both original GLSL and rewritten shader compilation when changing those expressions.
 Rendering restores depth, cull, blend factors and shader state. The sky target is composed before
 native terrain/hulls, so opaque native objects hide the Sun. Planet meshes cover it through their
 existing target depth. Overworld sky rendering is explicitly excluded, including the ascent blend.
@@ -307,3 +325,8 @@ Client acceptance: inspect the distant disc from space, a close view through the
 an Earth/Moon occultation, native hull occlusion, resource reload and a return to Overworld.
 `SolarSceneTest` covers fractional ephemeris, camera-relative precision, apparent-size scaling,
 near/far geometry and phase wrap; it does not prove shader compilation or framebuffer appearance.
+
+
+Solar morphology references (observation only, no imported images or shader code):
+[NSO Inouye photospheric granulation and sunspots](https://nso.edu/press-release/new-images-released-by-nsfs-inouye-solar-telescope/)
+and [NASA solar layers and visible white corona](https://science.nasa.gov/sun/facts/).

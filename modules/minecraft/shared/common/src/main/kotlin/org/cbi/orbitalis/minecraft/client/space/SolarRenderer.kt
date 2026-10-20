@@ -74,6 +74,8 @@ object SolarRenderer {
             program.getUniform("Centre")?.set(centre.x, centre.y, centre.z)
             program.getUniform("RadiusScale")?.set(radiusScale)
             program.getUniform("Phase")?.set(sphere.phase.toFloat())
+            // The map exposes resolved surface detail; the flight camera retains a white-hot disc.
+            program.getUniform("Exposure")?.set(if (projection.m33() == 0f) 2.8f else 1f)
             program.apply()
             val buffer = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION)
             buffer.addVertex(-1f, -1f, 0f)
