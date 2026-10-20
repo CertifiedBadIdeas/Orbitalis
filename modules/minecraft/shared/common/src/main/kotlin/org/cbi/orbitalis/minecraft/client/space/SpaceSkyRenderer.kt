@@ -93,7 +93,7 @@ object SpaceSkyRenderer {
         nativeProjection: Matrix4f = RenderSystem.getProjectionMatrix(),
     ) {
         if (!celestialsOnly) PlanetLimbRenderer.resetWorld()
-        if (opacity <= 0f || (level.dimension() == MoonWorld.KEY && !CelestialFlight.available(level))) return
+        if (opacity <= 0f || !CelestialView.hasFrame(level) || !SkyProjection.isReady(nativeProjection)) return
         val sceneMatrix = CelestialView.rootView(level, matrix)
         if (foggy || camera.fluidInCamera != FogType.NONE) return
         val entity = camera.entity

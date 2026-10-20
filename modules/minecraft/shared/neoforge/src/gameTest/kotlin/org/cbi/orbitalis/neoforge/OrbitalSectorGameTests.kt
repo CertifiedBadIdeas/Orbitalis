@@ -76,9 +76,11 @@ object OrbitalSectorGameTests {
             !future.compatible && future.save(net.minecraft.nbt.CompoundTag(), server.registryAccess()) == tag,
             "Unknown catalogue was not preserved",
         )
-        // The native writer runs off-thread. Poll the owned file across ticks instead of
-        // waiting for Minecraft's global IO worker on the server thread.
+        // The native writer runs off-thread. A headless GameTestServer can run all 200
+        // fixture ticks in 67 ms, starving that worker. Yield a bounded 5 ms per fixture
+        // tick while polling our file; never wait on Minecraft's global IO completion.
         helper.onEachTick {
+            Thread.sleep(5)
             if (!Files.exists(file)) return@onEachTick
             val persisted =
                 net.minecraft.nbt.NbtIo

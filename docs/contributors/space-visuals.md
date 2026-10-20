@@ -20,8 +20,9 @@ limitations under the License.
 # Space presentation
 
 `orbitalis:space` uses black vacuum fog and a fixed star field. Native nearby clouds,
-rain rendering and sunrise/sunset gradients are suppressed; the planet retains a distant cloud layer. Exposed skylight has constant daytime
-brightness; native sky occlusion and warm block lights remain, followed by vanilla gamma, night vision
+rain rendering and sunrise/sunset gradients are suppressed; the planet retains a distant cloud layer. Unobstructed exposed skylight uses daytime
+brightness; the direct-solar visibility layer below attenuates dynamic external light in celestial shadows.
+Native cabin sky occlusion and warm block lights remain, followed by vanilla gamma, night vision
 and darkness handling. Minecraft's ordinary face shading remains: this is not directional shadow
 mapping or a physical sunlight simulation. Server time and weather simulation are unchanged. The ordinary ground-level Overworld sky remains
 native; high-altitude presentation blends towards the same orbital scene before dimension travel.
@@ -167,9 +168,11 @@ fog remain native, as do unrelated dimensions. Native rendering remains below th
 custom cloud renderers, shader packs and independent third-party weather fog need separate
 compatibility checks.
 
-At transition heights the camera's far plane encloses the reference body, keeping compressed planet
-geometry and physical clouds in a valid native depth range. This changes projection, not terrain
-tickets or render distance. Each cloud frame is consumed once and rejects changed levels; fluid and
+At transition heights the camera's far plane expands for the reference body up to 65,536 metres.
+Astronomical distances must stay in the private sky projection: a larger native float projection
+can normalize a zero-length far culling plane and trap vanilla's camera-cube offset loop.
+Deferred clouds/atmosphere retain native depth for nearby occlusion and the sky projection for
+celestial depth reconstruction. This changes projection, not terrain tickets or render distance. Each cloud frame is consumed once and rejects changed levels; fluid and
 effect restrictions cannot reuse a stale frame. This is presentation, not cloud weather or shadows.
 
 In the world, the atmosphere has a dedicated post-level pass. Its private planet-depth texture
@@ -403,8 +406,8 @@ interpolation. A regression test feeds a full solar day's worth of burst snapsho
 ### Lunar eclipses
 
 The cosmic Overworld sky already displays the catalogue Moon through `LunarPlanetRenderer`,
-shared with space and the orbital map. The current catalogue contains only Sun, Earth and Moon;
-this change does not add other planets or illustrative sky sprites.
+shared with space and the orbital map. The catalogue also contains Mercury and Venus; they use their native seeded surface overview meshes,
+not illustrative sky sprites. The lunar eclipse shader described here specifically models Earth occluding the Moon.
 
 `SolarOcclusion` in core samples 32 points on the visible faces of the emitting cube against
 Earth's opaque rectangular gravity envelope. Visible source faces are weighted by projected area;

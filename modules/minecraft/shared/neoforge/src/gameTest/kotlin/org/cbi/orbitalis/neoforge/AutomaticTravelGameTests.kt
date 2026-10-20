@@ -333,7 +333,7 @@ object AutomaticTravelGameTests {
                 }
                 expectedCart?.let { world.getEntity(it)?.remove(net.minecraft.world.entity.Entity.RemovalReason.CHANGED_DIMENSION) }
             }
-            org.cbi.orbitalis.minecraft.flight.CelestialFlight.dimensions.mapNotNull(server::getLevel).forEach { world ->
+            org.cbi.orbitalis.minecraft.flight.CelestialFlight.levels(server).forEach { world ->
                 SubLevelPhysicsSystem.require(world).paused = false
             }
             player?.discard()

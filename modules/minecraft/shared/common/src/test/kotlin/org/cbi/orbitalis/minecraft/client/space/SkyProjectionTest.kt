@@ -26,6 +26,25 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class SkyProjectionTest {
+    @Test fun `astronomical sky does not degenerate native culling planes`() {
+        val far = SkyProjection.nativeFar(384f, 40000000.0)
+        val projection = Matrix4f().perspective(1.2f, 1.6f, 0.05f, far)
+        // Vanilla normalizes row3-row2 for its far plane. Zero length makes the camera-cube loop endless.
+        assertTrue(projection.m23() - projection.m22() > 0f)
+        val culling = org.joml.FrustumIntersection(projection)
+        assertEquals(org.joml.FrustumIntersection.INSIDE, culling.intersectAab(-4f, -4f, -20f, 4f, 4f, -12f))
+        assertEquals(65536f, far)
+        assertEquals(384f, SkyProjection.nativeFar(384f, 100.0))
+        assertEquals(100000f, SkyProjection.nativeFar(100000f, 100.0))
+    }
+
+    @Test fun `native zero FOV startup frame defers sky until a finite projection arrives`() {
+        val startup = Matrix4f().perspective(0f, 1.7f, 0.05f, 20000000f)
+        kotlin.test.assertFalse(SkyProjection.isReady(startup))
+        kotlin.test.assertTrue(SkyProjection.isReady(native()))
+        kotlin.test.assertTrue(SkyProjection.isReady(Matrix4f().ortho(-1f, 1f, -1f, 1f, 0.05f, 100f)))
+    }
+
     private fun native() = Matrix4f().perspective(1.2f, 1.6f, 0.05f, 1024f)
 
     @Test
