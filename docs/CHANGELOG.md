@@ -18,6 +18,13 @@ limitations under the License.
 
 # Changelog
 
+## 0.2.0 — In development
+
+- Procedural Sun in orbital/lunar skies and the orbital map, using the existing celestial ephemeris.
+  A ray-intersected photosphere has animated granulation, spots, limb darkening and a soft corona.
+  Solar radius scales with the selected system to retain an apparent diameter near 0.53 degrees.
+  Overworld daylight and existing ship/planet illumination are unchanged.
+
 ## 0.1.0 — Alpha
 
 First Alpha. Version frozen on 2026-10-20; publication is a separate step.

@@ -56,6 +56,9 @@ data class SolarSystemProfile(
         )
     val sunMu = earthGravity.body.mu * 10000.0
     val earthOrbitRadius = if (preset == Preset.COMPACT) LEGACY_EARTH_ORBIT_RADIUS else radiusForPeriod(sunMu, YEAR_SECONDS)
+
+    /** Photosphere radius; keeps the apparent solar diameter near 0.53 degrees at Earth. */
+    val sunRadius = earthOrbitRadius * SUN_RADIUS_TO_ORBIT
     val moonOrbitRadius =
         if (preset ==
             Preset.COMPACT
@@ -184,6 +187,6 @@ data class SolarSystemProfile(
         const val LEGACY_EARTH_ORBIT_RADIUS = 2000000.0
         const val LEGACY_MOON_ORBIT_RADIUS = 20000.0
         val MOON_HALF_SIZE = LunarSurface.HALF_SIZE.toDouble()
-        const val SUN_VISUAL_RADIUS = 30000.0
+        const val SUN_RADIUS_TO_ORBIT = 0.004650401069518716
     }
 }

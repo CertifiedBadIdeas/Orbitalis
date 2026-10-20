@@ -290,11 +290,21 @@ class OrbitalMapScreen(
             val x = viewX + point.x.roundToInt()
             val y = viewY + point.y.roundToInt()
             val color = if (body.id == SolarSystemProfile.SUN) 0xFFE19B else 0xCFD9E5
-            for (row in -4..4) {
-                val extent = kotlin.math.sqrt((16 - row * row).toDouble()).toInt()
-                graphics.fill(x - extent, y + row, x + extent + 1, y + row + 1, color or 0xFF000000.toInt())
+            val solarPixels = if (body.id == SolarSystemProfile.SUN) body.radius / camera.range * viewHeight * 0.5 else 0.0
+            if (solarPixels <= 6.0) {
+                for (row in -4..4) {
+                    val extent = kotlin.math.sqrt((16 - row * row).toDouble()).toInt()
+                    graphics.fill(x - extent, y + row, x + extent + 1, y + row + 1, color or 0xFF000000.toInt())
+                }
             }
-            graphics.drawString(font, Component.translatable("body." + body.id.replace(':', '.')), x + 8, y - 4, color, false)
+            graphics.drawString(
+                font,
+                Component.translatable("body." + body.id.replace(':', '.')),
+                x + solarPixels.coerceAtMost(viewWidth.toDouble()).roundToInt() + 8,
+                y - 4,
+                color,
+                false,
+            )
         }
         snapshot?.let { data ->
             for (item in data.objects) {
@@ -411,6 +421,17 @@ class OrbitalMapScreen(
                 )
             val aspect = viewWidth.toFloat() / viewHeight
             val projection = Matrix4f().ortho(-aspect, aspect, -1f, 1f, -100f, 100f)
+            snapshot?.celestialProfile?.let { profile ->
+                org.cbi.orbitalis.minecraft.client.space.SolarRenderer.render(
+                    profile,
+                    celestialRenderTick,
+                    celestialRenderSeconds,
+                    camera.focus,
+                    view,
+                    projection,
+                    1.0 / camera.range,
+                )
+            }
             SurfacePlanetRenderer.renderScene(
                 camera.focus,
                 view,

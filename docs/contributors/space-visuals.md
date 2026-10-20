@@ -271,3 +271,39 @@ optional-mod-absent startup check remains separate from flight-client visual acc
 
 The placeholder Sun square is no longer drawn in the flight sky. The prescribed Sun remains part
 of the celestial catalogue and orbital map; physical solar illumination remains deferred.
+
+
+## Procedural solar presentation
+
+`SolarRenderer` ray-intersects an analytical sphere in the existing sky target and map viewport.
+`SolarScene` samples the authoritative Earth-relative Sun ephemeris and fractional simulation clock.
+`SolarSystemProfile.sunRadius` is derived as 0.004650401069518716 times Earth orbit radius, about
+95,344 m at 10,000 m Earth width and 11 m/s². No profile/NBT/packet field is added. The map uses the
+same radius. The former fixed 30 km map marker radius is retired.
+
+All camera-relative subtraction happens in Double before GPU conversion into solar-radius units.
+The shader reconstructs perspective or parallel rays using the caller's projection; no tessellated
+sphere, chunks, remote ClientLevel or Sable construction is allocated. Normal-based 3D procedural
+noise has no UV seam. Derivative filtering suppresses unresolved granulation at long distance;
+periodic simulation-time animation remains continuous across its bounded phase wrap. The opaque
+photosphere and bounded, smoothly faded corona share one pass. Depth uses the planetary scene's
+scale and projection, clamped just inside the far plane when the Sun is outside that sky volume.
+The current Earth/Moon operating envelope keeps the Sun beyond those bodies. Near-Sun travel and
+universal celestial depth ordering need the future local-sector architecture; this renderer does
+not make native physics at astronomical coordinates safe.
+
+The loader registers/reloads the client shader; it owns no persistent mesh or framebuffer resources.
+Rendering restores depth, cull, blend factors and shader state. The sky target is composed before
+native terrain/hulls, so opaque native objects hide the Sun. Planet meshes cover it through their
+existing target depth. Overworld sky rendering is explicitly excluded, including the ascent blend.
+The orthographic map uses the same shader and ephemeris. The small selection marker remains an
+interface affordance at system scale.
+
+This is visual emission only. Directional lighting, irradiance, heating, solar gravity changes,
+construction shadows and an accessible solar neighbourhood are separate work. Existing fixed
+planet lighting/exposed skylight remain in place.
+
+Client acceptance: inspect the distant disc from space, a close view through the system map,
+an Earth/Moon occultation, native hull occlusion, resource reload and a return to Overworld.
+`SolarSceneTest` covers fractional ephemeris, camera-relative precision, apparent-size scaling,
+near/far geometry and phase wrap; it does not prove shader compilation or framebuffer appearance.

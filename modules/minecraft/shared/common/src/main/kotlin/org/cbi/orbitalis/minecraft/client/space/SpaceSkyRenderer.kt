@@ -133,6 +133,19 @@ object SpaceSkyRenderer {
             RenderSystem.enableDepthTest()
             RenderSystem.depthMask(true)
             RenderSystem.depthFunc(GL11.GL_LEQUAL)
+            val sample = if (CelestialFlight.available(level)) CelestialView.sample() else null
+            // Ground and transition skies remain native until stellar lighting is introduced.
+            if (sample != null && level.dimension() != net.minecraft.world.level.Level.OVERWORLD) {
+                SolarRenderer.render(
+                    sample.frames.profile,
+                    sample.frames.tick,
+                    sample.frames.seconds,
+                    observer,
+                    sceneMatrix,
+                    RenderSystem.getProjectionMatrix(),
+                    scale,
+                )
+            }
             SurfacePlanetRenderer.renderScene(
                 observer,
                 sceneMatrix,
@@ -141,7 +154,6 @@ object SpaceSkyRenderer {
                 clouds = false,
                 limb = false,
             )
-            val sample = if (CelestialFlight.available(level)) CelestialView.sample() else null
             val lunarVisible =
                 level.dimension() != MoonWorld.KEY || LunarPlanetMesh.visibleFromSurface(Vector3(position.x, position.y, position.z))
             if (sample != null && lunarVisible) {
