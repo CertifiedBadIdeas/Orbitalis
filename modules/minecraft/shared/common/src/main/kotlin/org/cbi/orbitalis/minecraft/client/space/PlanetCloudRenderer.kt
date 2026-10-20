@@ -62,6 +62,7 @@ object PlanetCloudRenderer {
         val observer: Vector3,
         val view: Matrix4f,
         val projection: Matrix4f,
+        val nativeProjection: Matrix4f,
         val scale: Double,
         val depth: Int,
         val color: Vec3,
@@ -166,6 +167,7 @@ object PlanetCloudRenderer {
         opacity: Float,
         width: Int,
         height: Int,
+        nativeProjection: Matrix4f = projection,
     ) {
         val color =
             if (level.dimension() ==
@@ -175,7 +177,7 @@ object PlanetCloudRenderer {
             } else {
                 Vec3(1.0, 1.0, 1.0)
             }
-        scene = Scene(level, observer, Matrix4f(view), Matrix4f(projection), scale, depth, color, width, height)
+        scene = Scene(level, observer, Matrix4f(view), Matrix4f(projection), Matrix4f(nativeProjection), scale, depth, color, width, height)
     }
 
     fun renderWorld() {
@@ -235,6 +237,7 @@ object PlanetCloudRenderer {
             RenderSystem.defaultBlendFunc()
             shader.MODEL_VIEW_MATRIX?.set(modelView)
             shader.PROJECTION_MATRIX?.set(projection)
+            shader.getUniform("NativeProjection")?.set(frame?.nativeProjection ?: projection)
             val sunlight = PlanetLighting.earthDirection()
             val brightness = (0.065 + 0.935 * maxOf(0.0, sunlight.y)).toFloat()
             val color = Vec3(brightness.toDouble(), brightness.toDouble(), brightness.toDouble())
@@ -292,7 +295,7 @@ object PlanetCloudRenderer {
                 )
                 RenderSystem.depthFunc(GL11.GL_LEQUAL)
                 RenderSystem.enableBlend()
-                composite(nearest, projection, scale)
+                composite(nearest, projection, frame.nativeProjection, scale)
             } else {
                 if (fancy) {
                     RenderSystem.colorMask(false, false, false, false)
@@ -333,6 +336,7 @@ object PlanetCloudRenderer {
     private fun composite(
         surface: TextureTarget,
         projection: Matrix4f,
+        nativeProjection: Matrix4f,
         scale: Double,
     ) {
         val shader = checkNotNull(compositeShader)
@@ -341,6 +345,7 @@ object PlanetCloudRenderer {
         shader.setSampler("CloudDepth", surface.depthTextureId)
         shader.getUniform("InverseProjection")?.set(Matrix4f(projection).invert())
         shader.PROJECTION_MATRIX?.set(projection)
+        shader.getUniform("NativeProjection")?.set(nativeProjection)
         shader.getUniform("SceneScale")?.set(scale.toFloat())
         RenderSystem.disableCull()
         shader.apply()

@@ -79,6 +79,7 @@ object PlanetLimbRenderer {
         val observer: Vector3,
         val view: Matrix4f,
         val projection: Matrix4f,
+        val nativeProjection: Matrix4f,
         val rotation: Matrix4f,
         val scale: Double,
         val depth: Int,
@@ -102,6 +103,7 @@ object PlanetLimbRenderer {
         opacity: Float,
         width: Int,
         height: Int,
+        nativeProjection: Matrix4f = projection,
     ) {
         scene =
             Scene(
@@ -109,6 +111,7 @@ object PlanetLimbRenderer {
                 observer,
                 Matrix4f(view),
                 Matrix4f(projection),
+                Matrix4f(nativeProjection),
                 CelestialView.earthRotation(),
                 scale,
                 depth,
@@ -137,6 +140,7 @@ object PlanetLimbRenderer {
             RenderSystem.setShaderColor(1f, 1f, 1f, frame.opacity)
             shader.getUniform("Viewport")?.set(frame.width.toFloat(), frame.height.toFloat())
             shader.setSampler("PlanetDepth", frame.depth)
+            shader.getUniform("NativeProjection")?.set(frame.nativeProjection)
             shader.getUniform("UsePlanetDepth")?.set(1)
             render(frame.observer, frame.view, frame.projection, frame.scale, shader, frame.rotation, frame.cloudHeight)
         } finally {
