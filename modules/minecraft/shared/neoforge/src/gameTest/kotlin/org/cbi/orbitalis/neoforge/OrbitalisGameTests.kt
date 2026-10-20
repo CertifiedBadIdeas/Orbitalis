@@ -67,6 +67,7 @@ object OrbitalisGameTests {
         if (suite == "all" || suite == "control") event.register(FlightControlGameTests::class.java)
         if (suite == "control") return
         if (suite == "all" || suite == "settings") event.register(WorldSystemSettingsGameTests::class.java)
+        if (suite == "all" || suite == "settings") event.register(SkyLightingGameTests::class.java)
         if (suite == "settings") return
         if (suite == "all" || suite == "moon") event.register(LunarGameTests::class.java)
         if (suite == "moon") return

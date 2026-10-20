@@ -78,8 +78,8 @@ Surface block/fluid logic remains native. A temporary per-tick contact-step budg
 near terrain for fast hulls, restoring configured values afterward. A narrow orbital cleanup hook admits
 the supported physical flight volume below the native surface-oriented Y cutoff. The client samples
 the same catalogue for a procedural, camera-relative solar photosphere and corona in space, lunar
-skies and the map. This visual pass does not replace existing illumination or change
-Overworld daylight; no solar native world or astronomical-coordinate Sable body is created.
+skies and the map. LOD illumination follows the same physical Sun. An opt-in saved Overworld sky mode
+connects native daylight to Earth rotation independently of sleep and `/time`; no solar native world or astronomical-coordinate Sable body is created.
 The space frame uses the flat-body [space presentation](space-visuals.md), combining a persisted
 server-owned coarse Overworld surface atlas with illustrative fallback for unknown cells. Shared/common
 owns native sampling, SavedData, bounded packets and the client relief renderer; NeoForge owns chunk/
@@ -201,4 +201,5 @@ The geocentric physical root stays nonrotating; Space retains its fixed vertical
 use `Level.OVERWORLD` as a synonym for the inertial root: use the explicit root conversions in
 `CelestialFlight`. Moon's separate synchronous leaf keeps its top facing Earth's centre.
 See [axial rotation](earth-rotation.md) for velocity/force transport, migration and presentation.
-Native daylight, sleep and time commands are not coupled to either physical spin.
+Native daylight follows physical Earth spin only when `/orbitalis sky cosmic` is selected. Sleep
+and time commands never move either physical spin. The default `vanilla` sky retains native daylight.

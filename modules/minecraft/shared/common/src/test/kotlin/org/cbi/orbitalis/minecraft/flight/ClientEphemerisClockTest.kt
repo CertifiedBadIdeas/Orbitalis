@@ -78,4 +78,16 @@ class ClientEphemerisClockTest {
         clock.advance()
         assertEquals(Long.MAX_VALUE, clock.tick)
     }
+
+    @Test fun `tick sprint snapshots cannot accumulate an unbounded display delay`() {
+        val clock = ClientEphemerisClock()
+        clock.accept(5000L, true)
+        for (tick in 5010L..29000L step 10) {
+            clock.accept(tick, true)
+            val lag = -clock.renderSeconds(0.5f) * 20.0
+            kotlin.test.assertTrue(lag in -10.0..10.0, "Sprint snapshot accumulated $lag ticks of visual lag")
+        }
+        repeat(12) { clock.advance() }
+        assertEquals(0.0, clock.renderSeconds(1f), 1e-10)
+    }
 }

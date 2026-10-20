@@ -324,13 +324,38 @@ nested in vector multiplication. Keep the normal's signed chord selection in an 
 check both original GLSL and rewritten shader compilation when changing those expressions.
 Rendering restores depth, cull, blend factors and shader state. The sky target is composed before
 native terrain/hulls, so opaque native objects hide the Sun. Planet meshes cover it through their
-existing target depth. Overworld sky rendering is explicitly excluded, including the ascent blend.
+existing target depth. Overworld uses native celestial bodies by default; the optional `cosmic` mode draws the same
+physical Sun/Moon at the surface and during the ascent blend.
 The orthographic map uses the same shader and ephemeris. The small selection marker remains an
 interface affordance at system scale.
 
-This is visual emission only. Directional lighting, irradiance, heating, solar gravity changes,
-construction shadows and an accessible solar neighbourhood are separate work. Existing fixed
-planet lighting/exposed skylight remain in place.
+Solar emission does not implement heating, irradiance, construction shadows or an accessible solar
+neighbourhood. Distant Earth/Moon surfaces now use a normal-bearing `planet_surface` shader with
+Earth-/Moon-local ephemeris sun direction. Sector buffers retain albedo and ambient floor rather
+than a baked direction; changing light does not rebuild or upload sector geometry. Overview clouds
+and atmospheric scattering use the same Earth-local solar elevation. A small shadow floor preserves
+readability. Native ship/block face shading and directional construction shadows remain separate work;
+space's exposed native lightmap is still the existing readability approximation.
+
+### Optional physical Overworld sky
+
+Operator commands `/orbitalis sky vanilla` and `/orbitalis sky cosmic` select the saved world mode;
+`/orbitalis sky` reports it. Space always uses physical stellar presentation and LOD illumination.
+New and legacy worlds default to vanilla. The common `SkyLightingData` SavedData lives in Overworld
+as `orbitalis_sky_lighting`, schema1 with `Version` integer and `Overworld`=`vanilla`/`cosmic` string.
+Unknown versions/malformed records retain their original compound, fall back to vanilla and reject
+mutation. Selection marks data dirty; login and changes send a dedicated version1 `sky_lighting`
+S2C payload, with one validated0/1 byte. The receiver runs on the main thread; disconnect clears
+client mode so it cannot leak between servers. Existing physical-state packet schemas are unchanged.
+
+A common-side `LevelTimeAccess` hook replaces only the opted-in Overworld sky angle with the solar
+hour angle in Earth's native rotating chart. Native sky colour, fog, cloud colour and daylight
+brightness therefore follow the same physical Sun on server and client. Sleep and `/time` change
+only vanilla time; they never move ships, ephemeris or physical sky. Switching back restores native
+time immediately. The renderer suppresses the two native celestial texture draws by texture identity
+and draws the actual Sun/Moon through the same root-view transform. Native atmospheric background,
+weather and stars stay in their own renderer. Distant celestial draws do not write native terrain
+depth, including the analytical Sun pass; compressed sky depth must not hide native blocks. Arbitrary third-party sky replacements and shader packs require separate compatibility checks.
 
 Client acceptance: inspect the distant disc from space, a close view through the system map,
 an Earth/Moon occultation, native hull occlusion, resource reload and a return to Overworld.
@@ -341,3 +366,24 @@ near/far geometry and phase wrap; it does not prove shader compilation or frameb
 Solar morphology references (observation only, no imported images or shader code):
 [NSO Inouye photospheric granulation and sunspots](https://nso.edu/press-release/new-images-released-by-nsfs-inouye-solar-telescope/)
 and [NASA solar layers and visible white corona](https://science.nasa.gov/sun/facts/).
+
+### Forward time acceleration
+
+`/orbitalis time add <seconds>` (1..1200) requests a native tick sprint, processing every real
+simulation tick forwards. `/orbitalis time set sunrise|day|noon|sunset|night|midnight` and
+`/orbitalis time set <0..23999>` compute the next matching physical solar time, at most one solar day
+ahead. `set` never assigns a past epoch or rolls objects backwards. `/orbitalis time stop` ends the
+sprint. Ordinary `/time` remains a separate native-time command.
+
+Acceleration requires no loaded Sable ships in the supported flight dimensions and no paused
+physical simulation/current sprint. This is a first-stage restriction; it is not on-rails ship warp.
+Native ticks process players, weather, fluids, crops and unloaded-orbit services as usual, as fast
+as the server can run. The command therefore affects the whole world, not just sky animation.
+There is no instantaneous clock jump and no promised wall-clock duration. A server already using
+50ms or more per tick has no spare tick throughput, so the sprint cannot materially accelerate time. Native tick sprint can
+still be controlled by its existing administrative commands.
+
+Client ephemeris correction smoothing has a cumulative10-tick budget. A tick sprint can deliver
+many individually small corrections between frames; exceeding the budget snaps to the new epoch
+instead of accumulating minutes of display delay. Ordinary early/late snapshots keep their smooth
+interpolation. A regression test feeds a full solar day's worth of burst snapshots.

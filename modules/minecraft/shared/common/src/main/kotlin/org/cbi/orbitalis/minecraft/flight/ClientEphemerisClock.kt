@@ -34,8 +34,11 @@ class ClientEphemerisClock {
     ) {
         require(tick >= 0)
         val shift = this.tick - tick
-        if (initialized && this.advancing && advancing && shift in -10L..10L) {
-            // Preserve the displayed epoch even when a packet arrives one client tick late/early.
+        if (initialized && this.advancing && advancing && shift in -10L..10L &&
+            previousOffset + shift in -10.0..10.0 && currentOffset + shift in -10.0..10.0
+        ) {
+            // Preserve small network corrections, but bound their cumulative visual delay.
+            // A native tick sprint may deliver many snapshots between client frames.
             previousOffset += shift.toDouble()
             currentOffset += shift.toDouble()
         } else {

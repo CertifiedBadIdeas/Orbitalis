@@ -263,7 +263,7 @@ tasks.configureEach {
             val requiredNames = when (gameTestSuite) {
                 "moon" -> setOf("nativelunarterrain", "nativelunargroundcontact", "lunarshiproundtrip", "lunarsideroundtrip", "lunarundersideroundtrip", "fastcreativelunarplayer", "fastspectatorlunaredge", "fastsurvivallunarunderside")
                 "control" -> setOf("flightcontrolwithoutpropulsion")
-                "settings" -> setOf("nativeworldcreationsettings")
+                "settings" -> setOf("nativeworldcreationsettings", "nativeskylightingsettings")
                 "scaled" -> setOf("nativesmallcelestialsystem")
                 "map" -> mapNames
                 "objects" -> objectNames
@@ -275,7 +275,7 @@ tasks.configureEach {
                 "flat" -> setOf("nativefinitebodyfreeorbit")
                 "surface" -> surfaceNames
                 "transfer" -> transferNames + travelNames
-                else -> setOf("nativelunarterrain", "nativelunargroundcontact", "lunarshiproundtrip", "lunarsideroundtrip", "lunarundersideroundtrip", "fastcreativelunarplayer", "fastspectatorlunaredge", "fastsurvivallunarunderside") + mapNames + objectNames + terrainNames + atlasNames + surfaceNames + transferNames + travelNames + navigationNames + sparseNames + setOf("nativefinitebodyfreeorbit", "nativeworldcreationsettings", "flightcontrolwithoutpropulsion")
+                else -> setOf("nativelunarterrain", "nativelunargroundcontact", "lunarshiproundtrip", "lunarsideroundtrip", "lunarundersideroundtrip", "fastcreativelunarplayer", "fastspectatorlunaredge", "fastsurvivallunarunderside") + mapNames + objectNames + terrainNames + atlasNames + surfaceNames + transferNames + travelNames + navigationNames + sparseNames + setOf("nativefinitebodyfreeorbit", "nativeworldcreationsettings", "nativeskylightingsettings", "flightcontrolwithoutpropulsion")
             }
             check(names.containsAll(requiredNames)) {
                 "GameTest run did not execute its required $gameTestSuite scenarios: $names"

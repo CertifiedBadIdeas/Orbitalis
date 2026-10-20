@@ -43,6 +43,7 @@ object SolarRenderer {
         view: Matrix4f,
         projection: Matrix4f,
         scale: Double,
+        writeDepth: Boolean = true,
     ) {
         val program = shader ?: return
         val sphere = SolarScene.sample(profile, tick, seconds, observer)
@@ -64,7 +65,7 @@ object SolarRenderer {
         try {
             RenderSystem.enableDepthTest()
             RenderSystem.depthFunc(GL11.GL_LEQUAL)
-            RenderSystem.depthMask(true)
+            RenderSystem.depthMask(writeDepth)
             RenderSystem.disableCull()
             RenderSystem.enableBlend()
             RenderSystem.blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ZERO, GL11.GL_ONE)

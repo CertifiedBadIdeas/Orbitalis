@@ -220,6 +220,8 @@ object PlanetLimbRenderer {
                 Vector3f(observer.x.toFloat(), observer.y.toFloat(), observer.z.toFloat()),
             )
         val (minimum, maximum) = atmosphereBounds(SpaceScene.HALF_SIZE, cloudHeight)
+        val sunlight = PlanetLighting.earthDirection()
+        shader.getUniform("SunDirection")?.set(sunlight.x.toFloat(), sunlight.y.toFloat(), sunlight.z.toFloat())
         shader.getUniform("Observer")?.set(localObserver.x, localObserver.y, localObserver.z)
         shader.getUniform("BoundsMin")?.set(minimum.x.toFloat(), minimum.y.toFloat(), minimum.z.toFloat())
         shader.getUniform("BoundsMax")?.set(maximum.x.toFloat(), maximum.y.toFloat(), maximum.z.toFloat())

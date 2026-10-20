@@ -153,10 +153,11 @@ object SurfacePlanetRenderer {
                 scale.toFloat(),
             ).translate(-observer.x.toFloat(), -observer.y.toFloat(), -observer.z.toFloat())
                 .mul(CelestialView.earthRotation())
+        val shader = PlanetLighting.prepare(PlanetLighting.earthDirection())
         for (mesh in meshes.values + listOfNotNull(body)) {
             mesh.bind()
             try {
-                mesh.drawWithShader(modelView, projection, checkNotNull(GameRenderer.getPositionColorShader()))
+                mesh.drawWithShader(modelView, projection, shader)
             } finally {
                 VertexBuffer.unbind()
             }

@@ -28,7 +28,14 @@ limitations under the License.
   Local prominence eruptions rise and fade independently, while the star rotates slowly.
   Photographic exposure preserves map detail and a white-hot distant disc.
   Solar radius scales with the selected system to retain an apparent diameter near 0.53 degrees.
-  Overworld daylight and existing ship/planet illumination are unchanged.
+  Earth/Moon LOD surfaces, overview clouds and atmosphere now follow the physical Sun at draw time.
+- `/orbitalis sky` reports the world-owned Overworld sky mode; operators select `vanilla` (default)
+  or `cosmic`. Cosmic mode renders the system Sun/Moon and derives native daylight from Earth spin,
+  independently of sleep and `/time`. The setting is saved and synchronized; space has no mode switch.
+- Forward time acceleration: `/orbitalis time add <seconds>`, `set <solar time>` and `stop` process
+  real native ticks, with no backward clock assignments. Initially requires no loaded flight ships.
+- Bound client ephemeris smoothing during accelerated time so the sky catches up promptly.
+- Prevent the physical Sun from occluding Overworld terrain through compressed sky depth writes.
 
 ## 0.1.0 — Alpha
 

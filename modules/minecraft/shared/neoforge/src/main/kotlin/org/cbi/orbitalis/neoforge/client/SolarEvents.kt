@@ -35,6 +35,13 @@ object SolarEvents {
         event.registerShader(
             ShaderInstance(
                 event.resourceProvider,
+                ResourceLocation.fromNamespaceAndPath(Orbitalis.MOD_ID, "planet_surface"),
+                DefaultVertexFormat.POSITION_COLOR_NORMAL,
+            ),
+        ) { org.cbi.orbitalis.minecraft.client.space.PlanetLighting.shader = it }
+        event.registerShader(
+            ShaderInstance(
+                event.resourceProvider,
                 ResourceLocation.fromNamespaceAndPath(Orbitalis.MOD_ID, "solar"),
                 DefaultVertexFormat.POSITION,
             ),

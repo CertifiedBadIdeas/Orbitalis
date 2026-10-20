@@ -153,6 +153,16 @@
         0,
         1
       ]
+    },
+    {
+      "name": "SunDirection",
+      "type": "float",
+      "count": 3,
+      "values": [
+        0,
+        1,
+        0
+      ]
     }
   ]
 }

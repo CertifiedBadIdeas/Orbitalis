@@ -25,6 +25,7 @@ import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 /** Server-thread simulation metadata access. No terrain, native payloads or construction wake. */
 object OrbitalSimulation {
     var mayAdvance: (MinecraftServer) -> Boolean = { true }
+    var canAccelerate: (MinecraftServer) -> Boolean = { true }
     var surfaceGravity: (MinecraftServer) -> Double = { 11.0 }
 
     fun data(server: MinecraftServer): OrbitalObjectData? =

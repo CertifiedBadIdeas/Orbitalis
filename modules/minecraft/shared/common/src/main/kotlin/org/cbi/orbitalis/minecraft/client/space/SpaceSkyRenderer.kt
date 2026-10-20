@@ -134,8 +134,14 @@ object SpaceSkyRenderer {
             RenderSystem.depthMask(true)
             RenderSystem.depthFunc(GL11.GL_LEQUAL)
             val sample = if (CelestialFlight.available(level)) CelestialView.sample() else null
-            // Ground and transition skies remain native until stellar lighting is introduced.
-            if (sample != null && level.dimension() != net.minecraft.world.level.Level.OVERWORLD) {
+            // The vanilla Overworld mode alone retains native celestial bodies during ascent.
+            if (sample != null &&
+                (
+                    level.dimension() != net.minecraft.world.level.Level.OVERWORLD ||
+                        org.cbi.orbitalis.minecraft.lighting.SkyLighting
+                            .physicalOverworld(level)
+                )
+            ) {
                 SolarRenderer.render(
                     sample.frames.profile,
                     sample.frames.tick,
