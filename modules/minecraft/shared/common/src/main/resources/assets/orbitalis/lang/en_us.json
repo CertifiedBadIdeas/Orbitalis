@@ -52,6 +52,7 @@
   "map.orbitalis.view.moon": "Moon",
   "map.orbitalis.view.earth_moon": "Earth–Moon",
   "map.orbitalis.view.system": "Solar system",
+  "body.orbitalis.overworld": "Earth",
   "body.orbitalis.sun": "Sun",
   "body.orbitalis.moon": "Moon",
   "world.orbitalis.size": "Earth size",

@@ -25,6 +25,27 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class CelestialMapSceneTest {
+    @Test fun `body close-ups see the top face at different spin phases`() {
+        val profile = SolarSystemProfile(11.0, earthSpinEpochTick = 0L)
+        for (tick in listOf(0L, 6000L, 12000L, 18000L, 260783L)) {
+            val frames =
+                listOf(
+                    SolarSystemProfile.EARTH to profile.earthSurfaceFrame(tick),
+                    SolarSystemProfile.MOON to profile.lunarSurfaceFrame(tick),
+                ) + profile.innerPlanets.map { it.id to profile.innerPlanetSurfaceFrame(it.id, tick) }
+            for ((id, frame) in frames) {
+                val camera = MapCamera()
+                CelestialMapScene.orientSurface(camera, profile, id, tick)
+                assertEquals(kotlin.math.sin(0.85), camera.direction.dot(frame.orientation.yAxis), 1e-10)
+                val focus = frame.origin.position
+                camera.frame(focus, 15000.0, 600, 400)
+                assertEquals(MapCamera.Point(300.0, 200.0), camera.project(focus, 600, 400))
+                camera.rotate(21.0, -13.0)
+                assertTrue(camera.direction.x.isFinite() && camera.direction.y.isFinite() && camera.direction.z.isFinite())
+            }
+        }
+    }
+
     @Test fun `rendered Moon and focused map share the fractional surface frame epoch`() {
         val profile = SolarSystemProfile(11.0)
         val tick = 12000L
