@@ -26,10 +26,28 @@ const val WORLDGEN_FIND_WORK =
     "Lcom/ethan/voxyworldgenv2/core/DistanceGraph;" +
         "findWork(Lnet/minecraft/world/level/ChunkPos;ILjava/util/Set;)Ljava/util/List;"
 
-/** Manager search context; bounds apply only in Overworld and unscoped graph callers stay native. */
+/** Per-invocation finite-surface bounds; unscoped graph callers retain native behaviour. */
 object WorldgenBorderScope {
     val current = ThreadLocal<FiniteSurfaceTerrain.Bounds?>()
     val pending = ThreadLocal<((ChunkPos) -> Boolean)?>()
+    val counting = ThreadLocal<WorldgenProgress?>()
+
+    fun <T> count(
+        bounds: FiniteSurfaceTerrain.Bounds,
+        progress: WorldgenProgress,
+        operation: () -> T,
+    ): T {
+        val previous = current.get()
+        val previousCount = counting.get()
+        current.set(bounds)
+        counting.set(progress)
+        return try {
+            operation()
+        } finally {
+            if (previous == null) current.remove() else current.set(previous)
+            if (previousCount == null) counting.remove() else counting.set(previousCount)
+        }
+    }
 
     fun outside(
         x: Int,

@@ -27,12 +27,14 @@ import net.minecraft.world.level.ChunkPos
 import org.cbi.orbitalis.minecraft.compat.voxy.WORLDGEN_FIND_WORK
 import org.cbi.orbitalis.minecraft.compat.voxy.WorldgenBorderScope
 import org.cbi.orbitalis.minecraft.compat.voxy.WorldgenCompletion
-import org.cbi.orbitalis.minecraft.surface.FiniteSurfaceTerrain
+import org.cbi.orbitalis.minecraft.compat.voxy.WorldgenProgress
+import org.cbi.orbitalis.minecraft.compat.voxy.WorldgenSurfaceBounds
 import org.spongepowered.asm.mixin.Mixin
 import org.spongepowered.asm.mixin.Pseudo
 import org.spongepowered.asm.mixin.Shadow
 import org.spongepowered.asm.mixin.injection.At
 import org.spongepowered.asm.mixin.injection.Inject
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable
 
 @Pseudo
@@ -60,13 +62,53 @@ internal abstract class VoxyWorldgenBorderMixin : WorldgenCompletion {
         }
     }
 
+    @WrapMethod(method = ["restartScan"])
+    private fun orbitalisRestoreCountScope(original: Operation<Void>) {
+        val previous = WorldgenBorderScope.current.get()
+        val counting = WorldgenBorderScope.counting.get()
+        try {
+            original.call()
+        } finally {
+            if (previous == null) WorldgenBorderScope.current.remove() else WorldgenBorderScope.current.set(previous)
+            if (counting == null) WorldgenBorderScope.counting.remove() else WorldgenBorderScope.counting.set(counting)
+        }
+    }
+
+    @Inject(
+        method = ["restartScan"],
+        at = [
+            At(
+                value = "INVOKE",
+                target = "Lcom/ethan/voxyworldgenv2/core/DistanceGraph;countMissingInRange(Lnet/minecraft/world/level/ChunkPos;I)I",
+            ),
+        ],
+    )
+    private fun orbitalisSelectCountBounds(
+        callback: CallbackInfo,
+        @Local player: ServerPlayer,
+        @Local radius: Int,
+    ) {
+        val level = player.serverLevel()
+        val bounds = WorldgenSurfaceBounds.get(level)
+        if (bounds == null) {
+            WorldgenBorderScope.current.remove()
+            WorldgenBorderScope.counting.remove()
+        } else {
+            val completion: WorldgenCompletion = this
+            WorldgenBorderScope.current.set(bounds)
+            WorldgenBorderScope.counting.set(
+                WorldgenProgress(bounds, player.chunkPosition(), radius) { completion.isChunkCompleted(level, it) },
+            )
+        }
+    }
+
     @Inject(method = ["dispatchGeneration"], at = [At(value = "INVOKE", target = WORLDGEN_FIND_WORK)])
     private fun orbitalisSelectSearchBorder(
         callback: CallbackInfoReturnable<Boolean>,
         @Local player: ServerPlayer,
     ) {
         val level = player.serverLevel()
-        val bounds = FiniteSurfaceTerrain.bounds(level)
+        val bounds = WorldgenSurfaceBounds.get(level)
         if (bounds == null) WorldgenBorderScope.current.remove() else WorldgenBorderScope.current.set(bounds)
         val completion: WorldgenCompletion = this
         WorldgenBorderScope.pending.set {

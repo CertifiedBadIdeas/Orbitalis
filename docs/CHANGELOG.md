@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.2.0 — In development
 
+- Bound optional Voxy WorldGenV2 work and remaining-work statistics to each planet's configured
+  finite terrain footprint, including Moon, Mercury and Venus; finished surfaces no longer schedule
+  hundreds of thousands of empty exterior chunks.
+
 - Mercury and Venus with scaled circular orbits, gravity, spin, separate finite surface dimensions
   and terrain-derived LOD in space and on the orbital map. Map views can focus either planet.
 - Local heliocentric orbital sectors keep native physics coordinates bounded during interplanetary

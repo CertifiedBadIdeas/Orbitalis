@@ -36,6 +36,7 @@ object TerrainGameTests {
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "terrain", timeoutTicks = 400)
     fun finiteTerrainEdges(helper: GameTestHelper) {
         val level = helper.level.server.overworld()
+        if (java.lang.Boolean.getBoolean("orbitalis.testVoxy")) VoxyWorldgenProbe.verify(helper)
         val bounds = FiniteSurfaceTerrain.bounds(level)!!
         helper.assertTrue(bounds.minX == -5000 && bounds.maxX == 5000, "Generation missed early border initialization")
         val settings = level.worldBorder.createSettings()

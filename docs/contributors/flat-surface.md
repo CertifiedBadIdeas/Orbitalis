@@ -53,14 +53,18 @@ while native status completion and lighting continue. Empty technical neighbour 
 loadable and save normally; rejecting their requests would break generation dependencies. This
 remains a terrain cutoff rather than a replacement chunk scheduler.
 
-The flight consumer's optional WorldGenV2 adapter prunes wholly exterior search cells and only
+Orbitalis' optional WorldGenV2 adapter prunes wholly exterior search cells and only
 reserves batches containing unfinished interior work. Native graph leaves can stay partial at the
 terrain footprint or the circular generation radius, even after every eligible chunk is finished. Each
 search excludes exhausted leaves locally and continues to the next candidate; it does not persist
 fake completion, discard native in-flight reservations or prevent a later search from reconsidering
 the leaf after player movement or radius changes. The native completion index remains the source of truth. A conservative two-cell search margin
 compensates for native distance rounding on four-chunk cells, followed by an exact chunk-coordinate
-circle filter so the configured generation radius does not expand.
+circle filter so the configured generation radius does not expand. Its scheduler also reads the configured native
+Moon/Mercury/Venus generator footprint; these worlds do not inherit Earth's terrain bounds. The HUD's
+remaining count uses the same finite rectangle and exact circular chunk eligibility. Native global
+completed/skipped counters retain their original session meaning and may include earlier exterior work.
+This does not erase old empty chunks or claim them completed.
 
 Only Overworld generation is bounded; Nether, End and Sable plot storage retain native behavior.
 Already-generated chunks and ordinary runtime placement are not trimmed. Previously completed empty

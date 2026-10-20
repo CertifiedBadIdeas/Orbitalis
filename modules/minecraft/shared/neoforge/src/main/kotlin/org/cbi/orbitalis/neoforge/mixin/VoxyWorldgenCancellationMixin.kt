@@ -20,6 +20,7 @@ package org.cbi.orbitalis.neoforge.mixin
 
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation
+import com.llamalad7.mixinextras.sugar.Local
 import net.minecraft.world.level.ChunkPos
 import org.cbi.orbitalis.minecraft.compat.voxy.WorldgenBorderScope
 import org.cbi.orbitalis.minecraft.compat.voxy.WorldgenWorkSearch
@@ -48,6 +49,32 @@ internal abstract class VoxyWorldgenCancellationMixin {
             val dx = it.x.toLong() - position.x
             val dz = it.z.toLong() - position.z
             dx * dx + dz * dz <= radius.toLong() * radius && pending(it)
+        }
+    }
+
+    @WrapMethod(method = ["countMissingInRange"])
+    private fun orbitalisCountEdgeCandidates(
+        position: ChunkPos,
+        radius: Int,
+        original: Operation<Int>,
+    ): Int {
+        if (WorldgenBorderScope.counting.get() == null) return original.call(position, radius)
+        val searchRadius = (radius.toLong() + 8).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        return original.call(position, searchRadius)
+    }
+
+    @Inject(method = ["recursiveCount"], at = [At("HEAD")], cancellable = true)
+    private fun orbitalisCountPartialNode(
+        callback: CallbackInfoReturnable<Int>,
+        @Local(argsOnly = true, ordinal = 0) level: Int,
+        @Local(argsOnly = true, ordinal = 1) x: Int,
+        @Local(argsOnly = true, ordinal = 2) z: Int,
+    ) {
+        if (level == 1) {
+            WorldgenBorderScope.counting
+                .get()
+                ?.partialNode(x, z)
+                ?.let { callback.returnValue = it }
         }
     }
 

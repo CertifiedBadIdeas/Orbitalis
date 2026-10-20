@@ -50,6 +50,8 @@ class LunarChunkGenerator(
 
     @Volatile private var halfSize = LunarSurface.HALF_SIZE.toDouble()
 
+    val surfaceHalfSize: Double get() = halfSize
+
     fun configure(geometry: org.cbi.orbitalis.core.planet.CelestialGeometry) {
         halfSize = geometry.moonHalfSize
         sampledTerrain = sampledTerrain?.let { LunarSurface(it.seed, halfSize) }

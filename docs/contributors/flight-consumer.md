@@ -491,10 +491,13 @@ third-party class is unavailable. Recheck these injection points before updating
 ### WorldGenV2 finite surface search
 
 For pinned WorldGenV2 2.4.2, Orbitalis scopes `DistanceGraph.findWork` in
-`ChunkGenerationManager.dispatchGeneration` to the player's saved finite Overworld terrain footprint (independent of the movement border). Search nodes
+`ChunkGenerationManager.dispatchGeneration` to the player's finite surface footprint: saved Overworld bounds or the configured Moon/Mercury/Venus
+native generator half-size (independent of the movement border). Search nodes
 wholly outside the footprint are pruned; edge batches retain only intersecting chunks. The native
 Orbitalis generator handles exact columns in partial chunks. Other dimensions and unrelated graph
-callers stay unchanged. The thread-local scope is restored in a `finally` block, including cancellation.
+callers stay unchanged. The same per-dimension scope bounds remaining-work statistics; partially
+intersecting count nodes use exact eligible chunk/circle intersections and native completion state.
+Interior nodes retain native completion bitmasks. Exterior chunks are never marked falsely complete. The thread-local scope is restored in a `finally` block, including cancellation.
 These hooks are packaged by Orbitalis, with optional client dependency metadata for Voxy and
 WorldGenV2. The helpers live in shared/common and target hooks in shared/neoforge; the consumer
 only composes the external client JARs. No Voxy or WorldGenV2 implementation is bundled. Recheck manager call sites,

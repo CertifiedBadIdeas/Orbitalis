@@ -23,8 +23,10 @@ import net.minecraft.gametest.framework.GameTest
 import net.minecraft.gametest.framework.GameTestHelper
 import net.minecraft.world.level.block.Blocks
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
+import org.cbi.orbitalis.minecraft.compat.voxy.WorldgenSurfaceBounds
 import org.cbi.orbitalis.minecraft.innerplanets.InnerPlanetChunkGenerator
 import org.cbi.orbitalis.minecraft.innerplanets.NativeInnerPlanets
+import org.cbi.orbitalis.minecraft.surface.FiniteSurfaceTerrain
 
 @PrefixGameTestTemplate(false)
 object InnerPlanetGameTests {
@@ -35,6 +37,9 @@ object InnerPlanetGameTests {
             val world = checkNotNull(helper.level.server.getLevel(key))
             val generator = world.chunkSource.generator as InnerPlanetChunkGenerator
             val terrain = generator.terrain
+            val bounds = checkNotNull(WorldgenSurfaceBounds.get(world))
+            helper.assertTrue(bounds == WorldgenSurfaceBounds.square(terrain.halfSize), "Voxy omitted configured inner planet bounds")
+            helper.assertTrue(FiniteSurfaceTerrain.bounds(world) == null, "Voxy bounds changed native terrain interception")
             world.getChunk(0, 0)
             val top = checkNotNull(terrain.height(0, 0))
             helper.assertTrue(!world.getBlockState(BlockPos(0, top, 0)).isAir, "Native inner planet omitted surface: $key")

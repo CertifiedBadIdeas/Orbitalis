@@ -233,6 +233,15 @@ object LunarGameTests {
     @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "moon", timeoutTicks = 400)
     fun nativeLunarTerrain(helper: GameTestHelper) {
+        val nativeMoon = checkNotNull(helper.level.server.getLevel(org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY))
+        val lunarGenerator = nativeMoon.chunkSource.generator as org.cbi.orbitalis.minecraft.moon.LunarChunkGenerator
+        helper.assertTrue(
+            org.cbi.orbitalis.minecraft.compat.voxy.WorldgenSurfaceBounds
+                .get(nativeMoon) ==
+                org.cbi.orbitalis.minecraft.compat.voxy.WorldgenSurfaceBounds
+                    .square(lunarGenerator.terrain.halfSize),
+            "Voxy omitted configured lunar bounds",
+        )
         val moon = checkNotNull(helper.level.server.getLevel(MoonWorld.KEY))
         val generator = moon.chunkSource.generator as LunarChunkGenerator
         helper.assertTrue(!moon.dimensionType().hasCeiling() && moon.dimensionType().hasSkyLight(), "Invalid lunar sky type")

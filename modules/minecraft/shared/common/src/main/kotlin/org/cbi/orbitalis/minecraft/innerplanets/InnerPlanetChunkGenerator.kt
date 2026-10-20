@@ -54,6 +54,8 @@ class InnerPlanetChunkGenerator(
 
     @Volatile private var halfSize = if (kind == InnerPlanetSurface.Kind.MERCURY) 1915.0 else 4745.0
 
+    val surfaceHalfSize: Double get() = halfSize
+
     fun configure(definition: InnerPlanetDefinition) {
         require(definition.id == "orbitalis:${kind.id}")
         halfSize = definition.halfSize
