@@ -337,5 +337,5 @@ void main() {
     }
     vec4 clip = SolarProjection * vec4(point * RadiusScale, 1.0);
     // A far-plane Sun remains behind the bounded planetary sky meshes, never a near billboard.
-    gl_FragDepth = clamp(clip.z / clip.w * 0.5 + 0.5, 0.0, 0.9999999);
+    gl_FragDepth = clamp(clip.z / clip.w * 0.5 + 0.5, 0.0, 1.0);
 }

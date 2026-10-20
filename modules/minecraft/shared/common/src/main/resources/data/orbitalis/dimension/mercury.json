@@ -1,0 +1,8 @@
+{
+  "type": "orbitalis:mercury",
+  "generator": {
+    "type": "orbitalis:inner_planet_surface",
+    "biome": "orbitalis:mercury_surface",
+    "planet": "mercury"
+  }
+}

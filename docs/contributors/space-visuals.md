@@ -426,3 +426,24 @@ penumbra, source/observer ordering, edge-on geometry, scaling and actual catalog
 Geometry tests and GLSL validation do not replace live visual review.
 
 Scientific reference (no imported assets): [NASA lunar eclipses](https://science.nasa.gov/moon/eclipses/).
+
+### Multiple bodies and direct solar visibility
+
+`SolarVisibility` samples the same projected emitting cube as the lunar eclipse model and computes
+an opaque union of oriented body boxes. Conservative bounding-volume/depth culling rejects off-axis
+and behind-source bodies before source quadrature. Overlapping bodies block a sample once, rather
+than multiplying independent visibility fractions. Current opaque volumes use each body's finite
+rectangular gravity envelope and the same sampled orientation as its visible terrain.
+
+`SolarLightScene` resolves one immutable geocentric sample. `CelestialSkylight` caches queried physical
+points per client tick (bounded to 4,096 points), with a per-thread cache and world/profile invalidation.
+Only dynamic external sky sampling is attenuated; block light and plot coordinates are not rewritten.
+Sable's existing native external-light scale combines this with cabin skylight for its vanilla/fancy
+hulls, entities and block entities. Thus separate ships can be illuminated and eclipsed in one frame,
+without a camera-wide lightmap reduction or rebuilding hull meshes. The Overworld surface retains
+ordinary light and blends into this field through the existing altitude/atmosphere transition.
+
+The native integer skylight scale quantizes partial visibility. This is celestial visibility, not
+per-block directional shadow tracing or atmospheric transport. Native static terrain chunk lighting
+still follows its existing dimension/lightmap path. Thermal effects and solar generators are not
+introduced by this calculation. See [inner planets](inner-planets.md) for LOD and depth projection.

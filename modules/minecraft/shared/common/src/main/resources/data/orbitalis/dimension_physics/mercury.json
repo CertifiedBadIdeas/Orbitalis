@@ -1,0 +1,10 @@
+{
+  "dimension": "orbitalis:mercury",
+  "universal_drag": 0.0,
+  "base_gravity": [
+    0.0,
+    -4.148827726809378,
+    0.0
+  ],
+  "base_pressure": 0.0
+}

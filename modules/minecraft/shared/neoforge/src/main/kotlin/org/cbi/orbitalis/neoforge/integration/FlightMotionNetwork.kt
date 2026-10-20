@@ -32,13 +32,14 @@ object FlightMotionNetwork {
     @JvmStatic
     @SubscribeEvent
     fun register(event: RegisterPayloadHandlersEvent) {
-        event.registrar("4").playToClient(PlayerGravityPayload.TYPE, PlayerGravityPayload.CODEC) { payload, _ ->
+        event.registrar("5").playToClient(PlayerGravityPayload.TYPE, PlayerGravityPayload.CODEC) { payload, _ ->
             PlayerGravity.clientAcceleration = payload.acceleration
             org.cbi.orbitalis.minecraft.flight.CelestialFlight.accept(
                 payload.profile,
                 payload.simulationTick,
                 payload.lunarSeed,
                 payload.advancing,
+                payload.innerPlanetSeeds,
             )
         }
         event.registrar("3").playToClient(FlightMotionPayload.TYPE, FlightMotionPayload.CODEC) { payload, _ ->

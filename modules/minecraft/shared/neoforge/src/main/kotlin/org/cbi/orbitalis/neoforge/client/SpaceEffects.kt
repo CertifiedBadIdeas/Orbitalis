@@ -33,7 +33,9 @@ import org.joml.Vector3f
 object SpaceEffects : DimensionSpecialEffects(Float.NaN, false, SkyType.NONE, false, false) {
     @JvmStatic
     fun applies(level: ClientLevel): Boolean =
-        FlightSpaceCoordinates.isOrbital(level.dimension()) || level.dimension() == org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY
+        FlightSpaceCoordinates.isOrbital(level.dimension()) || level.dimension() == org.cbi.orbitalis.minecraft.moon.MoonWorld.KEY ||
+            level.dimension().location().toString() in
+            setOf(org.cbi.orbitalis.core.orbit.SolarSystemProfile.MERCURY, org.cbi.orbitalis.core.orbit.SolarSystemProfile.VENUS)
 
     override fun getBrightnessDependentFogColor(
         color: Vec3,

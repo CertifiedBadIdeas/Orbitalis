@@ -41,8 +41,7 @@ object SableSurfaceCollisionSteps {
     /** Call before the entire native tick, never from a per-substep callback. */
     fun begin(server: MinecraftServer) {
         end(server)
-        for (key in CelestialFlight.dimensions) {
-            val level = server.getLevel(key) ?: continue
+        for (level in CelestialFlight.levels(server)) {
             if (DimensionPhysicsData.of(level).ignoreChunks()) continue
             val container = SubLevelContainer.getContainer(level) ?: continue
             val physics = container.physicsSystem() ?: continue

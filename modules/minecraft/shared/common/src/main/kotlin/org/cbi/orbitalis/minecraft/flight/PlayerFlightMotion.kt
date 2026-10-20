@@ -82,7 +82,12 @@ data class FlightMotionPayload(
     val offset: Vector3 = Vector3.ZERO,
 ) : CustomPacketPayload {
     init {
-        require(CelestialFlight.dimensions.any { it.location() == dimension })
+        require(
+            CelestialFlight.supported(
+                net.minecraft.resources.ResourceKey
+                    .create(net.minecraft.core.registries.Registries.DIMENSION, dimension),
+            ),
+        )
         require(offset.length().isFinite() && offset.length() <= 1000.0)
         require(velocity.length() <= 500.0) { "Player transfer velocity exceeds 10 km/s" }
     }

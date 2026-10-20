@@ -43,6 +43,12 @@ class OrbitalisMod(
         val generators = DeferredRegister.create(Registries.CHUNK_GENERATOR, Orbitalis.MOD_ID)
         generators.register("vacuum", java.util.function.Supplier { VacuumChunkGenerator.CODEC })
         generators.register("lunar_surface", java.util.function.Supplier { LunarChunkGenerator.CODEC })
+        generators.register(
+            "inner_planet_surface",
+            java.util.function.Supplier {
+                org.cbi.orbitalis.minecraft.innerplanets.InnerPlanetChunkGenerator.CODEC
+            },
+        )
         generators.register(modBus)
         NeoForge.EVENT_BUS.addListener { event: PlayerEvent.PlayerLoggedOutEvent ->
             (event.entity as? ServerPlayer)?.let { PlayerSpaceTravel.close(it) }

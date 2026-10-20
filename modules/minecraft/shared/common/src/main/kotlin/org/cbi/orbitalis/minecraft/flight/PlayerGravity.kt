@@ -73,14 +73,9 @@ object PlayerGravity {
                 field.nativeAcceleration,
                 field.nativeAcceleration * sample.frames.profile.geometry.moonGravityRatio,
             )
-        val acceleration =
-            if (entity.level().dimension() == MoonWorld.KEY) {
-                dynamics.lunarAcceleration(CartesianState(local, velocity))
-            } else if (entity.level().dimension() == net.minecraft.world.level.Level.OVERWORLD) {
-                dynamics.earthAcceleration(CartesianState(local, velocity))
-            } else {
-                dynamics.acceleration(position(entity))
-            }
+        val frame = sample.frames.frame(CelestialFlight.chart(entity.level().dimension()))
+        val physical = frame.toParent(CartesianState(local, velocity))
+        val acceleration = frame.fromParentAcceleration(physical, dynamics.acceleration(physical.position))
         // m/s² -> blocks/tick². Native travel owns collisions and displacement.
         return Vec3(acceleration.x / 400.0, acceleration.y / 400.0, acceleration.z / 400.0)
     }

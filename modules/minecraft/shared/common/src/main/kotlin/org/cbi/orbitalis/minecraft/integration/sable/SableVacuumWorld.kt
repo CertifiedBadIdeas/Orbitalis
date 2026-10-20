@@ -28,7 +28,7 @@ import org.cbi.orbitalis.minecraft.space.SpaceWorlds
 
 /** Use Sable's native object/object collision pipeline without terrain in new vacuum worlds. */
 object SableVacuumWorld {
-    private val originalPolicies = mutableMapOf<MinecraftServer, DimensionPhysics>()
+    private val originalPolicies = mutableMapOf<ServerLevel, DimensionPhysics>()
 
     fun installPlotLookup() {
         SpaceWorlds.isShipPlot = { level, pos -> SubLevelContainer.getContainer(level)?.getPlot(ChunkPos(pos)) != null }
@@ -36,19 +36,20 @@ object SableVacuumWorld {
 
     /** Native dimension configuration is static: never leak this world policy into the next integrated server. */
     fun close(server: MinecraftServer) {
-        val previous = originalPolicies.remove(server) ?: return
-        DimensionPhysicsData.putPhysics(org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace.SPACE, previous)
+        for (level in originalPolicies.keys.filter { it.server === server }.toList()) {
+            DimensionPhysicsData.putPhysics(level.dimension(), originalPolicies.remove(level)!!)
+        }
     }
 
     fun configure(level: ServerLevel) {
         if (!SpaceWorlds.objects(level)) return
         val previous = DimensionPhysicsData.of(level)
         if (previous.ignoreChunks()) return
-        originalPolicies[level.server] = previous
+        originalPolicies[level] = previous
         DimensionPhysicsData.putPhysics(
             level.dimension(),
             DimensionPhysics(
-                previous.dimension(),
+                level.dimension().location(),
                 previous.priority(),
                 previous.universalDrag(),
                 previous.baseGravity(),

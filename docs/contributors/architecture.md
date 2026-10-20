@@ -59,7 +59,10 @@ Optional WorldGenV2 search and cancellation adapters belong to shared/common and
 the independently installed client stack is still composed by the flight consumer. No third-party
 Voxy or WorldGen implementation is bundled or required by the production mod.
 
-Earth and Moon each have a native surface chart and share `orbitalis:space`. The space chart
+Earth, Moon, Mercury and Venus each have a native surface chart. Near Earth they share
+`orbitalis:space`; distant flight uses [bounded local orbital sectors](orbital-sectors.md).
+[Mercury and Venus](inner-planets.md) use derived physical profiles and independent finite surfaces.
+The legacy space chart
 adds 4096 to root Y; Earth's terrain chart rotates about its in-plane +Z axis, while the lunar
 chart follows the Moon's orbit and synchronous spin. Shared `FrameKinematics` provides
 [tested rotating-frame transforms](rotating-frames.md), including position, velocity, acceleration

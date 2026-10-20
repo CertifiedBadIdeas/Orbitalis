@@ -67,7 +67,7 @@ class OrbitalMapScreen(
     private var celestialRenderSeconds = 0.0
     private val celestialButtons = mutableListOf<Button>()
     private val viewX = 12
-    private val viewY = 79
+    private val viewY = 103
     private val panelWidth get() = (width * 0.28).toInt().coerceIn(140, 220)
     private val viewWidth get() = (width - panelWidth - 36).coerceAtLeast(1)
     private val viewHeight get() = (height - viewY - 37).coerceAtLeast(1)
@@ -91,6 +91,8 @@ class OrbitalMapScreen(
                             (snapshot?.celestialProfile?.geometry?.moonHalfSize ?: SolarSystemProfile.MOON_HALF_SIZE) * 3.0,
                         )
                     },
+                "mercury" to { snapshot?.celestialProfile?.let { frameBody(SolarSystemProfile.MERCURY, it.mercury.halfSize * 3.0) } },
+                "venus" to { snapshot?.celestialProfile?.let { frameBody(SolarSystemProfile.VENUS, it.venus.halfSize * 3.0) } },
                 "earth_moon" to { snapshot?.celestialProfile?.let { frameBody(SolarSystemProfile.EARTH, it.moonOrbitRadius * 1.3) } },
                 "system" to { snapshot?.celestialProfile?.let { frameBody(SolarSystemProfile.SUN, it.earthOrbitRadius * 1.15) } },
             )
@@ -422,7 +424,7 @@ class OrbitalMapScreen(
             val aspect = viewWidth.toFloat() / viewHeight
             val projection = Matrix4f().ortho(-aspect, aspect, -1f, 1f, -100f, 100f)
             snapshot?.celestialProfile?.let { profile ->
-                org.cbi.orbitalis.minecraft.client.space.SolarRenderer.render(
+                org.cbi.orbitalis.minecraft.client.space.CelestialBodiesRenderer.render(
                     profile,
                     celestialRenderTick,
                     celestialRenderSeconds,
@@ -430,28 +432,9 @@ class OrbitalMapScreen(
                     view,
                     projection,
                     1.0 / camera.range,
+                    earthEffects = true,
                 )
-            }
-            SurfacePlanetRenderer.renderScene(
-                camera.focus,
-                view,
-                projection,
-                1.0 / camera.range,
-            )
-            snapshot?.let { data ->
-                data.celestialProfile?.let { profile ->
-                    org.cbi.orbitalis.minecraft.client.space.LunarPlanetRenderer.render(
-                        profile,
-                        celestialRenderTick,
-                        org.cbi.orbitalis.minecraft.flight.CelestialFlight.lunarSeed,
-                        camera.focus,
-                        view,
-                        projection,
-                        1.0 / camera.range,
-                        celestialRenderSeconds,
-                    )
-                }
-            }
+            } ?: SurfacePlanetRenderer.renderScene(camera.focus, view, projection, 1.0 / camera.range)
             if (Util.getMillis() - receivedAt <= 3000L) {
                 pathRenderer?.render(camera, view, projection, trajectories?.paths.orEmpty(), selected, celestialBodies)
             }
