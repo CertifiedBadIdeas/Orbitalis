@@ -124,12 +124,23 @@ vec2 activeRegions(vec3 n, float footprint) {
     return regions * resolved;
 }
 
+// Each local eruption develops independently. Geometry resets only while emission is zero;
+// the smooth envelope hides that reset, including the shared simulation-clock wrap.
+vec2 eruption(int i) {
+    float age = fract(Phase * (20.0 / 6.28318530718) + float(i) * 0.37);
+    float growth = smoothstep(0.04, 0.86, age);
+    float visibility = smoothstep(0.0, 0.12, age) * (1.0 - smoothstep(0.52, 0.92, age));
+    return vec2(growth, visibility);
+}
+
 // A small collection of radial magnetic-loop shapes, evaluated only just outside the limb.
 // Distances are local stellar radii; marching this SDF never queries native terrain or physics.
 float loopDistance(vec3 p) {
     float distance = 10.0;
     for (int i = 0; i < 4; i++) {
         if (i == 0 || i == 3) continue;
+        vec2 event = eruption(i);
+        if (event.y < 0.0001) continue;
         vec3 radial = activeCentre(i);
         vec3 tangent = normalize(cross(radial, vec3(0,0,1)));
         vec3 side = cross(radial, tangent);
@@ -137,7 +148,8 @@ float loopDistance(vec3 p) {
         float height = dot(offset, radial);
         float radius = 0.066 + float(i) * 0.008 + 0.008 * sin(Phase * 10.0 + float(i));
         float u = dot(offset, tangent);
-        float angle = atan(height, u);
+        float stretchedHeight = height / (1.0 + event.x * 1.5);
+        float angle = atan(stretchedHeight, u);
         float arch = radius * (0.95 + 0.09 * sin(angle * 3.0 + float(i)));
         float sway = 0.017 * sin(u * 19.0 + float(i)) * sin(height * 23.0);
         // A bundle of separate strands, anchored at the surface; displacement grows with height.
@@ -145,8 +157,8 @@ float loopDistance(vec3 p) {
         sway += 0.004 * sin(angle * 4.0 - Phase * 17.0 + float(i)) * anchored;
         for (int strand = 0; strand < 3; strand++) {
             float layer = float(strand) - 1.0;
-            float ring = length(vec2(u + height * 0.24, height * 1.16)) - arch - layer * 0.004 * anchored;
-            float width = 0.0012 + 0.0006 * (0.5 + 0.5 * sin(angle * 7.0 - Phase * 29.0 + float(i)));
+            float ring = length(vec2(u + height * 0.24, stretchedHeight * 1.16)) - arch - layer * 0.004 * anchored;
+            float width = 0.0018 + 0.0011 * (0.5 + 0.5 * sin(angle * 7.0 - Phase * 29.0 + float(i)));
             float tube = length(vec2(ring, dot(offset, side) - sway - layer * 0.004 * anchored)) - width;
             distance = min(distance, max(tube, -height));
         }
@@ -154,14 +166,14 @@ float loopDistance(vec3 p) {
     return distance;
 }
 float prominences(vec3 closest, vec3 ray, float impact, float along) {
-    if (impact > 1.13) return 0.0;
+    if (impact > 1.28) return 0.0;
     vec3 p0 = solarCoordinates(mat3(InverseView) * closest);
     vec3 direction = solarCoordinates(mat3(InverseView) * ray);
-    float chord = sqrt(max(0.0, 1.13 * 1.13 - impact * impact));
+    float chord = sqrt(max(0.0, 1.28 * 1.28 - impact * impact));
     float travel = max(-chord, -along);
     float nearest = 10.0;
     vec3 nearestPoint = vec3(0.0);
-    for (int i = 0; i < 20; i++) {
+    for (int i = 0; i < 28; i++) {
         if (travel > chord) break;
         vec3 p = p0 + direction * travel;
         float distance = loopDistance(p);
@@ -175,15 +187,16 @@ float prominences(vec3 closest, vec3 ray, float impact, float along) {
         vec3 tangent = normalize(cross(radial, vec3(0,0,1)));
         vec3 offset = nearestPoint - radial * 1.002;
         float height = max(0.0, dot(offset, radial));
-        float angle = atan(height, dot(offset, tangent));
+        vec2 event = eruption(i);
+        float angle = atan(height / (1.0 + event.x * 1.5), dot(offset, tangent));
         // Bright plasma knots travel along the arch rather than flashing the whole loop.
-        float knots = pow(0.5 + 0.5 * sin(angle * 9.0 - Phase * 120.0 + float(i)), 3.0);
+        float knots = pow(0.5 + 0.5 * sin(angle * 7.0 - Phase * 180.0 + float(i)), 3.0);
         float footpoints = exp(-height * 100.0);
-        float local = exp(-length(offset) * 5.0) * (0.18 + 0.65 * knots + 0.45 * footpoints);
+        float local = exp(-length(offset) * 5.0) * (0.12 + 1.8 * knots + 0.85 * footpoints) * event.y;
         emission = max(emission, local);
     }
     float strands = noise(nearestPoint * 190.0 + vec3(sin(Phase * 37.0), cos(Phase * 41.0), 0.0) * 0.35);
-    return exp(-max(nearest, 0.0) * 270.0) * emission * (0.55 + 0.45 * strands);
+    return exp(-max(nearest, 0.0) * 210.0) * emission * (0.55 + 0.45 * strands);
 }
 
 vec3 displayLight(vec3 radiance) {
@@ -254,7 +267,7 @@ void main() {
             // Phase fronts propagate outwards; each angular flux tube has its own phase.
             float packet = 0.5 + 0.5 * sin(radius * 24.0 - Phase * 96.0 + field * 9.0);
             float density = pow(1.0 / radius, 6.0) * (0.16 + 2.4 * streamers) * belt;
-            density *= (0.50 + 0.50 * filaments) * (0.65 + 0.55 * packet);
+            density *= (0.50 + 0.50 * filaments) * (0.40 + 0.95 * packet);
             density *= 1.0 - smoothstep(2.2, outerRadius, radius);
             column += density * stepLength;
         }

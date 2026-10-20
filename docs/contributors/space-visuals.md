@@ -302,9 +302,13 @@ Wavelength-dependent limb darkening and photographic compression replace flat ye
 A detail-preserving map exposure and brighter perspective exposure share the same radiance shader.
 The opaque photosphere and an eight-sample optically thin coronal volume share one pass.
 Angular density produces radial streamers and a fainter polar corona; smooth radial support ends
-at 2.8 photosphere radii. Within 1.13 radii, a bounded 20-step local SDF march adds
+at 2.8 photosphere radii. Within 1.28 radii, a bounded 28-step local SDF march adds
 two small, asymmetric red prominence arches anchored above those active regions.
 Their nonplanar shape, varying thickness and noise-modulated emission avoid uniform wire rings.
+Staggered one-minute presentation events stretch each arch upwards and fade its emission before
+resetting its geometry. More prominent plasma knots move along the arch on a separate, faster
+harmonic. The event envelope reaches zero before the periodic reset; no flash or abrupt visible
+collapse is intended. These are local illustrative eruptions, not globally flashing coronal light.
 The pass renders off-disc emission, not absorption filaments across the photosphere or a physical
 magnetic field.
 White coronal emission is deliberately exposure-compressed for presentation,
