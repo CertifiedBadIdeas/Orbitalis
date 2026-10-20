@@ -108,6 +108,14 @@
       "values": [
         1
       ]
+    },
+    {
+      "name": "GlareVisibility",
+      "type": "float",
+      "count": 1,
+      "values": [
+        1
+      ]
     }
   ]
 }

@@ -77,6 +77,15 @@ object SolarRenderer {
             program.getUniform("Phase")?.set(sun.phase.toFloat())
             // The map exposes resolved surface detail; the flight camera retains a white-hot disc.
             program.getUniform("Exposure")?.set(if (projection.m33() == 0f) 4.2f else 0.85f)
+            val visibility =
+                if (projection.m33() == 0f) {
+                    org.cbi.orbitalis.minecraft.lighting
+                        .SolarLightScene(profile, tick, seconds)
+                        .visibility(observer)
+                } else {
+                    1.0
+                }
+            program.getUniform("GlareVisibility")?.set(visibility.toFloat())
             program.apply()
             val buffer = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION)
             buffer.addVertex(-1f, -1f, 0f)

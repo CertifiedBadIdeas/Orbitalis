@@ -34,6 +34,8 @@ limitations under the License.
   preserve the visible Sun when near-surface sky projection has an infinite far plane.
 - Illuminate exposed players and hands below a planet's native chunk floor using physical solar
   visibility, preserving celestial shadows, local block lights and Sable cabin occlusion.
+- Add restrained, smoothly animated solar glare rays and keep distant night-side terrain and rock
+  readable with material-specific fill light; direct sunlight and celestial occlusion remain separate.
 - Dynamic external skylight accounts for overlapping celestial shadows and penumbrae. Native Sable
   cabin skylight and local block lights are preserved; distant candidates are culled before testing
   the finite solar source, and client samples are cached per tick.

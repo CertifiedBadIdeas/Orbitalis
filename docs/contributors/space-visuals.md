@@ -432,6 +432,19 @@ Scientific reference (no imported assets): [NASA lunar eclipses](https://science
 
 ### Multiple bodies and direct solar visibility
 
+Planet overview materials retain illustrative fill: terrain uses its existing 18% material floor and
+rock is capped at 22%, instead of reducing every material to 7.5%. This keeps a dark slab distinguishable
+from vacuum without changing physical visibility, native chunk lighting or the direct-light normal.
+The lit underside remains lit when the top points away from the Sun; the opaque slab still hides the
+opposite face from a camera above it.
+
+Solar glare includes derivative-filtered primary rays and fainter diagonal glints, with small smooth
+phase variation and a finite fade inside the existing halo envelope. The map uses one tenth of their
+flight intensity. Flight rays also use the shared finite-source celestial visibility at the observer,
+so a fully eclipsed photosphere does not retain optical rays. These are illustrative optical effects,
+not light beams transported through vacuum. Per-pixel native/celestial depth still clips halo pixels;
+local block geometry is not included in the analytical whole-source visibility query.
+
 `SolarVisibility` samples the same projected emitting cube as the lunar eclipse model and computes
 an opaque union of oriented body boxes. Conservative bounding-volume/depth culling rejects off-axis
 and behind-source bodies before source quadrature. Overlapping bodies block a sample once, rather

@@ -24,6 +24,7 @@ uniform vec3 Centre;
 uniform float RadiusScale;
 uniform float Phase;
 uniform float Exposure;
+uniform float GlareVisibility;
 in vec2 clipPosition;
 out vec4 fragColor;
 
@@ -238,6 +239,28 @@ float prominences(vec3 closest, vec3 ray, float impact, float along) {
     return exp(-max(nearest, 0.0) * 210.0) * emission * (0.55 + 0.45 * strands);
 }
 
+// Illustrative optical glare, not plasma geometry or light transported through vacuum.
+// Distances stay in solar-radius units; derivative filtering keeps fine rays steady at distance.
+float glareBeam(vec2 offset, vec2 axis, float width) {
+    vec2 transverse = vec2(dot(offset, axis), dot(offset, vec2(-axis.y, axis.x)));
+    float distance = min(abs(transverse.x), abs(transverse.y));
+    float filteredWidth = max(width, fwidth(distance) * 0.75);
+    return exp(-distance * distance / (filteredWidth * filteredWidth)) * width / filteredWidth;
+}
+
+float opticalRays(vec2 offset, float gap, float impact, float extent) {
+    float angle = 0.22 + 0.025 * sin(Phase * 3.0);
+    vec2 axis = vec2(cos(angle), sin(angle));
+    vec2 diagonal = vec2(axis.x - axis.y, axis.x + axis.y) * 0.70710678;
+    float primary = glareBeam(offset, axis, 0.045 + impact * 0.007);
+    float secondary = glareBeam(offset, diagonal, 0.035 + impact * 0.004);
+    float pulse = 0.88 + 0.12 * sin(Phase * 9.0 - impact * 0.45);
+    float rays = 0.16 * primary * exp(-gap * 0.38) + 0.045 * secondary * exp(-gap * 0.65);
+    float boundary = 1.0 - smoothstep(extent * 0.72, extent, impact);
+    float exposureWeight = Exposure > 2.0 ? 1.0 : 0.10;
+    return rays * pulse * boundary * exposureWeight * GlareVisibility;
+}
+
 vec3 displayLight(vec3 radiance) {
     // Photographic compression only, not a physical irradiance or solar-panel energy model.
     return vec3(1.0) - exp(-max(radiance, vec3(0.0)) * Exposure);
@@ -272,6 +295,12 @@ void main() {
     vec3 n = normalize(surfacePoint);
     // Keep derivatives outside the hit branch for stable pixel-footprint filtering at cube edges.
     float footprint = max(length(dFdx(surfacePoint)), length(dFdy(surfacePoint)));
+    // Intersect each view ray with the plane through the stellar centre parallel to the screen.
+    // This also handles orthographic map rays, without a far-point divide or a polar chart seam.
+    float rayZ = ray.z < 0.0 ? min(ray.z, -0.000001) : max(ray.z, 0.000001);
+    vec2 glareOffset = ray.xy * (relative.z / rayZ) - relative.xy;
+    // Evaluate derivatives before the surface/halo branch so silhouette pixels filter consistently.
+    float rayGlare = opticalRays(glareOffset, max(0.0, impact - 1.0), impact, outerRadius);
     vec3 flow = vec3(sin(Phase * 19.0), cos(Phase * 23.0), sin(Phase * 17.0)) * 0.65;
     if (hit) {
         point = origin + ray * (along + travel);
@@ -327,7 +356,7 @@ void main() {
         if (Exposure > 2.0) {
             glare += 0.55 * exp(-gap * 0.4) * (1.0 - smoothstep(15.0, 20.0, impact));
         }
-        vec3 emission = vec3(0.96,0.975,1.0) * (column * 0.5 + glare);
+        vec3 emission = vec3(0.96,0.975,1.0) * (column * 0.5 + glare + rayGlare);
         emission += vec3(1.45,0.16,0.12) * loops;
         emission += vec3(0.55,0.36,0.12) * exp(-gap * 42.0);
         vec3 corona = displayLight(emission);

@@ -82,7 +82,9 @@ float visibility() {
 void main() {
     float direct = max(0.0, dot(normalize(surfaceNormal), SunDirection));
     float visible = visibility();
-    float ambient = min(surfaceColor.a, 0.075);
+    // Illustrative fill keeps the finite slab readable without adding direct sunlight to its night side.
+    // Retain material contrast: terrain uses 18%, rock undersides/walls at most 22% of their day albedo.
+    float ambient = min(surfaceColor.a, 0.22);
     // Artistic approximation of atmosphere-filtered light, not a refraction simulation.
     vec3 transmitted = vec3(0.075, 0.009, 0.003);
     vec3 illumination = mix(transmitted, vec3(1.0), visible);
