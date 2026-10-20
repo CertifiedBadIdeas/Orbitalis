@@ -39,6 +39,7 @@ data class SurfaceAtlasPayload(
     override fun type() = TYPE
 
     companion object {
+        const val VERSION = 2
         val TYPE = CustomPacketPayload.Type<SurfaceAtlasPayload>(ResourceLocation.fromNamespaceAndPath("orbitalis", "surface_atlas"))
         val CODEC: StreamCodec<FriendlyByteBuf, SurfaceAtlasPayload> =
             object : StreamCodec<FriendlyByteBuf, SurfaceAtlasPayload> {
@@ -46,6 +47,7 @@ data class SurfaceAtlasPayload(
                     buffer: FriendlyByteBuf,
                     payload: SurfaceAtlasPayload,
                 ) {
+                    buffer.writeVarInt(VERSION)
                     buffer.writeUUID(payload.session)
                     buffer.writeBoolean(payload.reset)
                     buffer.writeLong(payload.revision)
@@ -55,10 +57,12 @@ data class SurfaceAtlasPayload(
                         buffer.writeShort(sample.z)
                         buffer.writeShort(sample.height)
                         buffer.writeInt(sample.color)
+                        buffer.writeByte(sample.waterCoverage)
                     }
                 }
 
                 override fun decode(buffer: FriendlyByteBuf): SurfaceAtlasPayload {
+                    require(buffer.readVarInt() == VERSION) { "Unsupported surface atlas payload version" }
                     val session = buffer.readUUID()
                     val reset = buffer.readBoolean()
                     val revision = buffer.readLong()
@@ -74,6 +78,7 @@ data class SurfaceAtlasPayload(
                                 buffer.readShort().toInt(),
                                 buffer.readShort().toInt(),
                                 buffer.readInt(),
+                                buffer.readUnsignedByte().toInt(),
                             )
                         },
                     )

@@ -43,6 +43,7 @@ object SurfaceAtlasSampler {
         var red = 0
         var green = 0
         var blue = 0
+        var water = 0
         for (dx in intArrayOf(2, 6, 10, 14)) {
             for (dz in intArrayOf(2, 6, 10, 14)) {
                 val x = (cx * 16 + dx).coerceIn(bounds.minX, bounds.maxX - 1)
@@ -50,6 +51,7 @@ object SurfaceAtlasSampler {
                 val y = heightAt(x and 15, z and 15)
                 val pos = BlockPos(x, y, z)
                 val state = stateAt(pos)
+                if (state.fluidState.`is`(FluidTags.WATER)) water++
                 val biome = biomeAt(x and 15, y, z and 15)
                 val color =
                     when {
@@ -73,6 +75,7 @@ object SurfaceAtlasSampler {
             cz,
             (height / 16 + 1).coerceIn(-4096, 4096),
             ((red / 16) shl 16) or ((green / 16) shl 8) or (blue / 16),
+            (water * 255 + 8) / 16,
         )
     }
 }

@@ -23,6 +23,12 @@ limitations under the License.
 - Bound optional Voxy WorldGenV2 work and remaining-work statistics to each planet's configured
   finite terrain footprint, including Moon, Mercury and Venus; finished surfaces no longer schedule
   hundreds of thousands of empty exterior chunks.
+- Share finite-atmosphere solar attenuation across Earth surface, clouds and atmospheric glow;
+  use bounded Rayleigh/Mie single scattering for the limb and linear-light surface shading.
+- Add rough Fresnel water highlights from explicit native water coverage in the surface atlas;
+  dry blue blocks stay matte. Read older atlas records with unknown/dry material until refreshed.
+- Illuminate cloud faces and transmitted edges from the physical Sun, with warmer grazing light.
+  Geometry, cloud altitude and existing native/celestial depth composition are preserved.
 
 - Mercury and Venus with scaled circular orbits, gravity, spin, separate finite surface dimensions
   and terrain-derived LOD in space and on the orbital map. Map views can focus either planet.

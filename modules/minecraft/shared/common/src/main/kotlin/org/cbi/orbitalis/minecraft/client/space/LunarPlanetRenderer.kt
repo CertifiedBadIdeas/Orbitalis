@@ -146,6 +146,7 @@ object LunarPlanetRenderer {
                 view,
             ).scale(scale.toFloat()).translate(offset.x.toFloat(), offset.y.toFloat(), offset.z.toFloat()).mul(rotation)
         val shader = PlanetLighting.prepareMoon(profile, tick, seconds)
+        PlanetLighting.prepareView(shader, transform, projection)
         for (gpu in meshes.values + listOfNotNull(body)) {
             gpu.bind()
             try {

@@ -66,14 +66,15 @@ class SurfaceAtlasData(
     ): CompoundTag =
         tag.apply {
             check(supported) { "Unsupported surface atlas is read-only" }
-            putInt("Version", 1)
-            val records = IntArray(atlas.size * 4)
+            putInt("Version", 2)
+            val records = IntArray(atlas.size * 5)
             atlas.all().forEachIndexed { index, sample ->
-                val i = index * 4
+                val i = index * 5
                 records[i] = sample.x
                 records[i + 1] = sample.z
                 records[i + 2] = sample.height
                 records[i + 3] = sample.color
+                records[i + 4] = sample.waterCoverage
             }
             putIntArray("Samples", records)
         }
@@ -82,13 +83,29 @@ class SurfaceAtlasData(
         const val DATA_NAME = "orbitalis_surface_atlas"
 
         fun load(tag: CompoundTag): SurfaceAtlasData {
-            if (tag.getInt("Version") != 1) return SurfaceAtlasData(supported = false)
+            if (!tag.contains("Version", 3) || !tag.contains("Samples", 11)) return SurfaceAtlasData(supported = false)
+            val stride =
+                when (tag.getInt("Version")) {
+                    1 -> 4
+                    2 -> 5
+                    else -> return SurfaceAtlasData(supported = false)
+                }
             val result = SurfaceAtlasData()
             val records = tag.getIntArray("Samples")
-            if (records.size > SurfaceAtlas.MAX_SAMPLES * 4 || records.size % 4 != 0) return result
-            for (i in records.indices step 4) {
+            if (records.size > SurfaceAtlas.MAX_SAMPLES * stride || records.size % stride != 0) {
+                return SurfaceAtlasData(supported = false)
+            }
+            for (i in records.indices step stride) {
                 try {
-                    result.atlas.put(SurfaceAtlas.Sample(records[i], records[i + 1], records[i + 2], records[i + 3]))
+                    result.atlas.put(
+                        SurfaceAtlas.Sample(
+                            records[i],
+                            records[i + 1],
+                            records[i + 2],
+                            records[i + 3],
+                            if (stride == 5) records[i + 4] else 0,
+                        ),
+                    )
                 } catch (
                     _: IllegalArgumentException,
                 ) {

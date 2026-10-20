@@ -46,7 +46,7 @@ object PlanetMeshBuffers {
     ): PreparedMesh {
         val storage = ByteBufferBuilder(1 shl 16)
         try {
-            val buffer = BufferBuilder(storage, VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR_NORMAL)
+            val buffer = BufferBuilder(storage, VertexFormat.Mode.QUADS, DefaultVertexFormat.BLOCK)
             for (face in faces) {
                 val r = face.color shr 16 and 255
                 val g = face.color shr 8 and 255
@@ -55,6 +55,8 @@ object PlanetMeshBuffers {
                     buffer
                         .addVertex(v.x.toFloat(), v.y.toFloat(), v.z.toFloat())
                         .setColor(r, g, b, (face.ambient.coerceIn(0.0, 1.0) * 255).toInt())
+                        .setUv(face.waterCoverage.toFloat(), 0f)
+                        .setUv2(0, 0)
                         .setNormal(face.normal.x.toFloat(), face.normal.y.toFloat(), face.normal.z.toFloat())
                 }
             }

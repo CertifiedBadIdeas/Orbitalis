@@ -432,11 +432,33 @@ Scientific reference (no imported assets): [NASA lunar eclipses](https://science
 
 ### Multiple bodies and direct solar visibility
 
-Planet overview materials retain illustrative fill: terrain uses its existing 18% material floor and
-rock is capped at 22%, instead of reducing every material to 7.5%. This keeps a dark slab distinguishable
-from vacuum without changing physical visibility, native chunk lighting or the direct-light normal.
-The lit underside remains lit when the top points away from the Sun; the opaque slab still hides the
-opposite face from a camera above it.
+Planet overview lighting operates on decoded linear atlas colours. A small illustrative indirect
+floor (0.02 linear irradiance, scaled by the material's existing fill weight) keeps unlit rock readable;
+it is not a simulated source or multi-bounce solution. Direct light follows the current local Sun normal
+and inverse-square irradiance normalized to Earth's orbit. The lit underside remains lit when the top
+points away from the Sun; opaque geometry still hides the opposite face from a camera above it.
+
+Earth surface, cloud faces and atmospheric single scattering share the same finite exponential
+Rayleigh/Mie optical parameters. Vertical optical depths are RGB (0.10, 0.23, 0.55) and grey 0.035;
+scale heights are 25% and 10% of the existing cloud-height atmosphere thickness. Analytic finite ray
+columns attenuate sunlight and surface/cloud light toward the eye. The limb uses 32 view samples,
+Rayleigh phase and a forward Mie phase (g=0.76), with analytic Sun paths rather than nested marching.
+The finite opaque slab blocks sunlight. No permanent blue night glow is added. Existing cloud altitude,
+native terrain/ship depth and celestial composition remain authoritative.
+
+Water uses explicit [surface atlas coverage](surface-water-material.md) in UV0, independent of display
+colour, with rough GGX/Fresnel highlights (roughness 0.22, normal-incidence reflectance 0.02). Rock walls
+and dry blue blocks stay matte; synthetic fallback oceans are classified by the fallback generator.
+Clouds use geometric face normals and a thin-volume forward-transmission approximation. Map lighting
+uses parallel view rays; flight uses the actual camera eye reconstructed from model-view matrices.
+The BLOCK vertex format retains the existing material fill alpha and adds water coverage without
+changing terrain geometry or atlas cell spacing.
+
+This remains a bounded presentation approximation: coefficients/exposure are tuned for the finite
+Minecraft slab, surface diffuse is calibrated rather than an absolute radiometric unit, and shell
+inscattering is added to a display-encoded framebuffer rather than a joint HDR composite. There is no
+multiple atmospheric scattering, terrain shadow map, full fluid reflection or lunar reflected-light
+transport. Those limits must not be described as path tracing or a complete physically based renderer.
 
 Solar glare includes derivative-filtered primary rays and fainter diagonal glints, with small smooth
 phase variation and a finite fade inside the existing halo envelope. The map uses one tenth of their

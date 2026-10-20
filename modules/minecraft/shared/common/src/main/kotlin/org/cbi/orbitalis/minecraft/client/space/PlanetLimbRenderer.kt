@@ -226,6 +226,21 @@ object PlanetLimbRenderer {
         val (minimum, maximum) = atmosphereBounds(SpaceScene.HALF_SIZE, cloudHeight)
         val sunlight = PlanetLighting.earthDirection()
         shader.getUniform("SunDirection")?.set(sunlight.x.toFloat(), sunlight.y.toFloat(), sunlight.z.toFloat())
+        val optics = AtmosphereOptics.parameters(minimum.y, maximum.y)
+        shader.getUniform("RayleighCoefficient")?.set(
+            optics.rayleighPerMetre.x.toFloat(),
+            optics.rayleighPerMetre.y.toFloat(),
+            optics.rayleighPerMetre.z.toFloat(),
+        )
+        shader.getUniform("MieCoefficient")?.set(optics.miePerMetre.toFloat())
+        shader.getUniform("RayleighHeight")?.set(optics.rayleighHeight.toFloat())
+        shader.getUniform("MieHeight")?.set(optics.mieHeight.toFloat())
+        shader.getUniform("AtmosphereBottom")?.set(minimum.y.toFloat())
+        shader.getUniform("AtmosphereTop")?.set(maximum.y.toFloat())
+        shader.getUniform("AtmosphereHalfSize")?.set(SpaceScene.HALF_SIZE.toFloat())
+        shader.getUniform("AtmosphereFeather")?.set(atmosphereFeather(SpaceScene.HALF_SIZE).toFloat())
+        val radiance = PlanetLighting.earthSunRadiance()
+        shader.getUniform("SunRadiance")?.set(radiance.x.toFloat(), radiance.y.toFloat(), radiance.z.toFloat())
         shader.getUniform("Observer")?.set(localObserver.x, localObserver.y, localObserver.z)
         shader.getUniform("BoundsMin")?.set(minimum.x.toFloat(), minimum.y.toFloat(), minimum.z.toFloat())
         shader.getUniform("BoundsMax")?.set(maximum.x.toFloat(), maximum.y.toFloat(), maximum.z.toFloat())

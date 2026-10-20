@@ -38,6 +38,7 @@ object SpaceScene {
         val color: Int,
         val normal: Vector3,
         val ambient: Double = 0.18,
+        val waterCoverage: Double = 0.0,
     )
 
     val body: List<Face> get() = buildBody()
@@ -69,6 +70,7 @@ object SpaceScene {
                             ),
                             color,
                             Vector3(0.0, 1.0, 0.0),
+                            waterCoverage = if (land <= 0.15) 1.0 else 0.0,
                         ),
                     )
                 }

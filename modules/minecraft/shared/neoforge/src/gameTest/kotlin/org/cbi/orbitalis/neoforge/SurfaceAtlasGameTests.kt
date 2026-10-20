@@ -25,6 +25,7 @@ import net.minecraft.gametest.framework.GameTestHelper
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.network.FriendlyByteBuf
 import net.minecraft.world.level.block.Blocks
+import net.minecraft.world.level.block.state.properties.BlockStateProperties
 import net.minecraft.world.level.saveddata.SavedData
 import net.minecraft.world.level.storage.DimensionDataStorage
 import net.minecraft.world.level.storage.LevelResource
@@ -65,6 +66,7 @@ object SurfaceAtlasGameTests {
         roof(160, true)
         data.capture(level, chunk)
         val first = data.atlas.all().single { it.x == chunk.pos.x && it.z == chunk.pos.z }
+        helper.assertTrue(first.waterCoverage == 0, "Dry roof was classified as water")
         helper.assertTrue(first.height == 161, "Native heightmap did not determine relief")
         helper.assertTrue(
             first.color ==
@@ -119,12 +121,23 @@ object SurfaceAtlasGameTests {
         val chunk = level.getChunkAt(BlockPos(32, 180, 32))
         for (x in 0..15) {
             for (z in 0..15) {
-                level.setBlock(BlockPos(chunk.pos.minBlockX + x, 180, chunk.pos.minBlockZ + z), Blocks.GOLD_BLOCK.defaultBlockState(), 2)
+                level.setBlock(
+                    BlockPos(chunk.pos.minBlockX + x, 180, chunk.pos.minBlockZ + z),
+                    (
+                        when {
+                            x < 8 -> Blocks.WATER.defaultBlockState()
+                            x < 12 -> Blocks.OAK_SLAB.defaultBlockState().setValue(BlockStateProperties.WATERLOGGED, true)
+                            else -> Blocks.BLUE_CONCRETE.defaultBlockState()
+                        }
+                    ),
+                    2,
+                )
             }
         }
         val expectedData = SurfaceAtlasData()
         expectedData.capture(level, chunk)
         val expected = expectedData.atlas.all().single()
+        helper.assertTrue(expected.waterCoverage == 191, "Water and waterlogged probes were not counted; blue dry blocks must stay dry")
         val snapshot =
             net.minecraft.world.level.chunk.storage.ChunkSerializer
                 .write(level, chunk)
@@ -215,7 +228,7 @@ object SurfaceAtlasGameTests {
     @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", batch = "atlas", timeoutTicks = 100)
     fun surfaceAtlasPacketBounds(helper: GameTestHelper) {
-        val sample = SurfaceAtlas.Sample(-313, 312, 80, 0x12ef34)
+        val sample = SurfaceAtlas.Sample(-313, 312, 80, 0x12ef34, 191)
         val payload = SurfaceAtlasPayload(UUID.randomUUID(), true, 123, listOf(sample))
         val buffer = FriendlyByteBuf(Unpooled.buffer())
         try {
@@ -226,6 +239,7 @@ object SurfaceAtlasGameTests {
             )
             buffer.clear()
             buffer
+                .writeVarInt(SurfaceAtlasPayload.VERSION)
                 .writeUUID(payload.session)
                 .writeBoolean(false)
                 .writeLong(1)
