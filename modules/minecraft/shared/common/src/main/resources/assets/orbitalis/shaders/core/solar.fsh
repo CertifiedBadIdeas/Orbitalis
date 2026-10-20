@@ -247,7 +247,9 @@ void main() {
     vec4 a = InverseProjection * vec4(clipPosition, -1.0, 1.0);
     vec4 b = InverseProjection * vec4(clipPosition, 1.0, 1.0);
     vec3 origin = (a.xyz / a.w) / RadiusScale;
-    vec3 ray = normalize(b.xyz / b.w - a.xyz / a.w);
+    // A compressed astronomical scene can have an infinite float far plane (b.w == 0).
+    // Homogeneous subtraction preserves perspective and orthographic rays without dividing it.
+    vec3 ray = normalize(b.xyz * a.w - a.xyz * b.w);
     vec3 relative = Centre - origin;
     float along = dot(relative, ray);
     // Cross product avoids cancellation of two large squared distances at Earth.
