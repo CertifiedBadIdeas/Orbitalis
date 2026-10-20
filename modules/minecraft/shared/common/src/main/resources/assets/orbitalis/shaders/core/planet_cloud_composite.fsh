@@ -22,6 +22,7 @@ uniform sampler2D CloudColor;
 uniform sampler2D CloudDepth;
 uniform mat4 InverseProjection;
 uniform mat4 ProjMat;
+uniform mat4 NativeProjection;
 uniform float SceneScale;
 in vec2 cloudUv;
 out vec4 fragColor;
@@ -32,7 +33,7 @@ void main() {
     float depth = texture(CloudDepth, cloudUv).r;
     vec4 compressed = InverseProjection * vec4(cloudUv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
     vec3 physicalView = compressed.xyz / (compressed.w * SceneScale);
-    vec4 physical = ProjMat * vec4(physicalView, 1.0);
+    vec4 physical = NativeProjection * vec4(physicalView, 1.0);
     gl_FragDepth = clamp(physical.z / physical.w * 0.5 + 0.5, 0.0, 1.0);
     fragColor = cloud;
 }
