@@ -20,6 +20,8 @@ limitations under the License.
 
 ## 0.2.0 — In development
 
+- Allow up to 10 GiB of Java heap for both development clients, including the flight consumer.
+
 - Bound optional Voxy WorldGenV2 work and remaining-work statistics to each planet's configured
   finite terrain footprint, including Moon, Mercury and Venus; finished surfaces no longer schedule
   hundreds of thousands of empty exterior chunks.

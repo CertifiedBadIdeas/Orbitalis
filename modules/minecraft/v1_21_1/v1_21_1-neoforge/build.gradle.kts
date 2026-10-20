@@ -88,7 +88,7 @@ loom {
                 }
             }
         }
-        named("client") { runDir("run/client") }
+        named("client") { runDir("run/client"); vmArg("-Xmx10G") }
         named("server") { runDir("run/server") }
     }
 }

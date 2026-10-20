@@ -95,7 +95,7 @@ loom {
                 maybeCreate("flight_consumer").sourceSet(sourceSets.main.get())
             }
         }
-        named("client") { runDir("run/client"); ideConfigGenerated(true) }
+        named("client") { runDir("run/client"); vmArg("-Xmx10G"); ideConfigGenerated(true) }
         named("server") { runDir("run/server"); ideConfigGenerated(true) }
     }
 }
