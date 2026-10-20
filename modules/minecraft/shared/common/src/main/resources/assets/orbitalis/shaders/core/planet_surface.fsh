@@ -20,8 +20,9 @@
 uniform vec3 SunDirection;
 uniform float EclipseEnabled;
 uniform vec3 ShadowSun;
-uniform vec3 ShadowDiscU;
-uniform vec3 ShadowDiscV;
+uniform vec3 ShadowSunX;
+uniform vec3 ShadowSunY;
+uniform vec3 ShadowSunZ;
 uniform vec3 ShadowHalfSize;
 in vec3 shadowPosition;
 in vec4 surfaceColor;
@@ -48,21 +49,32 @@ float blocked(vec3 start, vec3 target) {
     return float(far >= near && far > 0.0 && near < 1.0);
 }
 
+// Equal projected-area quadrature on visible cube faces, matching core SolarOcclusion.
+vec3 sourceSample(int i) {
+    vec3 toward = shadowPosition - ShadowSun;
+    vec3 facing = vec3(dot(toward, ShadowSunX), dot(toward, ShadowSunY), dot(toward, ShadowSunZ));
+    vec3 weight = abs(facing);
+    float cursor = (float(i) + 0.5) / 32.0 * (weight.x + weight.y + weight.z);
+    float v = 2.0 * fract((float(i) + 0.5) * 0.6180339887498949) - 1.0;
+    if (cursor < weight.x) {
+        return ShadowSun + ShadowSunX * sign(facing.x) + ShadowSunY * (2.0 * cursor / weight.x - 1.0) + ShadowSunZ * v;
+    }
+    if (cursor < weight.x + weight.y) {
+        return ShadowSun + ShadowSunX * v + ShadowSunY * sign(facing.y) + ShadowSunZ * (2.0 * (cursor - weight.x) / weight.y - 1.0);
+    }
+    return ShadowSun + ShadowSunX * (2.0 * (cursor - weight.x - weight.y) / weight.z - 1.0) + ShadowSunY * v + ShadowSunZ * sign(facing.z);
+}
+
 float visibility() {
     if (EclipseEnabled < 0.5) return 1.0;
-    // Broad-phase sphere around the actual slab; most lunar views miss Earth entirely.
     vec3 direction = normalize(ShadowSun - shadowPosition);
     float along = -dot(shadowPosition, direction);
     vec3 closest = shadowPosition + direction * max(0.0, along);
-    float spread = length(ShadowDiscU) * max(0.0, along + length(ShadowHalfSize)) / length(ShadowSun - shadowPosition);
+    float spread = length(ShadowSunX) * 1.732051 * max(0.0, along + length(ShadowHalfSize)) / length(ShadowSun - shadowPosition);
     if (along < 0.0 || length(closest) > length(ShadowHalfSize) + spread) return 1.0;
     float light = 0.0;
-    // Equal-area golden-angle solar-disc quadrature, matching core SolarOcclusion.
     for (int i = 0; i < 32; i++) {
-        float radius = sqrt((float(i) + 0.5) / 32.0);
-        float angle = float(i) * 2.399963229728653;
-        vec3 target = ShadowSun + radius * (cos(angle) * ShadowDiscU + sin(angle) * ShadowDiscV);
-        light += 1.0 - blocked(shadowPosition, target);
+        light += 1.0 - blocked(shadowPosition, sourceSample(i));
     }
     return light / 32.0;
 }

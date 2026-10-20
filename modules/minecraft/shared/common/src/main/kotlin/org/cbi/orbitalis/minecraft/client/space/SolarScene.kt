@@ -21,11 +21,11 @@ package org.cbi.orbitalis.minecraft.client.space
 import org.cbi.orbitalis.core.orbit.SolarSystemProfile
 import org.cbi.orbitalis.core.planet.Vector3
 
-/** One camera-relative sphere for all solar views; never a native physics position. */
+/** One camera-relative emitting cube for all solar views; never a native physics position. */
 object SolarScene {
-    data class Sphere(
+    data class Cube(
         val centre: Vector3,
-        val radius: Double,
+        val halfEdge: Double,
         val phase: Double,
     )
 
@@ -34,7 +34,7 @@ object SolarScene {
         tick: Long,
         seconds: Double,
         observer: Vector3,
-    ): Sphere {
+    ): Cube {
         val centre =
             profile.system
                 .sample(tick, seconds)
@@ -43,7 +43,9 @@ object SolarScene {
         // Subtract in double precision before sending solar-radius units to the GPU.
         val relative = (centre - observer) * (1.0 / profile.sunRadius)
         // A bounded, continuous pair of temporal harmonics, including across the wrap.
-        val phase = ((tick % 24000L).toDouble() / 20.0 + seconds) * (2.0 * kotlin.math.PI / 1200.0)
-        return Sphere(relative, profile.sunRadius, phase)
+        val phase =
+            org.cbi.orbitalis.core.planet.SolarShape
+                .phase(tick, seconds)
+        return Cube(relative, profile.sunRadius, phase)
     }
 }

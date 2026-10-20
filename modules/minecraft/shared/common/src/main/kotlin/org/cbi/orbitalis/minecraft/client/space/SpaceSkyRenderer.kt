@@ -223,7 +223,7 @@ object SpaceSkyRenderer {
             GlStateManager._glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, drawFramebuffer)
             GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, readFramebuffer)
             RenderSystem.viewport(viewport[0], viewport[1], viewport[2], viewport[3])
-            ScreenTexture.draw(surface.colorTextureId, opacity)
+            ScreenTexture.draw(surface.colorTextureId, opacity, premultiplied = celestialsOnly)
         } finally {
             GlStateManager._glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, drawFramebuffer)
             GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, readFramebuffer)

@@ -21,23 +21,25 @@ limitations under the License.
 ## 0.2.0 — In development
 
 - Procedural Sun in orbital/lunar skies and the orbital map, using the existing celestial ephemeris.
-  A ray-intersected photosphere has animated cellular granulation, paired sunspot groups with
+  A ray-intersected cubic photosphere has animated cellular granulation, paired sunspot groups with
   umbrae/penumbrae, wavelength-dependent limb darkening, a volumetric white streamer corona
   and small red prominence loops above active regions. Surface cells evolve, coronal flows travel
   outwards and bright plasma knots move along prominence strands, on a shared simulation clock.
   Local prominence eruptions rise and fade independently, while the star rotates slowly.
-  Photographic exposure preserves map detail and a white-hot distant disc.
-  Solar radius scales with the selected system to retain an apparent diameter near 0.53 degrees.
+  Photographic exposure preserves map detail and a white-hot distant cube with soft coronal glare.
+  Solar half-edge scales with the system to retain a face-on width near 0.53 degrees.
   Earth/Moon LOD surfaces, overview clouds and atmosphere now follow the physical Sun at draw time.
 - `/orbitalis sky` reports the world-owned Overworld sky mode; operators select `vanilla` (default)
   or `cosmic`. Cosmic mode renders the system Sun/Moon and derives native daylight from Earth spin,
   independently of sleep and `/time`. The setting is saved and synchronized; space has no mode switch.
-- Lunar eclipses in the cosmic Overworld sky, space and map: a finite solar disc casts
+- Lunar eclipses in the cosmic Overworld sky, space and map: a finite cubic source casts
   Earth's rotating rectangular shadow onto the Moon, with penumbra and a muted red umbra.
 - Forward time acceleration: `/orbitalis time add <seconds>`, `set <solar time>` and `stop` process
   real native ticks, with no backward clock assignments. Initially requires no loaded flight ships.
 - Bound client ephemeris smoothing during accelerated time so the sky catches up promptly.
 - Prevent the physical Sun from occluding Overworld terrain through compressed sky depth writes.
+- Preserve solar coverage and premultiplied coronal light in the transparent Overworld sky target;
+  composite faint emission without vanilla's alpha-test cutoff, avoiding a visible ring in the glare.
 - Share the offscreen celestial depth pass with the cosmic Overworld sky, preserving visible lunar
   relief and preventing the underside from painting over the illuminated surface.
 

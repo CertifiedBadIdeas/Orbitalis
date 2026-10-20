@@ -26,12 +26,20 @@ import net.neoforged.bus.api.SubscribeEvent
 import net.neoforged.fml.common.EventBusSubscriber
 import net.neoforged.neoforge.client.event.RegisterShadersEvent
 import org.cbi.orbitalis.core.Orbitalis
+import org.cbi.orbitalis.minecraft.client.space.ScreenTexture
 import org.cbi.orbitalis.minecraft.client.space.SolarRenderer
 
 @EventBusSubscriber(modid = Orbitalis.MOD_ID, value = [Dist.CLIENT], bus = EventBusSubscriber.Bus.MOD)
 object SolarEvents {
     @JvmStatic @SubscribeEvent
     fun register(event: RegisterShadersEvent) {
+        event.registerShader(
+            ShaderInstance(
+                event.resourceProvider,
+                ResourceLocation.fromNamespaceAndPath(Orbitalis.MOD_ID, "sky_composite"),
+                DefaultVertexFormat.POSITION_TEX_COLOR,
+            ),
+        ) { ScreenTexture.compositeShader = it }
         event.registerShader(
             ShaderInstance(
                 event.resourceProvider,

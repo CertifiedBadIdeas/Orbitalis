@@ -57,7 +57,7 @@ data class SolarSystemProfile(
     val sunMu = earthGravity.body.mu * 10000.0
     val earthOrbitRadius = if (preset == Preset.COMPACT) LEGACY_EARTH_ORBIT_RADIUS else radiusForPeriod(sunMu, YEAR_SECONDS)
 
-    /** Photosphere radius; keeps the apparent solar diameter near 0.53 degrees at Earth. */
+    /** Emitting cube half-edge (inscribed radius); face-on width stays near 0.53 degrees at Earth. */
     val sunRadius = earthOrbitRadius * SUN_RADIUS_TO_ORBIT
     val moonOrbitRadius =
         if (preset ==

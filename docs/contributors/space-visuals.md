@@ -275,15 +275,17 @@ of the celestial catalogue and orbital map; physical solar illumination remains 
 
 ## Procedural solar presentation
 
-`SolarRenderer` ray-intersects an analytical sphere in the existing sky target and map viewport.
+`SolarRenderer` ray-intersects an analytical rotating cube in the existing sky target and map viewport.
 `SolarScene` samples the authoritative Earth-relative Sun ephemeris and fractional simulation clock.
 `SolarSystemProfile.sunRadius` is derived as 0.004650401069518716 times Earth orbit radius, about
-95,344 m at 10,000 m Earth width and 11 m/s². No profile/NBT/packet field is added. The map uses the
-same radius. The former fixed 30 km map marker radius is retired.
+95,344 m half-edge at 10,000 m Earth width and 11 m/s². This existing derived property now names
+the inscribed radius: the cube edge equals the previous spherical diameter. Diagonal views are
+wider; mass, orbit and stored profile fields do not change. No profile/NBT/packet field is added. The map uses the
+same half-edge. The former fixed 30 km map marker radius is retired.
 
 All camera-relative subtraction happens in Double before GPU conversion into solar-radius units.
 The shader reconstructs perspective or parallel rays using the caller's projection; no tessellated
-sphere, chunks, remote ClientLevel or Sable construction is allocated. Normal-based 3D cellular
+sphere, chunks, remote ClientLevel or Sable construction is allocated. Position-based 3D cellular
 convection has no UV seam: a bounded 27-neighbour Voronoi search
 produces bright granules and dark intergranular lanes. Derivative filtering fades unresolved
 cells before their expensive evaluation at long distance. Derivatives are evaluated before the
@@ -300,9 +302,18 @@ paired spots with dark umbrae, ragged penumbrae and
 resolved radial filaments. These are illustrative patterns, not a magnetohydrodynamic simulation.
 Wavelength-dependent limb darkening and photographic compression replace flat yellow vertex colour.
 A detail-preserving map exposure and brighter perspective exposure share the same radiance shader.
+A bounded convex distance search gives soft glare the projected cube silhouette; it does not retain
+an old spherical rim at edges/corners. Perspective optical glare extends to 20 half-edges, beyond
+the bounded 3.5-half-edge coronal volume; this is a presentation exposure effect, not additional
+physical plasma or a change in stellar radius. Surface plasma and loop anchors use the same stellar chart.
+The transparent native sky target accumulates solar coverage, then composites premultiplied colour;
+otherwise preserving zero target alpha hides the Sun or double-attenuates its faint corona.
+A dedicated `sky_composite` shader preserves all alpha levels: native `position_tex_color` discards
+texture alpha below 0.1, turning otherwise smooth solar glare into a visibly bounded disc. Opaque
+scene composition and held transition screenshots retain their existing native shader.
 The opaque photosphere and an eight-sample optically thin coronal volume share one pass.
 Angular density produces radial streamers and a fainter polar corona; smooth radial support ends
-at 2.8 photosphere radii. Within 1.28 radii, a bounded 28-step local SDF march adds
+at 3.5 half-edges. Within 2.2 half-edges, a bounded 40-step local SDF march adds
 two small, asymmetric red prominence arches anchored above those active regions.
 Their nonplanar shape, varying thickness and noise-modulated emission avoid uniform wire rings.
 Staggered one-minute presentation events stretch each arch upwards and fade its emission before
@@ -320,7 +331,7 @@ not make native physics at astronomical coordinates safe.
 
 The loader registers/reloads the client shader; it owns no persistent mesh or framebuffer resources.
 The pinned Veil 4.3.2/glsl-processor 0.2.3 dynamic rewrite loses parentheses around a ternary
-nested in vector multiplication. Keep the normal's signed chord selection in an explicit statement;
+nested in vector multiplication. Avoid such nested ternaries;
 check both original GLSL and rewritten shader compilation when changing those expressions.
 Rendering restores depth, cull, blend factors and shader state. The sky target is composed before
 native terrain/hulls, so opaque native objects hide the Sun. Planet meshes cover it through their
@@ -395,10 +406,12 @@ The cosmic Overworld sky already displays the catalogue Moon through `LunarPlane
 shared with space and the orbital map. The current catalogue contains only Sun, Earth and Moon;
 this change does not add other planets or illustrative sky sprites.
 
-`SolarOcclusion` in core samples 32 equal-area points on the solar disc against Earth's opaque
-rectangular gravity envelope. The renderer transforms Moon mesh positions and solar-disc axes into
-Earth's rotating local chart, normalized by Earth half-width. The surface shader uses the same
-bounded golden-angle quadrature and segment/slab intersections. Source size creates a penumbra;
+`SolarOcclusion` in core samples 32 points on the visible faces of the emitting cube against
+Earth's opaque rectangular gravity envelope. Visible source faces are weighted by projected area;
+this distant-source approximation ignores within-face irradiance variation. The renderer transforms
+Moon mesh positions and solar half-edge axes into Earth's rotating local chart, normalized by Earth
+half-width. `SolarShape` supplies the same wrapped phase/orientation to the visible cube and eclipse
+sampling. The surface shader mirrors the bounded face quadrature and segment/slab intersections. Source size creates a penumbra;
 Earth's rotation and thin edge-on silhouette affect the shadow. No spherical Earth proxy is used.
 The shader tests a conservative bounding sphere first; it does not rebuild sector meshes.
 Earth draws explicitly disable the eclipse uniforms to prevent shared-program state leakage.

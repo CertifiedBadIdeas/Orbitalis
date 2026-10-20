@@ -24,17 +24,21 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat
 import com.mojang.blaze3d.vertex.Tesselator
 import com.mojang.blaze3d.vertex.VertexFormat
 import net.minecraft.client.renderer.GameRenderer
+import net.minecraft.client.renderer.ShaderInstance
 import org.joml.Matrix4f
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL14
 
 /** Clip-space textured composite without changing the caller's view/projection or framebuffer. */
 object ScreenTexture {
+    var compositeShader: ShaderInstance? = null
+
     fun draw(
         texture: Int,
         opacity: Float,
+        premultiplied: Boolean = false,
     ) {
-        val shader = checkNotNull(GameRenderer.getPositionTexColorShader())
+        val shader = if (premultiplied) checkNotNull(compositeShader) else checkNotNull(GameRenderer.getPositionTexColorShader())
         val depth = GL11.glIsEnabled(GL11.GL_DEPTH_TEST)
         val write = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK)
         val cull = GL11.glIsEnabled(GL11.GL_CULL_FACE)
@@ -48,10 +52,16 @@ object ScreenTexture {
             RenderSystem.depthMask(false)
             RenderSystem.disableCull()
             RenderSystem.enableBlend()
-            RenderSystem.defaultBlendFunc()
+            if (premultiplied) {
+                RenderSystem.blendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA)
+            } else {
+                RenderSystem.defaultBlendFunc()
+            }
             shader.MODEL_VIEW_MATRIX?.set(Matrix4f())
             shader.PROJECTION_MATRIX?.set(Matrix4f())
-            shader.COLOR_MODULATOR?.set(1f, 1f, 1f, opacity.coerceIn(0f, 1f))
+            val alpha = opacity.coerceIn(0f, 1f)
+            val rgb = if (premultiplied) alpha else 1f
+            shader.COLOR_MODULATOR?.set(rgb, rgb, rgb, alpha)
             shader.setSampler("Sampler0", texture)
             shader.apply()
             val buffer = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR)

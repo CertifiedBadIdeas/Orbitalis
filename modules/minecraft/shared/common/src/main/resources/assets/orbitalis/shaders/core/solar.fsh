@@ -86,6 +86,43 @@ vec3 solarCoordinates(vec3 p) {
                 -sin(angle) * p.x + cos(angle) * p.y, p.z);
 }
 
+vec3 solarWorld(vec3 p) {
+    float angle = Phase * 2.0;
+    return vec3(cos(angle) * p.x - sin(angle) * p.y,
+                sin(angle) * p.x + cos(angle) * p.y, p.z);
+}
+
+vec3 cubeNormal(vec3 p) {
+    vec3 a = abs(p);
+    if (a.x >= a.y && a.x >= a.z) return vec3(sign(p.x), 0, 0);
+    if (a.y >= a.z) return vec3(0, sign(p.y), 0);
+    return vec3(0, 0, sign(p.z));
+}
+vec3 cubeSurface(vec3 direction) {
+    vec3 a = abs(direction);
+    return direction / max(a.x, max(a.y, a.z));
+}
+float cubeGap(vec3 p) {
+    return length(max(abs(p) - vec3(1.0), vec3(0.0)));
+}
+// Ray slab intervals in the rotating stellar chart. No native chunks or ray marching for the body.
+vec2 cubeInterval(vec3 origin, vec3 direction) {
+    float near = -1000000.0;
+    float far = 1000000.0;
+    for (int axis = 0; axis < 3; axis++) {
+        float d = direction[axis];
+        if (abs(d) < 0.0000001) {
+            if (abs(origin[axis]) > 1.0) return vec2(1.0, -1.0);
+        } else {
+            float a = (-1.0 - origin[axis]) / d;
+            float b = (1.0 - origin[axis]) / d;
+            near = max(near, min(a, b));
+            far = min(far, max(a, b));
+        }
+    }
+    return vec2(near, far);
+}
+
 vec3 activeCentre(int i) {
     float longitude = 0.28 + float(i) * 1.59 + 0.17 * sin(float(i) * 3.1);
     float latitude = ((i == 0 || i == 2) ? 0.20 : -0.25) + 0.04 * sin(float(i) * 1.31);
@@ -141,10 +178,11 @@ float loopDistance(vec3 p) {
         if (i == 0 || i == 3) continue;
         vec2 event = eruption(i);
         if (event.y < 0.0001) continue;
-        vec3 radial = activeCentre(i);
+        vec3 anchor = cubeSurface(activeCentre(i));
+        vec3 radial = cubeNormal(anchor);
         vec3 tangent = normalize(cross(radial, vec3(0,0,1)));
         vec3 side = cross(radial, tangent);
-        vec3 offset = p - radial * 1.002;
+        vec3 offset = p - anchor - radial * 0.002;
         float height = dot(offset, radial);
         float radius = 0.066 + float(i) * 0.008 + 0.008 * sin(Phase * 10.0 + float(i));
         float u = dot(offset, tangent);
@@ -166,14 +204,14 @@ float loopDistance(vec3 p) {
     return distance;
 }
 float prominences(vec3 closest, vec3 ray, float impact, float along) {
-    if (impact > 1.28) return 0.0;
+    if (impact > 2.2) return 0.0;
     vec3 p0 = solarCoordinates(mat3(InverseView) * closest);
     vec3 direction = solarCoordinates(mat3(InverseView) * ray);
-    float chord = sqrt(max(0.0, 1.28 * 1.28 - impact * impact));
+    float chord = sqrt(max(0.0, 2.2 * 2.2 - impact * impact));
     float travel = max(-chord, -along);
     float nearest = 10.0;
     vec3 nearestPoint = vec3(0.0);
-    for (int i = 0; i < 28; i++) {
+    for (int i = 0; i < 40; i++) {
         if (travel > chord) break;
         vec3 p = p0 + direction * travel;
         float distance = loopDistance(p);
@@ -183,9 +221,10 @@ float prominences(vec3 closest, vec3 ray, float impact, float along) {
     }
     float emission = 0.0;
     for (int i = 1; i <= 2; i++) {
-        vec3 radial = activeCentre(i);
+        vec3 anchor = cubeSurface(activeCentre(i));
+        vec3 radial = cubeNormal(anchor);
         vec3 tangent = normalize(cross(radial, vec3(0,0,1)));
-        vec3 offset = nearestPoint - radial * 1.002;
+        vec3 offset = nearestPoint - anchor - radial * 0.002;
         float height = max(0.0, dot(offset, radial));
         vec2 event = eruption(i);
         float angle = atan(height / (1.0 + event.x * 1.5), dot(offset, tangent));
@@ -213,72 +252,86 @@ void main() {
     float along = dot(relative, ray);
     // Cross product avoids cancellation of two large squared distances at Earth.
     float impact = length(cross(relative, ray));
-    const float outerRadius = 2.8;
-    if ((along < 0.0 && length(relative) > 1.0) || impact > outerRadius) discard;
+    const float coronalRadius = 3.5;
+    float outerRadius = coronalRadius;
+    // Photographic glare has a wider angular footprint in flight; telescope/map exposure stays resolved.
+    if (Exposure > 2.0) outerRadius = 20.0;
+    if ((along < 0.0 && length(relative) > 1.732051) || impact > outerRadius) discard;
     vec3 point;
     vec3 closest = ray * along - relative;
-    bool inside = dot(relative, relative) < 1.0;
-    float chord = sqrt(max(0.0, 1.0 - impact * impact));
-    // Keep the sign selection separate: Veil's dynamic shader rewrite drops parentheses
-    // around a conditional expression nested inside this vector multiplication.
-    float signedChord = -chord;
-    if (inside) signedChord = chord;
-    vec3 normal = normalize(closest + ray * signedChord);
-    vec3 n = mat3(InverseView) * normal;
-    // Evaluate derivatives before the divergent photosphere/corona branch. Neighbouring
-    // helper fragments use the tangent normal outside the limb instead of an undefined value.
-    float footprint = max(length(dFdx(n)), length(dFdy(n)));
-    // Apparent rotation transports the surface and corona together. It is presentation
-    // motion, independent of the physical Sun frame and ephemeris.
-    n = solarCoordinates(n);
+    vec3 localClosest = solarCoordinates(mat3(InverseView) * closest);
+    vec3 localRay = solarCoordinates(mat3(InverseView) * ray);
+    vec2 interval = cubeInterval(localClosest, localRay);
+    float travel = interval.x;
+    if (travel < -along) travel = interval.y;
+    bool hit = interval.y >= interval.x && travel >= -along;
+    float helperTravel = clamp(travel, -outerRadius, outerRadius);
+    vec3 surfacePoint = localClosest + localRay * helperTravel;
+    vec3 n = normalize(surfacePoint);
+    // Keep derivatives outside the hit branch for stable pixel-footprint filtering at cube edges.
+    float footprint = max(length(dFdx(surfacePoint)), length(dFdy(surfacePoint)));
     vec3 flow = vec3(sin(Phase * 19.0), cos(Phase * 23.0), sin(Phase * 17.0)) * 0.65;
-    if (impact <= 1.0) {
-        float t = along - sqrt(max(0.0, 1.0 - impact * impact));
-        if (t < 0.0) t = along + sqrt(max(0.0, 1.0 - impact * impact));
-        if (t < 0.0) discard;
-        point = origin + ray * t;
-        float grain = granules(n, flow, footprint);
-        vec2 regions = activeRegions(n, footprint);
+    if (hit) {
+        point = origin + ray * (along + travel);
+        float grain = granules(surfacePoint, flow, footprint);
+        vec2 regions = activeRegions(n, footprint / max(1.0, length(surfacePoint)));
+        vec3 normal = transpose(mat3(InverseView)) * solarWorld(cubeNormal(surfacePoint));
         float mu = max(0.0, dot(normal, -ray));
         // Wavelength-dependent limb darkening; the photosphere emits instead of Lambert shading.
         float edge = 1.0 - mu;
         vec3 limb = vec3(1.0) - vec3(0.38,0.44,0.52) * edge - vec3(0.12,0.14,0.16) * edge * edge;
-        float convection = 0.97 + 0.06 * noise(n * 32.0 + flow * 0.4);
-        vec3 radiance = vec3(1.0,0.965,0.88) * limb * grain * convection * 2.65;
+        float convection = 0.97 + 0.06 * noise(surfacePoint * 32.0 + flow * 0.4);
+        vec3 radiance = vec3(1.0,0.965,0.88) * limb * grain * convection * 3.2;
         radiance *= 1.0 - clamp(regions.x, 0.0, 0.96);
         radiance += vec3(1.0,0.95,0.82) * regions.y * edge * 0.12;
         fragColor = vec4(displayLight(radiance), 1.0);
     } else {
         // Integrate a bounded optically thin volume. Angular structure persists along radial
         // streamers, while the polar regions remain fainter than the equatorial streamer belt.
-        float halfChord = sqrt(max(0.0, outerRadius * outerRadius - impact * impact));
+        float halfChord = sqrt(max(0.0, coronalRadius * coronalRadius - impact * impact));
         float start = max(-halfChord, -along);
         float stepLength = (halfChord - start) / 8.0;
         float column = 0.0;
         for (int i = 0; i < 8; i++) {
             vec3 p = closest + ray * (start + (float(i) + 0.5) * stepLength);
-            float radius = length(p);
-            vec3 direction = solarCoordinates(mat3(InverseView) * (p / radius));
+            vec3 localPoint = solarCoordinates(mat3(InverseView) * p);
+            float height = cubeGap(localPoint);
+            vec3 direction = normalize(localPoint);
             float latitude = abs(direction.z);
             float belt = 0.22 + 0.78 * pow(1.0 - latitude * latitude, 2.0);
             float field = noise(direction * 11.0 + flow * 0.4);
             float streamers = pow(smoothstep(0.32, 0.79, field), 3.0);
             float filaments = noise(direction * 43.0 + flow * 0.35);
             // Phase fronts propagate outwards; each angular flux tube has its own phase.
-            float packet = 0.5 + 0.5 * sin(radius * 24.0 - Phase * 96.0 + field * 9.0);
-            float density = pow(1.0 / radius, 6.0) * (0.16 + 2.4 * streamers) * belt;
+            float packet = 0.5 + 0.5 * sin(height * 24.0 - Phase * 96.0 + field * 9.0);
+            float density = pow(1.0 / (1.0 + height), 8.0) * (0.16 + 2.4 * streamers) * belt;
             density *= (0.50 + 0.50 * filaments) * (0.40 + 0.95 * packet);
-            density *= 1.0 - smoothstep(2.2, outerRadius, radius);
+            density *= 1.0 - smoothstep(2.6, coronalRadius, length(p));
             column += density * stepLength;
         }
         float loops = prominences(closest, ray, impact, along);
-        vec3 emission = vec3(0.96,0.975,1.0) * column * 0.32;
+        // Distance to the projected cube, rather than a circular impact-radius ring. A bounded
+        // convex search gives the inner glare a continuous silhouette at face/edge/corner views.
+        float low = max(-1.75, -along);
+        float high = max(low, 1.75);
+        for (int i = 0; i < 12; i++) {
+            float a = mix(low, high, 0.3333333);
+            float b = mix(low, high, 0.6666667);
+            if (cubeGap(localClosest + localRay * a) < cubeGap(localClosest + localRay * b)) high = b;
+            else low = a;
+        }
+        float gap = cubeGap(localClosest + localRay * ((low + high) * 0.5));
+        float glare = 0.18 * exp(-gap * 9.0) + 0.012 * exp(-gap * 2.6);
+        if (Exposure > 2.0) {
+            glare += 0.55 * exp(-gap * 0.4) * (1.0 - smoothstep(15.0, 20.0, impact));
+        }
+        vec3 emission = vec3(0.96,0.975,1.0) * (column * 0.5 + glare);
         emission += vec3(1.45,0.16,0.12) * loops;
-        emission += vec3(0.11,0.008,0.012) * exp(-(impact - 1.0) * 330.0);
+        emission += vec3(0.55,0.36,0.12) * exp(-gap * 42.0);
         vec3 corona = displayLight(emission);
         float strength = max(corona.r, max(corona.g, corona.b));
         if (strength < 0.0005) discard;
-        // Premultiply the emitted colour through straight-alpha blending, preserving target alpha.
+        // Straight-alpha source; the renderer also accumulates coverage into transparent sky targets.
         fragColor = vec4(corona / max(strength, 0.0001), strength);
         point = origin + ray * along;
     }

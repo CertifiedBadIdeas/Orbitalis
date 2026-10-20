@@ -21,7 +21,7 @@ package org.cbi.orbitalis.minecraft.client.space
 import org.cbi.orbitalis.core.orbit.SolarSystemProfile
 import org.cbi.orbitalis.core.planet.Vector3
 import kotlin.math.PI
-import kotlin.math.asin
+import kotlin.math.atan
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.test.Test
@@ -34,38 +34,38 @@ class SolarSceneTest {
         val observer = Vector3(4000.0, 9000.0, -3000.0)
         val tick = 12000L
         val seconds = -0.025
-        val sphere = SolarScene.sample(profile, tick, seconds, observer)
+        val sun = SolarScene.sample(profile, tick, seconds, observer)
         val expected =
             profile.system
                 .sample(tick, seconds)
                 .frame(SolarSystemProfile.SUN, SolarSystemProfile.EARTH)
                 .origin.position
-        assertTrue((sphere.centre * sphere.radius + observer - expected).length() < 1e-7)
-        assertTrue((sphere.centre - SolarScene.sample(profile, tick, 0.0, observer).centre).length() > 1e-6)
+        assertTrue((sun.centre * sun.halfEdge + observer - expected).length() < 1e-7)
+        assertTrue((sun.centre - SolarScene.sample(profile, tick, 0.0, observer).centre).length() > 1e-6)
     }
 
-    @Test fun `solar angular diameter remains consistent across system sizes`() {
+    @Test fun `solar face-on angular width remains consistent across system sizes`() {
         for (width in listOf(1000, 2000, 5000, 10000, 20000)) {
             val profile = SolarSystemProfile(11.0, selectedEarthWidth = width)
-            val sphere = SolarScene.sample(profile, 0L, 0.0, Vector3.ZERO)
-            val diameter = 2.0 * asin(1.0 / sphere.centre.length()) * 180.0 / PI
+            val sun = SolarScene.sample(profile, 0L, 0.0, Vector3.ZERO)
+            val diameter = 2.0 * atan(1.0 / (sun.centre.length() - 1.0)) * 180.0 / PI
             assertTrue(diameter in 0.53..0.54)
-            assertEquals(profile.sunRadius, sphere.radius)
+            assertEquals(profile.sunRadius, sun.halfEdge)
         }
     }
 
     @Test fun `close solar views subtract large positions before float conversion`() {
         val profile = SolarSystemProfile(11.0, selectedEarthWidth = 10000)
-        val sun =
+        val position =
             profile.system
                 .sample(0L)
                 .frame(SolarSystemProfile.SUN, SolarSystemProfile.EARTH)
                 .origin.position
-        val observer = sun + Vector3(0.125, 0.0, 3.0 * profile.sunRadius)
-        val sphere = SolarScene.sample(profile, 0L, 0.0, observer)
-        assertEquals(-0.125 / sphere.radius, sphere.centre.x, 1e-12)
-        assertEquals(-3.0, sphere.centre.z, 1e-12)
-        assertTrue(2.0 * asin(1.0 / sphere.centre.length()) > 0.67)
+        val observer = position + Vector3(0.125, 0.0, 3.0 * profile.sunRadius)
+        val sun = SolarScene.sample(profile, 0L, 0.0, observer)
+        assertEquals(-0.125 / sun.halfEdge, sun.centre.x, 1e-12)
+        assertEquals(-3.0, sun.centre.z, 1e-12)
+        assertTrue(2.0 * atan(1.0 / (kotlin.math.abs(sun.centre.z) - 1.0)) > 0.9)
     }
 
     @Test fun `animated pattern is continuous across clock wrap and long epochs`() {

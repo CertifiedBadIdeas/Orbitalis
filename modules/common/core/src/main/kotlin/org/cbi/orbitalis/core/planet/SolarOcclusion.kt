@@ -18,36 +18,55 @@
 
 package org.cbi.orbitalis.core.planet
 
-import kotlin.math.cos
+import org.cbi.orbitalis.core.orbit.Rotation3
+import kotlin.math.abs
+import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.sin
-import kotlin.math.sqrt
+import kotlin.math.sign
 
-/** Finite solar-disc quadrature against an opaque box, all coordinates in the box's local frame.
- * Samples represent equal areas of the apparent disc, not a point light or spherical occluder.
- * Rendering mirrors [SAMPLE_COUNT] and the golden-angle rule without rebuilding terrain meshes.
+/** Projected-area quadrature of a luminous cube against an opaque box in the box's local chart.
+ * The visible source faces are weighted by projected area; this is not a point light.
+ * The distant-source approximation ignores irradiance differences across one stellar face.
  */
 class SolarOcclusion(
     val sun: Vector3,
-    val discU: Vector3,
-    val discV: Vector3,
+    val halfEdge: Double,
+    val orientation: Rotation3,
     val halfSize: Vector3,
 ) {
     init {
+        require(halfEdge.isFinite() && halfEdge > 0.0)
         require(halfSize.x > 0.0 && halfSize.y > 0.0 && halfSize.z > 0.0)
     }
 
     /** Fraction of direct solar light reaching [point]; atmospheric refraction is not modelled. */
-    fun visibility(point: Vector3): Double {
-        var visible = 0
-        repeat(SAMPLE_COUNT) { i ->
-            val radius = sqrt((i + 0.5) / SAMPLE_COUNT)
-            val angle = i * GOLDEN_ANGLE
-            val target = sun + discU * (radius * cos(angle)) + discV * (radius * sin(angle))
-            if (!intersects(point, target)) visible++
-        }
-        return visible.toDouble() / SAMPLE_COUNT
+    fun visibility(point: Vector3): Double =
+        (0 until SAMPLE_COUNT).count { !intersects(point, sample(point, it)) }.toDouble() / SAMPLE_COUNT
+
+    /** Equal projected-area samples on the visible source faces, mirrored by the surface shader. */
+    fun sample(
+        point: Vector3,
+        index: Int,
+    ): Vector3 {
+        require(index in 0 until SAMPLE_COUNT)
+        val toward = orientation.inverse(point - sun)
+        val x = abs(toward.x)
+        val y = abs(toward.y)
+        val z = abs(toward.z)
+        val total = x + y + z
+        require(total > 0.0)
+        val cursor = (index + 0.5) / SAMPLE_COUNT * total
+        val v = 2.0 * ((index + 0.5) * SAMPLE_STRIDE - floor((index + 0.5) * SAMPLE_STRIDE)) - 1.0
+        val face =
+            if (cursor < x) {
+                Vector3(sign(toward.x), 2.0 * cursor / x - 1.0, v)
+            } else if (cursor < x + y) {
+                Vector3(v, sign(toward.y), 2.0 * (cursor - x) / y - 1.0)
+            } else {
+                Vector3(2.0 * (cursor - x - y) / z - 1.0, v, sign(toward.z))
+            }
+        return sun + orientation.apply(face * halfEdge)
     }
 
     private fun intersects(
@@ -77,20 +96,6 @@ class SolarOcclusion(
 
     companion object {
         const val SAMPLE_COUNT = 32
-        const val GOLDEN_ANGLE = 2.399963229728653
-
-        fun disc(
-            sun: Vector3,
-            radius: Double,
-            observer: Vector3,
-            halfSize: Vector3,
-        ): SolarOcclusion {
-            require(radius.isFinite() && radius > 0.0)
-            val direction = (sun - observer).normalized()
-            val reference = if (kotlin.math.abs(direction.y) < 0.9) Vector3(0.0, 1.0, 0.0) else Vector3(1.0, 0.0, 0.0)
-            val u = direction.cross(reference).normalized() * radius
-            val v = direction.cross(u).normalized() * radius
-            return SolarOcclusion(sun, u, v, halfSize)
-        }
+        const val SAMPLE_STRIDE = 0.6180339887498949
     }
 }

@@ -31,7 +31,7 @@ import org.joml.Vector3f
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL14
 
-/** Analytic photosphere and corona: no terrain, Sable body or persistent GPU meshes. */
+/** Analytic photosun and corona: no terrain, Sable body or persistent GPU meshes. */
 object SolarRenderer {
     var shader: ShaderInstance? = null
 
@@ -46,11 +46,11 @@ object SolarRenderer {
         writeDepth: Boolean = true,
     ) {
         val program = shader ?: return
-        val sphere = SolarScene.sample(profile, tick, seconds, observer)
-        val radiusScale = (sphere.radius * scale).toFloat()
+        val sun = SolarScene.sample(profile, tick, seconds, observer)
+        val radiusScale = (sun.halfEdge * scale).toFloat()
         // Rotation and camera-relative translation share the caller's scene units.
         val rotation = Matrix4f(view).setTranslation(0f, 0f, 0f)
-        val centre = rotation.transformDirection(Vector3f(sphere.centre.x.toFloat(), sphere.centre.y.toFloat(), sphere.centre.z.toFloat()))
+        val centre = rotation.transformDirection(Vector3f(sun.centre.x.toFloat(), sun.centre.y.toFloat(), sun.centre.z.toFloat()))
         centre.add(view.m30() / radiusScale, view.m31() / radiusScale, view.m32() / radiusScale)
         val previous = RenderSystem.getShader()
         val depth = GL11.glIsEnabled(GL11.GL_DEPTH_TEST)
@@ -68,15 +68,15 @@ object SolarRenderer {
             RenderSystem.depthMask(writeDepth)
             RenderSystem.disableCull()
             RenderSystem.enableBlend()
-            RenderSystem.blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ZERO, GL11.GL_ONE)
+            RenderSystem.blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA)
             program.getUniform("InverseProjection")?.set(Matrix4f(projection).invert())
             program.getUniform("SolarProjection")?.set(projection)
             program.getUniform("InverseView")?.set(rotation.invert())
             program.getUniform("Centre")?.set(centre.x, centre.y, centre.z)
             program.getUniform("RadiusScale")?.set(radiusScale)
-            program.getUniform("Phase")?.set(sphere.phase.toFloat())
+            program.getUniform("Phase")?.set(sun.phase.toFloat())
             // The map exposes resolved surface detail; the flight camera retains a white-hot disc.
-            program.getUniform("Exposure")?.set(if (projection.m33() == 0f) 2.8f else 1f)
+            program.getUniform("Exposure")?.set(if (projection.m33() == 0f) 4.2f else 0.85f)
             program.apply()
             val buffer = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION)
             buffer.addVertex(-1f, -1f, 0f)
