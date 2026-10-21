@@ -19,6 +19,7 @@
 package org.cbi.orbitalis.minecraft.integration.propulsion
 
 import dev.propulsionteam.propulsionsimulated.PropulsionConfig
+import dev.propulsionteam.propulsionsimulated.content.thruster.AbstractThrusterBlock
 import dev.propulsionteam.propulsionsimulated.content.thruster.AbstractThrusterBlockEntity
 import dev.propulsionteam.propulsionsimulated.content.thruster.ThrusterForceProvider
 import dev.propulsionteam.propulsionsimulated.content.thruster.thruster.ThrusterBlockEntity
@@ -111,7 +112,15 @@ class AutopilotSession(
                         )
                     val margin = ThrusterAllocation.solve(actuators(), FlightBody.vector(force), Vector3.ZERO, lever())
                     require(margin.forceResidual.length() / body.massTracker.mass < 0.25) {
-                        "Mission needs balanced thrust authority for 3 m/s² in all six directions in addition to gravity"
+                        "Mission needs balanced thrust authority for 3 m/s² in all six directions in addition to gravity; " +
+                            "axis=$axis sign=$sign mass=${body.massTracker.mass} gravity=$gravity attitude=$attitude " +
+                            "requestedLocal=$force residual=${margin.forceResidual} " +
+                            "engines=" +
+                            engines.joinToString { e ->
+                                "${e.block.blockState.getValue(AbstractThrusterBlock.FACING)}:" +
+                                    "direction=${e.block.thrustDirectionLocal}/capacity=${e.capacity}/fuel=" +
+                                    (e.block as? ThrusterBlockEntity)?.fuelAmountMb
+                            }
                     }
                 }
             }
