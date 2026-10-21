@@ -56,6 +56,7 @@ class AutopilotSession(
     private val earthAttitude: Boolean = false,
 ) : HoldFlightDrive {
     private val attitude = Quaterniond(desiredAttitude)
+    private var transportedMissionAttitude: Quaterniond? = null
     private val engines = mutableListOf<Engine>()
     private var allocation: ThrusterAllocation.Result
     private var closed = false
@@ -134,7 +135,23 @@ class AutopilotSession(
         }
     }
 
-    private fun desiredAttitude(): Quaterniond =
+    private fun desiredAttitude(): Quaterniond {
+        if (!mission || !earthAttitude || body.level.dimension() != FlatPlanetSpace.SPACE) return chartAttitude()
+        val gravity = joml(SableFlightGravity.reading(body).acceleration)
+        if (gravity.lengthSquared() < 1e-10) return transportedMissionAttitude ?: chartAttitude()
+        val up = gravity.negate().normalize()
+        // Transport heading continuously as gravity turns around the planet. Each new drive
+        // starts from the native body's orientation, avoiding phase-change yaw discontinuities.
+        val previous = transportedMissionAttitude ?: Quaterniond(body.logicalPose().orientation())
+        val previousUp = previous.transform(Vector3d(0.0, 1.0, 0.0))
+        return Quaterniond()
+            .rotationTo(previousUp, up)
+            .mul(previous)
+            .normalize()
+            .also { transportedMissionAttitude = it }
+    }
+
+    private fun chartAttitude(): Quaterniond =
         if (earthAttitude) {
             val sample =
                 org.cbi.orbitalis.minecraft.flight.CelestialFlight
