@@ -18,6 +18,7 @@
 
 package org.cbi.orbitalis.consumer.flight
 
+import com.simibubi.create.content.contraptions.glue.SuperGlueEntity
 import com.simibubi.create.content.fluids.pump.PumpBlockEntity
 import com.simibubi.create.content.fluids.tank.FluidTankBlockEntity
 import dev.propulsionteam.propulsionsimulated.content.thruster.AbstractThrusterBlock
@@ -36,6 +37,7 @@ import net.minecraft.gametest.framework.GameTestHelper
 import net.minecraft.resources.ResourceLocation
 import net.minecraft.util.Unit
 import net.minecraft.world.level.ChunkPos
+import net.minecraft.world.level.block.Blocks
 import net.neoforged.neoforge.fluids.capability.IFluidHandler
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
@@ -56,12 +58,23 @@ object ExpeditionSupplyGameTests {
         init {
             container.addForceLoadTicket(body, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
             onFinished(helper) {
+                VacuumTestBlueprint.discardGlue(body)
                 container.removeForceLoadTicket(body, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
                 if (!body.isRemoved) container.removeSubLevel(body, SubLevelRemovalReason.REMOVED)
             }
             for (cx in ((origin.x - 6) shr 4)..((origin.x + 6) shr 4)) {
                 for (cz in ((origin.z - 15) shr 4)..((origin.z + 15) shr 4)) body.plot.newEmptyChunk(ChunkPos(cx, cz))
             }
+            // Native connectivity splits unbound components into separate constructions.
+            // Join the four independent fluid banks with an ordinary structural deck.
+            for (x in -6..6) for (z in -15..15) {
+                if (kotlin.math.abs(x) in 3..5 && kotlin.math.abs(z) in 7..9) continue
+                level.setBlock(origin.offset(x, 0, z), Blocks.WHITE_CONCRETE.defaultBlockState(), 3)
+            }
+            for (tank in ExpeditionFuelSupply.tankOffsets) for (y in 1..4) {
+                level.setBlock(origin.offset(tank.x, y, tank.z), Blocks.WHITE_CONCRETE.defaultBlockState(), 3)
+            }
+            level.addFreshEntity(SuperGlueEntity(level, SuperGlueEntity.span(origin.offset(-6, 0, -15), origin.offset(6, 9, 15))))
             val thruster = BuiltInRegistries.BLOCK.get(ResourceLocation.parse("createpropulsion:thruster"))
             for (site in ExpeditionFuelSupply.engines) {
                 level.setBlock(origin.offset(site.offset), thruster.defaultBlockState().setValue(AbstractThrusterBlock.FACING, site.thrust), 3)
@@ -72,6 +85,13 @@ object ExpeditionSupplyGameTests {
             body.updateBoundingBox()
             body.forceUpdateGlobalBounds()
             body.updateLastPose()
+            // A native plot loading ticket does not prevent Minecraft idling an empty
+            // dimension. Keep this uncrewed fixture's world ticking like the flight tests.
+            fun keepAwake() {
+                level.resetEmptyTime()
+                helper.runAfterDelay(1) { if (!body.isRemoved) keepAwake() }
+            }
+            keepAwake()
         }
 
         fun fuelRemaining() = tanks.sumOf { it.tankInventory.fluidAmount } + engines.sumOf { it.fuelAmountMb }
@@ -93,7 +113,7 @@ object ExpeditionSupplyGameTests {
                 it.setDigitalInput(0.25f)
             }
             helper.runAfterDelay(80) {
-                helper.assertTrue(rig.powers.zip(burnTimes).all { (power, before) -> power.currentBurnTime < before }, "Coal burn clock did not advance")
+                helper.assertTrue(rig.powers.zip(burnTimes).all { (power, before) -> power.currentBurnTime < before }, "Coal burn clock did not advance: before=$burnTimes after=${rig.powers.map { it.currentBurnTime }} fuelBefore=$fuelBefore fuelAfter=${rig.fuelRemaining()} thrust=${rig.engines.map { it.currentThrust }}")
                 helper.assertTrue(rig.fuelRemaining() < fuelBefore, "Fractional native throttle consumed no finite onboard fuel")
                 helper.assertTrue(rig.engines.all { it.currentThrust > 0f }, "Fuel-fed native engines did not produce thrust")
                 helper.succeed()
