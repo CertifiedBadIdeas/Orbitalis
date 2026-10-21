@@ -21,6 +21,7 @@ package org.cbi.orbitalis.minecraft.integration.propulsion
 import dev.propulsionteam.propulsionsimulated.PropulsionConfig
 import dev.propulsionteam.propulsionsimulated.content.thruster.AbstractThrusterBlockEntity
 import dev.propulsionteam.propulsionsimulated.content.thruster.ThrusterForceProvider
+import dev.propulsionteam.propulsionsimulated.content.thruster.thruster.ThrusterBlockEntity
 import dev.propulsionteam.propulsionsimulated.content.thruster.thruster.creative_thruster.CreativeThrusterBlockEntity
 import dev.ryanhcode.sable.sublevel.ServerSubLevel
 import dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem
@@ -58,9 +59,9 @@ class AutopilotSession(
     private var closed = false
 
     private class Engine(
-        val block: CreativeThrusterBlockEntity,
+        val block: AbstractThrusterBlockEntity,
     ) {
-        var capacity = block.targetThrustNewtons.toDouble()
+        var capacity = initialCapacity(block)
     }
 
     init {
@@ -70,7 +71,10 @@ class AutopilotSession(
         for (holder in body.plot.loadedChunks) {
             for (block in holder.chunk.blockEntities.values) {
                 if (block !is AbstractThrusterBlockEntity) continue
-                require(block is CreativeThrusterBlockEntity) { "This integration currently supports creative Propulsion engines only" }
+                require(block is CreativeThrusterBlockEntity || block.javaClass == ThrusterBlockEntity::class.java) {
+                    "Autopilot supports creative engines or independent single liquid thrusters only"
+                }
+                require(block !is ThrusterBlockEntity || !block.isMultiblock) { "Use independent single liquid thrusters" }
                 if (!block.isController) continue
                 require(block.power == 0.0f) { "Turn the linked controller and all engine inputs off first" }
                 require(
@@ -81,7 +85,7 @@ class AutopilotSession(
             }
         }
         engines.sortBy { it.block.blockPos.asLong() }
-        require(engines.isNotEmpty() && engines.size <= 64) { "Autopilot requires 1..64 creative engine controllers" }
+        require(engines.isNotEmpty() && engines.size <= 64) { "Autopilot requires 1..64 supported engine controllers" }
         require(engines.all { it.capacity.isFinite() && it.capacity > 0 }) { "An engine has no configured thrust" }
         validateBounds()
         val gravity = externalAcceleration()
@@ -166,6 +170,16 @@ class AutopilotSession(
         for (e in engines) {
             require(!e.block.isRemoved && e.block.isController && body.level.getBlockEntity(e.block.blockPos) === e.block) {
                 "Engine layout changed; engage again after assembly settles"
+            }
+            if (e.block is ThrusterBlockEntity) {
+                try {
+                    e.capacity = initialCapacity(e.block)
+                } catch (failure: IllegalArgumentException) {
+                    // A direct drive caller receives the failure with all native inputs released too.
+                    close()
+                    throw failure
+                }
+                continue
             }
             // Native measured steady capacity includes atmospheric/configuration multipliers.
             // Do not recreate Propulsion's private thrust formula or overwrite its power setting.
@@ -260,6 +274,14 @@ class AutopilotSession(
 
     companion object {
         private fun joml(v: Vector3) = Vector3d(v.x, v.y, v.z)
+
+        private fun initialCapacity(block: AbstractThrusterBlockEntity): Double {
+            if (block is CreativeThrusterBlockEntity) return block.targetThrustNewtons.toDouble()
+            require(block.javaClass == ThrusterBlockEntity::class.java && !block.isMultiblock) { "Unsupported liquid engine layout" }
+            val liquid = block as ThrusterBlockEntity
+            require(liquid.validFluid() && liquid.fuelAmountMb > 0) { "Liquid engine has no usable fuel; refuel before engaging control" }
+            return LiquidThrusterSupport.capacity(liquid)
+        }
 
         fun enginesFaded(body: ServerSubLevel): Boolean =
             body.plot.loadedChunks.all { holder ->
