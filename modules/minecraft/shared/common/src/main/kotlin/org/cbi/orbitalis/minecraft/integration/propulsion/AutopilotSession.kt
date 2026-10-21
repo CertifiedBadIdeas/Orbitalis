@@ -91,7 +91,8 @@ class AutopilotSession(
         require(engines.all { it.capacity.isFinite() && it.capacity > 0 }) { "An engine has no configured thrust" }
         validateBounds()
         val gravity = externalAcceleration()
-        val localForce = attitude.transformInverse(joml(gravity).mul(-body.massTracker.mass))
+        val desired = desiredAttitude()
+        val localForce = desired.transformInverse(joml(gravity).mul(-body.massTracker.mass))
         val hover = ThrusterAllocation.solve(actuators(), FlightBody.vector(localForce), Vector3.ZERO, lever())
         require(hover.forceResidual.length() / body.massTracker.mass < 0.25) {
             String.format(
@@ -106,14 +107,14 @@ class AutopilotSession(
             for (axis in listOf(Vector3(1.0, 0.0, 0.0), Vector3(0.0, 1.0, 0.0), Vector3(0.0, 0.0, 1.0))) {
                 for (sign in listOf(-1.0, 1.0)) {
                     val force =
-                        attitude.transformInverse(
+                        desired.transformInverse(
                             joml(axis * (sign * OrbitalGuidance.MAX_ACCELERATION) - gravity)
                                 .mul(body.massTracker.mass),
                         )
                     val margin = ThrusterAllocation.solve(actuators(), FlightBody.vector(force), Vector3.ZERO, lever())
                     require(margin.forceResidual.length() / body.massTracker.mass < 0.25) {
                         "Mission needs balanced thrust authority for 3 m/s² in all six directions in addition to gravity; " +
-                            "axis=$axis sign=$sign mass=${body.massTracker.mass} gravity=$gravity attitude=$attitude " +
+                            "axis=$axis sign=$sign mass=${body.massTracker.mass} gravity=$gravity attitude=$desired " +
                             "requestedLocal=$force residual=${margin.forceResidual} " +
                             "engines=" +
                             engines.joinToString { e ->
@@ -132,6 +133,24 @@ class AutopilotSession(
             e.block.setControlMode(AbstractThrusterBlockEntity.ControlMode.PERIPHERAL)
         }
     }
+
+    private fun desiredAttitude(): Quaterniond =
+        if (earthAttitude) {
+            val sample =
+                org.cbi.orbitalis.minecraft.flight.CelestialFlight
+                    .sample(body.level)
+
+            fun axis(v: Vector3) =
+                sample.direction(v, net.minecraft.world.level.Level.OVERWORLD, body.level.dimension()).let {
+                    Vector3d(it.x, it.y, it.z)
+                }
+            Quaterniond()
+                .setFromNormalized(
+                    org.joml.Matrix3d(axis(Vector3(1.0, 0.0, 0.0)), axis(Vector3(0.0, 1.0, 0.0)), axis(Vector3(0.0, 0.0, 1.0))),
+                ).mul(attitude)
+        } else {
+            attitude
+        }
 
     private fun lever(): Double {
         var length = 1.0
@@ -217,23 +236,7 @@ class AutopilotSession(
         require(velocity.length() <= maximumSpeed && omega.length() <= 2.0) {
             "Speed/rotation exceeded autopilot limits: native speed=${velocity.length()}/$maximumSpeed m/s; angular speed=${omega.length()}/2.0 rad/s"
         }
-        val desired =
-            if (earthAttitude) {
-                val sample =
-                    org.cbi.orbitalis.minecraft.flight.CelestialFlight
-                        .sample(body.level)
-
-                fun axis(v: Vector3) =
-                    sample.direction(v, net.minecraft.world.level.Level.OVERWORLD, body.level.dimension()).let {
-                        Vector3d(it.x, it.y, it.z)
-                    }
-                Quaterniond()
-                    .setFromNormalized(
-                        org.joml.Matrix3d(axis(Vector3(1.0, 0.0, 0.0)), axis(Vector3(0.0, 1.0, 0.0)), axis(Vector3(0.0, 0.0, 1.0))),
-                    ).mul(attitude)
-            } else {
-                attitude
-            }
+        val desired = desiredAttitude()
         val error = Quaterniond(pose.orientation()).conjugate().mul(desired).normalize()
         if (error.w < 0) error.mul(-1.0)
         val sine = sqrt(error.x * error.x + error.y * error.y + error.z * error.z)
