@@ -25,36 +25,37 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat
 import com.mojang.blaze3d.vertex.Tesselator
 import com.mojang.blaze3d.vertex.VertexBuffer
 import com.mojang.blaze3d.vertex.VertexFormat
+import net.minecraft.client.Camera
 import net.minecraft.client.CloudStatus
 import net.minecraft.client.Minecraft
 import net.minecraft.client.multiplayer.ClientLevel
 import net.minecraft.client.renderer.ShaderInstance
-import net.minecraft.client.renderer.texture.SimpleTexture
-import net.minecraft.resources.ResourceLocation
-import net.minecraft.server.packs.resources.ResourceManager
+import net.minecraft.world.effect.MobEffects
+import net.minecraft.world.entity.LivingEntity
 import net.minecraft.world.level.Level
-import net.minecraft.world.phys.Vec3
+import net.minecraft.world.level.material.FogType
+import org.cbi.orbitalis.core.cloud.ProceduralCloudField
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.clouds.EarthCloudState
+import org.cbi.orbitalis.minecraft.flight.CelestialFlight
+import org.cbi.orbitalis.minecraft.lighting.SkyLighting
+import org.joml.FrustumIntersection
 import org.joml.Matrix4f
+import org.joml.Vector3f
 import org.lwjgl.BufferUtils
 import org.lwjgl.opengl.GL11
-import org.lwjgl.opengl.GL12
 import org.lwjgl.opengl.GL14
 import org.lwjgl.opengl.GL30
 import java.nio.ByteBuffer
+import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.sin
 
-/** Finite cloud overview using the runtime Minecraft texture and the native renderer's phase. */
+/** Shared procedural cloud volumes; worker-built sector meshes carry no baked lighting. */
 object PlanetCloudRenderer {
-    private val texture = ResourceLocation.withDefaultNamespace("textures/environment/clouds.png")
-    private val filtered = ResourceLocation.fromNamespaceAndPath("orbitalis", "planet_clouds")
-    private var registered = false
     var worldShader: ShaderInstance? = null
     var compositeShader: ShaderInstance? = null
     private var scene: Scene? = null
-    private var fancyBuffer: VertexBuffer? = null
-    private var fastBuffer: VertexBuffer? = null
-    private var boundaryBuffer: VertexBuffer? = null
-    private var boundaryHalfSize = Double.NaN
     private var cloudDepth: TextureTarget? = null
 
     private data class Scene(
@@ -64,35 +65,11 @@ object PlanetCloudRenderer {
         val projection: Matrix4f,
         val nativeProjection: Matrix4f,
         val scale: Double,
-        val depth: Int,
-        val color: Vec3,
+        val depth: Int?,
+        val rotation: Matrix4f,
         val width: Int,
         val height: Int,
     )
-
-    private class CloudTexture : SimpleTexture(texture) {
-        override fun load(resources: ResourceManager) {
-            super.load(resources)
-            val filter =
-                com.mojang.blaze3d.pipeline.RenderCall {
-                    bind()
-                    GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL12.GL_TEXTURE_MAX_LEVEL, 0)
-                    GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL11.GL_REPEAT)
-                    GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL11.GL_REPEAT)
-                    setFilter(false, false)
-                }
-            if (RenderSystem.isOnRenderThreadOrInit()) filter.execute() else RenderSystem.recordRenderCall(filter)
-        }
-    }
-
-    private fun textureId(): Int {
-        val manager = Minecraft.getInstance().textureManager
-        if (!registered) {
-            manager.register(filtered, CloudTexture())
-            registered = true
-        }
-        return manager.getTexture(filtered).id
-    }
 
     /** Keep nearest-cloud depth in compressed scene coordinates, before physical depth loses detail. */
     private fun cloudDepth(
@@ -120,41 +97,25 @@ object PlanetCloudRenderer {
         }
     }
 
-    private var time = 0f
+    internal fun atmosphereCloudHeight(): Double =
+        (EarthCloudState.client?.baseHeight ?: EarthCloudState.BASE_HEIGHT) + ProceduralCloudField.MAX_HEIGHT
 
-    internal fun atmosphereCloudHeight(): Double = height.toDouble()
+    @JvmStatic
+    fun surfaceFar(
+        original: Float,
+        eyeHeight: Double,
+    ): Float = CloudSectorSelection.surfaceFar(original, eyeHeight, EarthCloudState.client?.baseHeight ?: EarthCloudState.BASE_HEIGHT)
 
-    private var height = 192f
-    private var nativeColor = Vec3(1.0, 1.0, 1.0)
-
-    /** Called before either world's sky hook; LevelRenderer's clock survives native travel. */
-    fun synchronize(
-        nativeTime: Float,
-        surfaceHeight: Float?,
-        surfaceColor: Vec3,
-    ) {
+    /** Called before either sky hook so no prepared scene survives a world/camera change. */
+    fun beginFrame() {
         scene = null
-        time = nativeTime
-        if (surfaceHeight != null) height = surfaceHeight
-        nativeColor = surfaceColor
     }
 
     fun clear() {
-        time = 0f
-        height = 192f
-        nativeColor = Vec3(1.0, 1.0, 1.0)
         scene = null
-        fancyBuffer?.close()
-        fastBuffer?.close()
-        boundaryBuffer?.close()
-        fancyBuffer = null
-        fastBuffer = null
-        boundaryBuffer = null
-        boundaryHalfSize = Double.NaN
+        CloudSectorCache.clear()
         cloudDepth?.destroyBuffers()
         cloudDepth = null
-        if (registered) Minecraft.getInstance().textureManager.release(filtered)
-        registered = false
     }
 
     fun prepareWorld(
@@ -164,20 +125,63 @@ object PlanetCloudRenderer {
         projection: Matrix4f,
         scale: Double,
         depth: Int,
-        opacity: Float,
         width: Int,
         height: Int,
         nativeProjection: Matrix4f = projection,
     ) {
-        val color =
-            if (level.dimension() ==
-                Level.OVERWORLD
-            ) {
-                nativeColor.lerp(Vec3(1.0, 1.0, 1.0), opacity.toDouble())
-            } else {
-                Vec3(1.0, 1.0, 1.0)
-            }
-        scene = Scene(level, observer, Matrix4f(view), Matrix4f(projection), Matrix4f(nativeProjection), scale, depth, color, width, height)
+        scene =
+            Scene(
+                level,
+                observer,
+                Matrix4f(view),
+                Matrix4f(projection),
+                Matrix4f(nativeProjection),
+                scale,
+                depth,
+                CelestialView.earthRotation(),
+                width,
+                height,
+            )
+    }
+
+    /** The same cloud material below the ascent blend, expressed directly in native surface metres. */
+    @JvmStatic
+    fun prepareSurface(
+        level: ClientLevel,
+        camera: Camera,
+        view: Matrix4f,
+        projection: Matrix4f,
+        foggy: Boolean,
+    ) {
+        if (foggy || camera.fluidInCamera != FogType.NONE ||
+            (level.dimension() != Level.OVERWORLD || !CelestialFlight.available(level))
+        ) {
+            return
+        }
+        val entity = camera.entity
+        if (entity is LivingEntity &&
+            (
+                entity.hasEffect(MobEffects.BLINDNESS) ||
+                    entity.hasEffect(MobEffects.DARKNESS)
+            )
+        ) {
+            return
+        }
+        val p = camera.position
+        val target = Minecraft.getInstance().mainRenderTarget
+        scene =
+            Scene(
+                level,
+                Vector3(p.x, p.y, p.z),
+                Matrix4f(view),
+                Matrix4f(projection),
+                Matrix4f(projection),
+                1.0,
+                null,
+                Matrix4f(),
+                target.width,
+                target.height,
+            )
     }
 
     fun renderWorld() {
@@ -203,16 +207,52 @@ object PlanetCloudRenderer {
     ) {
         val mc = Minecraft.getInstance()
         val clouds = mc.options.cloudsType
-        if (clouds == CloudStatus.OFF || !height.isFinite() || worldShader == null) return
-        val fancy = clouds == CloudStatus.FANCY
-        val y = height + 0.33f
+        if (clouds == CloudStatus.OFF || worldShader == null) return
+        val state = EarthCloudState.sampleClient() ?: return
+        val fancy = true // Both settings retain volume; FAST selects coarser geometry.
+        val y = state.baseHeight.toFloat()
         val modelView =
             Matrix4f(
                 view,
             ).scale(
                 scale.toFloat(),
             ).translate(-observer.x.toFloat(), -observer.y.toFloat(), -observer.z.toFloat())
-                .mul(CelestialView.earthRotation())
+                .mul(frame?.rotation ?: CelestialView.earthRotation())
+        val inverse = Matrix4f(modelView).invert()
+        val eye = inverse.transformPosition(Vector3f())
+        val localEye = Vector3(eye.x.toDouble(), eye.y.toDouble(), eye.z.toDouble())
+        val parallel = abs(projection.m33()) > 0.5f
+        val distance = abs(localEye.y - state.baseHeight - ProceduralCloudField.MAX_HEIGHT / 2)
+        val local = !parallel && distance < 2000.0
+        val pixelsPerMetre =
+            if (parallel) {
+                abs(projection.m00() * modelView.getScale(Vector3f()).x) * mc.window.width / 2.0
+            } else {
+                null
+            }
+        val step = CloudSectorSelection.step(distance, pixelsPerMetre, clouds == CloudStatus.FAST)
+        val clock = CelestialView.sample().frames
+        val wind = EarthCloudState.wind(clock.tick, clock.seconds, ProceduralCloudField.PERIOD)
+        val frustum = FrustumIntersection(Matrix4f(projection).mul(modelView))
+        val sectors =
+            CloudSectorSelection.sectors(SpaceScene.HALF_SIZE, localEye, wind.x, wind.z, local).filter {
+                val x = (it.x * ProceduralCloudField.SECTOR_SIZE + wind.x).toFloat()
+                val z = (it.z * ProceduralCloudField.SECTOR_SIZE + wind.z).toFloat()
+                frustum.testAab(
+                    x,
+                    y,
+                    z,
+                    x + ProceduralCloudField.SECTOR_SIZE.toFloat(),
+                    y + ProceduralCloudField.MAX_HEIGHT.toFloat(),
+                    z + ProceduralCloudField.SECTOR_SIZE.toFloat(),
+                )
+            }
+        CloudSectorCache.pumpUploads()
+        val meshes =
+            sectors.mapNotNull { sector ->
+                CloudSectorCache.request(state.seed, sector.x, sector.z, step)?.let { sector to it }
+            }
+        if (meshes.isEmpty()) return
         val shader = checkNotNull(worldShader)
         val depth = GL11.glIsEnabled(GL11.GL_DEPTH_TEST)
         val write = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK)
@@ -238,38 +278,41 @@ object PlanetCloudRenderer {
             shader.MODEL_VIEW_MATRIX?.set(modelView)
             shader.PROJECTION_MATRIX?.set(projection)
             shader.getUniform("NativeProjection")?.set(frame?.nativeProjection ?: projection)
-            val sunlight = PlanetLighting.earthDirection()
+            val nativeSun =
+                frame != null && frame.level.dimension() == Level.OVERWORLD &&
+                    !SkyLighting.physicalOverworld(frame.level)
+            val sunlight =
+                if (nativeSun) {
+                    val angle = frame!!.level.getTimeOfDay(mc.timer.getGameTimeDeltaPartialTick(false)) * Math.PI * 2
+                    Vector3(-sin(angle), cos(angle), 0.0)
+                } else {
+                    PlanetLighting.earthDirection()
+                }
             PlanetLighting.vector(shader, "SunDirection", sunlight)
-            PlanetLighting.vector(shader, "SunRadiance", PlanetLighting.earthSunRadiance())
+            PlanetLighting.vector(shader, "SunRadiance", if (nativeSun) Vector3(1.0, 1.0, 1.0) else PlanetLighting.earthSunRadiance())
             PlanetLighting.prepareView(shader, modelView, projection)
             PlanetLighting.prepareAtmosphere(shader)
-            shader.COLOR_MODULATOR?.set(1f, 1f, 1f, 1f)
-            shader.setSampler("Sampler0", textureId())
-            shader.setSampler("Sampler1", frame?.depth ?: textureId())
+            // Weather dims the common material; day/night and chroma belong to its solar shader.
+            val weather = (1f - 0.4f * state.rain) * (1f - 0.4f * state.thunder)
+            shader.COLOR_MODULATOR?.set(weather, weather, weather, 1f)
+            shader.getUniform("UsePlanetDepth")?.set(if (frame?.depth == null) 0 else 1)
+            shader.setSampler("Sampler1", frame?.depth ?: 0)
             shader.getUniform("SceneScale")?.set(scale.toFloat())
             shader.getUniform("Viewport")?.set(frame?.width?.toFloat() ?: 1f, frame?.height?.toFloat() ?: 1f)
             shader.getUniform("WorldDepth")?.set(if (frame == null) 0 else 3)
             shader.getUniform("CloudHalfSize")?.set(SpaceScene.HALF_SIZE.toFloat())
-            val phase = PlanetCloudMesh.phase(time)
-            shader.getUniform("CloudPhase")?.set(phase.x, phase.z)
-            val tiles = PlanetCloudMesh.tiles(SpaceScene.HALF_SIZE, time)
-            val vertices = buffer(fancy)
-            val boundary = if (fancy) boundaryBuffer(SpaceScene.HALF_SIZE) else null
+            shader.getUniform("CloudFadeDistance")?.set(if (local) CloudSectorSelection.FADE_DISTANCE.toFloat() else 0f)
 
             fun drawTiles() {
-                vertices.bind()
-                shader.getUniform("CloudBoundary")?.set(0)
-                for (tile in tiles) {
-                    shader.getUniform("CloudOffset")?.set(tile.x, y, tile.z)
+                for ((sector, mesh) in meshes) {
+                    mesh.bind()
+                    shader.getUniform("CloudOffset")?.set(
+                        (sector.x * ProceduralCloudField.SECTOR_SIZE + wind.x).toFloat(),
+                        y,
+                        (sector.z * ProceduralCloudField.SECTOR_SIZE + wind.z).toFloat(),
+                    )
                     shader.apply()
-                    vertices.draw()
-                }
-                if (boundary != null) {
-                    boundary.bind()
-                    shader.getUniform("CloudBoundary")?.set(1)
-                    shader.getUniform("CloudOffset")?.set(0f, y, 0f)
-                    shader.apply()
-                    boundary.draw()
+                    mesh.draw()
                 }
             }
             if (fancy && frame != null) {
@@ -360,34 +403,6 @@ object PlanetCloudRenderer {
             BufferUploader.draw(quad.buildOrThrow())
         } finally {
             shader.clear()
-        }
-    }
-
-    private fun boundaryBuffer(halfSize: Double): VertexBuffer {
-        boundaryBuffer?.let { if (boundaryHalfSize == halfSize) return it }
-        boundaryBuffer?.close()
-        return upload(PlanetCloudMesh.boundary(halfSize)).also {
-            boundaryBuffer = it
-            boundaryHalfSize = halfSize
-        }
-    }
-
-    private fun buffer(fancy: Boolean): VertexBuffer {
-        (if (fancy) fancyBuffer else fastBuffer)?.let { return it }
-        return upload(PlanetCloudMesh.vertices(fancy)).also {
-            if (fancy) fancyBuffer = it else fastBuffer = it
-        }
-    }
-
-    private fun upload(vertices: List<PlanetCloudMesh.Vertex>): VertexBuffer {
-        val builder = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR)
-        for (v in vertices) {
-            builder.addVertex(v.x, v.y, v.z).setUv(v.u, v.v).setColor(255, 255, 255, 204)
-        }
-        return VertexBuffer(VertexBuffer.Usage.STATIC).also {
-            it.bind()
-            it.upload(builder.buildOrThrow())
-            VertexBuffer.unbind()
         }
     }
 }

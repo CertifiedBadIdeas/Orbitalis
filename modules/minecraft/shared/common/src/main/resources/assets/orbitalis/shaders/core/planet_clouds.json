@@ -8,9 +8,6 @@
   ],
   "samplers": [
     {
-      "name": "Sampler0"
-    },
-    {
       "name": "Sampler1"
     }
   ],
@@ -131,15 +128,7 @@
       ]
     },
     {
-      "name": "CloudHalfSize",
-      "type": "float",
-      "count": 1,
-      "values": [
-        5000
-      ]
-    },
-    {
-      "name": "CloudBoundary",
+      "name": "UsePlanetDepth",
       "type": "int",
       "count": 1,
       "values": [
@@ -147,12 +136,11 @@
       ]
     },
     {
-      "name": "CloudPhase",
+      "name": "CloudHalfSize",
       "type": "float",
-      "count": 2,
+      "count": 1,
       "values": [
-        0,
-        0
+        5000
       ]
     },
     {
@@ -263,6 +251,14 @@
     },
     {
       "name": "ParallelView",
+      "type": "float",
+      "count": 1,
+      "values": [
+        0
+      ]
+    },
+    {
+      "name": "CloudFadeDistance",
       "type": "float",
       "count": 1,
       "values": [

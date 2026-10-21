@@ -20,6 +20,10 @@ package org.cbi.orbitalis.neoforge.mixin;
 
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.CloudStatus;
+import net.minecraft.world.level.Level;
+import org.cbi.orbitalis.minecraft.flight.CelestialFlight;
+import org.cbi.orbitalis.minecraft.client.space.PlanetCloudRenderer;
 import net.minecraft.client.renderer.GameRenderer;
 import org.cbi.orbitalis.core.planet.Vector3;
 import org.cbi.orbitalis.minecraft.client.space.FlightSky;
@@ -38,8 +42,14 @@ public abstract class PlanetCloudProjectionMixin {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || !CelestialView.INSTANCE.hasFrame(mc.level)) return original;
         var camera = mc.gameRenderer.getMainCamera();
-        if (FlightSky.INSTANCE.weight(mc.level, camera) <= 0) return original;
         var p = camera.getPosition();
+        if (FlightSky.INSTANCE.weight(mc.level, camera) <= 0) {
+            if (mc.level.dimension() == Level.OVERWORLD && CelestialFlight.Companion.available(mc.level)
+                && mc.options.getCloudsType() != CloudStatus.OFF) {
+                return PlanetCloudRenderer.surfaceFar(original, p.y);
+            }
+            return original;
+        }
         var observer = FlightSpaceCoordinates.INSTANCE.globalPosition(mc.level, new Vector3(p.x, p.y, p.z));
         double extent = new Vector3(SpaceScene.INSTANCE.getHALF_SIZE(), 4096.0, SpaceScene.INSTANCE.getHALF_SIZE()).length();
         return SkyProjection.INSTANCE.nativeFar(original, (observer.length() + extent) * 2.0);

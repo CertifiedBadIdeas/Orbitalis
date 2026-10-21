@@ -206,3 +206,8 @@ use `Level.OVERWORLD` as a synonym for the inertial root: use the explicit root 
 See [axial rotation](earth-rotation.md) for velocity/force transport, migration and presentation.
 Native daylight follows physical Earth spin only when `/orbitalis sky cosmic` is selected. Sleep
 and time commands never move either physical spin. The default `vanilla` sky retains native daylight.
+
+Cloud rendering uses a deterministic, periodic column field in `core.cloud`, with exterior sector
+meshes cached by seed and detail level on the client. The field does not load Minecraft chunks.
+[Earth cloud state](earth-cloud-state.md) documents the authoritative weather snapshot and shared
+physical-time wind used on the surface, orbital map and in space.

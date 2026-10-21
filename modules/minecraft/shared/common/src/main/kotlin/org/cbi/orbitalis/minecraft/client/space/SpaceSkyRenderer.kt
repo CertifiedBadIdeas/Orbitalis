@@ -235,7 +235,6 @@ object SpaceSkyRenderer {
                     projection,
                     scale,
                     surface.depthTextureId,
-                    opacity,
                     width,
                     height,
                     nativeProjection,

@@ -29,6 +29,7 @@ import net.minecraft.world.level.Level;
 import org.cbi.orbitalis.minecraft.client.space.FlightSky;
 import org.cbi.orbitalis.minecraft.client.space.PlanetCloudRenderer;
 import org.cbi.orbitalis.minecraft.client.space.SpaceSkyRenderer;
+import org.cbi.orbitalis.minecraft.flight.CelestialFlight;
 import org.joml.Matrix4f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -38,17 +39,17 @@ import org.spongepowered.asm.mixin.injection.At;
 @Mixin(LevelRenderer.class)
 public abstract class FlightSkyRendererMixin {
     @Shadow private ClientLevel level;
-    @Shadow private int ticks;
 
     @WrapMethod(method = "renderSky")
     private void orbitalis$sky(Matrix4f view, Matrix4f projection, float partialTick, Camera camera,
                                boolean foggy, Runnable setupFog, Operation<Void> original) {
-        PlanetCloudRenderer.INSTANCE.synchronize(ticks + partialTick,
-            level.dimension() == Level.OVERWORLD ? level.effects().getCloudHeight() : null,
-            level.getCloudColor(partialTick));
+        PlanetCloudRenderer.INSTANCE.beginFrame();
         float weight = FlightSky.INSTANCE.weight(level, camera);
         if (level.dimension() != Level.OVERWORLD || weight <= 0) {
             original.call(view, projection, partialTick, camera, foggy, setupFog);
+            if (weight <= 0 && level.dimension() == Level.OVERWORLD && CelestialFlight.Companion.available(level)) {
+                PlanetCloudRenderer.prepareSurface(level, camera, view, projection, foggy);
+            }
             return;
         }
         if (weight < 1) original.call(view, projection, partialTick, camera, foggy, setupFog);
@@ -61,8 +62,9 @@ public abstract class FlightSkyRendererMixin {
                                       Matrix4f projection, float partialTick, double x, double y, double z,
                                       Operation<Void> original) {
         // Wrap the entire method, including renderer replacements injected by Sodium.
-        // One height/phase-matched layer owns the elevated view: coincident sheets would z-fight.
-        if (FlightSky.INSTANCE.weight(level, Minecraft.getInstance().gameRenderer.getMainCamera()) > 0) return;
+        // Earth surface and orbital views share one cloud field in both sky modes.
+        if ((level.dimension() == Level.OVERWORLD && CelestialFlight.Companion.available(level)) ||
+            FlightSky.INSTANCE.weight(level, Minecraft.getInstance().gameRenderer.getMainCamera()) > 0) return;
         original.call(poses, view, projection, partialTick, x, y, z);
     }
 

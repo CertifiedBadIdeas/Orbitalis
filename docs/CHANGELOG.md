@@ -20,6 +20,20 @@ limitations under the License.
 
 ## 0.2.0 — In development
 
+- Preserve walking, landing/hurt and nausea camera transforms in the compressed celestial projection;
+  stepping onto terrain with view bobbing enabled no longer rejects a valid perspective matrix.
+- Preserve physical day/night lighting in the cosmic Overworld at high altitude, including native
+  terrain and optional Voxy, instead of blending towards constant daylight above the atmosphere.
+
+- Replace finite Earth's vanilla cloud sheets with seeded procedural block volumes of varying
+  thickness. Ground, orbital and map views share the field, wind and Earth weather, including
+  directional face lighting, transmitted edges and atmospheric attenuation. Both Earth sky modes
+  use these clouds; the native cloud quality/off option remains available.
+- Keep the full cloud distance visible from ground height, independent of the native chunk render
+  distance, while preserving depth occlusion by nearby terrain and optional Voxy.
+- Build cloud sector meshes on two bounded workers and upload incrementally into a bounded GPU
+  cache; choose a consistent detail level per view and limit surface cloud distance.
+
 - Allow up to 10 GiB of Java heap for both development clients, including the flight consumer.
 
 - Bound optional Voxy WorldGenV2 work and remaining-work statistics to each planet's configured

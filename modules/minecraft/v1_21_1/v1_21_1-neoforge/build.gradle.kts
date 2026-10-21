@@ -269,7 +269,7 @@ tasks.configureEach {
                 "moon" -> setOf("nativelunarterrain", "nativelunargroundcontact", "lunarshiproundtrip", "lunarsideroundtrip", "lunarundersideroundtrip", "fastcreativelunarplayer", "fastspectatorlunaredge", "fastsurvivallunarunderside")
                 "planets" -> setOf("mercuryshiplandingroundtrip", "venusshiplandingroundtrip", "mercuryindependentplayerroundtrip", "venusindependentplayerroundtrip", "nativeinnerplanetterrain", "innerplanetseedpacket")
                 "control" -> setOf("flightcontrolwithoutpropulsion")
-                "settings" -> setOf("nativeworldcreationsettings", "nativeskylightingsettings")
+                "settings" -> setOf("nativeworldcreationsettings", "nativeskylightingsettings", "nativeearthcloudweathersnapshot")
                 "scaled" -> setOf("nativesmallcelestialsystem")
                 "sectors" -> sectorNames
                 "map" -> mapNames
@@ -282,7 +282,7 @@ tasks.configureEach {
                 "flat" -> setOf("nativefinitebodyfreeorbit")
                 "surface" -> surfaceNames
                 "transfer" -> transferNames + travelNames
-                else -> setOf("mercuryshiplandingroundtrip", "venusshiplandingroundtrip", "mercuryindependentplayerroundtrip", "venusindependentplayerroundtrip", "nativeinnerplanetterrain", "innerplanetseedpacket", "nativelunarterrain", "nativelunargroundcontact", "lunarshiproundtrip", "lunarsideroundtrip", "lunarundersideroundtrip", "fastcreativelunarplayer", "fastspectatorlunaredge", "fastsurvivallunarunderside") + sectorNames + mapNames + objectNames + terrainNames + atlasNames + surfaceNames + transferNames + travelNames + navigationNames + sparseNames + setOf("nativefinitebodyfreeorbit", "nativeworldcreationsettings", "nativeskylightingsettings", "flightcontrolwithoutpropulsion")
+                else -> setOf("mercuryshiplandingroundtrip", "venusshiplandingroundtrip", "mercuryindependentplayerroundtrip", "venusindependentplayerroundtrip", "nativeinnerplanetterrain", "innerplanetseedpacket", "nativelunarterrain", "nativelunargroundcontact", "lunarshiproundtrip", "lunarsideroundtrip", "lunarundersideroundtrip", "fastcreativelunarplayer", "fastspectatorlunaredge", "fastsurvivallunarunderside") + sectorNames + mapNames + objectNames + terrainNames + atlasNames + surfaceNames + transferNames + travelNames + navigationNames + sparseNames + setOf("nativefinitebodyfreeorbit", "nativeworldcreationsettings", "nativeskylightingsettings", "nativeearthcloudweathersnapshot", "flightcontrolwithoutpropulsion")
             }
             check(names.containsAll(requiredNames)) {
                 "GameTest run did not execute its required $gameTestSuite scenarios: $names"
