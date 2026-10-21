@@ -24,14 +24,14 @@ import net.minecraft.nbt.CompoundTag
 object NativePropulsionPayload {
     fun forComparison(payload: CompoundTag): CompoundTag {
         val type = payload.getString("id")
-        if (type == "simulated:portable_engine") {
+        if (type in setOf("simulated:portable_engine", "create:simple_kinetic", "create:mechanical_pump")) {
             // Create 6.0.10 initializes updateSpeed=true in the kinetic constructor and
             // deliberately does not restore it in read(). The first native attachKinetics
             // clears this work request. Coal, burn time, direction, speed and network stay exact.
             check(
                 !payload.contains("NeedsSpeedUpdate") ||
                     (payload.contains("NeedsSpeedUpdate", 1) && payload.getByte("NeedsSpeedUpdate") == 1.toByte()),
-            ) { "Invalid portable engine kinetic rebuild flag" }
+            ) { "Invalid native kinetic rebuild flag" }
             return payload.copy().also { it.remove("NeedsSpeedUpdate") }
         }
         if (type == "createpropulsion:thruster_block_entity") {
