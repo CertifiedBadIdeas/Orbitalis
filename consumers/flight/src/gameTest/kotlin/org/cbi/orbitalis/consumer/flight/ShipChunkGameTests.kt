@@ -225,7 +225,7 @@ object ShipChunkGameTests {
     }
 
     @JvmStatic
-    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 600, batch = "coal_snapshot")
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 900, batch = "coal_snapshot")
     fun nativeCoalPumpFuelSnapshot(helper: GameTestHelper) {
         val rig = Rig(helper, 24_000.0)
 
@@ -418,7 +418,35 @@ object ShipChunkGameTests {
                     .ListTag()
                     .also { it.add(linked) },
             )
-            helper.succeed()
+            val activeEngine = rig.level.getBlockEntity(enginePos) as ThrusterBlockEntity
+            activeEngine.setControlMode(
+                dev.propulsionteam.propulsionsimulated.content.thruster.AbstractThrusterBlockEntity.ControlMode.PERIPHERAL,
+            )
+            activeEngine.setDigitalInput(0.5f)
+            helper.runAfterDelay(200) {
+                org.cbi.orbitalis.minecraft.integration.propulsion.NativeThrusterInput
+                    .clear(activeEngine)
+                activeEngine.setControlMode(
+                    dev.propulsionteam.propulsionsimulated.content.thruster.AbstractThrusterBlockEntity.ControlMode.NORMAL,
+                )
+                helper.runAfterDelay(100) {
+                    val activeTank = rig.level.getBlockEntity(tankPos) as FluidTankBlockEntity
+                    val activePump = rig.level.getBlockEntity(pumpPos) as com.simibubi.create.content.fluids.pump.PumpBlockEntity
+                    helper.assertTrue(
+                        activeTank.tankInventory.fluidAmount < tankBefore - 50,
+                        "Restored native pump did not resume finite fuel delivery",
+                    )
+                    helper.assertTrue(
+                        activeEngine.fuelAmountMb == 1000 && kotlin.math.abs(activePump.speed) == 32f,
+                        "Restored kinetic/fluid network did not refill the running engine",
+                    )
+                    helper.assertTrue(
+                        restoredPower.currentBurnTime < burnBefore && restoredPower.inventory.getItem(0).count == 7,
+                        "Restored generator did not continue burning its real coal stock",
+                    )
+                    helper.succeed()
+                }
+            }
         }
     }
 
