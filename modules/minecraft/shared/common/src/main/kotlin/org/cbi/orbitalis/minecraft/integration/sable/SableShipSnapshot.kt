@@ -67,7 +67,9 @@ object SableShipSnapshot {
             check(comparablePayload(payload) == comparablePayload(restored)) {
                 val changed = (payload.allKeys + restored.allKeys).sorted().filter { payload.get(it) != restored.get(it) }
                 "Block entity payload changed during reconstruction: ${payload.getString("id")} at $position; fields: " +
-                    changed.joinToString(", ")
+                    changed.joinToString(", ") + if ("Tanks" in changed) {
+                        "; source Tanks=${payload.get("Tanks")}; restored Tanks=${restored.get("Tanks")}"
+                    } else { "" }
             }
         }
     }
