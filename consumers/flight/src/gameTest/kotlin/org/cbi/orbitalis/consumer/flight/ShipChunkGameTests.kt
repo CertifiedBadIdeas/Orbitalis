@@ -306,9 +306,10 @@ object ShipChunkGameTests {
         helper.runAfterDelay(200) {
             helper.assertTrue(
                 kotlin.math.abs(pump.speed) == 32f && power.currentBurnTime > 0 && power.inventory.getItem(0).count == 7,
-                "Coal did not drive native pump: pump=${pump.speed} generator=${power.speed}/${power.generatedSpeed} burn=${power.currentBurnTime} coal=${power.inventory.getItem(
-                    0,
-                ).count}",
+                "Coal did not drive native pump: pump=${pump.speed} generator=${power.speed}/${power.generatedSpeed} " +
+                    "burn=${power.currentBurnTime} coal=${power.inventory.getItem(
+                        0,
+                    ).count}",
             )
             helper.assertTrue(
                 engine.fuelAmountMb > 375 && tank.tankInventory.fluidAmount < 2000,

@@ -20,6 +20,19 @@ limitations under the License.
 
 ## 0.2.0 — In development
 
+- Support independent standard liquid Propulsion thrusters in the existing flight controller, with
+  native fractional throttle, finite fuel preflight and automatic cutoff on fuel depletion. Survival
+  pilots can use the same operator-gated commands. Solid, vector and liquid multiblock layouts retain
+  their existing restrictions.
+- Add a guarded flight-consumer expedition ship fixture with a glazed cabin, boarding stairs, four
+  landing legs, native manual radio controls and 40 liquid thrusters. Four coal-powered native pump
+  banks supply a finite 192-bucket turpentine reserve through real pipes and native gearing.
+- Align orbital mission main thrust against gravity and budget insertion acceleration against the
+  supported engine authority; share native attitude conversion between preflight and active guidance.
+- Count occupied ship chunks separately from native read-created air caches. Preserve meaningful
+  metadata and the existing four-chunk transfer journal limit while omitting proven-empty cache
+  chunks from transfer snapshots.
+
 - Preserve walking, landing/hurt and nausea camera transforms in the compressed celestial projection;
   stepping onto terrain with view bobbing enabled no longer rejects a valid perspective matrix.
 - Preserve physical day/night lighting in the cosmic Overworld at high altitude, including native

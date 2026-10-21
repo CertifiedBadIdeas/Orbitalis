@@ -20,13 +20,13 @@ package org.cbi.orbitalis.consumer.flight
 
 import com.simibubi.create.content.fluids.tank.FluidTankBlockEntity
 import dev.propulsionteam.propulsionsimulated.content.thruster.thruster.ThrusterBlockEntity
-import dev.ryanhcode.sable.companion.math.Pose3d
-import dev.simulated_team.simulated.content.blocks.portable_engine.PortableEngineBlockEntity
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer
 import dev.ryanhcode.sable.api.sublevel.ticket.SubLevelLoadingTicketType
+import dev.ryanhcode.sable.companion.math.Pose3d
 import dev.ryanhcode.sable.sublevel.ServerSubLevel
 import dev.ryanhcode.sable.sublevel.storage.SubLevelRemovalReason
 import dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem
+import dev.simulated_team.simulated.content.blocks.portable_engine.PortableEngineBlockEntity
 import net.minecraft.core.BlockPos
 import net.minecraft.gametest.framework.GameTest
 import net.minecraft.gametest.framework.GameTestHelper
@@ -59,13 +59,20 @@ import kotlin.math.atan2
 @PrefixGameTestTemplate(false)
 object ExpeditionMissionGameTests {
     private fun liquidEngines(body: ServerSubLevel) =
-        body.plot.loadedChunks.flatMap { it.chunk.blockEntities.values }.filterIsInstance<ThrusterBlockEntity>()
+        body.plot.loadedChunks
+            .flatMap { it.chunk.blockEntities.values }
+            .filterIsInstance<ThrusterBlockEntity>()
 
     private fun powerEngines(body: ServerSubLevel) =
-        body.plot.loadedChunks.flatMap { it.chunk.blockEntities.values }.filterIsInstance<PortableEngineBlockEntity>()
+        body.plot.loadedChunks
+            .flatMap { it.chunk.blockEntities.values }
+            .filterIsInstance<PortableEngineBlockEntity>()
 
     private fun remainingFuel(body: ServerSubLevel): Int {
-        val tanks = body.plot.loadedChunks.flatMap { it.chunk.blockEntities.values }.filterIsInstance<FluidTankBlockEntity>()
+        val tanks =
+            body.plot.loadedChunks
+                .flatMap { it.chunk.blockEntities.values }
+                .filterIsInstance<FluidTankBlockEntity>()
         return tanks.filter { it.isController }.sumOf { it.tankInventory.fluidAmount } + liquidEngines(body).sumOf { it.fuelAmountMb }
     }
 
@@ -171,11 +178,31 @@ object ExpeditionMissionGameTests {
                     if (pilot.player.level() === world) pilot.attach(body)
                 }
             }
-            if (tick == 620) {
+            if (mission == null && tick >= 620) {
                 val engines = liquidEngines(body)
-                helper.assertTrue(engines.size == 24 && engines.all { it.fuelAmountMb >= 900 }, "Exact expedition failed to prime all native liquid engines")
+                if (engines.any { it.fuelAmountMb < 900 }) {
+                    helper.assertTrue(
+                        tick < 2500,
+                        "Exact expedition engines did not finish native priming: ${engines.map { it.fuelAmountMb }}",
+                    )
+                    helper.runAfterDelay(1) { run() }
+                    return
+                }
+                helper.assertTrue(
+                    engines.size == ExpeditionFuelSupply.engines.size &&
+                        engines.all {
+                            it.fuelAmountMb >= 900
+                        },
+                    "Exact expedition failed to prime all native liquid engines",
+                )
                 helper.assertTrue(remainingFuel(body) == ExpeditionFuelSupply.INITIAL_FUEL_MB, "Priming changed finite onboard fuel stock")
-                helper.assertTrue(powerEngines(body).all { !it.isCurrentFuelInfinite && it.inventory.getItem(0).count < ExpeditionFuelSupply.COAL_BLOCKS_PER_ENGINE }, "Native finite coal supply was not consumed")
+                helper.assertTrue(
+                    powerEngines(body).all {
+                        !it.isCurrentFuelInfinite &&
+                            it.inventory.getItem(0).count < ExpeditionFuelSupply.COAL_BLOCKS_PER_ENGINE
+                    },
+                    "Native finite coal supply was not consumed",
+                )
                 val p = FlightBody.position(body)
                 helper.assertTrue(pilot.player.teleportTo(level, p.x, p.y + 3, p.z, emptySet(), 0f, 0f), "Pilot placement failed")
                 pilot.acknowledge(body)
@@ -206,6 +233,29 @@ object ExpeditionMissionGameTests {
                 if (active.phase != before) println("ORBITALIS_EXPEDITION_MISSION tick=$tick ${active.status()}")
                 if (tick % 500 == 0) {
                     println("ORBITALIS_EXPEDITION_MISSION tick=$tick ${active.status()}")
+                    val machinery =
+                        active.body.plot.loadedChunks
+                            .flatMap { it.chunk.blockEntities.values }
+                    val tanks = machinery.filterIsInstance<FluidTankBlockEntity>().filter { it.isController }
+                    val pumps = machinery.filterIsInstance<com.simibubi.create.content.fluids.pump.PumpBlockEntity>()
+                    println(
+                        "ORBITALIS_EXPEDITION_RESOURCES fuel=${remainingFuel(active.body)} " +
+                            "tanks=${tanks.map { listOf(it.blockPos, it.tankInventory.fluidAmount) }} " +
+                            "engineFuel=${liquidEngines(active.body).groupBy { it.facing }.mapValues { (_, engines) ->
+                                engines.map { it.fuelAmountMb }
+                            }} " +
+                            "pumps=${pumps.map { it.speed }}",
+                    )
+                    println(
+                        "ORBITALIS_EXPEDITION_FORCES mass=${active.body.massTracker.mass} q=${active.body.logicalPose().orientation()} " +
+                            "gravity=${org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity.reading(
+                                active.body,
+                            ).acceleration} drag=${org.cbi.orbitalis.minecraft.flight.control.FlightEnvironment.nativeDrag(
+                                active.body,
+                            )} axes=${liquidEngines(active.body).groupBy { it.facing }.mapValues { (_, engines) ->
+                                engines.sumOf { it.currentThrust.toDouble() } / 1000.0
+                            }}",
+                    )
                     if (active.phase == FlatOrbitalMission.Phase.APPROACH) {
                         val p = FlightBody.position(active.body)
                         val q = active.body.logicalPose().orientation()
@@ -223,7 +273,10 @@ object ExpeditionMissionGameTests {
                 }
                 stages.add(active.phase)
                 if (active.phase != FlatOrbitalMission.Phase.TRANSFER) {
-                    helper.assertTrue(remainingFuel(active.body) in 1..ExpeditionFuelSupply.INITIAL_FUEL_MB, "Finite expedition supply was exhausted or generated fuel")
+                    helper.assertTrue(
+                        remainingFuel(active.body) in 1..ExpeditionFuelSupply.INITIAL_FUEL_MB,
+                        "Finite expedition supply was exhausted or generated fuel",
+                    )
                 }
                 if (active.phase != before && active.phase == FlatOrbitalMission.Phase.TRANSFER) {
                     val root = FlightGuidanceFrames.rootState(active.body).velocity
@@ -242,8 +295,14 @@ object ExpeditionMissionGameTests {
                     val fuel = remainingFuel(active.body)
                     val coal = powerEngines(active.body).sumOf { it.inventory.getItem(0).count }
                     helper.assertTrue(fuel > 0 && fuel == handoffFuel, "Handoff lost or created finite liquid fuel: $handoffFuel -> $fuel")
-                    helper.assertTrue(coal in (checkNotNull(handoffCoal) - 4)..checkNotNull(handoffCoal), "Handoff lost or created coal inventory: $handoffCoal -> $coal")
-                    helper.assertTrue(liquidEngines(active.body).size == 24 && powerEngines(active.body).size == 4, "Handoff lost native expedition machinery")
+                    helper.assertTrue(
+                        coal in (checkNotNull(handoffCoal) - 4)..checkNotNull(handoffCoal),
+                        "Handoff lost or created coal inventory: $handoffCoal -> $coal",
+                    )
+                    helper.assertTrue(
+                        liquidEngines(active.body).size == ExpeditionFuelSupply.engines.size && powerEngines(active.body).size == 4,
+                        "Handoff lost native expedition machinery",
+                    )
                     handoffs++
                 }
                 if (active.phase == FlatOrbitalMission.Phase.COAST && !returned && AutopilotSession.enginesFaded(active.body)) {
@@ -309,9 +368,18 @@ object ExpeditionMissionGameTests {
                             .flatMap { it.chunk.blockEntities.values }
                             .filterIsInstance<ChestBlockEntity>()
                             .map { it.getItem(0) }
-                    helper.assertTrue(cargo.size == 4 && cargo.all { it.`is`(Items.COBBLESTONE) && it.count == 16 }, "Exact expedition cargo lost")
-                    helper.assertTrue(remainingFuel(active.body) in 1 until ExpeditionFuelSupply.INITIAL_FUEL_MB, "Round trip did not consume finite onboard fuel or exhausted all reserve")
-                    helper.assertTrue(powerEngines(active.body).all { !it.isCurrentFuelInfinite }, "Expedition acquired infinite coal power")
+                    helper.assertTrue(
+                        cargo.size == 4 && cargo.all { it.`is`(Items.COBBLESTONE) && it.count == 16 },
+                        "Exact expedition cargo lost",
+                    )
+                    helper.assertTrue(
+                        remainingFuel(active.body) in 1 until ExpeditionFuelSupply.INITIAL_FUEL_MB,
+                        "Round trip did not consume finite onboard fuel or exhausted all reserve",
+                    )
+                    helper.assertTrue(
+                        powerEngines(active.body).all { !it.isCurrentFuelInfinite },
+                        "Expedition acquired infinite coal power",
+                    )
                     helper.assertTrue(AutopilotSession.enginesFaded(active.body), "Landing still needs thrust")
                     helper.assertTrue(
                         stages.containsAll(

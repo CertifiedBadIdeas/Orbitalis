@@ -46,9 +46,8 @@ object FuelThrusterGameTests {
                 val facing = previous.facing
                 // Propulsion variants share the base block implementation; a direct replacement
                 // may retain the creative block entity. Remove it through normal block removal.
-                rig.body.plot.embeddedLevelAccessor
-                    .removeBlock(pos, false)
-                rig.body.plot.embeddedLevelAccessor.setBlock(
+                rig.body.level.removeBlock(pos, false)
+                rig.body.level.setBlock(
                     pos,
                     block.defaultBlockState().setValue(
                         dev.propulsionteam.propulsionsimulated.content.thruster.AbstractThrusterBlock.FACING,

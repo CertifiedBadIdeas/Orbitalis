@@ -223,8 +223,8 @@ See [central gravity](flight-gravity.md) for the Orbitalis force adapter and its
 
 ## Test autopilot (consumer only)
 
-Assemble a ship with creative Propulsion engines in Overworld or `orbitalis:space`. Stay on deck
-in creative mode with flying disabled, and toggle the Linked Controller off. Wait for native assembly to settle. With operator permission, use:
+Assemble a ship with Creative Propulsion engines or independent standard liquid thrusters in Overworld or `orbitalis:space`. Stay on deck
+with creative flight disabled, and toggle the Linked Controller off. Survival pilots retain the same operator permission requirement. Wait for native assembly to settle. With operator permission, use:
 
 ```mcfunction
 /orbitalis flight autopilot hold
@@ -249,9 +249,9 @@ updates the capacity estimate once an engine produces thrust.
 
 For `hold` and `altitude`, start airborne with clearance for startup and braking. The target-speed cap is 12 m/s and requested
 net acceleration is limited to 4 m/s²; these are guidance requests, not guaranteed physical bounds.
-The adapter rejects active manual inputs, unsupported non-creative thrusters and
-layouts that cannot approximately balance gravity. It supports up to 64 creative engine controllers
-across at most four plot chunks. Control is limited to the Overworld/space pair, positions within
+The adapter rejects active manual inputs, dry liquid engines, liquid multiblocks, unsupported engine variants and
+layouts that cannot approximately balance gravity. It supports up to 64 supported engine controllers
+across at most four occupied plot chunks. Control is limited to the Overworld/space pair, positions within
 20,000 m of the physical origin and represented COM above local Y=64. `altitude` accepts heights
 32..15000, subject to the same position bounds. A single lift engine cannot provide every
 attitude correction: add spaced lift engines and opposing translation engines for more control.
@@ -552,3 +552,39 @@ During force measurements it leases travel so the high Overworld sample remains 
 native frame; automatic transfers remain covered by separate native roundtrips. Space sample
 positions and measured accelerations use the rotating/inertial frame transforms rather than a
 fixed Y translation. The surface-fall check includes native drag and Coriolis acceleration.
+
+
+## Fuelled expedition fixture
+
+The additive development command `/orbitalis_test expedition` places the long north-facing expedition
+ship in an empty, loaded 13 x 31 x 10 space. Its origin is 24 blocks south and one block above the
+caller's feet. Existing blocks prevent placement; this command does not clear terrain or build a pad.
+Use a disposable Overworld launch site with level ground under all four landing feet. The fixture
+belongs to the flight consumer; production engine integration and autopilot belong to Orbitalis.
+
+The white industrial hull has a glazed bow, walkable cabin, aft boarding stairs, four cargo chests,
+four landing legs and a cabin Physics Assembler. It uses 40 independent standard liquid Propulsion
+thrusters: twenty for lift and four for each other translation direction. Thin native Create copycat
+plates carry the concrete exterior materials; this avoids a solid concrete pressure hull.
+One native 2 x 2 x 6 Create reservoir contains a finite 192 buckets of turpentine. Four native
+coal-powered Simulated portable engines, each supplied with eight coal blocks, drive mechanical pumps
+at 64 RPM through native 2:1 cogwheel gearing. Separate intakes draw from the same native reservoir.
+The engines start empty and receive fuel through pipes. Wait for priming before assembly or autopilot. No runtime code refills tanks,
+creates rotation, supplies FE, changes native capacity or replaces native fuel consumption.
+
+Placement also gives the pilot a lever, wrench and paired Create Linked Controller. Board from the
+south, use the lever on the cabin Physics Assembler, then control translation with WASD, Space and
+Shift. The fixture uses fixed development radio frequencies; use one expedition fixture at a time
+within radio range to avoid controlling another fixture. The controller must be switched off before `/orbitalis flight autopilot hold`, `orbit` or
+`land`. Stop returns engines to native normal input. Fuel exhaustion disengages guidance; it is not
+an unlimited station-keeping mode. An unpowered ship coasts under the existing orbital physics.
+The current landing mission returns to its recorded launch pad; it does not plan arbitrary terrain
+landings or interplanetary routes. Saved maneuver nodes can change an orbit using the existing
+maneuver execution command.
+
+Native verification is split into the `fuel` suite (fractional consumption, dry preflight and depletion
+cutoff), `expedition` suite (onboard supply and exact-hull assembly/flight), and `expedition-mission`
+suite. The last scenario uses the default 10,000-block Earth, the complete loaded hull, both native
+world transfers, one unpowered revolution and a landing within 0.5 metres of the recorded pad.
+It checks finite fuel/coal and unchanged cargo. Its inert server-side pilot does not prove an
+interactive client flight; client observations remain separate evidence.

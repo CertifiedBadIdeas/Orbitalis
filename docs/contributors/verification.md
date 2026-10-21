@@ -43,7 +43,7 @@ failed, skipped or error results in a fresh XML report. `-PorbitalisGameTestSuit
 surface cases alone; `-PorbitalisGameTestSuite=transfer` runs the ten native transfer/recovery/retirement/travel cases
 without the full-orbit performance cost. See [flat surface](flat-surface.md), [flight gravity](flight-gravity.md) and
 [ship transfer](ship-transfer.md). Use `-PorbitalisGameTestSuite=flat` for the inert finite-body native orbit alone. The consumer separately
-requires seventeen native flight scenarios, including remote multi-ship commands without added loading tickets; `-PorbitalisConsumerGameTestSuite=flat` runs its low-orbit
+requires twenty-eight native flight scenarios, including remote multi-ship commands without added loading tickets; `-PorbitalisConsumerGameTestSuite=flat` runs its low-orbit
 Overworld mission and bookmark migration cases; `rocket` runs all three rocket round trips and native
 steering/hold/RCS cases; `rcs` selects only the RCS flip with an exact single-case report check. Player tests execute native travel with a locally controlled server fixture,
 including a vanilla jump comparison and vacuum momentum; they do not prove a real client handoff. See [finite-body flight](flat-gravity.md) for the new field and route.
@@ -193,3 +193,9 @@ in `all`. Core tests cover physical/native frame transport and camera-horizon co
 client handoff, map appearance and external ship illumination still need an observed client.
 Long cold coasts across multiple sectors retain their payload and refuse unsafe restoration;
 these checks do not establish holding-to-holding migration.
+
+The consumer also provides focused `fuel`, `expedition` and `expedition-mission` suites via
+`-PorbitalisConsumerGameTestSuite=<suite>`. These exercise native proportional liquid consumption
+and cutoff; finite coal-powered supply, assembly, hold and resource-preserving reconstruction; and
+the fuelled ascent, free orbit and return scenario, respectively. A server-side inert pilot does not
+replace an observed client flight.

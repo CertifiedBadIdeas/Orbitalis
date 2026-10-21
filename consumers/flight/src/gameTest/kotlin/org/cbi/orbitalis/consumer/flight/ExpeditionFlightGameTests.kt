@@ -116,13 +116,19 @@ object ExpeditionFlightGameTests {
                 "Exact expedition blueprint split into multiple native bodies",
             )
             helper.assertTrue(
-                body.plot.loadedChunks.size <= 4 && body.plot.boundingBox.volume() <= 4030,
-                "Expedition exceeds native transfer bounds: ${body.plot.boundingBox}",
+                org.cbi.orbitalis.minecraft.integration.sable.SableShipChunks
+                    .occupied(body)
+                    .size <= 4 &&
+                    body.plot.boundingBox.volume() <= 4030,
+                "Expedition exceeds native transfer bounds: ${body.plot.boundingBox}; " +
+                    "volume=${body.plot.boundingBox.volume()}; chunks=${body.plot.loadedChunks.map {
+                        it.chunk.pos
+                    }}",
             )
             val blocks = body.plot.loadedChunks.flatMap { it.chunk.blockEntities.values }
             val engines = blocks.filterIsInstance<ThrusterBlockEntity>()
             helper.assertTrue(
-                engines.size == 24 &&
+                engines.size == ExpeditionFuelSupply.engines.size &&
                     engines.all {
                         it.isController && !it.isMultiblock
                     },

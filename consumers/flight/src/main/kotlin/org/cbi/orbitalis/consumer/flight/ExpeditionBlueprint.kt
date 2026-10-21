@@ -19,6 +19,8 @@
 package org.cbi.orbitalis.consumer.flight
 
 import com.simibubi.create.content.contraptions.glue.SuperGlueEntity
+import com.simibubi.create.content.decoration.copycat.CopycatBlockEntity
+import com.simibubi.create.content.decoration.copycat.CopycatPanelBlock
 import dev.propulsionteam.propulsionsimulated.content.thruster.AbstractThrusterBlock
 import net.minecraft.core.BlockPos
 import net.minecraft.core.Direction
@@ -34,6 +36,7 @@ import net.minecraft.world.level.block.HorizontalDirectionalBlock
 import net.minecraft.world.level.block.entity.ChestBlockEntity
 import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.level.block.state.properties.AttachFace
+import net.minecraft.world.level.block.state.properties.BlockStateProperties
 import net.minecraft.world.phys.AABB
 import net.minecraft.world.phys.Vec3
 
@@ -64,12 +67,17 @@ object ExpeditionBlueprint {
             val p = BlockPos(x, y, z)
             check(x in -6..6 && y in 0..9 && z in -15..15)
             // Lift nozzles retain an unobstructed vertical column down to the four feet.
-            if (p in reserved || (kotlin.math.abs(x) == 4 && kotlin.math.abs(z) == 8 && y < 5)) return
-            hull[p] = state
+            if (p in reserved || (kotlin.math.abs(x) == 4 && kotlin.math.abs(z) in listOf(2, 4, 6, 8, 12) && y < 5)) return
+            hull[p] =
+                when {
+                    kotlin.math.abs(x) == 5 && kotlin.math.abs(z) == 7 && y in 5..7 -> Blocks.YELLOW_CONCRETE.defaultBlockState()
+                    kotlin.math.abs(x) == 4 && y == 8 && z in -3..3 -> Blocks.BLACK_CONCRETE.defaultBlockState()
+                    else -> state
+                }
         }
         val dark = Blocks.GRAY_CONCRETE.defaultBlockState()
         val trim = Blocks.LIGHT_GRAY_CONCRETE.defaultBlockState()
-        val glass = Blocks.LIGHT_BLUE_STAINED_GLASS.defaultBlockState()
+        val glass = Blocks.LIGHT_BLUE_STAINED_GLASS_PANE.defaultBlockState()
         // Hollow main pressure hull: walking deck, low roof, narrow bow and open aft hatch.
         for (z in -11..11) {
             for (x in -3..3) {
@@ -133,13 +141,48 @@ object ExpeditionBlueprint {
                 panel(sign * 4, 0, z, Blocks.IRON_BLOCK.defaultBlockState())
             }
         }
-        for ((offset, state) in hull) level.setBlock(origin.offset(offset), state, 3)
+        panel(0, 9, 5, Blocks.LIGHTNING_ROD.defaultBlockState())
+        for (z in listOf(-4, 4)) {
+            panel(0, 7, z, Blocks.END_ROD.defaultBlockState().setValue(BlockStateProperties.FACING, Direction.DOWN))
+        }
+        val panelBlock = BuiltInRegistries.BLOCK.get(ResourceLocation.parse("create:copycat_panel"))
+        for ((offset, material) in hull) {
+            val world = origin.offset(offset)
+            if (material.block in
+                setOf(
+                    Blocks.WHITE_CONCRETE,
+                    Blocks.GRAY_CONCRETE,
+                    Blocks.LIGHT_GRAY_CONCRETE,
+                    Blocks.YELLOW_CONCRETE,
+                    Blocks.BLACK_CONCRETE,
+                )
+            ) {
+                // Native thin plates retain the reference's metal skin without a solid concrete hull.
+                val facing =
+                    when {
+                        offset.y == 4 -> Direction.UP
+                        offset.y == 8 -> Direction.DOWN
+                        offset.x < 0 -> Direction.WEST
+                        offset.x > 0 -> Direction.EAST
+                        offset.z < 0 -> Direction.NORTH
+                        else -> Direction.SOUTH
+                    }
+                level.setBlock(world, panelBlock.defaultBlockState().setValue(CopycatPanelBlock.FACING, facing), 3)
+                (level.getBlockEntity(world) as CopycatBlockEntity).also {
+                    it.setMaterial(material)
+                    it.setConsumedItem(ItemStack(material.block))
+                }
+            } else {
+                level.setBlock(world, material, 3)
+            }
+        }
         // Separated standard liquid engines have native proportional throttle and finite tanks.
         val thruster = BuiltInRegistries.BLOCK.get(ResourceLocation.parse("createpropulsion:thruster"))
         for ((offset, engine) in engines) {
             level.setBlock(origin.offset(offset), thruster.defaultBlockState().setValue(AbstractThrusterBlock.FACING, engine.thrust), 3)
         }
         ExpeditionFuelSupply.place(level, origin)
+        ExpeditionManualControls.place(level, origin)
         for (offset in cargoOffsets) {
             level.setBlock(origin.offset(offset), Blocks.CHEST.defaultBlockState().setValue(ChestBlock.FACING, Direction.NORTH), 3)
             (level.getBlockEntity(origin.offset(offset)) as ChestBlockEntity).setItem(0, ItemStack(Items.COBBLESTONE, 16))
