@@ -40,6 +40,7 @@ import org.cbi.orbitalis.minecraft.flight.control.FlightGuidanceFrames
 import org.cbi.orbitalis.minecraft.flight.control.RocketAttitude
 import org.cbi.orbitalis.minecraft.flight.control.RocketFlightDrive
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
+import org.cbi.orbitalis.minecraft.integration.sable.SableShipChunks
 import org.joml.Vector3d
 
 /** Native throttle/steering owner for a rocket with real bottom-mounted vector engines. */
@@ -73,7 +74,7 @@ class RocketDrive(
 
     init {
         require(SableFlightGravity.isManaged(body.level) && body.massTracker.mass > 0.0)
-        require(body.plot.loadedChunks.size <= 4) { "Rocket exceeds four native plot chunks" }
+        require(SableShipChunks.occupied(body).size <= 4) { "Rocket exceeds four occupied native plot chunks" }
         for (holder in body.plot.loadedChunks) {
             for (block in holder.chunk.blockEntities.values) {
                 if (block !is AbstractThrusterBlockEntity) continue

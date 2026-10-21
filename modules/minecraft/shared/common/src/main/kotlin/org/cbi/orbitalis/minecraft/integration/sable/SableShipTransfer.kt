@@ -670,7 +670,7 @@ class SableShipTransfer(
         check(saved.uuid() == body.uniqueId) { "Native checkpoint identity mismatch" }
         verifyCargo(
             SableShipSnapshot.capture(body, active?.let { ShipTransferPassengers.ids(it.sourcePassengers) } ?: emptySet()),
-            saved.fullTag(),
+            saved.fullTag().copy().also { SableShipChunks.compactCapture(body, it) },
         )
     }
 

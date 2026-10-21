@@ -37,6 +37,7 @@ import org.cbi.orbitalis.minecraft.flight.control.FlightEnvironment
 import org.cbi.orbitalis.minecraft.flight.control.FlightGuidanceFrames
 import org.cbi.orbitalis.minecraft.flight.control.HoldFlightDrive
 import org.cbi.orbitalis.minecraft.integration.sable.SableFlightGravity
+import org.cbi.orbitalis.minecraft.integration.sable.SableShipChunks
 import org.joml.Quaterniond
 import org.joml.Vector3d
 import java.util.Locale
@@ -67,7 +68,7 @@ class AutopilotSession(
     init {
         require(SableFlightGravity.isManaged(body.level)) { "Use the Overworld or a supported flight space" }
         require(body.massTracker.mass > 0 && body.massTracker.centerOfMass != null) { "Wait for native mass initialization" }
-        require(body.plot.loadedChunks.size <= 4) { "Autopilot supports at most four native plot chunks" }
+        require(SableShipChunks.occupied(body).size <= 4) { "Autopilot supports at most four occupied native plot chunks" }
         for (holder in body.plot.loadedChunks) {
             for (block in holder.chunk.blockEntities.values) {
                 if (block !is AbstractThrusterBlockEntity) continue
