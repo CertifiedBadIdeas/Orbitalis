@@ -292,7 +292,10 @@ class AutopilotSession(
             if (block is CreativeThrusterBlockEntity) return block.targetThrustNewtons.toDouble()
             require(block.javaClass == ThrusterBlockEntity::class.java && !block.isMultiblock) { "Unsupported liquid engine layout" }
             val liquid = block as ThrusterBlockEntity
-            require(liquid.validFluid() && liquid.fuelAmountMb > 0) { "Liquid engine has no usable fuel; refuel before engaging control" }
+            require(liquid.validFluid() && liquid.fuelAmountMb > 0) {
+                "Liquid engine has no usable fuel; refuel before engaging control: position=${block.blockPos} " +
+                    "facing=${block.blockState.getValue(AbstractThrusterBlock.FACING)} fuel=${liquid.fuelAmountMb}mB"
+            }
             return LiquidThrusterSupport.capacity(liquid)
         }
 
