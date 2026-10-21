@@ -21,7 +21,8 @@ package org.cbi.orbitalis.minecraft.client.space
 import org.joml.Matrix4f
 
 /** A coherent compressed sky chart with a metre-based foreground clipping distance.
- * FOV, lens offsets and the native far plane stay unchanged. This projection belongs only to
+ * FOV, lens offsets and the native far plane stay unchanged; affine camera translations follow
+ * scene compression. This projection belongs only to
  * the private sky target; native terrain and deferred physical depth retain their own projection.
  */
 object SkyProjection {
@@ -43,22 +44,50 @@ object SkyProjection {
         require(nearestSurfaceDistance.isFinite() && nearestSurfaceDistance >= 0.0)
         require(isReady(native)) { "Non-finite native sky projection: $native" }
         val result = Matrix4f(native)
-        if (native.m33() != 0f) return result
-        require(native.m23() == -1f)
-        val z = native.m22().toDouble()
-        val translation = native.m32().toDouble()
-        val originalNear = translation / (z - 1.0)
+        // Native rendering right-multiplies hurt/view bob and nausea onto the perspective. For
+        // P * A with affine A, depth.xyz = k * clipW.xyz and depth.w = k * clipW.w + t.
+        // Recover the depth coefficients from complete rows rather than assuming m23 == -1.
+        val w = doubleArrayOf(native.m03().toDouble(), native.m13().toDouble(), native.m23().toDouble())
+        val depth = doubleArrayOf(native.m02().toDouble(), native.m12().toDouble(), native.m22().toDouble())
+        val norm = w.sumOf { it * it }
+        if (norm == 0.0) return result // Orthographic, including an affine camera transform.
+        val k = w.indices.sumOf { w[it] * depth[it] } / norm
+        require(k.isFinite() && k >= 1.0 - 0.00001)
+        require(w.indices.all { kotlin.math.abs(depth[it] - k * w[it]) <= 0.000001 * (1.0 + kotlin.math.abs(depth[it])) }) {
+            "Native sky projection has an unsupported oblique depth plane"
+        }
+        val translation = native.m32().toDouble() - k * native.m33()
+        val originalNear = -translation / (k + 1.0)
         require(originalNear.isFinite() && originalNear > 0.0)
         val near = minOf(originalNear, scale * maxOf(0.5, nearestSurfaceDistance * 0.02))
         require(near.toFloat().isFinite() && near.toFloat() > 0f)
-        if (near == originalNear) return result
-        if (z >= -1.0) {
-            require(z <= -1.0 + 0.00001)
-            // Infinite far planes (JOML biases their limit slightly), including rounded finite planes.
-            return result.m22(-1f).m32((-2.0 * near).toFloat())
+
+        // Camera translations are physical metres. Transport them into the compressed chart so
+        // sky directions still align with native terrain throughout walking/hurt animation.
+        result
+            .m30((native.m30() * scale).toFloat())
+            .m31((native.m31() * scale).toFloat())
+            .m33((native.m33() * scale).toFloat())
+        require(isReady(result))
+        if (near == originalNear) {
+            return result.m32((k * result.m33() + translation).toFloat())
         }
-        val far = translation / (z + 1.0)
-        require(far.isFinite() && far > originalNear)
-        return result.m22((-(far + near) / (far - near)).toFloat()).m32((-2.0 * far * near / (far - near)).toFloat())
+        val newK: Double
+        val newTranslation: Double
+        if (k <= 1.0) {
+            // Infinite far planes (JOML biases their limit slightly), including rounded finite planes.
+            newK = 1.0
+            newTranslation = -2.0 * near
+        } else {
+            val far = -translation / (k - 1.0)
+            require(far.isFinite() && far > originalNear)
+            newK = (far + near) / (far - near)
+            newTranslation = -2.0 * far * near / (far - near)
+        }
+        return result
+            .m02((newK * w[0]).toFloat())
+            .m12((newK * w[1]).toFloat())
+            .m22((newK * w[2]).toFloat())
+            .m32((newK * result.m33() + newTranslation).toFloat())
     }
 }
