@@ -45,7 +45,6 @@
     "ShipCameraMixin",
     "ShipViewRendererMixin",
     "ShipViewMouseMixin",
-    "SurfaceCelestialSkyMixin",
-    "SurfaceCloudColorMixin"
+    "SurfaceCelestialSkyMixin"
   ]
 }

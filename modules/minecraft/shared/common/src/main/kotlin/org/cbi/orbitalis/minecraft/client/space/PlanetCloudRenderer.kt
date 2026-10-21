@@ -25,6 +25,7 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat
 import com.mojang.blaze3d.vertex.Tesselator
 import com.mojang.blaze3d.vertex.VertexBuffer
 import com.mojang.blaze3d.vertex.VertexFormat
+import net.minecraft.client.Camera
 import net.minecraft.client.CloudStatus
 import net.minecraft.client.Minecraft
 import net.minecraft.client.multiplayer.ClientLevel
@@ -32,9 +33,11 @@ import net.minecraft.client.renderer.ShaderInstance
 import net.minecraft.client.renderer.texture.SimpleTexture
 import net.minecraft.resources.ResourceLocation
 import net.minecraft.server.packs.resources.ResourceManager
-import net.minecraft.world.level.Level
-import net.minecraft.world.phys.Vec3
+import net.minecraft.world.effect.MobEffects
+import net.minecraft.world.entity.LivingEntity
+import net.minecraft.world.level.material.FogType
 import org.cbi.orbitalis.core.planet.Vector3
+import org.cbi.orbitalis.minecraft.lighting.SkyLighting
 import org.joml.Matrix4f
 import org.lwjgl.BufferUtils
 import org.lwjgl.opengl.GL11
@@ -64,8 +67,8 @@ object PlanetCloudRenderer {
         val projection: Matrix4f,
         val nativeProjection: Matrix4f,
         val scale: Double,
-        val depth: Int,
-        val color: Vec3,
+        val depth: Int?,
+        val rotation: Matrix4f,
         val width: Int,
         val height: Int,
     )
@@ -125,24 +128,24 @@ object PlanetCloudRenderer {
     internal fun atmosphereCloudHeight(): Double = height.toDouble()
 
     private var height = 192f
-    private var nativeColor = Vec3(1.0, 1.0, 1.0)
+    private var weather = 1f
 
     /** Called before either world's sky hook; LevelRenderer's clock survives native travel. */
     fun synchronize(
         nativeTime: Float,
         surfaceHeight: Float?,
-        surfaceColor: Vec3,
+        weather: Float,
     ) {
         scene = null
         time = nativeTime
         if (surfaceHeight != null) height = surfaceHeight
-        nativeColor = surfaceColor
+        this.weather = weather.coerceIn(0f, 1f)
     }
 
     fun clear() {
         time = 0f
         height = 192f
-        nativeColor = Vec3(1.0, 1.0, 1.0)
+        weather = 1f
         scene = null
         fancyBuffer?.close()
         fastBuffer?.close()
@@ -164,20 +167,63 @@ object PlanetCloudRenderer {
         projection: Matrix4f,
         scale: Double,
         depth: Int,
-        opacity: Float,
         width: Int,
         height: Int,
         nativeProjection: Matrix4f = projection,
     ) {
-        val color =
-            if (level.dimension() ==
-                Level.OVERWORLD
-            ) {
-                nativeColor.lerp(Vec3(1.0, 1.0, 1.0), opacity.toDouble())
-            } else {
-                Vec3(1.0, 1.0, 1.0)
-            }
-        scene = Scene(level, observer, Matrix4f(view), Matrix4f(projection), Matrix4f(nativeProjection), scale, depth, color, width, height)
+        scene =
+            Scene(
+                level,
+                observer,
+                Matrix4f(view),
+                Matrix4f(projection),
+                Matrix4f(nativeProjection),
+                scale,
+                depth,
+                CelestialView.earthRotation(),
+                width,
+                height,
+            )
+    }
+
+    /** The same cloud material below the ascent blend, expressed directly in native surface metres. */
+    @JvmStatic
+    fun prepareSurface(
+        level: ClientLevel,
+        camera: Camera,
+        view: Matrix4f,
+        projection: Matrix4f,
+        foggy: Boolean,
+    ) {
+        if (foggy || camera.fluidInCamera != FogType.NONE ||
+            !SkyLighting.physicalOverworld(level)
+        ) {
+            return
+        }
+        val entity = camera.entity
+        if (entity is LivingEntity &&
+            (
+                entity.hasEffect(MobEffects.BLINDNESS) ||
+                    entity.hasEffect(MobEffects.DARKNESS)
+            )
+        ) {
+            return
+        }
+        val p = camera.position
+        val target = Minecraft.getInstance().mainRenderTarget
+        scene =
+            Scene(
+                level,
+                Vector3(p.x, p.y, p.z),
+                Matrix4f(view),
+                Matrix4f(projection),
+                Matrix4f(projection),
+                1.0,
+                null,
+                Matrix4f(),
+                target.width,
+                target.height,
+            )
     }
 
     fun renderWorld() {
@@ -212,7 +258,7 @@ object PlanetCloudRenderer {
             ).scale(
                 scale.toFloat(),
             ).translate(-observer.x.toFloat(), -observer.y.toFloat(), -observer.z.toFloat())
-                .mul(CelestialView.earthRotation())
+                .mul(frame?.rotation ?: CelestialView.earthRotation())
         val shader = checkNotNull(worldShader)
         val depth = GL11.glIsEnabled(GL11.GL_DEPTH_TEST)
         val write = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK)
@@ -243,7 +289,9 @@ object PlanetCloudRenderer {
             PlanetLighting.vector(shader, "SunRadiance", PlanetLighting.earthSunRadiance())
             PlanetLighting.prepareView(shader, modelView, projection)
             PlanetLighting.prepareAtmosphere(shader)
-            shader.COLOR_MODULATOR?.set(1f, 1f, 1f, 1f)
+            // Weather dims the common material; day/night and chroma belong to its solar shader.
+            shader.COLOR_MODULATOR?.set(weather, weather, weather, 1f)
+            shader.getUniform("UsePlanetDepth")?.set(if (frame?.depth == null) 0 else 1)
             shader.setSampler("Sampler0", textureId())
             shader.setSampler("Sampler1", frame?.depth ?: textureId())
             shader.getUniform("SceneScale")?.set(scale.toFloat())

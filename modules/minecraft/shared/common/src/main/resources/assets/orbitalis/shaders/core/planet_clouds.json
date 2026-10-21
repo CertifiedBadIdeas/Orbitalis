@@ -131,6 +131,14 @@
       ]
     },
     {
+      "name": "UsePlanetDepth",
+      "type": "int",
+      "count": 1,
+      "values": [
+        0
+      ]
+    },
+    {
       "name": "CloudHalfSize",
       "type": "float",
       "count": 1,

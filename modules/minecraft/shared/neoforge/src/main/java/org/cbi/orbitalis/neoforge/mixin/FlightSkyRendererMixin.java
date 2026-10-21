@@ -29,6 +29,7 @@ import net.minecraft.world.level.Level;
 import org.cbi.orbitalis.minecraft.client.space.FlightSky;
 import org.cbi.orbitalis.minecraft.client.space.PlanetCloudRenderer;
 import org.cbi.orbitalis.minecraft.client.space.SpaceSkyRenderer;
+import org.cbi.orbitalis.minecraft.lighting.SkyLighting;
 import org.joml.Matrix4f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -45,10 +46,13 @@ public abstract class FlightSkyRendererMixin {
                                boolean foggy, Runnable setupFog, Operation<Void> original) {
         PlanetCloudRenderer.INSTANCE.synchronize(ticks + partialTick,
             level.dimension() == Level.OVERWORLD ? level.effects().getCloudHeight() : null,
-            level.getCloudColor(partialTick));
+            (1 - 0.4f * level.getRainLevel(partialTick)) * (1 - 0.4f * level.getThunderLevel(partialTick)));
         float weight = FlightSky.INSTANCE.weight(level, camera);
         if (level.dimension() != Level.OVERWORLD || weight <= 0) {
             original.call(view, projection, partialTick, camera, foggy, setupFog);
+            if (weight <= 0 && SkyLighting.physicalOverworld(level)) {
+                PlanetCloudRenderer.prepareSurface(level, camera, view, projection, foggy);
+            }
             return;
         }
         if (weight < 1) original.call(view, projection, partialTick, camera, foggy, setupFog);
@@ -61,8 +65,9 @@ public abstract class FlightSkyRendererMixin {
                                       Matrix4f projection, float partialTick, double x, double y, double z,
                                       Operation<Void> original) {
         // Wrap the entire method, including renderer replacements injected by Sodium.
-        // One height/phase-matched layer owns the elevated view: coincident sheets would z-fight.
-        if (FlightSky.INSTANCE.weight(level, Minecraft.getInstance().gameRenderer.getMainCamera()) > 0) return;
+        // Cosmic surface and orbital views share one material; coincident native sheets would z-fight.
+        if (SkyLighting.physicalOverworld(level) ||
+            FlightSky.INSTANCE.weight(level, Minecraft.getInstance().gameRenderer.getMainCamera()) > 0) return;
         original.call(poses, view, projection, partialTick, x, y, z);
     }
 

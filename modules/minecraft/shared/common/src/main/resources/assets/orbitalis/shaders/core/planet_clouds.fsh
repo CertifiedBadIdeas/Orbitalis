@@ -31,6 +31,7 @@ uniform mat4 NativeProjection;
 uniform vec2 Viewport;
 uniform vec4 ColorModulator;
 uniform int WorldDepth;
+uniform int UsePlanetDepth;
 uniform int CloudBoundary;
 uniform float CloudHalfSize;
 in vec2 cloudUv;
@@ -49,7 +50,7 @@ void main() {
     if (cloud.a < 0.1) discard;
     if (WorldDepth != 0) {
         // Private planet depth and these vertices use the same compressed sky coordinates.
-        if (gl_FragCoord.z > texture(Sampler1, gl_FragCoord.xy / Viewport).r + 0.000001) discard;
+        if (UsePlanetDepth != 0 && gl_FragCoord.z > texture(Sampler1, gl_FragCoord.xy / Viewport).r + 0.000001) discard;
         if (WorldDepth == 2) {
             gl_FragDepth = gl_FragCoord.z;
         } else {

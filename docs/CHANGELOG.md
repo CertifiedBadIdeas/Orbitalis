@@ -25,8 +25,9 @@ limitations under the License.
 - Preserve physical day/night lighting in the cosmic Overworld at high altitude, including native
   terrain and optional Voxy, instead of blending towards constant daylight above the atmosphere.
 
-- Tint native clouds at sunrise and sunset in cosmic Overworld skies using the same finite
-  atmospheric solar absorption as orbital clouds, preserving native rain/thunder intensity.
+- Render cosmic Overworld clouds with the same solar material as orbital and map clouds at all
+  heights, including face lighting, transmitted edges and atmospheric attenuation. Keep one cloud
+  layer across ascent; vanilla sky mode retains the native renderer.
 
 - Allow up to 10 GiB of Java heap for both development clients, including the flight consumer.
 
