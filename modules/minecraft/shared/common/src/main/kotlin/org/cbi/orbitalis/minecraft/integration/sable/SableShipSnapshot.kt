@@ -67,15 +67,34 @@ object SableShipSnapshot {
             check(comparablePayload(payload) == comparablePayload(restored)) {
                 val changed = (payload.allKeys + restored.allKeys).sorted().filter { payload.get(it) != restored.get(it) }
                 "Block entity payload changed during reconstruction: ${payload.getString("id")} at $position; fields: " +
-                    changed.joinToString(", ") + if ("Tanks" in changed) {
+                    changed.joinToString(", ") +
+                    if ("Tanks" in changed) {
                         "; source Tanks=${payload.get("Tanks")}; restored Tanks=${restored.get("Tanks")}"
-                    } else { "" }
+                    } else {
+                        ""
+                    }
             }
         }
     }
 
     private fun comparablePayload(payload: CompoundTag): CompoundTag {
-        if (payload.getString("id") != "createpropulsion:creative_thruster_block_entity") return payload
+        val type = payload.getString("id")
+        if (type == "createpropulsion:thruster_block_entity") {
+            return payload.copy().also { copy ->
+                for (entry in copy.getList("Tanks", 10)) {
+                    val level = (entry as CompoundTag).getCompound("Level")
+                    // Create 6.0.10 LerpedFloat.writeNBT consumes this one-shot client sync
+                    // request; native tank initialization may re-arm it after reconstruction.
+                    // Animated values, actual TankContent, FuelTankSync and every fractional
+                    // fuel/oxidizer drain accumulator remain part of the exact comparison.
+                    check(!level.contains("Force") || (level.contains("Force", 1) && level.getByte("Force") == 1.toByte())) {
+                        "Invalid liquid tank animation synchronization flag"
+                    }
+                    level.remove("Force")
+                }
+            }
+        }
+        if (type != "createpropulsion:creative_thruster_block_entity") return payload
         // Propulsion 1.1.5 read() re-arms this connectivity work flag for single engines.
         // Keep it armed on the live destination: its first resumed tick must rebuild links.
         // It is not cargo or engine configuration; all other fields remain exact.
