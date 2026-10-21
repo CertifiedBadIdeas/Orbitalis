@@ -327,10 +327,29 @@ object AutomaticTravelGameTests {
             manager.close()
             for (world in listOf(surface, space)) {
                 val container = checkNotNull(SubLevelContainer.getContainer(world))
-                (container.getSubLevel(id) as? ServerSubLevel)?.let {
-                    container.removeForceLoadTicket(it, SubLevelLoadingTicketType.COMMAND_FORCED, net.minecraft.util.Unit.INSTANCE)
-                    container.removeSubLevel(it, SubLevelRemovalReason.REMOVED)
+                // A native holding load may already be queued when the live fixture is
+                // removed. Drain only this fixture UUID, checkpointing deletion each time,
+                // before releasing its reservation to production automatic travel.
+                var drained = false
+                repeat(4) {
+                    if (!drained) {
+                        for (body in container.allSubLevels.filterIsInstance<ServerSubLevel>().filter { it.uniqueId == id }) {
+                            container.removeForceLoadTicket(
+                                body,
+                                SubLevelLoadingTicketType.COMMAND_FORCED,
+                                net.minecraft.util.Unit.INSTANCE,
+                            )
+                            if (!body.isRemoved) container.removeSubLevel(body, SubLevelRemovalReason.REMOVED)
+                        }
+                        container.holdingChunkMap.getHoldingSubLevel(id)?.let { holding ->
+                            container.holdingChunkMap.snatchAndLoad(holding.pointer(), id)
+                        }
+                        container.holdingChunkMap.saveAll()
+                        drained = container.allSubLevels.none { it.uniqueId == id && !it.isRemoved } &&
+                            container.holdingChunkMap.getHoldingSubLevel(id) == null
+                    }
                 }
+                check(drained) { "Fixture left a live or queued recovered ship" }
                 expectedCart?.let { world.getEntity(it)?.remove(net.minecraft.world.entity.Entity.RemovalReason.CHANGED_DIMENSION) }
             }
             org.cbi.orbitalis.minecraft.flight.CelestialFlight.levels(server).forEach { world ->
