@@ -48,18 +48,27 @@ object ExpeditionFuelSupply {
         val zSign: Int,
     ) {
         val outward get() = if (zSign > 0) Direction.SOUTH else Direction.NORTH
-        val tank get() = BlockPos(x, 5, zSign * 5)
         val pump get() = BlockPos(x, 5, zSign * 7)
-        val cog get() = BlockPos(x / 2 * 3, 5, zSign * 7)
-        val power get() = BlockPos(x / 2 * 3, 5, zSign * 6)
+        val cog get() = BlockPos(x / 2 * 3, 6, zSign * 7)
+        val power get() = BlockPos(x / 2 * 3, 6, zSign * 6)
     }
 
     private val banks = listOf(-2, 2).flatMap { x -> listOf(-1, 1).map { Bank(x, it) } }
-    val tankOffsets = banks.map { it.tank }
+    val tankOffsets = listOf(BlockPos(1, TANK_BASE_Y, 0))
+    private val tankBlocks =
+        buildSet {
+            for (x in 1..2) for (z in 0..1) for (y in TANK_BASE_Y until TANK_BASE_Y + TANK_HEIGHT) add(BlockPos(x, y, z))
+        }
     val pumpOffsets = banks.map { it.pump }
     val powerOffsets = banks.map { it.power }
-    const val INITIAL_FUEL_MB = 96_000
+    const val TANK_BASE_Y = 3
+    const val TANK_HEIGHT = 6
+    const val TANK_WIDTH = 2
+    const val TANK_CAPACITY_MB = TANK_WIDTH * TANK_WIDTH * TANK_HEIGHT * 8_000
+    const val INITIAL_FUEL_MB = TANK_CAPACITY_MB
     const val COAL_BLOCKS_PER_ENGINE = 8
+    const val GENERATOR_RPM = 32
+    const val PUMP_RPM = GENERATOR_RPM * 2
 
     val engines: List<EngineSite> =
         buildList {
@@ -102,23 +111,24 @@ object ExpeditionFuelSupply {
                 for (z in 2..12) add(BlockPos(x / 2 * 4, 7, bank.zSign * z))
                 for (z in listOf(2, 4, 6, 12)) add(BlockPos(x / 2 * 4, 6, bank.zSign * z))
             }
-            // Pumps draw from a common intake header, so an asymmetric burn can
-            // use the other native reservoirs instead of stranding their stock.
-            for (x in listOf(-2, 2)) {
-                for (sign in listOf(-1, 1)) {
-                    for (y in 3..5) add(BlockPos(x, y, sign * 6))
-                }
+            // Each pump has a separate suction path into one native shared reservoir.
+            // Separate ports prevent equal-pressure pumps cancelling the cross-pod flow.
+            for (sign in listOf(-1, 1)) {
+                val nearTankZ = if (sign < 0) -1 else 2
+                val zRange = if (sign < 0) -6..-1 else 2..6
+                for (z in zRange) add(BlockPos(2, 5, z))
+                for (y in 3..5) add(BlockPos(-2, y, sign * 6))
+                for (z in zRange) add(BlockPos(-1, 3, z))
+                add(BlockPos(-2, 3, sign * 6))
+                for (x in -1..1) add(BlockPos(x, 3, nearTankZ))
             }
-            // The shared header stays below the cabin's intact y=4 walking deck.
-            for (z in listOf(-6, 6)) for (x in -2..2) add(BlockPos(x, 3, z))
-            for (z in -6..6) add(BlockPos(0, 3, z))
         }
 
     val occupiedOffsets: Set<BlockPos> =
         buildSet {
             addAll(pipes)
+            addAll(tankBlocks)
             for (bank in banks) {
-                for (y in 5..7) add(BlockPos(bank.x, y, bank.tank.z))
                 add(bank.pump)
                 add(bank.cog)
                 add(bank.power)
@@ -134,11 +144,11 @@ object ExpeditionFuelSupply {
     ) {
         val states = linkedMapOf<BlockPos, BlockState>()
         for (p in pipes) states[p] = block("create:fluid_pipe")
+        for (p in tankBlocks) states[p] = block("create:fluid_tank")
         val engineBlock = BuiltInRegistries.BLOCK.get(ResourceLocation.parse("simulated:white_portable_engine"))
         for (bank in banks) {
-            for (y in 5..7) states[BlockPos(bank.x, y, bank.tank.z)] = block("create:fluid_tank")
             states[bank.pump] = block("create:mechanical_pump").setValue(PumpBlock.FACING, bank.outward)
-            states[bank.cog] = block("create:cogwheel").setValue(BlockStateProperties.AXIS, Direction.Axis.Z)
+            states[bank.cog] = block("create:large_cogwheel").setValue(BlockStateProperties.AXIS, Direction.Axis.Z)
             states[bank.power] = engineBlock.defaultBlockState().setValue(BlockStateProperties.HORIZONTAL_FACING, bank.outward)
         }
         for ((p, state) in states) check(level.setBlock(origin.offset(p), state, 3)) { "Could not place supply at $p" }
@@ -149,12 +159,15 @@ object ExpeditionFuelSupply {
             level.setBlock(world, (state.block as FluidPipeBlock).updateBlockState(state, Direction.NORTH, null, level, world), 3)
         }
         val fuel = BuiltInRegistries.FLUID.get(ResourceLocation.parse("createpropulsion:turpentine"))
-        for (bank in banks) {
-            // Native placement forms the normal three-block tank. Fill through its native
+        for (tankOffset in tankOffsets) {
+            // Native placement forms the normal 2×2×6 tank. Fill through its native
             // capability once; runtime flow and stock depletion then belong to Create.
-            ConnectivityHandler.formMulti(level.getBlockEntity(origin.offset(bank.tank)) as FluidTankBlockEntity)
-            val tank = checkNotNull(level.getCapability(Capabilities.FluidHandler.BLOCK, origin.offset(bank.tank), null))
-            check(tank.fill(FluidStack(fuel, 24_000), IFluidHandler.FluidAction.EXECUTE) == 24_000)
+            ConnectivityHandler.formMulti(level.getBlockEntity(origin.offset(tankOffset)) as FluidTankBlockEntity)
+            val tank = checkNotNull(level.getCapability(Capabilities.FluidHandler.BLOCK, origin.offset(tankOffset), null))
+            check(tank.getTankCapacity(0) == TANK_CAPACITY_MB)
+            check(tank.fill(FluidStack(fuel, TANK_CAPACITY_MB), IFluidHandler.FluidAction.EXECUTE) == TANK_CAPACITY_MB)
+        }
+        for (bank in banks) {
             val engine = level.getBlockEntity(origin.offset(bank.power)) as PortableEngineBlockEntity
             check(engine.inventory.insertSlot(ItemStack(Items.COAL_BLOCK, COAL_BLOCKS_PER_ENGINE), 0, false).isEmpty)
         }

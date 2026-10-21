@@ -31,7 +31,6 @@ import dev.ryanhcode.sable.sublevel.ServerSubLevel
 import dev.ryanhcode.sable.sublevel.storage.SubLevelRemovalReason
 import dev.simulated_team.simulated.content.blocks.portable_engine.PortableEngineBlockEntity
 import net.minecraft.core.BlockPos
-import net.minecraft.core.Direction
 import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.gametest.framework.GameTest
 import net.minecraft.gametest.framework.GameTestHelper
@@ -71,7 +70,7 @@ object ExpeditionSupplyGameTests {
                 for (cz in ((origin.z - 15) shr 4)..((origin.z + 15) shr 4)) body.plot.newEmptyChunk(ChunkPos(cx, cz))
             }
             // Native connectivity splits unbound components into separate constructions.
-            // Join the four independent fluid banks with an ordinary structural deck.
+            // Join the fluid machinery with an ordinary structural deck.
             for (x in -6..6) {
                 for (z in -15..15) {
                     if (kotlin.math.abs(x) in 3..5 && kotlin.math.abs(z) in listOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13)) continue
@@ -79,7 +78,7 @@ object ExpeditionSupplyGameTests {
                 }
             }
             for (tank in ExpeditionFuelSupply.tankOffsets) {
-                for (y in 1..4) {
+                for (y in 1 until tank.y) {
                     level.setBlock(origin.offset(tank.x, y, tank.z), Blocks.WHITE_CONCRETE.defaultBlockState(), 3)
                 }
             }
@@ -122,13 +121,21 @@ object ExpeditionSupplyGameTests {
     }
 
     @JvmStatic
-    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 5000, batch = "expedition_supply")
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 6000, batch = "expedition_supply")
     fun nativeExpeditionFuelSupply(helper: GameTestHelper) {
         val rig = Rig(helper, 24_000.0)
         helper.runAfterDelay(1200) {
-            helper.assertTrue(rig.pumps.all { abs(it.speed) == 32f }, "Coal engines did not drive all four native pumps at 32 RPM")
             helper.assertTrue(
-                rig.powers.all { it.inventory.getItem(0).count == 7 && it.currentBurnTime > 0 },
+                rig.pumps.all {
+                    abs(it.speed) == ExpeditionFuelSupply.PUMP_RPM.toFloat()
+                },
+                "Native 2:1 gearing did not drive all four pumps at 64 RPM",
+            )
+            helper.assertTrue(
+                rig.powers.all {
+                    it.inventory.getItem(0).count == 7 && it.currentBurnTime > 0 &&
+                        abs(it.generatedSpeed) == ExpeditionFuelSupply.GENERATOR_RPM.toFloat()
+                },
                 "Native coal block was not consumed",
             )
             helper.assertTrue(
@@ -138,6 +145,14 @@ object ExpeditionSupplyGameTests {
                 }}",
             )
             helper.assertTrue(rig.fuelRemaining() == ExpeditionFuelSupply.INITIAL_FUEL_MB, "Native routing created or lost fuel")
+            helper.assertTrue(
+                rig.tanks.all {
+                    it.totalTankSize ==
+                        ExpeditionFuelSupply.TANK_HEIGHT * ExpeditionFuelSupply.TANK_WIDTH * ExpeditionFuelSupply.TANK_WIDTH &&
+                        it.tankInventory.capacity == ExpeditionFuelSupply.TANK_CAPACITY_MB
+                },
+                "Native physical tank capacity does not match shared 2×2×6 reservoir",
+            )
             val originalFuel = rig.fuelRemaining()
             rig.reconstruct()
             helper.runAfterDelay(2) {
@@ -151,7 +166,10 @@ object ExpeditionSupplyGameTests {
                 val fuelBefore = rig.fuelRemaining()
                 rig.engines.forEach {
                     it.setControlMode(AbstractThrusterBlockEntity.ControlMode.PERIPHERAL)
-                    it.setDigitalInput(if (it.facing == Direction.WEST) 1f else 0.25f)
+                    val local = it.blockPos.subtract(rig.origin)
+                    // Drain one corner hard: all four pump ports must share the finite
+                    // native reservoir after reconstruction, with no per-bank fuel lock.
+                    it.setDigitalInput(if (local.x < 0 && local.z < 0) 1f else 0.25f)
                 }
                 helper.runAfterDelay(80) {
                     helper.assertTrue(
@@ -164,11 +182,11 @@ object ExpeditionSupplyGameTests {
                     )
                     helper.assertTrue(rig.fuelRemaining() < fuelBefore, "Fractional native throttle consumed no finite onboard fuel")
                     helper.assertTrue(rig.engines.all { it.currentThrust > 0f }, "Fuel-fed native engines did not produce thrust")
-                    helper.runAfterDelay(3220) {
+                    helper.runAfterDelay(3920) {
                         println(
-                            "SUPPLY_LOAD afterInsertion fuel=${rig.fuelRemaining()} tanks=${rig.tanks.map {
+                            "SUPPLY_LOAD afterAsymmetricBurn fuel=${rig.fuelRemaining()} tanks=${rig.tanks.map {
                                 it.tankInventory.fluidAmount
-                            }} west=${rig.engines.filter { it.facing == Direction.WEST }.map { it.fuelAmountMb }}",
+                            }} minimumEngine=${rig.engines.minOf { it.fuelAmountMb }}",
                         )
                         helper.assertTrue(
                             rig.engines.all { it.fuelAmountMb > 100 },
