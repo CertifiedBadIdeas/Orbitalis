@@ -64,7 +64,7 @@ object ExpeditionFuelSupply {
     val engines: List<EngineSite> =
         buildList {
             for (x in listOf(-4, 4)) {
-                for (z in listOf(-12, -8, -4, 4, 8, 12)) add(EngineSite(BlockPos(x, 5, z), Direction.UP))
+                for (z in listOf(-12, -8, -6, -4, -2, 2, 4, 6, 8, 12)) add(EngineSite(BlockPos(x, 5, z), Direction.UP))
                 for (z in listOf(-8, 8)) add(EngineSite(BlockPos(x, 9, z), Direction.DOWN))
             }
             for (x in listOf(-6, 6)) {
@@ -99,8 +99,8 @@ object ExpeditionFuelSupply {
                 for (y in 6..8) add(BlockPos(x / 2 * 4, y, branchZ))
                 // Keep the lift manifold two blocks away from the tank columns: an
                 // adjacent ordinary pipe would reconnect to the downstream reservoir.
-                for (z in 4..12) add(BlockPos(x / 2 * 4, 7, bank.zSign * z))
-                for (z in listOf(4, 12)) add(BlockPos(x / 2 * 4, 6, bank.zSign * z))
+                for (z in 2..12) add(BlockPos(x / 2 * 4, 7, bank.zSign * z))
+                for (z in listOf(2, 4, 6, 12)) add(BlockPos(x / 2 * 4, 6, bank.zSign * z))
             }
         }
 

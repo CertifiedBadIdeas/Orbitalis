@@ -72,7 +72,7 @@ object ExpeditionSupplyGameTests {
             // Join the four independent fluid banks with an ordinary structural deck.
             for (x in -6..6) {
                 for (z in -15..15) {
-                    if (kotlin.math.abs(x) in 3..5 && kotlin.math.abs(z) in listOf(3, 4, 5, 7, 8, 9, 11, 12, 13)) continue
+                    if (kotlin.math.abs(x) in 3..5 && kotlin.math.abs(z) in listOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13)) continue
                     level.setBlock(origin.offset(x, 0, z), Blocks.WHITE_CONCRETE.defaultBlockState(), 3)
                 }
             }
@@ -110,18 +110,20 @@ object ExpeditionSupplyGameTests {
     }
 
     @JvmStatic
-    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 1000, batch = "expedition_supply")
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 1600, batch = "expedition_supply")
     fun nativeExpeditionFuelSupply(helper: GameTestHelper) {
         val rig = Rig(helper, 24_000.0)
-        helper.runAfterDelay(600) {
+        helper.runAfterDelay(1200) {
             helper.assertTrue(rig.pumps.all { abs(it.speed) == 32f }, "Coal engines did not drive all four native pumps at 32 RPM")
             helper.assertTrue(
                 rig.powers.all { it.inventory.getItem(0).count == 7 && it.currentBurnTime > 0 },
                 "Native coal block was not consumed",
             )
             helper.assertTrue(
-                rig.engines.all { it.fuelAmountMb > 0 && !it.isMultiblock },
-                "Pipe network failed to fuel all ${ExpeditionFuelSupply.engines.size} independent engines",
+                rig.engines.all { it.fuelAmountMb >= 900 && !it.isMultiblock },
+                "Pipe network failed to prime all ${ExpeditionFuelSupply.engines.size} independent engines: ${rig.engines.map {
+                    it.fuelAmountMb
+                }}",
             )
             helper.assertTrue(rig.fuelRemaining() == ExpeditionFuelSupply.INITIAL_FUEL_MB, "Native routing created or lost fuel")
             val burnTimes = rig.powers.map { it.currentBurnTime }
