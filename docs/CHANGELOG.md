@@ -20,6 +20,14 @@ limitations under the License.
 
 ## 0.2.0 — In development
 
+- Preserve walking, landing/hurt and nausea camera transforms in the compressed celestial projection;
+  stepping onto terrain with view bobbing enabled no longer rejects a valid perspective matrix.
+- Preserve physical day/night lighting in the cosmic Overworld at high altitude, including native
+  terrain and optional Voxy, instead of blending towards constant daylight above the atmosphere.
+
+- Tint native clouds at sunrise and sunset in cosmic Overworld skies using the same finite
+  atmospheric solar absorption as orbital clouds, preserving native rain/thunder intensity.
+
 - Allow up to 10 GiB of Java heap for both development clients, including the flight consumer.
 
 - Bound optional Voxy WorldGenV2 work and remaining-work statistics to each planet's configured

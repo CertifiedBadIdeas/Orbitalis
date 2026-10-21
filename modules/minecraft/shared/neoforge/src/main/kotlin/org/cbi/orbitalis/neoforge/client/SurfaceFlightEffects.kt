@@ -27,6 +27,7 @@ import net.minecraft.client.renderer.LightTexture
 import net.minecraft.world.level.Level
 import net.minecraft.world.phys.Vec3
 import org.cbi.orbitalis.minecraft.client.space.FlightSky
+import org.cbi.orbitalis.minecraft.lighting.SkyLighting
 import org.joml.Matrix4f
 import org.joml.Vector3f
 
@@ -105,6 +106,10 @@ class SurfaceFlightEffects private constructor(
         colors: Vector3f,
     ) {
         native.adjustLightmapColors(level, partialTicks, skyDarken, blockLightRedFlicker, skyLight, pixelX, pixelY, colors)
+        // Cosmic Overworld time already derives native skylight from the physical Sun. Replacing
+        // it with constant vacuum daylight would illuminate native/Voxy terrain through the night
+        // while the overview clouds still follow the Sun below the surface.
+        if (SkyLighting.physicalOverworld(level)) return
         val weight = FlightSky.weight(level, Minecraft.getInstance().gameRenderer.mainCamera)
         if (weight <= 0f) return
         val vacuum = Vector3f(colors)
