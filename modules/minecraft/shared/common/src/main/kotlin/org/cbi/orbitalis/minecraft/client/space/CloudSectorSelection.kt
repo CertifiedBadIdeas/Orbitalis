@@ -22,6 +22,7 @@ import org.cbi.orbitalis.core.cloud.ProceduralCloudField
 import org.cbi.orbitalis.core.planet.Vector3
 import kotlin.math.abs
 import kotlin.math.floor
+import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 
@@ -33,6 +34,16 @@ internal object CloudSectorSelection {
         val x: Int,
         val z: Int,
     )
+
+    /** Native ground perspective must contain the full cloud fade radius, including vertical range. */
+    fun surfaceFar(
+        original: Float,
+        eyeHeight: Double,
+        baseHeight: Double,
+    ): Float {
+        val vertical = max(abs(eyeHeight - baseHeight), abs(eyeHeight - baseHeight - ProceduralCloudField.MAX_HEIGHT))
+        return SkyProjection.nativeFar(original, hypot(FADE_DISTANCE, vertical) + ProceduralCloudField.SECTOR_SIZE)
+    }
 
     fun step(
         distance: Double,

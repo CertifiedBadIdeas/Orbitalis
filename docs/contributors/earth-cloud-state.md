@@ -59,7 +59,9 @@ contain exterior faces only; a neighbor halo subtracts internal side intervals a
 The client keeps one detail step (1, 2, 4 or 8) across each view. Native surface views use distance and
 map views use projected pixel density; FAST increases the step and OFF suppresses rendering. Cloud
 coverage is clipped and feathered at the finite Earth footprint, with a six-kilometre surface distance
-fade. Volume geometry is independent of the surface atlas and never requests native chunks.
+fade. The ground native depth range includes this radius and the vertical layer extent, even when
+the native chunk render distance is much shorter; the same projection is used for cloud composition
+and terrain depth. Volume geometry is independent of the surface atlas and never requests native chunks.
 
 `CloudSectorCache` runs at most two pure CPU workers with 16 pending jobs. At most eight completed
 meshes are uploaded in a frame. The render-thread LRU is bounded by 2048 sector entries, two million

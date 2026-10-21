@@ -29,6 +29,8 @@ limitations under the License.
   thickness. Ground, orbital and map views share the field, wind and Earth weather, including
   directional face lighting, transmitted edges and atmospheric attenuation. Both Earth sky modes
   use these clouds; the native cloud quality/off option remains available.
+- Keep the full cloud distance visible from ground height, independent of the native chunk render
+  distance, while preserving depth occlusion by nearby terrain and optional Voxy.
 - Build cloud sector meshes on two bounded workers and upload incrementally into a bounded GPU
   cache; choose a consistent detail level per view and limit surface cloud distance.
 

@@ -100,6 +100,12 @@ object PlanetCloudRenderer {
     internal fun atmosphereCloudHeight(): Double =
         (EarthCloudState.client?.baseHeight ?: EarthCloudState.BASE_HEIGHT) + ProceduralCloudField.MAX_HEIGHT
 
+    @JvmStatic
+    fun surfaceFar(
+        original: Float,
+        eyeHeight: Double,
+    ): Float = CloudSectorSelection.surfaceFar(original, eyeHeight, EarthCloudState.client?.baseHeight ?: EarthCloudState.BASE_HEIGHT)
+
     /** Called before either sky hook so no prepared scene survives a world/camera change. */
     fun beginFrame() {
         scene = null

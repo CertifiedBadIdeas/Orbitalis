@@ -26,6 +26,21 @@ import kotlin.test.assertTrue
 
 class CloudSectorSelectionTest {
     @Test
+    fun `ground projection contains clouds far beyond native chunks`() {
+        val cloudRange = CloudSectorSelection.FADE_DISTANCE
+        val far = CloudSectorSelection.surfaceFar(256f, 90.0, 192.0)
+        val native = org.joml.Matrix4f().perspective(1.2f, 1.6f, 0.05f, 256f)
+        val cloudProjection = org.joml.Matrix4f().perspective(1.2f, 1.6f, 0.05f, far)
+        val viewDistance = kotlin.math.hypot(cloudRange, 272.0 - 90.0).toFloat()
+        val outside = native.transform(org.joml.Vector4f(0f, 0f, -viewDistance, 1f))
+        val visible = cloudProjection.transform(org.joml.Vector4f(0f, 0f, -viewDistance, 1f))
+        assertTrue(outside.z > outside.w)
+        assertTrue(visible.z < visible.w)
+        assertTrue(far > cloudRange)
+        assertEquals(16384f, CloudSectorSelection.surfaceFar(16384f, -64.0, 192.0))
+    }
+
+    @Test
     fun `negative sectors cover finite footprint under wind`() {
         val size = ProceduralCloudField.SECTOR_SIZE
         val windX = 700.0
