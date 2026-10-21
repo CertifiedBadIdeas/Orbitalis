@@ -66,6 +66,5 @@ object ExpeditionManualControls {
                 .joinToString(",")
         source.server.commands.performPrefixedCommand(source, "give @s create:linked_controller[create:linked_controller_items=[$items]]")
         source.server.commands.performPrefixedCommand(source, "give @s create:wrench")
-        source.server.commands.performPrefixedCommand(source, "give @s minecraft:lever")
     }
 }

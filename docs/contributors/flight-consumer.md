@@ -572,9 +572,9 @@ at 64 RPM through native 2:1 cogwheel gearing. Separate intakes draw from the sa
 The engines start empty and receive fuel through pipes. Wait for priming before assembly or autopilot. No runtime code refills tanks,
 creates rotation, supplies FE, changes native capacity or replaces native fuel consumption.
 
-Placement also gives the pilot a lever, wrench and paired Create Linked Controller. Board from the
-south, use the lever on the cabin Physics Assembler, then control translation with WASD, Space and
-Shift. The fixture uses fixed development radio frequencies; use one expedition fixture at a time
+Placement also gives the pilot a wrench and paired Create Linked Controller. Board from the
+south; with an empty hand, hold right-click on the cabin Physics Assembler, drag upward and release
+to assemble. Use the linked controller for translation with WASD, Space and Shift. The fixture uses fixed development radio frequencies; use one expedition fixture at a time
 within radio range to avoid controlling another fixture. The controller must be switched off before `/orbitalis flight autopilot hold`, `orbit` or
 `land`. Stop returns engines to native normal input. Fuel exhaustion disengages guidance; it is not
 an unlimited station-keeping mode. An unpowered ship coasts under the existing orbital physics.
