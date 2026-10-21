@@ -8,9 +8,6 @@
   ],
   "samplers": [
     {
-      "name": "Sampler0"
-    },
-    {
       "name": "Sampler1"
     }
   ],
@@ -147,23 +144,6 @@
       ]
     },
     {
-      "name": "CloudBoundary",
-      "type": "int",
-      "count": 1,
-      "values": [
-        0
-      ]
-    },
-    {
-      "name": "CloudPhase",
-      "type": "float",
-      "count": 2,
-      "values": [
-        0,
-        0
-      ]
-    },
-    {
       "name": "Observer",
       "type": "float",
       "count": 3,
@@ -271,6 +251,14 @@
     },
     {
       "name": "ParallelView",
+      "type": "float",
+      "count": 1,
+      "values": [
+        0
+      ]
+    },
+    {
+      "name": "CloudFadeDistance",
       "type": "float",
       "count": 1,
       "values": [

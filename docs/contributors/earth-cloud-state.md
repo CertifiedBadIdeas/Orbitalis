@@ -48,3 +48,27 @@ Unit tests cover interpolation, ordering, disconnect, identity, large-epoch wind
 payloads. `nativeEarthCloudWeatherSnapshot`, registered in the `settings` and `all` GameTest suites,
 checks the native Overworld producer and packet round trip with a different world's weather.
 Network delivery and rendered ground/map/orbit agreement still require a real client observation.
+
+## Rendering
+
+`core.cloud.ProceduralCloudField` produces deterministic 16-metre columns with eight-metre height
+steps in an 80-metre layer above the snapshot base. The 65,536-metre field is exactly periodic,
+including negative coordinates, so wrapped physical-time advection has no pattern reset. Sector meshes
+contain exterior faces only; a neighbor halo subtracts internal side intervals across sector edges.
+
+The client keeps one detail step (1, 2, 4 or 8) across each view. Native surface views use distance and
+map views use projected pixel density; FAST increases the step and OFF suppresses rendering. Cloud
+coverage is clipped and feathered at the finite Earth footprint, with a six-kilometre surface distance
+fade. Volume geometry is independent of the surface atlas and never requests native chunks.
+
+`CloudSectorCache` runs at most two pure CPU workers with 16 pending jobs. At most eight completed
+meshes are uploaded in a frame. The render-thread LRU is bounded by 2048 sector entries, two million
+vertices and 64 MiB of estimated vertex storage; empty sectors retain markers. Uploads and eviction
+precede a frame's buffer selection. Reset cancels queued work and discards results from the old
+cache generation. Seed and detail are cache keys; wind and lighting are uniforms, not rebuild triggers.
+
+Finite Earth always uses these volumes in both sky modes. The vanilla mode uses the native Sun angle
+for ground cloud lighting; the cosmic mode, orbital views and the map use physical ephemerides. All
+views use the same weather snapshot and volume thickness. The nearest translucent cloud surface is
+resolved before composition against native terrain/ships, with separate compressed celestial depth
+when available. Other dimensions retain their own native clouds.

@@ -25,9 +25,7 @@ uniform mat4 ModelViewMat;
 uniform mat4 ProjMat;
 uniform float SceneScale;
 uniform vec3 CloudOffset;
-uniform int CloudBoundary;
-uniform vec2 CloudPhase;
-out vec2 cloudUv;
+out float cloudThickness;
 out vec4 cloudTint;
 out vec3 actualView;
 out vec3 cloudPosition;
@@ -37,6 +35,6 @@ void main() {
     vec4 compressed = ModelViewMat * vec4(cloudPosition, 1.0);
     gl_Position = ProjMat * compressed;
     actualView = compressed.xyz / SceneScale;
-    cloudUv = CloudBoundary != 0 ? (UV0 + CloudPhase) / 3072.0 : UV0;
+    cloudThickness = UV0.x;
     cloudTint = Color;
 }

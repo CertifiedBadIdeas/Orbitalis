@@ -24,7 +24,6 @@ uniform vec3 Observer;
 uniform vec3 ViewDirection;
 uniform float ParallelView;
 
-uniform sampler2D Sampler0;
 uniform sampler2D Sampler1;
 uniform mat4 ProjMat;
 uniform mat4 NativeProjection;
@@ -32,9 +31,9 @@ uniform vec2 Viewport;
 uniform vec4 ColorModulator;
 uniform int WorldDepth;
 uniform int UsePlanetDepth;
-uniform int CloudBoundary;
+uniform float CloudFadeDistance;
 uniform float CloudHalfSize;
-in vec2 cloudUv;
+in float cloudThickness;
 in vec4 cloudTint;
 in vec3 actualView;
 in vec3 cloudPosition;
@@ -43,10 +42,15 @@ out vec4 fragColor;
 void main() {
     // Derivatives must execute before any nonuniform alpha/depth discard.
     vec3 geometryNormal = cross(dFdx(cloudPosition), dFdy(cloudPosition));
-    // Caps are already bounded quads. Interpolating a fixed +/-half coordinate can round just
-    // outside that plane, so only the oversized repeating period mesh needs footprint clipping.
-    if (CloudBoundary == 0 && (abs(cloudPosition.x) > CloudHalfSize || abs(cloudPosition.z) > CloudHalfSize)) discard;
-    vec4 cloud = texture(Sampler0, cloudUv) * cloudTint * ColorModulator;
+    float edge = max(abs(cloudPosition.x), abs(cloudPosition.z));
+    if (edge > CloudHalfSize) discard;
+    vec4 cloud = cloudTint * ColorModulator;
+    // Feather the actual finite volume instead of adding a separate coincident boundary sheet.
+    cloud.a *= 1.0 - smoothstep(max(0.0, CloudHalfSize - 48.0), CloudHalfSize, edge);
+    if (CloudFadeDistance > 0.0) {
+        float distance = length((cloudPosition - Observer).xz);
+        cloud.a *= 1.0 - smoothstep(CloudFadeDistance * 0.7, CloudFadeDistance, distance);
+    }
     if (cloud.a < 0.1) discard;
     if (WorldDepth != 0) {
         // Private planet depth and these vertices use the same compressed sky coordinates.
@@ -65,11 +69,13 @@ void main() {
     vec3 view = (ParallelView > 0.5 ? ViewDirection : normalize(Observer - cloudPosition));
     if (dot(n, view) < 0.0) n = -n;
     vec3 light = atmosphereSunTransmission(cloudPosition, SunDirection) * SunRadiance;
-    float diffuse = 0.22 + 0.78 * max(0.0, dot(n, SunDirection));
+    float diffuse = 0.32 + 0.68 * max(0.0, dot(n, SunDirection));
     // A thin cloud also transmits sunlight: silver lining grows toward the source.
     float forward = pow(max(0.0, dot(-view, SunDirection)), 8.0);
-    vec3 radiance = light * (diffuse + forward * 0.7);
-    radiance += vec3(0.015, 0.025, 0.045) * max(0.0, SunDirection.y) + vec3(0.008);
+    float transmission = exp(-cloudThickness * 0.018);
+    vec3 radiance = light * (diffuse + forward * (0.3 + 0.9 * transmission));
+    // Multiple scattering fills shaded volume faces without baking illumination into the mesh.
+    radiance += vec3(0.045, 0.065, 0.095) * max(0.0, SunDirection.y) + vec3(0.012);
     radiance *= atmosphereViewTransmission(cloudPosition, ParallelView > 0.5 ? cloudPosition + ViewDirection * (AtmosphereHalfSize * 4.0 + AtmosphereTop) : Observer);
     vec3 mapped = 1.0 - exp(-radiance * 1.35);
     cloud.rgb *= mix(mapped * 12.92, 1.055 * pow(mapped, vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), mapped));
