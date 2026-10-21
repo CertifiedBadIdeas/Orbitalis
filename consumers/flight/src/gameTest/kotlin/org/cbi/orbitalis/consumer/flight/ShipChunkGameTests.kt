@@ -133,6 +133,98 @@ object ShipChunkGameTests {
     }
 
     @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 500, batch = "fuel_snapshot")
+    fun nativeBurnedLiquidFuelSnapshot(helper: GameTestHelper) {
+        val rig = Rig(helper, 21_000.0)
+        val engine = rig.level.getBlockEntity(rig.origin.above()) as ThrusterBlockEntity
+        helper.runAfterDelay(30) {
+            // Exhaust points up into clear air; the test's iron support lies below the intake.
+            rig.level.setBlock(engine.blockPos, engine.blockState.setValue(AbstractThrusterBlock.FACING, Direction.DOWN), 3)
+            engine.setControlMode(
+                dev.propulsionteam.propulsionsimulated.content.thruster.AbstractThrusterBlockEntity.ControlMode.PERIPHERAL,
+            )
+            engine.setDigitalInput(0.137f)
+        }
+        helper.runAfterDelay(83) {
+            org.cbi.orbitalis.minecraft.integration.propulsion.NativeThrusterInput
+                .clear(engine)
+            engine.setControlMode(dev.propulsionteam.propulsionsimulated.content.thruster.AbstractThrusterBlockEntity.ControlMode.NORMAL)
+        }
+        helper.runAfterDelay(183) {
+            helper.assertTrue(
+                engine.fuelAmountMb in 1..374 && engine.currentThrust == 0.0f,
+                "Fixture did not burn real fractional fuel then fade: fuel=${engine.fuelAmountMb} thrust=${engine.currentThrust}",
+            )
+            val source = SableShipSnapshot.capture(rig.body)
+            val before = engine.fuelAmountMb
+            val sourceBlocks = source.getCompound("plot").getCompound("chunks")
+            rig.container.removeForceLoadTicket(rig.body, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
+            rig.container.removeSubLevel(rig.body, SubLevelRemovalReason.REMOVED)
+            rig.body = SableShipSnapshot.load(rig.level, source)
+            rig.container.addForceLoadTicket(rig.body, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
+            val destinationEngine =
+                rig.body.plot.loadedChunks
+                    .flatMap {
+                        it.chunk.blockEntities.values
+                    }.filterIsInstance<ThrusterBlockEntity>()
+                    .single()
+            // Native initialization requests a fresh client tank animation sync. It cannot
+            // invalidate a reconstruction whose actual resources and counters stay exact.
+            destinationEngine
+                .getBehaviour(com.simibubi.create.foundation.blockEntity.behaviour.fluid.SmartFluidTankBehaviour.TYPE)
+                .primaryTank.fluidLevel
+                .forceNextSync()
+            val restored = SableShipSnapshot.capture(rig.body).getCompound("plot").getCompound("chunks")
+            for (key in sourceBlocks.allKeys) {
+                SableShipSnapshot.verifyBlockEntities(
+                    sourceBlocks.getCompound(key).getList("block_entities", 10),
+                    restored.getCompound(key).getList("block_entities", 10),
+                )
+            }
+            val restoredEngine =
+                rig.body.plot.loadedChunks
+                    .flatMap { it.chunk.blockEntities.values }
+                    .filterIsInstance<ThrusterBlockEntity>()
+                    .single()
+            helper.assertTrue(restoredEngine.fuelAmountMb == before, "Native burn/restore changed real fuel amount")
+            val enginePayload =
+                sourceBlocks.allKeys
+                    .flatMap {
+                        sourceBlocks.getCompound(it).getList("block_entities", 10).map { tag ->
+                            tag as net.minecraft.nbt.CompoundTag
+                        }
+                    }.single { it.getString("id") == "createpropulsion:thruster_block_entity" }
+            helper.assertTrue(
+                enginePayload.getDouble("FuelDrainAccumulator") > 0.0,
+                "Fixture did not retain a fractional native fuel drain",
+            )
+            val expected =
+                net.minecraft.nbt
+                    .ListTag()
+                    .also { it.add(enginePayload.copy()) }
+            for (field in listOf("FuelTankSync", "FuelDrainAccumulator")) {
+                val changed = enginePayload.copy()
+                if (field == "FuelTankSync") {
+                    changed.getCompound(field).putInt("amount", before + 1)
+                } else {
+                    changed.putDouble(field, changed.getDouble(field) + 0.25)
+                }
+                val actual =
+                    net.minecraft.nbt
+                        .ListTag()
+                        .also { it.add(changed) }
+                helper.assertTrue(
+                    runCatching {
+                        SableShipSnapshot.verifyBlockEntities(expected, actual)
+                    }.isFailure,
+                    "Exact resource comparison ignored $field",
+                )
+            }
+            helper.succeed()
+        }
+    }
+
+    @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 500, batch = "chunk_rejection")
     fun nativeFiveOccupiedChunksRejected(helper: GameTestHelper) {
         val rig = Rig(helper, 23_000.0)
