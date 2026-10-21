@@ -26,6 +26,9 @@ import net.minecraft.world.level.ChunkPos
 
 /** Read-created native air chunks are a cache, not additional ship cargo or control authority. */
 object SableShipChunks {
+    /** A 32 by 32 metre footprint can straddle three native cells along either axis. */
+    const val MAX_OCCUPIED_CHUNKS = 9
+
     fun occupied(body: ServerSubLevel): List<PlotChunkHolder> {
         val entityChunks =
             body.level
@@ -76,7 +79,7 @@ object SableShipChunks {
                 .toSet()
         check(loaded.containsAll(chunks.allKeys)) { "Native snapshot contains chunks unavailable for live empty-state proof" }
         val retained = occupied(body).map(::key).toSet()
-        require(retained.size in 1..4) { "Ship exceeds four occupied native plot chunks" }
+        require(retained.size in 1..MAX_OCCUPIED_CHUNKS) { "Ship exceeds nine occupied native plot chunks" }
         check(chunks.allKeys.containsAll(retained)) { "Native snapshot is missing occupied chunks" }
         for (key in (chunks.allKeys.toSet() - retained)) {
             val chunk = chunks.getCompound(key)

@@ -90,8 +90,8 @@ object SableShipSnapshot {
             "Connected or overlapping constructions are not supported by this diagnostic"
         }
         require(body.plot.contraptions.isEmpty()) { "Kinematic contraptions are not supported" }
-        require(SableShipChunks.occupied(body).size <= 4 && body.plot.boundingBox.volume() <= 4096) {
-            "Diagnostic ship exceeds four occupied plot chunks or 4096 blocks of bounds"
+        require(SableShipChunks.occupied(body).size <= SableShipChunks.MAX_OCCUPIED_CHUNKS && body.plot.boundingBox.volume() <= 4096) {
+            "Diagnostic ship exceeds nine occupied plot chunks or 4096 blocks of bounds"
         }
         val bounds = body.boundingBox()
         val area = AABB(bounds.minX(), bounds.minY(), bounds.minZ(), bounds.maxX(), bounds.maxY() + 3.0, bounds.maxZ()).inflate(1.0)

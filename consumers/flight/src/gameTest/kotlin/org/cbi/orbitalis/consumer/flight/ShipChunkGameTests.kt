@@ -31,10 +31,13 @@ import net.minecraft.core.Direction
 import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.gametest.framework.GameTest
 import net.minecraft.gametest.framework.GameTestHelper
+import net.minecraft.nbt.CompoundTag
 import net.minecraft.resources.ResourceLocation
 import net.minecraft.util.Unit
 import net.minecraft.world.level.ChunkPos
 import net.minecraft.world.level.block.Blocks
+import net.minecraft.world.ticks.ScheduledTick
+import net.minecraft.world.ticks.TickPriority
 import net.neoforged.neoforge.fluids.FluidStack
 import net.neoforged.neoforge.fluids.capability.IFluidHandler
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
@@ -44,8 +47,11 @@ import org.cbi.orbitalis.minecraft.integration.propulsion.AutopilotSession
 import org.cbi.orbitalis.minecraft.integration.propulsion.RocketDrive
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipChunks
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipSnapshot
+import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferPhase
+import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferRecord
+import java.util.UUID
 
-/** The four-chunk limit applies to persisted content, including state outside solid sections. */
+/** The occupied-chunk limit applies to persisted content, including state outside solid sections. */
 @PrefixGameTestTemplate(false)
 object ShipChunkGameTests {
     private class Rig(
@@ -127,6 +133,105 @@ object ShipChunkGameTests {
                     .single()
                     .tankInventory.fluidAmount == 2000,
                 "Finite tank changed during reconstruction",
+            )
+            helper.succeed()
+        }
+    }
+
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 500, batch = "chunk_six_snapshot")
+    fun nativeSixOccupiedChunksPreserveFuelJournal(helper: GameTestHelper) {
+        val rig = Rig(helper, 24_000.0)
+        rig.body.plot.newEmptyChunk(ChunkPos(rig.centre.x + 1, rig.centre.z + 2))
+        for (dx in 0..1) {
+            for (dz in 0..17) {
+                rig.level.setBlock(rig.origin.offset(dx, 0, dz), Blocks.IRON_BLOCK.defaultBlockState(), 3)
+            }
+        }
+        rig.body.updateMergedMassData(1.0f)
+        rig.body.updateBoundingBox()
+        rig.body.forceUpdateGlobalBounds()
+        rig.body.updateLastPose()
+        helper.runAfterDelay(30) {
+            helper.assertTrue(
+                SableShipChunks.occupied(rig.body).size == 6,
+                "Read-created chunks were confused with occupied chunks",
+            )
+            SableShipSnapshot.preflight(rig.body, null)
+            val source = SableShipSnapshot.capture(rig.body)
+            val record =
+                ShipTransferRecord(
+                    UUID.randomUUID(),
+                    rig.body.uniqueId,
+                    null,
+                    true,
+                    source,
+                    SableShipSnapshot.translated(source, -4096.0),
+                    CompoundTag(),
+                    CompoundTag(),
+                    CompoundTag(),
+                    ShipTransferPhase.PREPARED,
+                )
+            val encoded = record.encode()
+            val decoded = ShipTransferRecord.decode(encoded)
+            helper.assertTrue(decoded.source == source, "Six-chunk journal changed native source state")
+            val oversized = encoded.copy()
+            val chunks = oversized.getCompound("source").getCompound("plot").getCompound("chunks")
+            val sample = chunks.getCompound(chunks.allKeys.first()).copy()
+            for (index in 0..9) chunks.put(index.toString(), sample.copy())
+            helper.assertTrue(
+                runCatching { ShipTransferRecord.decode(oversized) }.isFailure,
+                "Journal accepted more than nine occupied chunks",
+            )
+            helper.assertTrue(source.getCompound("plot").getCompound("chunks").size() == 6, "Snapshot retained empty read chunks")
+            val sourceBlocks = source.getCompound("plot").getCompound("chunks")
+            rig.container.removeForceLoadTicket(rig.body, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
+            rig.container.removeSubLevel(rig.body, SubLevelRemovalReason.REMOVED)
+            rig.body = SableShipSnapshot.load(rig.level, source)
+            rig.container.addForceLoadTicket(rig.body, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
+            val restored = SableShipSnapshot.capture(rig.body).getCompound("plot").getCompound("chunks")
+            helper.assertTrue(restored.allKeys == sourceBlocks.allKeys, "Occupied chunk addresses changed during reconstruction")
+            for (key in sourceBlocks.allKeys) {
+                SableShipSnapshot.verifyBlockEntities(
+                    sourceBlocks.getCompound(key).getList("block_entities", 10),
+                    restored.getCompound(key).getList("block_entities", 10),
+                )
+            }
+            val entities =
+                rig.body.plot.loadedChunks
+                    .flatMap { it.chunk.blockEntities.values }
+            helper.assertTrue(
+                entities.filterIsInstance<ThrusterBlockEntity>().single().fuelAmountMb == 375,
+                "Liquid engine fuel changed during reconstruction",
+            )
+            helper.assertTrue(
+                entities
+                    .filterIsInstance<FluidTankBlockEntity>()
+                    .single()
+                    .tankInventory.fluidAmount == 2000,
+                "Finite tank changed during reconstruction",
+            )
+            helper.succeed()
+        }
+    }
+
+    @JvmStatic
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 500, batch = "chunk_metadata")
+    fun nativeAirChunkScheduledTicksRejected(helper: GameTestHelper) {
+        val rig = Rig(helper, 25_000.0)
+        helper.runAfterDelay(30) {
+            val chunk =
+                rig.body.plot.loadedChunks
+                    .single { it.pos == ChunkPos(rig.centre.x, rig.centre.z - 1) }
+                    .chunk
+            val position = BlockPos(chunk.pos.minBlockX, 80, chunk.pos.minBlockZ)
+            chunk.blockTicks.schedule(ScheduledTick(Blocks.IRON_BLOCK, position, rig.level.gameTime + 6000, TickPriority.NORMAL, 0))
+            helper.assertTrue(chunk.sections.all { it.hasOnlyAir() }, "Scheduled-tick fixture contains solid blocks")
+            helper.assertTrue(SableShipChunks.occupied(rig.body).size == 5, "Persistent air-chunk tick was discarded")
+            val failure = runCatching { SableShipSnapshot.capture(rig.body) }.exceptionOrNull()
+            helper.assertTrue(
+                failure is IllegalArgumentException && failure.message.orEmpty().contains("Pending block/fluid ticks"),
+                "Capture silently discarded persistent air-chunk ticks: $failure",
             )
             helper.succeed()
         }
@@ -453,21 +558,33 @@ object ShipChunkGameTests {
 
     @JvmStatic
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 500, batch = "chunk_rejection")
-    fun nativeFiveOccupiedChunksRejected(helper: GameTestHelper) {
+    fun nativeTenOccupiedChunksRejected(helper: GameTestHelper) {
         val rig = Rig(helper, 23_000.0)
         helper.runAfterDelay(30) {
-            rig.body.plot.newEmptyChunk(ChunkPos(rig.centre.x + 2, rig.centre.z))
-            // Connect the fifth occupied chunk to the same hull; no detached fixture bodies.
-            for (dx in 1..17) rig.level.setBlock(rig.origin.offset(dx, 0, 0), Blocks.IRON_BLOCK.defaultBlockState(), 3)
+            // A connected one-block-wide hull crosses ten native cells; its volume is below 4096.
+            for (cx in 0..4) {
+                for (cz in 0..1) {
+                    if (rig.body.plot.loadedChunks
+                            .none { it.pos == ChunkPos(rig.centre.x + cx, rig.centre.z + cz) }
+                    ) {
+                        rig.body.plot.newEmptyChunk(ChunkPos(rig.centre.x + cx, rig.centre.z + cz))
+                    }
+                }
+            }
+            for (dx in 0..49) {
+                for (dz in 0..1) {
+                    rig.level.setBlock(rig.origin.offset(dx, 0, dz), Blocks.IRON_BLOCK.defaultBlockState(), 3)
+                }
+            }
             rig.body.updateMergedMassData(1.0f)
-            helper.assertTrue(SableShipChunks.occupied(rig.body).size == 5, "Fifth occupied chunk was not counted")
+            helper.assertTrue(SableShipChunks.occupied(rig.body).size == 10, "Tenth occupied chunk was not counted")
             val snapshotFailure = runCatching { SableShipSnapshot.capture(rig.body) }.exceptionOrNull()
             val holdFailure = runCatching { AutopilotSession(rig.body, FlightBody.position(rig.body)) }.exceptionOrNull()
             val rocketFailure = runCatching { RocketDrive(rig.body) }.exceptionOrNull()
             for (failure in listOf(snapshotFailure, holdFailure, rocketFailure)) {
                 helper.assertTrue(
-                    failure is IllegalArgumentException && failure.message!!.contains("four"),
-                    "Five occupied chunks bypassed a boundary: $failure",
+                    failure is IllegalArgumentException && failure.message!!.contains("nine"),
+                    "Ten occupied chunks bypassed a boundary: $failure",
                 )
             }
             helper.succeed()
