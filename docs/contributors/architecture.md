@@ -211,3 +211,9 @@ Cloud rendering uses a deterministic, periodic column field in `core.cloud`, wit
 meshes cached by seed and detail level on the client. The field does not load Minecraft chunks.
 [Earth cloud state](earth-cloud-state.md) documents the authoritative weather snapshot and shared
 physical-time wind used on the surface, orbital map and in space.
+
+Small-ship transfer permits up to nine occupied native plot chunks within the existing 4096-block
+live bounding volume and payload limits. Native assembly chooses an anchor from its block collection;
+the same hull can therefore straddle additional chunk rows without gaining size or cargo. Empty read
+caches remain separately excluded only after proof that they carry no persistent state. The journal
+format remains unchanged; older readers fail closed on active snapshots above their four-chunk limit.

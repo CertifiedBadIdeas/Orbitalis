@@ -30,8 +30,9 @@ limitations under the License.
 - Align orbital mission main thrust against gravity and budget insertion acceleration against the
   supported engine authority; share native attitude conversion between preflight and active guidance.
 - Count occupied ship chunks separately from native read-created air caches. Preserve meaningful
-  metadata and the existing four-chunk transfer journal limit while omitting proven-empty cache
-  chunks from transfer snapshots.
+  metadata while omitting proven-empty cache chunks from transfer snapshots. Allow up to nine occupied
+  chunks within the existing bounding-volume and payload limits so native assembly alignment does
+  not reject the same small hull at a different launch site.
 
 - Preserve walking, landing/hurt and nausea camera transforms in the compressed celestial projection;
   stepping onto terrain with view bobbing enabled no longer rejects a valid perspective matrix.

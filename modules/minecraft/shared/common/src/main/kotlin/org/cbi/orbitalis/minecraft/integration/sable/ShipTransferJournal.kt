@@ -295,7 +295,10 @@ data class ShipTransferRecord(
                 )) {
                     require(plot.contains(key, 99)) { "Missing native plot metadata" }
                 }
-                require(plot.getInt("plot_x") >= 0 && plot.getInt("plot_z") >= 0 && plot.getCompound("chunks").size() in 1..SableShipChunks.MAX_OCCUPIED_CHUNKS) {
+                require(
+                    plot.getInt("plot_x") >= 0 && plot.getInt("plot_z") >= 0 &&
+                        plot.getCompound("chunks").size() in 1..SableShipChunks.MAX_OCCUPIED_CHUNKS,
+                ) {
                     "Invalid native plot bounds"
                 }
                 val pose = snapshot.getCompound("pose")

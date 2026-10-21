@@ -70,7 +70,9 @@ class AutopilotSession(
     init {
         require(SableFlightGravity.isManaged(body.level)) { "Use the Overworld or a supported flight space" }
         require(body.massTracker.mass > 0 && body.massTracker.centerOfMass != null) { "Wait for native mass initialization" }
-        require(SableShipChunks.occupied(body).size <= SableShipChunks.MAX_OCCUPIED_CHUNKS) { "Autopilot supports at most nine occupied native plot chunks" }
+        require(SableShipChunks.occupied(body).size <= SableShipChunks.MAX_OCCUPIED_CHUNKS) {
+            "Autopilot supports at most nine occupied native plot chunks"
+        }
         for (holder in body.plot.loadedChunks) {
             for (block in holder.chunk.blockEntities.values) {
                 if (block !is AbstractThrusterBlockEntity) continue

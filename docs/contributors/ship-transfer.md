@@ -50,7 +50,7 @@ Guidance remains consumer-owned.
 
 ## Supported boundary
 
-The adapter accepts a ship with at most four occupied native plot chunks and a 4096-block bounding
+The adapter accepts a ship with at most nine occupied native plot chunks and a 4096-block bounding
 volume, at most 32 m wide in x/z. Prefer the original native plot address when free; otherwise choose
 an available address from Sable's occupancy bitmap, including reservations for unloaded ships.
 A full destination rejects before modifying the source. Persist the selected address in PREPARED,
@@ -59,7 +59,11 @@ Foreign ships are never moved to make room. Physical destination obstructions st
 Destination terrain/nearby entities must be clear. Other players may stay in either participating level.
 Read-created empty plot chunks are omitted from snapshot copies only after live proof of no blocks,
 block entities, pending ticks, attached entities, auxiliary lights or chunk attachments. Meaningful
-chunks remain subject to the four-chunk journal limit. Native disk saves remain unchanged.
+chunks remain subject to the nine-chunk journal limit. Native disk saves remain unchanged.
+The nine-chunk allowance handles a 32-by-32 footprint straddling three native chunk rows and columns when Sable chooses an off-centre assembly anchor;
+the 4096-block live bounding-volume limit still applies. Journal NBT shape and versions are unchanged.
+Existing records remain readable; older Orbitalis builds reject active records containing more than
+four chunks, so finish such transfers with this version before downgrading.
 
 Connected/overlapping native chains, kinematic contraptions, more than one onboard player and
 pending block/fluid ticks are rejected. Up to 32 native serializable entities can travel, including

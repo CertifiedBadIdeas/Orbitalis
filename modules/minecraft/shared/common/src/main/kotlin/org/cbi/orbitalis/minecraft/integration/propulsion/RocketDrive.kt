@@ -74,7 +74,9 @@ class RocketDrive(
 
     init {
         require(SableFlightGravity.isManaged(body.level) && body.massTracker.mass > 0.0)
-        require(SableShipChunks.occupied(body).size <= SableShipChunks.MAX_OCCUPIED_CHUNKS) { "Rocket exceeds nine occupied native plot chunks" }
+        require(
+            SableShipChunks.occupied(body).size <= SableShipChunks.MAX_OCCUPIED_CHUNKS,
+        ) { "Rocket exceeds nine occupied native plot chunks" }
         for (holder in body.plot.loadedChunks) {
             for (block in holder.chunk.blockEntities.values) {
                 if (block !is AbstractThrusterBlockEntity) continue

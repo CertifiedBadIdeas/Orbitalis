@@ -84,11 +84,20 @@ object ExpeditionMissionGameTests {
         val body = container.allocateNewSubLevel(Pose3d().also { it.position().set(500.0, 21.0, 0.0) }) as ServerSubLevel
         container.addForceLoadTicket(body, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
         val shipId = body.uniqueId
-        val address = body.plot.centerBlock.offset(0, 64, 0)
+        // Native assembly may anchor away from the hull centre. Preserve the resulting
+        // six occupied chunks through both transfers instead of testing only lucky alignment.
+        val centre = body.plot.centerBlock
+        val address = BlockPos((centre.x shr 4) shl 4, centre.y + 64, ((centre.z shr 4) shl 4) + 8)
         for (x in ((address.x - 6) shr 4)..((address.x + 6) shr 4)) {
             for (z in ((address.z - 15) shr 4)..((address.z + 15) shr 4)) body.plot.newEmptyChunk(ChunkPos(x, z))
         }
         ExpeditionBlueprint.place(level, address)
+        helper.assertTrue(
+            org.cbi.orbitalis.minecraft.integration.sable.SableShipChunks
+                .occupied(body)
+                .size == 6,
+            "Mission must exercise the six occupied chunks produced by off-centre assembly",
+        )
         body.updateMergedMassData(1.0f)
         // Place the complete native plot at the pad before the first physics step.
         // All later motion comes from native gravity and finite liquid engines.

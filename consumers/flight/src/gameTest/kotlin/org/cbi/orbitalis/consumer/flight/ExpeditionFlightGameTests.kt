@@ -53,7 +53,7 @@ object ExpeditionFlightGameTests {
     @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 6000, batch = "expedition_hold")
     fun nativeExpeditionAssemblyAndHold(helper: GameTestHelper) {
         val level = helper.level.server.overworld()
-        val origin = BlockPos(900, 180, 8)
+        val origin = BlockPos(0, 82, 0)
         val container = checkNotNull(SubLevelContainer.getContainer(level))
         val previous = container.allSubLevels.map { it.uniqueId }.toSet()
         val forced = mutableSetOf<Long>()
@@ -118,7 +118,7 @@ object ExpeditionFlightGameTests {
             helper.assertTrue(
                 org.cbi.orbitalis.minecraft.integration.sable.SableShipChunks
                     .occupied(body)
-                    .size <= 4 &&
+                    .size <= 9 &&
                     body.plot.boundingBox.volume() <= 4030,
                 "Expedition exceeds native transfer bounds: ${body.plot.boundingBox}; " +
                     "volume=${body.plot.boundingBox.volume()}; chunks=${body.plot.loadedChunks.map {

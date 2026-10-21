@@ -251,7 +251,7 @@ For `hold` and `altitude`, start airborne with clearance for startup and braking
 net acceleration is limited to 4 m/s²; these are guidance requests, not guaranteed physical bounds.
 The adapter rejects active manual inputs, dry liquid engines, liquid multiblocks, unsupported engine variants and
 layouts that cannot approximately balance gravity. It supports up to 64 supported engine controllers
-across at most four occupied plot chunks. Control is limited to the Overworld/space pair, positions within
+across at most nine occupied plot chunks. Control is limited to the Overworld/space pair, positions within
 20,000 m of the physical origin and represented COM above local Y=64. `altitude` accepts heights
 32..15000, subject to the same position bounds. A single lift engine cannot provide every
 attitude correction: add spaced lift engines and opposing translation engines for more control.
