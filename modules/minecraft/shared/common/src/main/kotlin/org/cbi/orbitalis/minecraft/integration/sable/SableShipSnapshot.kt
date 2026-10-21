@@ -64,7 +64,7 @@ object SableShipSnapshot {
         check(expected.keys == actual.keys) { "Block entity positions changed during reconstruction" }
         for ((position, payload) in expected) {
             val restored = actual.getValue(position)
-            check(comparablePayload(payload) == comparablePayload(restored)) {
+            check(payloadForComparison(payload) == payloadForComparison(restored)) {
                 val changed = (payload.allKeys + restored.allKeys).sorted().filter { payload.get(it) != restored.get(it) }
                 "Block entity payload changed during reconstruction: ${payload.getString("id")} at $position; fields: " +
                     changed.joinToString(", ") +
@@ -77,33 +77,8 @@ object SableShipSnapshot {
         }
     }
 
-    private fun comparablePayload(payload: CompoundTag): CompoundTag {
-        val type = payload.getString("id")
-        if (type == "createpropulsion:thruster_block_entity") {
-            return payload.copy().also { copy ->
-                for (entry in copy.getList("Tanks", 10)) {
-                    val level = (entry as CompoundTag).getCompound("Level")
-                    // Create 6.0.10 LerpedFloat.writeNBT consumes this one-shot client sync
-                    // request; native tank initialization may re-arm it after reconstruction.
-                    // Animated values, actual TankContent, FuelTankSync and every fractional
-                    // fuel/oxidizer drain accumulator remain part of the exact comparison.
-                    check(!level.contains("Force") || (level.contains("Force", 1) && level.getByte("Force") == 1.toByte())) {
-                        "Invalid liquid tank animation synchronization flag"
-                    }
-                    level.remove("Force")
-                }
-            }
-        }
-        if (type != "createpropulsion:creative_thruster_block_entity") return payload
-        // Propulsion 1.1.5 read() re-arms this connectivity work flag for single engines.
-        // Keep it armed on the live destination: its first resumed tick must rebuild links.
-        // It is not cargo or engine configuration; all other fields remain exact.
-        check(
-            !payload.contains("UpdateConnectivity") ||
-                (payload.contains("UpdateConnectivity", 1) && payload.getByte("UpdateConnectivity") == 1.toByte()),
-        ) { "Invalid creative thruster connectivity work flag" }
-        return payload.copy().also { it.remove("UpdateConnectivity") }
-    }
+    /** Internal optional adapter seam; identity preserves strict verification without engines. */
+    var payloadForComparison: (CompoundTag) -> CompoundTag = { it }
 
     fun preflight(
         body: ServerSubLevel,

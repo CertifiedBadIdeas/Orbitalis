@@ -21,10 +21,13 @@ package org.cbi.orbitalis.neoforge.integration.propulsion
 import dev.propulsionteam.propulsionsimulated.PropulsionConfig
 import dev.propulsionteam.propulsionsimulated.content.thruster.ThrusterFuelManager
 import org.cbi.orbitalis.minecraft.integration.propulsion.LiquidThrusterSupport
+import org.cbi.orbitalis.minecraft.integration.propulsion.NativePropulsionPayload
+import org.cbi.orbitalis.minecraft.integration.sable.SableShipSnapshot
 
 /** Installed only with Propulsion; loader-specific native fuel/config types stay in NeoForge. */
 object PropulsionLiquidSupport {
     fun install() {
+        SableShipSnapshot.payloadForComparison = NativePropulsionPayload::forComparison
         LiquidThrusterSupport.sampleCapacity = { engine ->
             require(engine.validFluid() && engine.fuelAmountMb > 0) { "Liquid engine has no usable fuel; refuel before engaging control" }
             val fuel = engine.fluidStack().fluid

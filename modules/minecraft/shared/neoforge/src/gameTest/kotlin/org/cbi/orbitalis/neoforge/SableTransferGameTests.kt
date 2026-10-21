@@ -336,8 +336,12 @@ object SableTransferGameTests {
             }
         val engines = ListTag().also { it.add(engine) }
         val loadedEngines = engines.copy().also { it.getCompound(0).putBoolean("UpdateConnectivity", true) }
-        SableShipSnapshot.verifyBlockEntities(engines, loadedEngines)
-        SableShipSnapshot.verifyBlockEntities(loadedEngines, engines)
+        // Optional engine policies are installed by their adapter, absent in this runtime.
+        helper.assertTrue(
+            runCatching { SableShipSnapshot.verifyBlockEntities(engines, loadedEngines) }.isFailure,
+            "Generic snapshot comparison accepted an optional engine work flag without its adapter",
+        )
+        SableShipSnapshot.verifyBlockEntities(engines, engines.copy())
         for (field in listOf("currentTick", "Width", "Thrust", "UpdateConnectivity")) {
             val changed = loadedEngines.copy().also { it.getCompound(0).putInt(field, 2) }
             helper.assertTrue(
