@@ -66,7 +66,13 @@ class FlatOrbitalMission(
     private val launchBasis = planningModel.profile.earthSurfaceFrame(planningModel.epochTick).copy(angularVelocity = Vector3.ZERO)
     private var landingFrame = land
     private val field = SableFlightGravity.flatField(body.level)
-    private val planning: CompletableFuture<BallisticOrbit>
+
+    private data class PlannedInsertion(
+        val orbit: BallisticOrbit,
+        val ramp: OrbitalInsertionRamp,
+    )
+
+    private val planning: CompletableFuture<PlannedInsertion>
 
     private data class ReleaseCheck(
         val model: org.cbi.orbitalis.core.orbit.CelestialDynamics,
@@ -124,13 +130,27 @@ class FlatOrbitalMission(
         val model = field
         planning =
             CompletableFuture.supplyAsync {
-                BallisticOrbit.firstRevolution(
-                    model,
-                    planningModel,
-                    orbitAltitude,
-                    clearance,
-                    direction = -1.0,
-                )
+                val plannedOrbit =
+                    BallisticOrbit.firstRevolution(
+                        model,
+                        planningModel,
+                        orbitAltitude,
+                        clearance,
+                        direction = -1.0,
+                    )
+                // Adaptive numerical orbits use step=0 and nonuniform sample times. Bound
+                // this work independently of that representation and keep it off the server.
+                val maximumSpeed =
+                    (0..256).maxOf { index ->
+                        val time = plannedOrbit.period * index / 256.0
+                        val root = launchBasis.toParent(plannedOrbit.stateAt(time))
+                        planningModel.profile
+                            .earthSurfaceFrame(planningModel.epochTick, time)
+                            .fromParent(root)
+                            .velocity
+                            .length()
+                    }
+                PlannedInsertion(plannedOrbit, OrbitalInsertionRamp(maximumSpeed * 1.1))
             }
         SpaceTravelReservations
             .reserve(body.uniqueId, this)
@@ -225,25 +245,9 @@ class FlatOrbitalMission(
         when (phase) {
             Phase.PLANNING -> {
                 if (!planning.isDone) return false
-                orbit = planning.join()
-                // Sample the whole numerical revolution in its moving Earth chart; reserve
-                // ten percent beyond its peak for interpolation and live-epoch differences.
-                val samples =
-                    kotlin.math
-                        .ceil(orbit.period / orbit.step)
-                        .toInt()
-                        .coerceAtLeast(1)
-                val maximumSpeed =
-                    (0..samples).maxOf { index ->
-                        val time = minOf(orbit.period, index * orbit.step)
-                        val root = launchBasis.toParent(orbit.stateAt(time))
-                        planningModel.profile
-                            .earthSurfaceFrame(planningModel.epochTick, time)
-                            .fromParent(root)
-                            .velocity
-                            .length()
-                    }
-                insertion = OrbitalInsertionRamp(maximumSpeed * 1.1)
+                val planned = planning.join()
+                orbit = planned.orbit
+                insertion = planned.ramp
                 enter(if (returningAtStart) Phase.COAST else Phase.ASCENT)
                 if (returningAtStart) {
                     coastEnergy = field.specificEnergy(s)
