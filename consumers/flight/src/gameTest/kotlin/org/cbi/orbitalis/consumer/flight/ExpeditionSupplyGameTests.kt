@@ -31,6 +31,7 @@ import dev.ryanhcode.sable.sublevel.ServerSubLevel
 import dev.ryanhcode.sable.sublevel.storage.SubLevelRemovalReason
 import dev.simulated_team.simulated.content.blocks.portable_engine.PortableEngineBlockEntity
 import net.minecraft.core.BlockPos
+import net.minecraft.core.Direction
 import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.gametest.framework.GameTest
 import net.minecraft.gametest.framework.GameTestHelper
@@ -41,6 +42,7 @@ import net.minecraft.world.level.block.Blocks
 import net.neoforged.neoforge.fluids.capability.IFluidHandler
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
+import org.cbi.orbitalis.minecraft.integration.sable.SableShipSnapshot
 import kotlin.math.abs
 
 @PrefixGameTestTemplate(false)
@@ -51,7 +53,7 @@ object ExpeditionSupplyGameTests {
     ) {
         val level = checkNotNull(helper.level.server.getLevel(FlatPlanetSpace.SPACE))
         private val container = checkNotNull(SubLevelContainer.getContainer(level))
-        val body = container.allocateNewSubLevel(Pose3d().also { it.position().set(x, 10_000.0, 0.0) }) as ServerSubLevel
+        var body = container.allocateNewSubLevel(Pose3d().also { it.position().set(x, 10_000.0, 0.0) }) as ServerSubLevel
         val origin: BlockPos = body.plot.centerBlock.offset(0, 64, 0)
         val engines get() = ExpeditionFuelSupply.engines.map { level.getBlockEntity(origin.offset(it.offset)) as ThrusterBlockEntity }
         val powers get() = ExpeditionFuelSupply.powerOffsets.map { level.getBlockEntity(origin.offset(it)) as PortableEngineBlockEntity }
@@ -106,11 +108,21 @@ object ExpeditionSupplyGameTests {
             keepAwake()
         }
 
+        fun reconstruct() {
+            val snapshot = SableShipSnapshot.capture(body)
+            VacuumTestBlueprint.discardGlue(body)
+            container.removeForceLoadTicket(body, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
+            container.removeSubLevel(body, SubLevelRemovalReason.REMOVED)
+            body = SableShipSnapshot.load(level, snapshot)
+            SableShipSnapshot.restoreAttachments(body, snapshot)
+            container.addForceLoadTicket(body, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE)
+        }
+
         fun fuelRemaining() = tanks.sumOf { it.tankInventory.fluidAmount } + engines.sumOf { it.fuelAmountMb }
     }
 
     @JvmStatic
-    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 1600, batch = "expedition_supply")
+    @GameTest(template = "lab_empty", templateNamespace = "orbitalis", timeoutTicks = 5000, batch = "expedition_supply")
     fun nativeExpeditionFuelSupply(helper: GameTestHelper) {
         val rig = Rig(helper, 24_000.0)
         helper.runAfterDelay(1200) {
@@ -126,24 +138,51 @@ object ExpeditionSupplyGameTests {
                 }}",
             )
             helper.assertTrue(rig.fuelRemaining() == ExpeditionFuelSupply.INITIAL_FUEL_MB, "Native routing created or lost fuel")
-            val burnTimes = rig.powers.map { it.currentBurnTime }
-            val fuelBefore = rig.fuelRemaining()
-            rig.engines.forEach {
-                it.setControlMode(AbstractThrusterBlockEntity.ControlMode.PERIPHERAL)
-                it.setDigitalInput(0.25f)
-            }
-            helper.runAfterDelay(80) {
+            val originalFuel = rig.fuelRemaining()
+            rig.reconstruct()
+            helper.runAfterDelay(2) {
                 helper.assertTrue(
-                    rig.powers.zip(burnTimes).all { (power, before) ->
-                        power.currentBurnTime < before
-                    },
-                    "Coal burn clock did not advance: before=$burnTimes after=${rig.powers.map {
-                        it.currentBurnTime
-                    }} fuelBefore=$fuelBefore fuelAfter=${rig.fuelRemaining()} thrust=${rig.engines.map { it.currentThrust }}",
+                    rig.fuelRemaining() == originalFuel,
+                    "Reconstruction changed finite supply stock: before=$originalFuel after=${rig.fuelRemaining()} tanks=${rig.tanks.map {
+                        it.tankInventory.fluidAmount
+                    }} engines=${rig.engines.map { it.fuelAmountMb }}",
                 )
-                helper.assertTrue(rig.fuelRemaining() < fuelBefore, "Fractional native throttle consumed no finite onboard fuel")
-                helper.assertTrue(rig.engines.all { it.currentThrust > 0f }, "Fuel-fed native engines did not produce thrust")
-                helper.succeed()
+                val burnTimes = rig.powers.map { it.currentBurnTime }
+                val fuelBefore = rig.fuelRemaining()
+                rig.engines.forEach {
+                    it.setControlMode(AbstractThrusterBlockEntity.ControlMode.PERIPHERAL)
+                    it.setDigitalInput(if (it.facing == Direction.WEST) 1f else 0.25f)
+                }
+                helper.runAfterDelay(80) {
+                    helper.assertTrue(
+                        rig.powers.zip(burnTimes).all { (power, before) ->
+                            power.currentBurnTime < before
+                        },
+                        "Coal burn clock did not advance: before=$burnTimes after=${rig.powers.map {
+                            it.currentBurnTime
+                        }} fuelBefore=$fuelBefore fuelAfter=${rig.fuelRemaining()} thrust=${rig.engines.map { it.currentThrust }}",
+                    )
+                    helper.assertTrue(rig.fuelRemaining() < fuelBefore, "Fractional native throttle consumed no finite onboard fuel")
+                    helper.assertTrue(rig.engines.all { it.currentThrust > 0f }, "Fuel-fed native engines did not produce thrust")
+                    helper.runAfterDelay(3220) {
+                        println(
+                            "SUPPLY_LOAD afterInsertion fuel=${rig.fuelRemaining()} tanks=${rig.tanks.map {
+                                it.tankInventory.fluidAmount
+                            }} west=${rig.engines.filter { it.facing == Direction.WEST }.map { it.fuelAmountMb }}",
+                        )
+                        helper.assertTrue(
+                            rig.engines.all { it.fuelAmountMb > 100 },
+                            "Sustained native supply starved engines despite onboard stock: tanks=${rig.tanks.map {
+                                it.tankInventory.fluidAmount
+                            }} engines=${rig.engines.map { it.fuelAmountMb }} pumps=${rig.pumps.map { it.speed }}",
+                        )
+                        helper.assertTrue(
+                            rig.fuelRemaining() >= 25_000 && rig.fuelRemaining() < fuelBefore,
+                            "Sustained firing violated finite onboard fuel budget",
+                        )
+                        helper.succeed()
+                    }
+                }
             }
         }
     }

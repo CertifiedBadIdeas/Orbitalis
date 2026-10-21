@@ -48,7 +48,7 @@ object ExpeditionFuelSupply {
         val zSign: Int,
     ) {
         val outward get() = if (zSign > 0) Direction.SOUTH else Direction.NORTH
-        val tank get() = BlockPos(x, 5, zSign * 6)
+        val tank get() = BlockPos(x, 5, zSign * 5)
         val pump get() = BlockPos(x, 5, zSign * 7)
         val cog get() = BlockPos(x / 2 * 3, 5, zSign * 7)
         val power get() = BlockPos(x / 2 * 3, 5, zSign * 6)
@@ -102,13 +102,23 @@ object ExpeditionFuelSupply {
                 for (z in 2..12) add(BlockPos(x / 2 * 4, 7, bank.zSign * z))
                 for (z in listOf(2, 4, 6, 12)) add(BlockPos(x / 2 * 4, 6, bank.zSign * z))
             }
+            // Pumps draw from a common intake header, so an asymmetric burn can
+            // use the other native reservoirs instead of stranding their stock.
+            for (x in listOf(-2, 2)) {
+                for (sign in listOf(-1, 1)) {
+                    for (y in 3..5) add(BlockPos(x, y, sign * 6))
+                }
+            }
+            // The shared header stays below the cabin's intact y=4 walking deck.
+            for (z in listOf(-6, 6)) for (x in -2..2) add(BlockPos(x, 3, z))
+            for (z in -6..6) add(BlockPos(0, 3, z))
         }
 
     val occupiedOffsets: Set<BlockPos> =
         buildSet {
             addAll(pipes)
             for (bank in banks) {
-                for (y in 5..7) add(BlockPos(bank.x, y, bank.zSign * 6))
+                for (y in 5..7) add(BlockPos(bank.x, y, bank.tank.z))
                 add(bank.pump)
                 add(bank.cog)
                 add(bank.power)
@@ -126,7 +136,7 @@ object ExpeditionFuelSupply {
         for (p in pipes) states[p] = block("create:fluid_pipe")
         val engineBlock = BuiltInRegistries.BLOCK.get(ResourceLocation.parse("simulated:white_portable_engine"))
         for (bank in banks) {
-            for (y in 5..7) states[BlockPos(bank.x, y, bank.zSign * 6)] = block("create:fluid_tank")
+            for (y in 5..7) states[BlockPos(bank.x, y, bank.tank.z)] = block("create:fluid_tank")
             states[bank.pump] = block("create:mechanical_pump").setValue(PumpBlock.FACING, bank.outward)
             states[bank.cog] = block("create:cogwheel").setValue(BlockStateProperties.AXIS, Direction.Axis.Z)
             states[bank.power] = engineBlock.defaultBlockState().setValue(BlockStateProperties.HORIZONTAL_FACING, bank.outward)
