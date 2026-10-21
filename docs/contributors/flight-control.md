@@ -34,7 +34,8 @@ unavailable when no backend is installed.
   sampling, launch bookmarks, loading tickets and commands. `FlightEngineBackend`, `HoldFlightDrive`
   and `RocketFlightDrive` separate guidance requests from native engine inputs.
 - Shared/common `integration/propulsion` implements those requests using independently installed
-  Propulsion 1.1.5. Only this package compiles against Create/Propulsion APIs. Native engines apply
+  Propulsion 1.1.5. This adapter and its shared/neoforge liquid-capacity bridge compile against
+  Create/Propulsion APIs. Native engines apply
   every force; guidance never substitutes virtual thrust or writes live velocities.
 - Shared/neoforge installs lifecycle listeners with Sable present and the backend only when Propulsion
   is also loaded. A string-targeted `@Pseudo` vector-engine mixin provides transient steering ownership;
@@ -47,14 +48,14 @@ unavailable when no backend is installed.
 Propulsion, Create, Ponder and Registrate are compile-only API inputs to the production build, pinned
 in the root version catalogue. No third-party implementation, engine model, texture or consumer
 fixture is nested in Orbitalis. Propulsion metadata is optional and version-pinned. The source guard
-allows engine API references only in the named adapter package and steering mixin; archive checks
+allows engine API references only in the named adapter package, loader fuel/config bridge and steering mixin; archive checks
 continue to reject bundled upstream implementations and required consumer dependencies.
 
 ## Retained behaviour and save compatibility
 
 This promotion preserves the bounded existing controller, not a claim of arbitrary-vessel support.
-The Propulsion backend supports the tested creative engine layouts; commands require a creative
-owner with permission level 2. Rocket layout, engine count, thrust, preflight and speed bounds still
+The Propulsion backend supports Creative engines and independent standard liquid thrusters with usable
+native fuel. Commands require an owner with permission level 2, including Survival pilots. Rocket layout, engine count, thrust, preflight and speed bounds still
 apply. Launch/return guidance remains Earth-specific and uses a clear launch pad; it does not yet
 plan a lunar landing or avoid arbitrary terrain/buildings. Maneuver execution remains orbital and
 requires turn/burn lead time. These limits are documented in [the flight scenarios](flight-consumer.md).

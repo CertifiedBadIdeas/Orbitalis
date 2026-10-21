@@ -100,7 +100,6 @@ object FlightControl {
     ): Int =
         commandResult {
             val player = source.playerOrException
-            require(player.isCreative) { "Autopilot currently requires creative mode" }
             val body = ship(player)
             require(!SubLevelPhysicsSystem.require(body.level).paused) { "Wait for transfer/recovery to finish" }
             val existing = controls[source.server]?.get(body.uniqueId)
@@ -136,7 +135,6 @@ object FlightControl {
     ): Int =
         commandResult {
             val player = source.playerOrException
-            require(player.isCreative) { "Autopilot currently requires creative mode" }
             val selected = id ?: if (land) selectedId(source) else ship(player).uniqueId
             val current = controls[source.server]?.get(selected)
             require(current == null || current.owner == player.uuid) { "Another pilot owns the autopilot" }
@@ -195,7 +193,7 @@ object FlightControl {
         id: UUID,
         plan: org.cbi.orbitalis.core.planet.ManeuverPlan,
     ) {
-        require(player.isCreative && player.hasPermissions(2)) { "Autopilot currently requires creative mode and permission level 2" }
+        require(player.hasPermissions(2)) { "Autopilot requires permission level 2" }
         require(controls[player.server]?.containsKey(id) != true) { "Stop existing autopilot control first" }
         val body = FlightShips.loaded(player.server, id)
         val mission = ManeuverMission(body, plan)

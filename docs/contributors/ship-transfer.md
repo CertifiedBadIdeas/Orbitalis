@@ -50,13 +50,16 @@ Guidance remains consumer-owned.
 
 ## Supported boundary
 
-The adapter accepts a ship with at most four native plot chunks and a 4096-block bounding
+The adapter accepts a ship with at most four occupied native plot chunks and a 4096-block bounding
 volume, at most 32 m wide in x/z. Prefer the original native plot address when free; otherwise choose
 an available address from Sable's occupancy bitmap, including reservations for unloaded ships.
 A full destination rejects before modifying the source. Persist the selected address in PREPARED,
 then recheck it before reconstruction; a slot claimed during asynchronous preparation cancels safely.
 Foreign ships are never moved to make room. Physical destination obstructions still reject transfer.
 Destination terrain/nearby entities must be clear. Other players may stay in either participating level.
+Read-created empty plot chunks are omitted from snapshot copies only after live proof of no blocks,
+block entities, pending ticks, attached entities, auxiliary lights or chunk attachments. Meaningful
+chunks remain subject to the four-chunk journal limit. Native disk saves remain unchanged.
 
 Connected/overlapping native chains, kinematic contraptions, more than one onboard player and
 pending block/fluid ticks are rejected. Up to 32 native serializable entities can travel, including
@@ -115,12 +118,14 @@ position are revalidated after asynchronous preparation. Block-entity ticks in t
 plot chunks are suspended by the loader's Minecraft ticker hook. This includes persisted engine counters;
 payload comparison preserves cargo and configuration. Block entities are matched by plot coordinates because
 Sable serializes an unordered position set; list order carries no meaning. Missing, extra or duplicate
-positions and NBT field changes still reject reconstruction, except for the pinned Propulsion 1.1.5
-creative thruster's `UpdateConnectivity` work flag. Its native `read()` re-arms connectivity rebuilding
-for single engines. The comparison accepts an absent/true flag without changing either snapshot or
-the live destination, so the first resumed engine tick still rebuilds links. Engine configuration,
-controller offsets, thrust, counters and all other payload fields remain exact; no other block type
-receives this exception. A payload rejection identifies the
+positions and NBT field changes reject reconstruction by default. With Propulsion installed, its
+optional adapter normalizes validated native reconstruction flags in comparison copies only:
+`UpdateConnectivity` for creative thrusters, liquid thruster tank animation `Level.Force`, and
+`NeedsSpeedUpdate` for the pinned portable generator, simple kinetic and mechanical pump types.
+Native loading re-arms these work requests; snapshots and live destination flags remain unchanged.
+Fuel quantities, fractional drain accumulators, coal inventories, burn clocks, speed, network/source
+references and all other payload fields remain exact. Without the adapter, comparison remains strict.
+A payload rejection identifies the
 block type, plot position and changed fields. Other chunks and clients are unaffected by that hook.
 Ordinary scheduled/random block ticks are not globally stopped; a changed payload still cancels preparation.
 Cancellation reports distinguish block-data changes, native save-pointer changes and pilot movement.

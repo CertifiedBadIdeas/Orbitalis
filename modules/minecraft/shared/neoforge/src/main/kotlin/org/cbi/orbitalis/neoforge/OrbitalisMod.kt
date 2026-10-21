@@ -59,6 +59,8 @@ class OrbitalisMod(
 
         if (ModList.get().isLoaded("sable")) {
             if (ModList.get().isLoaded("createpropulsion")) {
+                org.cbi.orbitalis.neoforge.integration.propulsion.PropulsionLiquidSupport
+                    .install()
                 org.cbi.orbitalis.minecraft.flight.control.FlightEngines.backend =
                     org.cbi.orbitalis.minecraft.integration.propulsion.PropulsionFlightBackend
             }

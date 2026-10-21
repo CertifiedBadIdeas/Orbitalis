@@ -418,11 +418,11 @@ class FlatOrbitalMission(
 
     override fun status(): String {
         if (body.isRemoved) return "Flat mission $phase; journaled handoff"
-        val state = state()
-        return "Flat mission $phase; height=%.1f m above sea level; speed=%.2f m/s; %s".format(
+        val earth = FlightGuidanceFrames.earthState(body)
+        return "Flat mission $phase; planet clearance=%.1f m; inertial speed=%.2f m/s; %s".format(
             java.util.Locale.ROOT,
-            state.position.y - FlatPlanetSpace.SEA_LEVEL,
-            state.velocity.length(),
+            geometry.earthEnvelope.distance(earth.position),
+            FlightGuidanceFrames.rootState(body).velocity.length(),
             if (phase ==
                 Phase.COAST
             ) {
