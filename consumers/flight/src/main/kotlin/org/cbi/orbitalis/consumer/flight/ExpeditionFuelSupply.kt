@@ -18,10 +18,10 @@
 
 package org.cbi.orbitalis.consumer.flight
 
-import com.simibubi.create.content.fluids.pipes.FluidPipeBlock
 import com.simibubi.create.api.connectivity.ConnectivityHandler
-import com.simibubi.create.content.fluids.tank.FluidTankBlockEntity
+import com.simibubi.create.content.fluids.pipes.FluidPipeBlock
 import com.simibubi.create.content.fluids.pump.PumpBlock
+import com.simibubi.create.content.fluids.tank.FluidTankBlockEntity
 import dev.simulated_team.simulated.content.blocks.portable_engine.PortableEngineBlockEntity
 import net.minecraft.core.BlockPos
 import net.minecraft.core.Direction
@@ -38,9 +38,15 @@ import net.neoforged.neoforge.fluids.capability.IFluidHandler
 
 /** Finite fixture stock, moved and consumed exclusively by the native machinery after placement. */
 object ExpeditionFuelSupply {
-    data class EngineSite(val offset: BlockPos, val thrust: Direction)
+    data class EngineSite(
+        val offset: BlockPos,
+        val thrust: Direction,
+    )
 
-    private data class Bank(val x: Int, val zSign: Int) {
+    private data class Bank(
+        val x: Int,
+        val zSign: Int,
+    ) {
         val outward get() = if (zSign > 0) Direction.SOUTH else Direction.NORTH
         val tank get() = BlockPos(x, 5, zSign * 6)
         val pump get() = BlockPos(x, 5, zSign * 7)
@@ -55,49 +61,65 @@ object ExpeditionFuelSupply {
     const val INITIAL_FUEL_MB = 96_000
     const val COAL_BLOCKS_PER_ENGINE = 8
 
-    val engines: List<EngineSite> = buildList {
-        for (x in listOf(-4, 4)) for (z in listOf(-8, 8)) {
-            add(EngineSite(BlockPos(x, 5, z), Direction.UP))
-            add(EngineSite(BlockPos(x, 9, z), Direction.DOWN))
+    val engines: List<EngineSite> =
+        buildList {
+            for (x in listOf(-4, 4)) {
+                for (z in listOf(-8, 8)) {
+                    add(EngineSite(BlockPos(x, 5, z), Direction.UP))
+                    add(EngineSite(BlockPos(x, 9, z), Direction.DOWN))
+                }
+            }
+            for (x in listOf(-6, 6)) {
+                for (y in listOf(4, 7)) {
+                    for (z in listOf(-8, 8)) {
+                        add(EngineSite(BlockPos(x, y, z), if (x < 0) Direction.EAST else Direction.WEST))
+                    }
+                }
+            }
+            for (x in listOf(-2, 2)) {
+                for (y in listOf(4, 7)) {
+                    for (z in listOf(-15, 15)) {
+                        add(EngineSite(BlockPos(x, y, z), if (z < 0) Direction.SOUTH else Direction.NORTH))
+                    }
+                }
+            }
         }
-        for (x in listOf(-6, 6)) for (y in listOf(4, 7)) for (z in listOf(-8, 8)) {
-            add(EngineSite(BlockPos(x, y, z), if (x < 0) Direction.EAST else Direction.WEST))
-        }
-        for (x in listOf(-2, 2)) for (y in listOf(4, 7)) for (z in listOf(-15, 15)) {
-            add(EngineSite(BlockPos(x, y, z), if (z < 0) Direction.SOUTH else Direction.NORTH))
-        }
-    }
 
-    private val pipes: Set<BlockPos> = buildSet {
-        for (bank in banks) {
-            val x = bank.x
-            val sideX = x / 2 * 5
-            val branchZ = bank.zSign * 8
-            for (z in 8..14) add(BlockPos(x, 5, bank.zSign * z))
-            for (y in 4..7) add(BlockPos(x, y, bank.zSign * 14))
-            for (distance in 2..3) add(BlockPos(x / 2 * distance, 5, branchZ))
-            for (distance in 3..5) add(BlockPos(x / 2 * distance, 6, branchZ))
-            for (y in 4..7) add(BlockPos(sideX, y, branchZ))
-            // The upward engine occupies y=5: its intake starts at y=6.
-            // Reach this riser from the neighbouring x=5 manifold.
-            for (y in 6..8) add(BlockPos(x / 2 * 4, y, branchZ))
+    private val pipes: Set<BlockPos> =
+        buildSet {
+            for (bank in banks) {
+                val x = bank.x
+                val sideX = x / 2 * 5
+                val branchZ = bank.zSign * 8
+                for (z in 8..14) add(BlockPos(x, 5, bank.zSign * z))
+                for (y in 4..7) add(BlockPos(x, y, bank.zSign * 14))
+                for (distance in 2..3) add(BlockPos(x / 2 * distance, 5, branchZ))
+                for (distance in 3..5) add(BlockPos(x / 2 * distance, 6, branchZ))
+                for (y in 4..7) add(BlockPos(sideX, y, branchZ))
+                // The upward engine occupies y=5: its intake starts at y=6.
+                // Reach this riser from the neighbouring x=5 manifold.
+                for (y in 6..8) add(BlockPos(x / 2 * 4, y, branchZ))
+            }
         }
-    }
 
-    val occupiedOffsets: Set<BlockPos> = buildSet {
-        addAll(pipes)
-        for (bank in banks) {
-            for (y in 5..7) add(BlockPos(bank.x, y, bank.zSign * 6))
-            add(bank.pump)
-            add(bank.cog)
-            add(bank.power)
+    val occupiedOffsets: Set<BlockPos> =
+        buildSet {
+            addAll(pipes)
+            for (bank in banks) {
+                for (y in 5..7) add(BlockPos(bank.x, y, bank.zSign * 6))
+                add(bank.pump)
+                add(bank.cog)
+                add(bank.power)
+            }
         }
-    }
 
     private fun block(id: String) = BuiltInRegistries.BLOCK.get(ResourceLocation.parse(id)).defaultBlockState()
 
     /** Does not place or fill thrusters. Call once while creating the fixture, before normal ticking. */
-    fun place(level: ServerLevel, origin: BlockPos) {
+    fun place(
+        level: ServerLevel,
+        origin: BlockPos,
+    ) {
         val states = linkedMapOf<BlockPos, BlockState>()
         for (p in pipes) states[p] = block("create:fluid_pipe")
         val engineBlock = BuiltInRegistries.BLOCK.get(ResourceLocation.parse("simulated:white_portable_engine"))

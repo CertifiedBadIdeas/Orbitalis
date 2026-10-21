@@ -45,7 +45,10 @@ import kotlin.math.abs
 
 @PrefixGameTestTemplate(false)
 object ExpeditionSupplyGameTests {
-    private class Rig(helper: GameTestHelper, x: Double) {
+    private class Rig(
+        helper: GameTestHelper,
+        x: Double,
+    ) {
         val level = checkNotNull(helper.level.server.getLevel(FlatPlanetSpace.SPACE))
         private val container = checkNotNull(SubLevelContainer.getContainer(level))
         val body = container.allocateNewSubLevel(Pose3d().also { it.position().set(x, 10_000.0, 0.0) }) as ServerSubLevel
@@ -67,17 +70,25 @@ object ExpeditionSupplyGameTests {
             }
             // Native connectivity splits unbound components into separate constructions.
             // Join the four independent fluid banks with an ordinary structural deck.
-            for (x in -6..6) for (z in -15..15) {
-                if (kotlin.math.abs(x) in 3..5 && kotlin.math.abs(z) in 7..9) continue
-                level.setBlock(origin.offset(x, 0, z), Blocks.WHITE_CONCRETE.defaultBlockState(), 3)
+            for (x in -6..6) {
+                for (z in -15..15) {
+                    if (kotlin.math.abs(x) in 3..5 && kotlin.math.abs(z) in 7..9) continue
+                    level.setBlock(origin.offset(x, 0, z), Blocks.WHITE_CONCRETE.defaultBlockState(), 3)
+                }
             }
-            for (tank in ExpeditionFuelSupply.tankOffsets) for (y in 1..4) {
-                level.setBlock(origin.offset(tank.x, y, tank.z), Blocks.WHITE_CONCRETE.defaultBlockState(), 3)
+            for (tank in ExpeditionFuelSupply.tankOffsets) {
+                for (y in 1..4) {
+                    level.setBlock(origin.offset(tank.x, y, tank.z), Blocks.WHITE_CONCRETE.defaultBlockState(), 3)
+                }
             }
             level.addFreshEntity(SuperGlueEntity(level, SuperGlueEntity.span(origin.offset(-6, 0, -15), origin.offset(6, 9, 15))))
             val thruster = BuiltInRegistries.BLOCK.get(ResourceLocation.parse("createpropulsion:thruster"))
             for (site in ExpeditionFuelSupply.engines) {
-                level.setBlock(origin.offset(site.offset), thruster.defaultBlockState().setValue(AbstractThrusterBlock.FACING, site.thrust), 3)
+                level.setBlock(
+                    origin.offset(site.offset),
+                    thruster.defaultBlockState().setValue(AbstractThrusterBlock.FACING, site.thrust),
+                    3,
+                )
             }
             ExpeditionFuelSupply.place(level, origin)
             helper.assertTrue(engines.all { it.fuelAmountMb == 0 }, "Thrusters must start empty and receive fuel through native pipes")
@@ -85,6 +96,7 @@ object ExpeditionSupplyGameTests {
             body.updateBoundingBox()
             body.forceUpdateGlobalBounds()
             body.updateLastPose()
+
             // A native plot loading ticket does not prevent Minecraft idling an empty
             // dimension. Keep this uncrewed fixture's world ticking like the flight tests.
             fun keepAwake() {
@@ -103,8 +115,14 @@ object ExpeditionSupplyGameTests {
         val rig = Rig(helper, 24_000.0)
         helper.runAfterDelay(600) {
             helper.assertTrue(rig.pumps.all { abs(it.speed) == 32f }, "Coal engines did not drive all four native pumps at 32 RPM")
-            helper.assertTrue(rig.powers.all { it.inventory.getItem(0).count == 7 && it.currentBurnTime > 0 }, "Native coal block was not consumed")
-            helper.assertTrue(rig.engines.all { it.fuelAmountMb > 0 && !it.isMultiblock }, "Pipe network failed to fuel all 24 independent engines")
+            helper.assertTrue(
+                rig.powers.all { it.inventory.getItem(0).count == 7 && it.currentBurnTime > 0 },
+                "Native coal block was not consumed",
+            )
+            helper.assertTrue(
+                rig.engines.all { it.fuelAmountMb > 0 && !it.isMultiblock },
+                "Pipe network failed to fuel all 24 independent engines",
+            )
             helper.assertTrue(rig.fuelRemaining() == ExpeditionFuelSupply.INITIAL_FUEL_MB, "Native routing created or lost fuel")
             val burnTimes = rig.powers.map { it.currentBurnTime }
             val fuelBefore = rig.fuelRemaining()
@@ -113,7 +131,14 @@ object ExpeditionSupplyGameTests {
                 it.setDigitalInput(0.25f)
             }
             helper.runAfterDelay(80) {
-                helper.assertTrue(rig.powers.zip(burnTimes).all { (power, before) -> power.currentBurnTime < before }, "Coal burn clock did not advance: before=$burnTimes after=${rig.powers.map { it.currentBurnTime }} fuelBefore=$fuelBefore fuelAfter=${rig.fuelRemaining()} thrust=${rig.engines.map { it.currentThrust }}")
+                helper.assertTrue(
+                    rig.powers.zip(burnTimes).all { (power, before) ->
+                        power.currentBurnTime < before
+                    },
+                    "Coal burn clock did not advance: before=$burnTimes after=${rig.powers.map {
+                        it.currentBurnTime
+                    }} fuelBefore=$fuelBefore fuelAfter=${rig.fuelRemaining()} thrust=${rig.engines.map { it.currentThrust }}",
+                )
                 helper.assertTrue(rig.fuelRemaining() < fuelBefore, "Fractional native throttle consumed no finite onboard fuel")
                 helper.assertTrue(rig.engines.all { it.currentThrust > 0f }, "Fuel-fed native engines did not produce thrust")
                 helper.succeed()
