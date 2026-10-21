@@ -72,7 +72,7 @@ object ExpeditionSupplyGameTests {
             // Join the four independent fluid banks with an ordinary structural deck.
             for (x in -6..6) {
                 for (z in -15..15) {
-                    if (kotlin.math.abs(x) in 3..5 && kotlin.math.abs(z) in 7..9) continue
+                    if (kotlin.math.abs(x) in 3..5 && kotlin.math.abs(z) in listOf(3, 4, 5, 7, 8, 9, 11, 12, 13)) continue
                     level.setBlock(origin.offset(x, 0, z), Blocks.WHITE_CONCRETE.defaultBlockState(), 3)
                 }
             }
@@ -121,7 +121,7 @@ object ExpeditionSupplyGameTests {
             )
             helper.assertTrue(
                 rig.engines.all { it.fuelAmountMb > 0 && !it.isMultiblock },
-                "Pipe network failed to fuel all 24 independent engines",
+                "Pipe network failed to fuel all ${ExpeditionFuelSupply.engines.size} independent engines",
             )
             helper.assertTrue(rig.fuelRemaining() == ExpeditionFuelSupply.INITIAL_FUEL_MB, "Native routing created or lost fuel")
             val burnTimes = rig.powers.map { it.currentBurnTime }
