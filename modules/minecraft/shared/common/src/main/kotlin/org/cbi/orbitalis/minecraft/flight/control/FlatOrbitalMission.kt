@@ -25,6 +25,7 @@ import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.levelgen.Heightmap
 import org.cbi.orbitalis.core.flight.OrbitalGuidance
+import org.cbi.orbitalis.core.flight.OrbitalInsertionRamp
 import org.cbi.orbitalis.core.planet.BallisticOrbit
 import org.cbi.orbitalis.core.planet.CartesianState
 import org.cbi.orbitalis.core.planet.CoastPrediction
@@ -78,6 +79,7 @@ class FlatOrbitalMission(
     private val clearance: Double
     private val preload = ShipDestinationPreload()
     private lateinit var orbit: BallisticOrbit
+    private lateinit var insertion: OrbitalInsertionRamp
     private var engines: HoldFlightDrive? = null
     private var ticks = 0
     private var settled = 0
@@ -224,6 +226,24 @@ class FlatOrbitalMission(
             Phase.PLANNING -> {
                 if (!planning.isDone) return false
                 orbit = planning.join()
+                // Sample the whole numerical revolution in its moving Earth chart; reserve
+                // ten percent beyond its peak for interpolation and live-epoch differences.
+                val samples =
+                    kotlin.math
+                        .ceil(orbit.period / orbit.step)
+                        .toInt()
+                        .coerceAtLeast(1)
+                val maximumSpeed =
+                    (0..samples).maxOf { index ->
+                        val time = minOf(orbit.period, index * orbit.step)
+                        val root = launchBasis.toParent(orbit.stateAt(time))
+                        planningModel.profile
+                            .earthSurfaceFrame(planningModel.epochTick, time)
+                            .fromParent(root)
+                            .velocity
+                            .length()
+                    }
+                insertion = OrbitalInsertionRamp(maximumSpeed * 1.1)
                 enter(if (returningAtStart) Phase.COAST else Phase.ASCENT)
                 if (returningAtStart) {
                     coastEnergy = field.specificEnergy(s)
@@ -271,10 +291,10 @@ class FlatOrbitalMission(
                 // transport velocity and acceleration. Clearance follows the same body geometry
                 // throughout the ramp; at rate=1 only the small external tides differ by epoch.
                 val time = ticks * 0.05
-                val u = (time / 40.0).coerceIn(0.0, 1.0)
-                val rate = u * u * u * (10.0 + u * (-15.0 + 6.0 * u))
-                val derivative = if (time < 40.0) 30.0 * u * u * (1.0 - u) * (1.0 - u) / 40.0 else 0.0
-                val elapsed = 40.0 * (2.5 * u * u * u * u - 3.0 * u * u * u * u * u + u * u * u * u * u * u) + maxOf(0.0, time - 40.0)
+                val ramp = insertion.sample(time)
+                val rate = ramp.rate
+                val derivative = ramp.derivative
+                val elapsed = ramp.elapsed
                 val plannedRoot = launchBasis.toParent(orbit.stateAt(elapsed))
                 val plannedEarth = planningModel.profile.earthSurfaceFrame(planningModel.epochTick, elapsed)
                 val local = plannedEarth.fromParent(plannedRoot)
@@ -288,10 +308,11 @@ class FlatOrbitalMission(
                 val rootAcceleration =
                     liveEarth.toParentAcceleration(slowed, localAcceleration * (rate * rate) + local.velocity * derivative)
                 var feedback = (reference.position - s.position) * 0.15 + (reference.velocity - s.velocity) * 0.8
-                if (feedback.length() > 3.0) feedback = feedback.normalized() * 3.0
+                if (feedback.length() > insertion.accelerationBudget) feedback = feedback.normalized() * insertion.accelerationBudget
                 drive(launchBasis.orientation.inverse(rootAcceleration) + feedback)
                 val matched =
-                    time >= 40.0 && (reference.position - s.position).length() < 0.75 && (reference.velocity - s.velocity).length() < 0.15
+                    time >= insertion.duration && (reference.position - s.position).length() < 0.75 &&
+                        (reference.velocity - s.velocity).length() < 0.15
                 settled = if (matched) settled + 1 else 0
                 if (settled >= 60 && releaseCheck == null) {
                     val root = FlightGuidanceFrames.rootState(body)
