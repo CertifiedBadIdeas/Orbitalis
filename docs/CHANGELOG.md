@@ -20,6 +20,10 @@ limitations under the License.
 
 ## 0.2.0 — In development
 
+- Keep block entities ticking in managed dimensions that contain loaded Sable ships, including
+  after an unattended surface-to-space transfer. Native ship physics no longer runs while vanilla
+  dimension idling suspends onboard computers and machinery; empty dimensions can still idle.
+
 - Move flight control ownership to external integrations. Remove builtin autopilot commands,
   guidance executors, engine backends and steering mixins; retain celestial gravity, automatic
   transfers, orbit prediction and navigation plan editing/saving. Native Propulsion payload

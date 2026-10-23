@@ -42,6 +42,7 @@ object OrbitalisGameTests {
             suite in
                 setOf(
                     "all",
+                    "ticking",
                     "control",
                     "surface",
                     "transfer",
@@ -62,6 +63,8 @@ object OrbitalisGameTests {
         ) {
             "Unknown GameTest suite: $suite"
         }
+        if (suite == "all" || suite == "ticking") event.register(UnattendedShipGameTests::class.java)
+        if (suite == "ticking") return
         if (suite == "all" || suite == "sectors") event.register(OrbitalSectorGameTests::class.java)
         if (suite == "sectors") return
         if (suite == "scaled") {

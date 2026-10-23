@@ -108,6 +108,8 @@ object SableFlightIntegration {
                 }
         }
         NeoForge.EVENT_BUS.addListener { event: ServerTickEvent.Pre ->
+            org.cbi.orbitalis.minecraft.integration.sable.SableWorldActivity
+                .beforeTick(event.server)
             org.cbi.orbitalis.minecraft.integration.sable.SableSurfaceCollisionSteps
                 .begin(event.server)
         }

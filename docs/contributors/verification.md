@@ -31,6 +31,10 @@ limitations under the License.
 | Coordinated bootstrap/build change | verifyLocalFull |
 | Release candidate | verifyLocalFull, relevant real gameplay/server checks, exact archive hash and revision |
 
+The focused `-PorbitalisGameTestSuite=ticking` scenario starts a playerless orbital dimension
+beyond vanilla's idle threshold, verifies a loaded Sable plot's real block-ticker dispatch without
+forced terrain chunks, then verifies idling resumes after the last loaded ship is removed.
+
 Use ./gradlew-sandbox-dev-parallel-summary for noninteractive Gradle commands. verifyLocalFast runs
 verifyTooling, verifyArchitecture and :core:check. verifyLocalFull adds common/check, loader/check and
 production archive inspection. Core tests cover finite rectangular-body potential, the conservative surface layer, numerical low

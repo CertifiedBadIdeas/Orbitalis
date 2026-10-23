@@ -203,7 +203,7 @@ val generateGameTestResources = tasks.register("generateGameTestResources") {
 gameTest.resources.srcDir(generateGameTestResources.map { generatedGameTestResources.get() })
 
 val gameTestSuite = providers.gradleProperty("orbitalisGameTestSuite").orElse("all").get()
-require(gameTestSuite in setOf("all", "surface", "transfer", "flat", "travel", "navigation", "sparse", "atlas", "objects", "terrain", "map", "moon", "settings", "scaled", "sectors", "control", "planets")) { "Unknown GameTest suite: $gameTestSuite" }
+require(gameTestSuite in setOf("all", "ticking", "surface", "transfer", "flat", "travel", "navigation", "sparse", "atlas", "objects", "terrain", "map", "moon", "settings", "scaled", "sectors", "control", "planets")) { "Unknown GameTest suite: $gameTestSuite" }
 apply(from = "${rootProject.projectDir}/gradle/gametest-lifecycle.gradle.kts")
 val gameTestReport = layout.buildDirectory.file("test-results/gameTestServer/results.xml")
 loom.runs.register("gameTestServer") {
@@ -277,8 +277,9 @@ tasks.configureEach {
                 "travel" -> travelNames
                 "flat" -> setOf("nativefinitebodyfreeorbit")
                 "surface" -> surfaceNames
+                "ticking" -> setOf("loadedshiptickswithoutplayers")
                 "transfer" -> transferNames + travelNames
-                else -> setOf("mercuryshiplandingroundtrip", "venusshiplandingroundtrip", "mercuryindependentplayerroundtrip", "venusindependentplayerroundtrip", "nativeinnerplanetterrain", "innerplanetseedpacket", "nativelunarterrain", "nativelunargroundcontact", "lunarshiproundtrip", "lunarsideroundtrip", "lunarundersideroundtrip", "fastcreativelunarplayer", "fastspectatorlunaredge", "fastsurvivallunarunderside") + sectorNames + mapNames + objectNames + terrainNames + atlasNames + surfaceNames + transferNames + travelNames + navigationNames + sparseNames + setOf("nativefinitebodyfreeorbit", "nativeworldcreationsettings", "nativeskylightingsettings", "nativeearthcloudweathersnapshot", "flightcontroloutsideorbitalis")
+                else -> setOf("loadedshiptickswithoutplayers", "mercuryshiplandingroundtrip", "venusshiplandingroundtrip", "mercuryindependentplayerroundtrip", "venusindependentplayerroundtrip", "nativeinnerplanetterrain", "innerplanetseedpacket", "nativelunarterrain", "nativelunargroundcontact", "lunarshiproundtrip", "lunarsideroundtrip", "lunarundersideroundtrip", "fastcreativelunarplayer", "fastspectatorlunaredge", "fastsurvivallunarunderside") + sectorNames + mapNames + objectNames + terrainNames + atlasNames + surfaceNames + transferNames + travelNames + navigationNames + sparseNames + setOf("nativefinitebodyfreeorbit", "nativeworldcreationsettings", "nativeskylightingsettings", "nativeearthcloudweathersnapshot", "flightcontroloutsideorbitalis")
             }
             check(names.containsAll(requiredNames)) {
                 "GameTest run did not execute its required $gameTestSuite scenarios: $names"
