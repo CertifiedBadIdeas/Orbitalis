@@ -20,6 +20,9 @@ limitations under the License.
 
 ## 0.2.0 — In development
 
+- Optional construction adapters can finish asynchronous persistence before ship snapshots, preserve
+  exact block-address ownership during staging, and reconcile devices before recovery resumes ticks.
+
 - Keep block entities ticking in managed dimensions that contain loaded Sable ships, including
   after an unattended surface-to-space transfer. Native ship physics no longer runs while vanilla
   dimension idling suspends onboard computers and machinery; empty dimensions can still idle.

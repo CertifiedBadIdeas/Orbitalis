@@ -112,6 +112,13 @@ version-three through five receipts retain their original recovery semantics. Bo
 an optional pilot and bounded entity/mount manifests are explicit. Common owns native snapshots, exact-motion restoration and the versioned asynchronous
 journal and plot-chunk block-entity tick leases; NeoForge owns startup/tick/interaction wiring and
 a narrow Minecraft ticker hook that honors those leases without loading optional Sable classes.
+Optional `ShipTransferParticipant` adapters quiesce their own state asynchronously before native
+snapshot capture. Exact native block-address maps guard staging; participant resolution runs after
+obsolete copies are removed and before native checkpoint/DONE publication. Recovery opens guards
+before loading either saved copy. A temporary startup ticker gate prevents copied block entities
+from starting before journal reconciliation; ordinary completion, rollback and coordinator close
+release their scopes. Orbitalis neither stores external VM data nor depends on a computer mod.
+The sampled frame is frozen at initial quiescence, independent of checkpoint latency.
 A second loader hook exposes vanilla's pending teleport acknowledgment without replacing its
 acknowledgment protocol. Separate clientbound payloads synchronize surface gravity and
 preserve exact local-player velocity across the native respawn/teleport reset. The native short motion

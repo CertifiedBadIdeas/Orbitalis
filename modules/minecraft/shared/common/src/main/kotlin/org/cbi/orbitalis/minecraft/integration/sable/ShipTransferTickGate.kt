@@ -25,6 +25,15 @@ import java.util.IdentityHashMap
 
 /** Server-thread-only leases; independent of optional Sable classes and external engine payloads. */
 object ShipTransferTickGate {
+    private val worlds = IdentityHashMap<Any, MutableSet<Level>>()
+
+    fun holdWorld(
+        owner: Any,
+        level: Level,
+    ) {
+        worlds.getOrPut(owner) { mutableSetOf() }.add(level)
+    }
+
     private val leases = IdentityHashMap<Any, MutableMap<Level, MutableSet<Long>>>()
 
     fun hold(
@@ -51,6 +60,7 @@ object ShipTransferTickGate {
             entityLeases.values.any { entity.uuid in it[entity.level()].orEmpty() }
 
     fun release(owner: Any) {
+        worlds.remove(owner)
         entityLeases.remove(owner)
         leases.remove(owner)
     }
@@ -62,6 +72,6 @@ object ShipTransferTickGate {
     ): Boolean {
         if (level.isClientSide) return false
         val chunk = ChunkPos.asLong(position.x shr 4, position.z shr 4)
-        return leases.values.any { chunk in it[level].orEmpty() }
+        return worlds.values.any { level in it } || leases.values.any { chunk in it[level].orEmpty() }
     }
 }

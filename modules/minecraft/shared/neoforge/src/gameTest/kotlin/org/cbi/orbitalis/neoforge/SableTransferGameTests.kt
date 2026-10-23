@@ -58,6 +58,7 @@ import org.cbi.orbitalis.minecraft.integration.sable.SableHoldingMapAccess
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipSnapshot
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipTransfer
 import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferJournal
+import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferParticipant
 import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferPhase
 import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferPilotSync
 import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferRecord
@@ -238,7 +239,77 @@ object SableTransferGameTests {
                     return true
                 }
             }
-        var manager = SableShipTransfer(server, folder, pilotSync)
+        var stageResolutions = 0
+        var recoveryResolutions = 0
+        val participant =
+            object : ShipTransferParticipant {
+                override fun prepare(
+                    source: ServerLevel,
+                    positions: Set<BlockPos>,
+                ): ShipTransferParticipant.Preparation {
+                    val ready = CompletableFuture<Void>()
+                    helper.assertTrue(positions.isNotEmpty(), "Preparation did not receive block addresses")
+                    helper.runAfterDelay(2) {
+                        helper.assertTrue(
+                            positions.all { ShipTransferTickGate.blocks(source, it) },
+                            "Source ticked before checkpoint readiness",
+                        )
+                        ready.complete(null)
+                    }
+                    return object : ShipTransferParticipant.Preparation {
+                        override val ready = ready
+
+                        override fun close() {
+                            helper.assertTrue(ready.isDone, "Preparation closed before readiness")
+                        }
+                    }
+                }
+
+                private fun scope(
+                    source: ServerLevel,
+                    destination: ServerLevel,
+                    positions: Map<BlockPos, BlockPos>,
+                    recovery: Boolean,
+                ): ShipTransferParticipant.Scope {
+                    helper.assertTrue(positions.isNotEmpty(), "Transfer mapping is empty")
+                    return object : ShipTransferParticipant.Scope {
+                        var resolved = false
+
+                        override fun resolve() {
+                            helper.assertTrue(!resolved, "Participant resolved twice")
+                            resolved = true
+                            for ((a, b) in positions) {
+                                val old = source.getBlockEntity(a)
+                                val next = destination.getBlockEntity(b)
+                                helper.assertTrue((old == null) != (next == null), "Authority resolved while both or neither copies exist")
+                                val world = if (old != null) source else destination
+                                val position = if (old != null) a else b
+                                helper.assertTrue(
+                                    ShipTransferTickGate.blocks(world, position),
+                                    "Winner resumed before participant resolution",
+                                )
+                            }
+                            if (recovery) recoveryResolutions++ else stageResolutions++
+                        }
+
+                        override fun close() = Unit
+                    }
+                }
+
+                override fun stage(
+                    source: ServerLevel,
+                    destination: ServerLevel,
+                    positions: Map<BlockPos, BlockPos>,
+                ): ShipTransferParticipant.Scope = scope(source, destination, positions, false)
+
+                override fun recover(
+                    source: ServerLevel,
+                    destination: ServerLevel,
+                    positions: Map<BlockPos, BlockPos>,
+                    committed: Boolean,
+                ): ShipTransferParticipant.Scope = scope(source, destination, positions, true)
+            }
+        var manager = SableShipTransfer(server, folder, pilotSync, listOf(participant))
         val player = GameTestPlayers.create(helper)
         val pose =
             Pose3d().also {
@@ -696,7 +767,7 @@ object SableTransferGameTests {
                         // DONE snapshots must not rewind progress after an ordinary restart.
                         chest(returned).setItem(0, ItemStack(Items.COBBLESTONE, 32))
                         manager.close()
-                        manager = SableShipTransfer(server, folder, pilotSync)
+                        manager = SableShipTransfer(server, folder, pilotSync, listOf(participant))
                         waitUntil({ !manager.busy }) {
                             cargo(returned, 32)
                             chest(returned).setItem(0, ItemStack(Items.COBBLESTONE, 16))
@@ -822,7 +893,7 @@ object SableTransferGameTests {
                                 // A prepared copy is not authoritative, even if reconstruction happened.
                                 SableShipSnapshot.load(orbit, shifted)
                                 manager.close()
-                                manager = SableShipTransfer(server, folder, pilotSync)
+                                manager = SableShipTransfer(server, folder, pilotSync, listOf(participant))
                                 waitUntil({ !manager.busy }) {
                                     val rolledBack =
                                         surfaceContainer.getSubLevel(ship) as? ServerSubLevel ?: error("Prepared source was not restored")
@@ -850,7 +921,7 @@ object SableTransferGameTests {
                                         waitUntil({ journalWrite!!.isDone }) {
                                             journalWrite!!.join()
                                             manager.close()
-                                            manager = SableShipTransfer(server, folder, pilotSync)
+                                            manager = SableShipTransfer(server, folder, pilotSync, listOf(participant))
                                             waitUntil({ !manager.busy }) {
                                                 val recovered =
                                                     orbitContainer.getSubLevel(ship) as? ServerSubLevel
@@ -885,6 +956,10 @@ object SableTransferGameTests {
                                                             )
                                                             helper.assertTrue(body.plot.plotPos == old.plot.plotPos, "Foreign plot moved")
                                                         }
+                                                        helper.assertTrue(
+                                                            stageResolutions >= 2 && recoveryResolutions >= 2,
+                                                            "Participant lifecycle was not exercised across travel and recovery",
+                                                        )
                                                         cleanup()
                                                         helper.succeed()
                                                     }

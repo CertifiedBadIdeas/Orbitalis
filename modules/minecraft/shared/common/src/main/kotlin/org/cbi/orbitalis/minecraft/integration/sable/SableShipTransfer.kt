@@ -55,9 +55,15 @@ class SableShipTransfer(
     private val server: MinecraftServer,
     folder: Path,
     private val pilotSync: ShipTransferPilotSync,
+    private val participants: List<ShipTransferParticipant> = ShipTransferParticipants.snapshot(),
 ) : AutoCloseable {
     constructor(server: MinecraftServer, folder: Path) : this(server, folder, ShipTransferPilotSync.NATIVE)
 
+    private val preparations = mutableListOf<ShipTransferParticipant.Preparation>()
+    private val participantScopes = mutableListOf<ShipTransferParticipant.Scope>()
+    private var participantsResolved = false
+    private val startupGate = Any()
+    private var preparing = false
     private val journal = ShipTransferJournal(folder)
     private val records = mutableMapOf<UUID, ShipTransferRecord>()
     private val startup = journal.read()
@@ -76,7 +82,7 @@ class SableShipTransfer(
     private val entityPreloads = mutableListOf<org.cbi.orbitalis.minecraft.flight.ShipDestinationPreload>()
     var error: String? = null
         private set
-    val busy: Boolean get() = !startupHandled || active != null || pending != null || waitFor != null || error != null
+    val busy: Boolean get() = !startupHandled || preparing || active != null || pending != null || waitFor != null || error != null
 
     fun locks(level: ServerLevel): Boolean = (busy || records.values.any { it.pilotPending }) && level in worlds()
 
@@ -108,7 +114,28 @@ class SableShipTransfer(
         }
     }
 
+    private fun closePreparations() {
+        while (preparations.isNotEmpty()) preparations.removeAt(preparations.lastIndex).close()
+    }
+
+    private fun resolveParticipants() {
+        if (!participantsResolved) {
+            participantScopes.asReversed().forEach { it.resolve() }
+            participantsResolved = true
+        }
+    }
+
+    private fun closeParticipantScopes() {
+        while (participantScopes.isNotEmpty()) participantScopes.removeAt(participantScopes.lastIndex).close()
+        closePreparations()
+        participantsResolved = false
+    }
+
     private fun resume() {
+        resolveParticipants()
+        closeParticipantScopes()
+        preparing = false
+        ShipTransferTickGate.release(startupGate)
         if (transferStarted != 0L) {
             Sable.LOGGER.info(
                 "ORBITALIS_TRANSFER_TIMING ship={} stage=total ms={}",
@@ -172,10 +199,12 @@ class SableShipTransfer(
         try {
             if (!startupHandled) {
                 pause()
+                worlds().forEach { ShipTransferTickGate.holdWorld(startupGate, it) }
                 if (!startup.isDone) return
                 records.putAll(startup.join().associateBy { it.ship })
                 startupHandled = true
                 recoverNext()
+                ShipTransferTickGate.release(startupGate)
             }
             waitFor?.let { ready ->
                 check(++waitedTicks <= 200) { waitFailure }
@@ -331,9 +360,54 @@ class SableShipTransfer(
         require(SableFlightGravity.isManaged(body.level) && (player == null || player.level() === body.level)) {
             "Use the Overworld surface or a supported flight space"
         }
+        body.updateBoundingBox()
+        ShipTransferPassengers.preflight(body, player)
+        val frozenFrame = CelestialFlight.sample(server)
+        val destinationDimension = destinationFor(body, targetDimension, frozenFrame)
+        val target =
+            checkNotNull(
+                org.cbi.orbitalis.minecraft.flight.OrbitalSectors
+                    .ensure(server, destinationDimension),
+            )
+        val container = checkNotNull(SubLevelContainer.getContainer(target))
+        val side = 1 shl container.logSideLength
+        require(container.occupancy.nextClearBit(0) < side * side) { "No free destination plot; no source changes were made" }
+        pause()
+        retain(body)
+        preparing = true
+        pilot = player
+        transferStarted = System.nanoTime()
+        try {
+            val positions =
+                body.plot.loadedChunks
+                    .flatMap { it.chunk.blockEntities.keys }
+                    .map { it.immutable() }
+                    .toSet()
+            for (participant in participants) preparations.add(participant.prepare(body.level, positions))
+            val ready = CompletableFuture.allOf(*preparations.map { it.ready }.toTypedArray())
+            awaitCondition("Transfer participant preparation timed out", { ready.isDone }) {
+                try {
+                    ready.join()
+                    beginPrepared(player, body, destinationDimension, frozenFrame)
+                } catch (failure: Exception) {
+                    // No PREPARED receipt and no destination copy exist yet: source remains authoritative.
+                    resume()
+                    throw failure
+                }
+            }
+        } catch (failure: Exception) {
+            resume()
+            throw failure
+        }
+    }
+
+    private fun destinationFor(
+        body: ServerSubLevel,
+        targetDimension: ResourceKey<Level>?,
+        sample: CelestialFlight,
+    ): ResourceKey<Level> {
         val sourceDimension = body.level.dimension()
         val sourceOrbit = FlightSpaceCoordinates.isOrbital(sourceDimension)
-        val sample = CelestialFlight.sample(server)
         val destinationDimension =
             targetDimension ?: if (sourceDimension == FlatPlanetSpace.SPACE) {
                 Level.OVERWORLD
@@ -353,9 +427,20 @@ class SableShipTransfer(
                 }
             }
         require(CelestialFlight.supported(destinationDimension) && destinationDimension != sourceDimension) { "Unsupported transfer route" }
+        return destinationDimension
+    }
+
+    private fun beginPrepared(
+        player: ServerPlayer?,
+        body: ServerSubLevel,
+        destinationDimension: ResourceKey<Level>,
+        frozenFrame: CelestialFlight,
+    ) {
+        val sourceDimension = body.level.dimension()
+        val sourceOrbit = FlightSpaceCoordinates.isOrbital(sourceDimension)
         val surfaceDimension = if (sourceOrbit) destinationDimension else sourceDimension
         val orbitalDimension = if (sourceOrbit) sourceDimension else destinationDimension
-        val frameTransform = ShipFrameTransform(CelestialFlight.sample(server), sourceDimension, destinationDimension)
+        val frameTransform = ShipFrameTransform(frozenFrame, sourceDimension, destinationDimension)
         // Freeze bounds at the same current pose as the snapshot, after native drift.
         body.updateBoundingBox()
         val participants = ShipTransferPassengers.preflight(body, player)
@@ -375,6 +460,12 @@ class SableShipTransfer(
                 target,
             )
         checkDestination(target, destination)
+        closePreparations()
+        for (participant in this.participants) {
+            participantScopes.add(
+                participant.stage(body.level, target, blockMapping(source, destination)),
+            )
+        }
         val sourcePilot = player?.let(::playerState) ?: CompoundTag()
         if (player != null) {
             org.cbi.orbitalis.minecraft.flight.FlightMotionPayload(
@@ -425,7 +516,7 @@ class SableShipTransfer(
             )
         player?.closeContainer()
         active = record
-        transferStarted = System.nanoTime()
+        preparing = false
         pause()
         retain(body)
         pilot = player
@@ -465,6 +556,26 @@ class SableShipTransfer(
         }
     }
 
+    private fun blockMapping(
+        source: CompoundTag,
+        destination: CompoundTag,
+    ): Map<BlockPos, BlockPos> {
+        val a = SableNBTUtils.readPose3d(source.getCompound("pose")).rotationPoint()
+        val b = SableNBTUtils.readPose3d(destination.getCompound("pose")).rotationPoint()
+        val dx = b.x - a.x
+        val dz = b.z - a.z
+        require(dx.isFinite() && dz.isFinite() && dx == dx.toInt().toDouble() && dz == dz.toInt().toDouble()) {
+            "Invalid native plot translation"
+        }
+        val chunks = source.getCompound("plot").getCompound("chunks")
+        return chunks.allKeys
+            .flatMap { key -> chunks.getCompound(key).getList("block_entities", 10).map { it as CompoundTag } }
+            .associate { data ->
+                val from = BlockPos(data.getInt("x"), data.getInt("y"), data.getInt("z"))
+                from to from.offset(dx.toInt(), 0, dz.toInt())
+            }
+    }
+
     private fun stage(
         record: ShipTransferRecord,
         source: ServerSubLevel,
@@ -496,6 +607,7 @@ class SableShipTransfer(
                     SableShipSnapshot.discardAttachments(staged.level, record.destination)
                     target.removeSubLevel(staged, SubLevelRemovalReason.REMOVED)
                 }
+                resolveParticipants()
                 checkpoint()
                 persist(record.copy(phase = ShipTransferPhase.DONE, recoveredSource = true)) { resume() }
                 player?.sendSystemMessage(Component.literal("Transfer cancelled; source retained: $reason"))
@@ -527,6 +639,7 @@ class SableShipTransfer(
             }
         if (changed != null) {
             // No authority change happened: preserve the source's current state and checkpoint it.
+            resolveParticipants()
             checkpoint()
             persist(record.copy(phase = ShipTransferPhase.DONE)) { resume() }
             player?.sendSystemMessage(Component.literal("Transfer cancelled; source retained: $changed."))
@@ -575,6 +688,7 @@ class SableShipTransfer(
         SubLevelContainer.getContainer(source.level)!!.removeSubLevel(source, SubLevelRemovalReason.REMOVED)
         ShipTransferPassengers.restore(staged.level, record.destinationPassengers)
         handoffTravellers(player, staged, record.destinationPilot, record.destinationPassengers, true) {
+            resolveParticipants()
             checkpoint()
             verifySaved(staged)
             persist(record.copy(phase = ShipTransferPhase.DONE)) {
@@ -675,6 +789,7 @@ class SableShipTransfer(
     }
 
     private fun recoverNext() {
+        closeParticipantScopes()
         val record = records.values.firstOrNull { it.phase != ShipTransferPhase.DONE }
         active = record
         pause()
@@ -697,6 +812,16 @@ class SableShipTransfer(
         active = record
         val sourceWorld = sourceLevel(record)
         val destinationWorld = destinationLevel(record)
+        for (participant in participants) {
+            participantScopes.add(
+                participant.recover(
+                    sourceWorld,
+                    destinationWorld,
+                    blockMapping(record.source, record.destination),
+                    record.phase == ShipTransferPhase.COMMITTED,
+                ),
+            )
+        }
         val copies =
             listOf(sourceWorld to record.source, destinationWorld to record.destination).map { (world, snapshot) ->
                 val container = SubLevelContainer.getContainer(world)!!
@@ -707,8 +832,8 @@ class SableShipTransfer(
                         container.getSubLevel(plot.getInt("plot_x"), plot.getInt("plot_z")) == null,
                     ) { "Recovery slot belongs to another ship" }
                     container.occupancy.clear(container.getIndex(plot.getInt("plot_x"), plot.getInt("plot_z")))
-                    SableShipSnapshot.load(world, snapshot).also(::retain)
-                }
+                    SableShipSnapshot.load(world, snapshot)
+                }.also(::retain)
             }
         val passengerWorlds = listOf(sourceWorld to record.sourcePassengers, destinationWorld to record.destinationPassengers)
         val entityChunks = mutableListOf<Pair<ServerLevel, ChunkPos>>()
@@ -747,6 +872,7 @@ class SableShipTransfer(
                 ShipTransferPassengers.restore(winnerWorld, passengers)
                 val online = record.pilot?.let(server.playerList::getPlayer)
                 val finish = {
+                    resolveParticipants()
                     checkpoint()
                     verifySaved(restored)
                     persist(
@@ -755,7 +881,10 @@ class SableShipTransfer(
                             pilotPending = record.pilot != null && online == null,
                             recoveredSource = !committed,
                         ),
-                    ) { recoverNext() }
+                    ) {
+                        resolveParticipants()
+                        recoverNext()
+                    }
                 }
                 if (online == null) {
                     ShipTransferPassengers.mount(winnerWorld, passengers, null)
@@ -859,6 +988,9 @@ class SableShipTransfer(
     }
 
     override fun close() {
+        // Closing a coordinator is not an authority decision (including simulated crash tests).
+        closeParticipantScopes()
+        ShipTransferTickGate.release(startupGate)
         entityPreloads.forEach { it.close() }
         entityPreloads.clear()
         ShipTransferTickGate.release(this)
