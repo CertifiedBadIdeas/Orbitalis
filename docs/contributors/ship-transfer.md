@@ -35,18 +35,16 @@ assemble it, disable creative flight and stand on deck. With manual controls off
 ```
 
 Wait for completion before using controls. Inspect the ship and chest contents. Run `transfer` again
-on deck to return. The manual command supplies no propulsion; the consumer autopilot provides a
-powered ascent and return. There are no `flight enter`, `flight leave` or `transfer space` commands.
+on deck to return. The manual command supplies no propulsion; external flight controllers provide powered ascent and return. There are no `flight enter`, `flight leave` or `transfer space` commands.
 
 `FlatPlanetFrame` adds 4096 to physical Y in space. Axes, inertial linear/angular velocities and
 player view direction are unchanged. Both worlds sample the same physical finite-body field.
 Transfer snapshots and represented pilots must remain within 100 km of the physical origin. Automatic
 handoffs use distance to the reference body from above, beside or below, with 3000 m outward and
-2000 m inward thresholds. Plot size, cargo and passenger limits still apply. The consumer calls
+2000 m inward thresholds. Plot size, cargo and passenger limits still apply. External integrations may call
 `SableFlightIntegration.transferService(server).begin(player, body, targetDimension)` on the server
-thread. It releases engine inputs and waits for fade, remains idle while `busy`, fails on `error` and
-reacquires the ship by UUID after readiness. The explicit-target overload also accepts the Moon/space route; automatic lunar handoffs use local relative altitude and velocity.
-Guidance remains consumer-owned.
+thread. They must remain idle while the journal owns travel and reacquire the native ship by UUID
+after readiness. Automatic handoffs need no controller or command.
 
 ## Supported boundary
 

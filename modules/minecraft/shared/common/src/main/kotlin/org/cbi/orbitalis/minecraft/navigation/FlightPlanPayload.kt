@@ -26,7 +26,7 @@ import org.cbi.orbitalis.core.planet.ManeuverNode
 import org.cbi.orbitalis.core.planet.ManeuverPlan
 import java.util.UUID
 
-/** Version-one bounded plan messages; connection owns player identity. */
+/** Version-two bounded navigation-only plan messages; connection owns player identity. */
 data class FlightPlanCommand(
     val token: UUID,
     val ship: UUID,
@@ -34,7 +34,7 @@ data class FlightPlanCommand(
     val revision: Long = 0,
     val plan: ManeuverPlan = ManeuverPlan(0, emptyList()),
 ) : CustomPacketPayload {
-    enum class Action { READ, SAVE, EXECUTE, STOP }
+    enum class Action { READ, SAVE }
 
     init {
         require(revision >= 0)
@@ -69,8 +69,6 @@ data class FlightPlanState(
     val gameTick: Long,
     val revision: Long,
     val plan: ManeuverPlan,
-    val available: Boolean,
-    val running: Boolean,
     val error: String = "",
 ) : CustomPacketPayload {
     init {
@@ -92,8 +90,6 @@ data class FlightPlanState(
                     b.writeLong(v.gameTick)
                     b.writeLong(v.revision)
                     PlanWire.write(b, v.plan)
-                    b.writeBoolean(v.available)
-                    b.writeBoolean(v.running)
                     b.writeUtf(v.error, 160)
                 }
 
@@ -104,8 +100,6 @@ data class FlightPlanState(
                         b.readLong(),
                         b.readLong(),
                         PlanWire.read(b),
-                        b.readBoolean(),
-                        b.readBoolean(),
                         b.readUtf(160),
                     )
             }

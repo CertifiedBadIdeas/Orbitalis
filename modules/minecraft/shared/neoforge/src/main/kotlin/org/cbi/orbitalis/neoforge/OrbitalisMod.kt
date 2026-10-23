@@ -59,14 +59,10 @@ class OrbitalisMod(
 
         if (ModList.get().isLoaded("sable")) {
             if (ModList.get().isLoaded("createpropulsion")) {
-                org.cbi.orbitalis.neoforge.integration.propulsion.PropulsionLiquidSupport
-                    .install()
-                org.cbi.orbitalis.minecraft.flight.control.FlightEngines.backend =
-                    org.cbi.orbitalis.minecraft.integration.propulsion.PropulsionFlightBackend
+                org.cbi.orbitalis.minecraft.integration.sable.SableShipSnapshot.payloadForComparison =
+                    org.cbi.orbitalis.minecraft.integration.propulsion.NativePropulsionPayload::forComparison
             }
             SableFlightIntegration.install()
-            org.cbi.orbitalis.neoforge.integration.FlightControlIntegration
-                .install()
         } else {
             NeoForge.EVENT_BUS.addListener { event: ServerTickEvent.Post ->
                 event.server.playerList.players

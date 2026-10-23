@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.cbi.orbitalis.minecraft.integration.propulsion
+package org.cbi.orbitalis.consumer.flight
 
 import dev.propulsionteam.propulsionsimulated.content.thruster.AbstractThrusterBlockEntity
 

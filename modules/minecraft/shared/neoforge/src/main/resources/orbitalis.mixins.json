@@ -26,7 +26,6 @@
     "ServerGamePacketListenerTeleportMixin",
     "DiagnosticBorderMixin",
     "DiagnosticBorderPacketsMixin",
-    "RocketVectorMixin",
     "PhysicalSkyTimeMixin"
   ],
   "injectors": {

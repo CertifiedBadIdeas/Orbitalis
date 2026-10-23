@@ -213,7 +213,7 @@ class ArchitectureBoundaryTest(unittest.TestCase):
                 path.write_text('String supportedEntity = "create:super_glue";')
                 verify.architecture()
 
-    def test_propulsion_imports_are_confined_to_the_named_adapter(self):
+    def test_propulsion_imports_are_rejected_in_production(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for name in ('LICENSE.md', 'NOTICE', 'licenses/README.md'):
@@ -225,10 +225,6 @@ class ArchitectureBoundaryTest(unittest.TestCase):
             adapter.parent.mkdir(parents=True)
             adapter.write_text('import dev.propulsionteam.propulsionsimulated.Example')
             with mock.patch.object(verify, 'ROOT', root):
-                verify.architecture()
-                guidance = base / 'flight/control/Example.kt'
-                guidance.parent.mkdir(parents=True)
-                guidance.write_text(adapter.read_text())
                 with self.assertRaisesRegex(ValueError, 'consumer-only mod API'):
                     verify.architecture()
 

@@ -73,7 +73,7 @@ object OrbitalisGameTests {
             event.register(InnerPlanetTravelGameTests::class.java)
         }
         if (suite == "planets") return
-        if (suite == "all" || suite == "control") event.register(FlightControlGameTests::class.java)
+        if (suite == "all" || suite == "control") event.register(FlightOwnershipGameTests::class.java)
         if (suite == "control") return
         if (suite == "all" || suite == "settings") event.register(WorldSystemSettingsGameTests::class.java)
         if (suite == "all" || suite == "settings") event.register(SkyLightingGameTests::class.java)

@@ -22,7 +22,6 @@ import net.minecraft.core.HolderLookup
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.ListTag
 import net.minecraft.server.MinecraftServer
-import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.level.saveddata.SavedData
 import org.cbi.orbitalis.core.planet.ManeuverNode
 import org.cbi.orbitalis.core.planet.ManeuverPlan
@@ -125,11 +124,4 @@ class FlightPlans : SavedData() {
             return data
         }
     }
-}
-
-/** Optional engine adapter. Main Orbitalis owns navigation intent, never Propulsion engine classes. */
-object FlightPlanHooks {
-    var execute: ((ServerPlayer, UUID, ManeuverPlan) -> Unit)? = null
-    var stop: ((ServerPlayer, UUID) -> Unit)? = null
-    var running: (MinecraftServer, UUID) -> Boolean = { _, _ -> false }
 }

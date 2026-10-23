@@ -106,57 +106,10 @@ low orbits. It is a bounded first-body frame, not a floating origin: space has n
 Below-world removal is suppressed in both managed frames for underside/exterior flight; other
 damage and other dimensions retain native rules. The former diagnostic frames are removed; old journals are never reinterpreted.
 
-In the flight consumer, assemble a supported ship on a flat clear Overworld pad inside |x|,|z|<=4960,
-turn manual inputs off, disable creative flight and stand on board. Run:
+Assemble a supported ship on a clear launch pad and use manual Propulsion input or an external
+flight controller. Orbitalis does not provide ascent, return or maneuver execution commands.
 
-```mcfunction
-/orbitalis flight autopilot orbit
-/orbitalis flight autopilot status
-```
-
-After insertion the status reports engines-off free flight. For return, including from a reloaded
-launch bookmark, run `/orbitalis flight autopilot land`. These guidance commands still require an unmounted
-creative pilot; ship transfer itself also supports survival and an optional seated pilot, within its bounded native serialization and ownership checks. The consumer owns guidance, not production Orbitalis.
-Manual `/orbitalis flight transfer` selects the matching surface/space route but supplies no thrust.
-Automatic altitude handoff also runs independently of this mission for loaded supported ships and
-individual players, including survival. Guidance reserves its own ship so both controllers cannot
-start the same transfer. An independent player needs no ship or command; passengers on a ship are
-transferred with their vehicle instead of being teleported separately.
-
-Ascent handoff starts at physical Y=3064, return at Y=2064, providing 1000 m hysteresis.
-Heights scale with the shared default footprint. A bounded native destination ticket starts when
-the earliest directed crossing is within a measured load-time budget (initially 5 s, twice the
-observed load duration plus 1 s, bounded to 2–21 s). Successive server samples estimate net vertical
-acceleration, including braking and a possible apex; the horizontal crossing predicts the target
-chunk. Unreachable/out-of-footprint approaches release their tickets. Tickets expire natively and
-are released after travel/cancellation/shutdown. This prepares terrain only: ship reconstruction,
-client bundle readiness and durable native checkpoints still temporarily pause physics. Transfer
-stage timings are logged as `ORBITALIS_TRANSFER_TIMING`; renderer continuity still needs client evidence.
-The orbital sky shows the existing illustrative flat body; it is not a live Overworld map or solid
-space terrain. The predictor/guidance keeps this route clear of that body; general underside landing
-and arbitrary collision with the distant illustration are not implemented.
-
-Transfer journal version 4 explicitly stores `surface_dimension=minecraft:overworld` and
-`orbital_dimension=orbitalis:space`. Completed retired diagnostic receipts without a pending pilot
-are ignored; unfinished retired records fail closed and require recovery using the previous version.
-Launch bookmarks remain version 2; retired diagnostic bookmarks are skipped while active Overworld
-sites are preserved. Unknown or inconsistent routes fail closed. See [ship transfer](ship-transfer.md).
-Active version-3 records remain readable with their required pilot; version 4 adds an optional pilot
-and bounded entity/mount manifests. Transactions accept one onboard player; other players may stay
-in Overworld/space. Empty ships do not wait for a pilot during transfer or recovery. Native physics
-is temporarily paused across the participating levels during reconciliation.
-
-## Evidence
-
-Core tests cover symmetry, centre/faces/edges/corners, potential gradients, independent numerical
-volume integration, distant gravity, compact layer boundaries and full surface-native forces.
-They also check multiple unpowered revolutions, timestep convergence, small transverse perturbation,
-unsafe bound trajectories and axial/diagonal shooting solutions. Native tests separately exercise
-an unpowered Sable body and the complete engine-driven Overworld mission, cargo and recovery.
-Use the fresh logs/reports for measured results; client camera/deck contact and frame stalls require
-an interactive run and are not established by the inert server pilot.
-
-## Automatic travel
+Automatic travel
 
 The server examines loaded constructions first, then independent players. Surface exit starts at
 Y=3064 while rising; return starts at physical Y<=2064 while descending, above the initial footprint

@@ -56,14 +56,7 @@ def architecture():
         if relative.startswith('modules/minecraft/shared/common/') and any(
                 item.startswith('net.neoforged.') for item in imports):
             errors.append(f'{relative}: NeoForge imports in shared/common')
-        propulsion_adapter = relative.startswith(
-            'modules/minecraft/shared/common/src/main/kotlin/org/cbi/orbitalis/minecraft/integration/propulsion/')
-        propulsion_mixin = relative == (
-            'modules/minecraft/shared/neoforge/src/main/kotlin/org/cbi/orbitalis/neoforge/mixin/RocketVectorMixin.kt')
-        propulsion_loader = relative == (
-            'modules/minecraft/shared/neoforge/src/main/kotlin/org/cbi/orbitalis/neoforge/integration/propulsion/PropulsionLiquidSupport.kt')
-        if not (propulsion_adapter or propulsion_mixin or propulsion_loader) and re.search(
-                r'\b(?:com\.simibubi|net\.createmod|dev\.propulsionteam|dev\.createpropulsionsimulated)\.', text):
+        if re.search(r'\b(?:com\.simibubi|net\.createmod|dev\.propulsionteam|dev\.createpropulsionsimulated)\.', text):
             errors.append(f'{relative}: consumer-only mod API referenced by production modules')
         if re.search(r'^package\s+net\.(?:minecraft|neoforged)(?:\.|\s|;)', text, re.M):
             errors.append(f'{relative}: project code in an upstream package')

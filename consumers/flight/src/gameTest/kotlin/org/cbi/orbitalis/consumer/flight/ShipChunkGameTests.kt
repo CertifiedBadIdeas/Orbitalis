@@ -42,9 +42,6 @@ import net.neoforged.neoforge.fluids.FluidStack
 import net.neoforged.neoforge.fluids.capability.IFluidHandler
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate
 import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
-import org.cbi.orbitalis.minecraft.flight.control.FlightBody
-import org.cbi.orbitalis.minecraft.integration.propulsion.AutopilotSession
-import org.cbi.orbitalis.minecraft.integration.propulsion.RocketDrive
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipChunks
 import org.cbi.orbitalis.minecraft.integration.sable.SableShipSnapshot
 import org.cbi.orbitalis.minecraft.integration.sable.ShipTransferPhase
@@ -251,7 +248,7 @@ object ShipChunkGameTests {
             engine.setDigitalInput(0.137f)
         }
         helper.runAfterDelay(83) {
-            org.cbi.orbitalis.minecraft.integration.propulsion.NativeThrusterInput
+            NativeThrusterInput
                 .clear(engine)
             engine.setControlMode(dev.propulsionteam.propulsionsimulated.content.thruster.AbstractThrusterBlockEntity.ControlMode.NORMAL)
         }
@@ -426,7 +423,7 @@ object ShipChunkGameTests {
             engine.setDigitalInput(0.137f)
         }
         helper.runAfterDelay(253) {
-            org.cbi.orbitalis.minecraft.integration.propulsion.NativeThrusterInput
+            NativeThrusterInput
                 .clear(engine)
             engine.setControlMode(dev.propulsionteam.propulsionsimulated.content.thruster.AbstractThrusterBlockEntity.ControlMode.NORMAL)
         }
@@ -530,7 +527,7 @@ object ShipChunkGameTests {
             )
             activeEngine.setDigitalInput(0.5f)
             helper.runAfterDelay(200) {
-                org.cbi.orbitalis.minecraft.integration.propulsion.NativeThrusterInput
+                NativeThrusterInput
                     .clear(activeEngine)
                 activeEngine.setControlMode(
                     dev.propulsionteam.propulsionsimulated.content.thruster.AbstractThrusterBlockEntity.ControlMode.NORMAL,
@@ -579,9 +576,7 @@ object ShipChunkGameTests {
             rig.body.updateMergedMassData(1.0f)
             helper.assertTrue(SableShipChunks.occupied(rig.body).size == 10, "Tenth occupied chunk was not counted")
             val snapshotFailure = runCatching { SableShipSnapshot.capture(rig.body) }.exceptionOrNull()
-            val holdFailure = runCatching { AutopilotSession(rig.body, FlightBody.position(rig.body)) }.exceptionOrNull()
-            val rocketFailure = runCatching { RocketDrive(rig.body) }.exceptionOrNull()
-            for (failure in listOf(snapshotFailure, holdFailure, rocketFailure)) {
+            for (failure in listOf(snapshotFailure)) {
                 helper.assertTrue(
                     failure is IllegalArgumentException && failure.message!!.contains("nine"),
                     "Ten occupied chunks bypassed a boundary: $failure",

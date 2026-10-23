@@ -29,10 +29,6 @@ repositories {
     maven("https://maven.ryanhcode.dev/releases") { content { includeGroup("dev.ryanhcode.sable-companion") } }
 }
 dependencies {
-    "modCompileOnly"(libs.propulsion.v1211) { isTransitive = false }
-    "modCompileOnly"(variantOf(libs.create.v1211) { classifier("slim") }) { isTransitive = false }
-    "modCompileOnly"(libs.ponder.v1211) { isTransitive = false }
-    "modCompileOnly"(libs.registrate.v1211) { isTransitive = false }
     "modCompileOnly"(libs.sable.v1211) { isTransitive = false }
     compileOnly(libs.sable.companion) { isTransitive = false }
     minecraft(libs.minecraft.v1211)

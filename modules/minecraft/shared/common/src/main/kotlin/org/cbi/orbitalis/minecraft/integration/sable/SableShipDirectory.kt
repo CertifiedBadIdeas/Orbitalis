@@ -24,7 +24,7 @@ import net.minecraft.server.MinecraftServer
 import org.cbi.orbitalis.minecraft.flight.CelestialFlight
 import org.cbi.orbitalis.minecraft.moon.MoonWorld
 
-/** One native loaded-body enumeration for map snapshots and flight-control lookup. */
+/** Native loaded-body enumeration for map snapshots and read-only integrations. */
 object SableShipDirectory {
     fun loaded(server: MinecraftServer): List<ServerSubLevel> {
         val sample = CelestialFlight.trySample(server)

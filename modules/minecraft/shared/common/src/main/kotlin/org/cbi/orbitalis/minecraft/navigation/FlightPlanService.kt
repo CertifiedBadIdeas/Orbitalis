@@ -44,26 +44,11 @@ object FlightPlanService {
                 require((current?.revision ?: 0) == request.revision) { "Plan changed; reload before continuing" }
                 when (request.action) {
                     FlightPlanCommand.Action.SAVE -> {
-                        require(!FlightPlanHooks.running(server, request.ship)) { "Stop engine control before editing the plan" }
                         require(
                             request.plan.epochTick <= server.overworld().gameTime &&
                                 server.overworld().gameTime - request.plan.epochTick <= 72000,
                         ) { "Plan epoch expired; start a new plan" }
                         data.put(player.uuid, request.ship, request.revision, request.plan)
-                    }
-
-                    FlightPlanCommand.Action.EXECUTE -> {
-                        val plan = checkNotNull(current?.plan) { "Save a plan first" }
-                        require(plan.nodes.isNotEmpty()) { "The flight plan is empty" }
-                        checkNotNull(FlightPlanHooks.execute) { "No engine executor is installed" }.invoke(player, request.ship, plan)
-                    }
-
-                    FlightPlanCommand.Action.STOP -> {
-                        checkNotNull(FlightPlanHooks.stop) { "No engine executor is installed" }.invoke(player, request.ship)
-                    }
-
-                    else -> {
-                        Unit
                     }
                 }
             }
@@ -79,8 +64,6 @@ object FlightPlanService {
             server.overworld().gameTime,
             current?.revision ?: 0,
             current?.plan ?: ManeuverPlan(server.overworld().gameTime, emptyList()),
-            FlightPlanHooks.execute != null,
-            FlightPlanHooks.running(server, request.ship),
             error
                 .filterNot {
                     it.isISOControl()

@@ -20,7 +20,7 @@ package org.cbi.orbitalis.consumer.flight
 
 import net.neoforged.fml.common.Mod
 
-/** Disposable fixtures only. Production Orbitalis owns flight controls and engine integration. */
+/** Disposable fixtures only. Flight controllers belong to external integrations such as Compukters. */
 @Mod(FlightConsumerMod.ID)
 class FlightConsumerMod {
     companion object {

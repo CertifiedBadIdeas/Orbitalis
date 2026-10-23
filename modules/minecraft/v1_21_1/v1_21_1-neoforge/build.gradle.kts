@@ -36,10 +36,6 @@ repositories {
     maven("https://maven.ryanhcode.dev/releases") { content { includeGroup("dev.ryanhcode.sable-companion") } }
 }
 dependencies {
-    "modCompileOnly"(libs.propulsion.v1211) { isTransitive = false }
-    "modCompileOnly"(variantOf(libs.create.v1211) { classifier("slim") }) { isTransitive = false }
-    "modCompileOnly"(libs.ponder.v1211) { isTransitive = false }
-    "modCompileOnly"(libs.registrate.v1211) { isTransitive = false }
     "modCompileOnly"(libs.sable.v1211) { isTransitive = false }
     compileOnly(libs.sable.companion) { isTransitive = false }
     minecraft(libs.minecraft.v1211)
@@ -268,7 +264,7 @@ tasks.configureEach {
             val requiredNames = when (gameTestSuite) {
                 "moon" -> setOf("nativelunarterrain", "nativelunargroundcontact", "lunarshiproundtrip", "lunarsideroundtrip", "lunarundersideroundtrip", "fastcreativelunarplayer", "fastspectatorlunaredge", "fastsurvivallunarunderside")
                 "planets" -> setOf("mercuryshiplandingroundtrip", "venusshiplandingroundtrip", "mercuryindependentplayerroundtrip", "venusindependentplayerroundtrip", "nativeinnerplanetterrain", "innerplanetseedpacket")
-                "control" -> setOf("flightcontrolwithoutpropulsion")
+                "control" -> setOf("flightcontroloutsideorbitalis")
                 "settings" -> setOf("nativeworldcreationsettings", "nativeskylightingsettings", "nativeearthcloudweathersnapshot")
                 "scaled" -> setOf("nativesmallcelestialsystem")
                 "sectors" -> sectorNames
@@ -282,7 +278,7 @@ tasks.configureEach {
                 "flat" -> setOf("nativefinitebodyfreeorbit")
                 "surface" -> surfaceNames
                 "transfer" -> transferNames + travelNames
-                else -> setOf("mercuryshiplandingroundtrip", "venusshiplandingroundtrip", "mercuryindependentplayerroundtrip", "venusindependentplayerroundtrip", "nativeinnerplanetterrain", "innerplanetseedpacket", "nativelunarterrain", "nativelunargroundcontact", "lunarshiproundtrip", "lunarsideroundtrip", "lunarundersideroundtrip", "fastcreativelunarplayer", "fastspectatorlunaredge", "fastsurvivallunarunderside") + sectorNames + mapNames + objectNames + terrainNames + atlasNames + surfaceNames + transferNames + travelNames + navigationNames + sparseNames + setOf("nativefinitebodyfreeorbit", "nativeworldcreationsettings", "nativeskylightingsettings", "nativeearthcloudweathersnapshot", "flightcontrolwithoutpropulsion")
+                else -> setOf("mercuryshiplandingroundtrip", "venusshiplandingroundtrip", "mercuryindependentplayerroundtrip", "venusindependentplayerroundtrip", "nativeinnerplanetterrain", "innerplanetseedpacket", "nativelunarterrain", "nativelunargroundcontact", "lunarshiproundtrip", "lunarsideroundtrip", "lunarundersideroundtrip", "fastcreativelunarplayer", "fastspectatorlunaredge", "fastsurvivallunarunderside") + sectorNames + mapNames + objectNames + terrainNames + atlasNames + surfaceNames + transferNames + travelNames + navigationNames + sparseNames + setOf("nativefinitebodyfreeorbit", "nativeworldcreationsettings", "nativeskylightingsettings", "nativeearthcloudweathersnapshot", "flightcontroloutsideorbitalis")
             }
             check(names.containsAll(requiredNames)) {
                 "GameTest run did not execute its required $gameTestSuite scenarios: $names"

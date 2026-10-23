@@ -28,7 +28,7 @@ import org.cbi.orbitalis.minecraft.flight.FlatPlanetSpace
 import java.util.UUID
 import kotlin.math.abs
 
-/** Personal navigation markers, independent of the disposable consumer's autopilot launch contract. */
+/** Personal navigation markers independent of external flight controllers. */
 class NavigationBookmarks : SavedData() {
     private val markers = linkedMapOf<UUID, Vector3>()
 

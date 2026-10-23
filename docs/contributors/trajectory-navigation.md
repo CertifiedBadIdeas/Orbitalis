@@ -19,7 +19,7 @@ limitations under the License.
 # Coast trajectory navigation
 
 Orbitalis can forecast the tracked Sable construction's centre-of-mass trajectory with all thrust
-removed. This is independent of the consumer autopilot, propulsion mods, navball and external ship
+removed. This is independent of external flight controllers, propulsion mods, navball and external ship
 camera. It does not steer a construction or change its motion. The only supported frames are ordinary
 Overworld and `orbitalis:space`.
 
@@ -37,7 +37,7 @@ Use the existing operator command root (permission level 2):
 
 `mark` stores your current Overworld location inside the initial 10,000×10,000 footprint and Y=-64..320.
 Mark your pad before departure. This personal navigation marker is independent of the development
-consumer's autopilot launch bookmark and does not retarget its controller. The marker survives restart;
+external flight controller's launch bookmark and does not retarget a ship. The marker survives restart;
 the trajectory subscription does not. One marker per player, at most 1024 markers per save.
 
 After `trajectory on`, stay in native contact with a loaded Sable construction (or a tracked vehicle
@@ -55,7 +55,7 @@ The forecast omits working engines, native drag, collisions, terrain, hull exten
 constructions. Engine fade can still exert force after cutoff. The reference body is the illustrative
 10,000×10,000×128 slab, not sampled Overworld terrain or an actual collision surface in space. A dimension handoff preserves the physical position and velocity and does not end the forecast.
 The optional pure entry diagnostic predicts a height-trigger region, not atmospheric drag, safe
-landing or autopilot transfer reservation behavior. Near the surface,
+landing or external controller transfer reservation behavior. Near the surface,
 the line can therefore extend into terrain before the reference-body warning.
 
 ## Ownership and budgets

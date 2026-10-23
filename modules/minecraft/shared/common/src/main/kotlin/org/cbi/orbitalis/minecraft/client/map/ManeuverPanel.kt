@@ -30,7 +30,7 @@ import org.cbi.orbitalis.minecraft.navigation.FlightPlanCommand
 import org.cbi.orbitalis.minecraft.navigation.FlightPlanState
 import java.util.UUID
 
-/** Local draft only; saved revisions and execution authority always come from the server. */
+/** Local draft only; saved revisions always come from the server. */
 class ManeuverPanel(
     private val token: UUID,
 ) {
@@ -54,8 +54,6 @@ class ManeuverPanel(
     private val fields = mutableListOf<EditBox>()
     private var toggle: Button? = null
     private var save: Button? = null
-    private var execute: Button? = null
-    private var stop: Button? = null
     private var add: Button? = null
     private var remove: Button? = null
 
@@ -143,8 +141,6 @@ class ManeuverPanel(
             pending = false
             command(FlightPlanCommand.Action.READ)
         }
-        execute = button("execute", x, y + 128, half) { command(FlightPlanCommand.Action.EXECUTE) }
-        stop = button("stop", x + half + 4, y + 128, width - half - 4) { command(FlightPlanCommand.Action.STOP) }
         populate()
     }
 
@@ -170,7 +166,7 @@ class ManeuverPanel(
     }
 
     fun addAt(seconds: Double) {
-        if (!flush() || received?.running == true) return
+        if (!flush()) return
         val old = draft ?: return
         val plan = if (old.nodes.isEmpty()) old.copy(epochTick = received?.gameTick ?: clock) else old
         try {
@@ -266,13 +262,10 @@ class ManeuverPanel(
             it.message =
                 Component.translatable("map.orbitalis.plan." + if (open) "objects" else "edit")
         }
-        fields.forEach { it.active = open && draft?.nodes?.isNotEmpty() == true && !pending && received?.running != true }
-        save?.active = dirty && valid && !pending && received?.running != true
-        execute?.active =
-            !dirty && !pending && received?.available == true && received?.running != true && draft?.nodes?.isNotEmpty() == true
-        stop?.active = received?.running == true
-        add?.active = !pending && received != null && (draft?.nodes?.size ?: 0) < 8 && received?.running != true
-        remove?.active = !pending && draft?.nodes?.isNotEmpty() == true && received?.running != true
+        fields.forEach { it.active = open && draft?.nodes?.isNotEmpty() == true && !pending }
+        save?.active = dirty && valid && !pending
+        add?.active = !pending && received != null && (draft?.nodes?.size ?: 0) < 8
+        remove?.active = !pending && draft?.nodes?.isNotEmpty() == true
     }
 
     fun render(
@@ -298,15 +291,6 @@ class ManeuverPanel(
 
                 dirty -> {
                     Component.translatable("map.orbitalis.plan.unsaved").string
-                }
-
-                received?.running ==
-                    true -> {
-                    Component.translatable("map.orbitalis.plan.running").string
-                }
-
-                received?.available == false -> {
-                    Component.translatable("map.orbitalis.plan.no_executor").string
                 }
 
                 else -> {

@@ -36,8 +36,8 @@ The first **Alpha**, version **0.1.0**, is frozen for publication.
   maneuver plans. Ship instruments include a navball and an external camera.
 - Distant planet relief from saved terrain, clouds, layered cliffs and an atmospheric halo.
   Unknown terrain uses an illustrative fallback; the overview does not generate missing chunks.
-- Optional Propulsion flight control: hold, ascent, orbit, return and maneuver execution for the
-  supported creative-engine layouts.
+- External flight control through integrations such as Compukters; Orbitalis supplies gravity,
+  reference frames and automatic transfers.
 
 ## Playing
 

@@ -143,7 +143,7 @@ object OrbitalMapGameTests {
             FlightPlanCommand.CODEC.encode(wire, command)
             helper.assertTrue(wire.writerIndex() < 512 && FlightPlanCommand.CODEC.decode(wire) == command, "Plan command round trip failed")
             wire.clear()
-            val state = FlightPlanState(token, ship, plan.epochTick, 1, plan, true, false, "test")
+            val state = FlightPlanState(token, ship, plan.epochTick, 1, plan, "test")
             FlightPlanState.CODEC.encode(wire, state)
             helper.assertTrue(FlightPlanState.CODEC.decode(wire) == state, "Plan state round trip failed")
             wire.clear()

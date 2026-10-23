@@ -207,7 +207,7 @@ val testResources = files(layout.projectDirectory.dir(
 )).builtBy(gradle.includedBuild("Orbitalis").task(":v1_21_1-neoforge:generateGameTestResources"))
 gameTest.resources.srcDir(testResources)
 val consumerGameTestSuite = providers.gradleProperty("orbitalisConsumerGameTestSuite").getOrElse("all")
-require(consumerGameTestSuite in setOf("all", "flat", "rocket", "rcs", "maneuver", "shuttle", "fuel", "expedition", "expedition-mission")) { "Unknown consumer GameTest suite: $consumerGameTestSuite" }
+require(consumerGameTestSuite in setOf("all", "expedition")) { "Unknown consumer GameTest suite: $consumerGameTestSuite" }
 apply(from = "../../gradle/gametest-lifecycle.gradle.kts")
 val gameTestReport = layout.buildDirectory.file("test-results/gameTestServer/results.xml")
 loom.runs.register("gameTestServer") {
@@ -237,7 +237,12 @@ tasks.matching { it.name == "runGameTestServer" }.configureEach {
         val document = factory.newDocumentBuilder().parse(report)
         val cases = document.getElementsByTagName("testcase")
         val names = (0 until cases.length).map { (cases.item(it) as org.w3c.dom.Element).getAttribute("name") }.toSet()
-        val required = if (consumerGameTestSuite == "expedition-mission") setOf("nativeexpeditionorbitandreturn") else if (consumerGameTestSuite == "fuel") setOf("nativeliquidproportionalfuelandcutoff", "nativeliquiddrypreflight", "nativeliquiddepletionreleasescontrol") else if (consumerGameTestSuite == "expedition") setOf("nativeexpeditionfuelsupply", "nativeexpeditionemptysupply", "nativeexpeditionassemblyandhold", "nativeburnedliquidfuelsnapshot", "nativecoalpumpfuelsnapshot", "nativereadchunkspreservefuelsnapshot", "nativesixoccupiedchunkspreservefueljournal", "nativeairchunkscheduledticksrejected", "nativetenoccupiedchunksrejected") else if (consumerGameTestSuite == "shuttle") setOf("nativeoverworldassembly", "shuttleassemblyandhold", "shuttlegravityprofile") else if (consumerGameTestSuite == "rcs") setOf("nativerocketrcsflip") else if (consumerGameTestSuite == "maneuver") setOf("nativerocketmaneuverplan", "nativeshuttlemaneuverplan") else if (consumerGameTestSuite == "rocket") setOf("nativerocketassemblysteeringandhold", "nativerocketrcsflip", "nativerocketroundtrip", "nativerocketoffaxisroundtrip", "nativerocketcreateseatroundtrip") else if (consumerGameTestSuite == "flat") setOf("overworldlaunchfreeorbitandreturn", "launchbookmarkroundtripandvalidation") else setOf("nativeexpeditionorbitandreturn", "nativeliquidproportionalfuelandcutoff", "nativeliquiddrypreflight", "nativeliquiddepletionreleasescontrol", "nativeexpeditionfuelsupply", "nativeexpeditionemptysupply", "nativeexpeditionassemblyandhold", "nativeburnedliquidfuelsnapshot", "nativecoalpumpfuelsnapshot", "nativereadchunkspreservefuelsnapshot", "nativesixoccupiedchunkspreservefueljournal", "nativeairchunkscheduledticksrejected", "nativetenoccupiedchunksrejected", "nativerocketassemblysteeringandhold", "nativerocketrcsflip", "nativerocketroundtrip", "nativerocketoffaxisroundtrip", "nativerocketcreateseatroundtrip", "overworldlaunchfreeorbitandreturn", "nativeoverworldassembly", "shuttleassemblyandhold", "shuttlegravityprofile", "nativerocketmaneuverplan", "nativeshuttlemaneuverplan", "flighttoolsavailablebydefault", "uncrewedautopilotcommands", "nativepropulsionholdandcutoff", "preflightrejectsunsafeengines", "rejectsmissingliftauthority", "launchbookmarkroundtripandvalidation")
+        val required = setOf(
+            "nativeexpeditionfuelsupply", "nativeexpeditionemptysupply", "nativeburnedliquidfuelsnapshot",
+            "nativecoalpumpfuelsnapshot", "nativereadchunkspreservefuelsnapshot",
+            "nativesixoccupiedchunkspreservefueljournal", "nativeairchunkscheduledticksrejected",
+            "nativetenoccupiedchunksrejected",
+        ) + if (consumerGameTestSuite == "all") setOf("flighttoolsavailablebydefault") else emptySet()
         check(names == required) {
             "Missing native propulsion scenarios: $names"
         }

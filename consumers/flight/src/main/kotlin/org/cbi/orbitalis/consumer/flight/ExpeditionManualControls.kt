@@ -23,7 +23,7 @@ import net.minecraft.core.BlockPos
 import net.minecraft.core.Direction
 import net.minecraft.server.level.ServerLevel
 
-/** Native Create radio inputs; switch the controller off before handing engines to autopilot. */
+/** Native Create radio inputs; switch the controller off before handing engines to a Guest program. */
 object ExpeditionManualControls {
     private val frequencies =
         mapOf(

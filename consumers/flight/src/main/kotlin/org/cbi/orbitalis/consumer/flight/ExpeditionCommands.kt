@@ -66,7 +66,7 @@ object ExpeditionCommands {
                                 Component.literal(
                                     "Fuelled expedition ship placed at $origin. Board through the aft hatch, wait for pumps, " +
                                         "then hold right-click on the cabin Physics Assembler, drag upward and release. " +
-                                        "Autopilot: /orbitalis flight autopilot hold|orbit|land. " +
+                                        "Programmable flight control is provided by Compukters. " +
                                         "Finite stock: ${ExpeditionFuelSupply.INITIAL_FUEL_MB / 1000} buckets turpentine, " +
                                         "${ExpeditionFuelSupply.COAL_BLOCKS_PER_ENGINE * ExpeditionFuelSupply.powerOffsets.size} coal blocks.",
                                 )
