@@ -20,6 +20,9 @@ limitations under the License.
 
 ## 0.2.0 — In development
 
+- Preserve native Create creative motors during ship reconstruction, allowing their constructor
+  to request kinetic reattachment while keeping saved speed, settings and network exact.
+
 - Treat absent and lazily allocated empty NeoForge block-entity metadata as equivalent during
   ship transfer verification, preserving strict checks for actual device data, fuel and terrain.
 
