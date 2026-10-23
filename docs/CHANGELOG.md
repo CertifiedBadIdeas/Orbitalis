@@ -20,6 +20,9 @@ limitations under the License.
 
 ## 0.2.0 — In development
 
+- Treat absent and lazily allocated empty NeoForge block-entity metadata as equivalent during
+  ship transfer verification, preserving strict checks for actual device data, fuel and terrain.
+
 - Optional construction adapters can finish asynchronous persistence before ship snapshots, preserve
   exact block-address ownership during staging, and reconcile devices before recovery resumes ticks.
 

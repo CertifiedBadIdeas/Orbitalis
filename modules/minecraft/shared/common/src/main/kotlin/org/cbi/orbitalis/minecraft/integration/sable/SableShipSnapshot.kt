@@ -64,7 +64,10 @@ object SableShipSnapshot {
         check(expected.keys == actual.keys) { "Block entity positions changed during reconstruction" }
         for ((position, payload) in expected) {
             val restored = actual.getValue(position)
-            check(payloadForComparison(payload) == payloadForComparison(restored)) {
+            check(
+                NativeBlockEntityMetadata.forComparison(payloadForComparison(payload)) ==
+                    NativeBlockEntityMetadata.forComparison(payloadForComparison(restored)),
+            ) {
                 val changed = (payload.allKeys + restored.allKeys).sorted().filter { payload.get(it) != restored.get(it) }
                 "Block entity payload changed during reconstruction: ${payload.getString("id")} at $position; fields: " +
                     changed.joinToString(", ") +

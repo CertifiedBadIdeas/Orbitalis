@@ -232,3 +232,9 @@ native checkpoints and total paused duration. ETA-based terrain preparation does
 transaction's physics pause or prove seamless client rendering. Live player handoff preserves the
 controlling client's captured velocity through a bounded custom payload; durable recovery instead
 uses the recorded server velocity. The fixed +4096 frame and passenger/checkpoint layout are retained; version-five records admit edge/underside positions.
+
+Block-entity comparison treats only an absent root `NeoForgeData` and an empty compound at that
+key as equivalent. NeoForge can allocate this optional container during a metadata lookup without
+changing gameplay data. This rule applies to both staging checks and native reconstruction, including
+older journal snapshots. Saved payloads and live block entities are never rewritten by comparison.
+Nonempty metadata, malformed tag types, nested cargo tags, coordinates, fuel and terrain remain exact.

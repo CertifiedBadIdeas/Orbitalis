@@ -628,8 +628,10 @@ class SableShipTransfer(
 
                 player != null && (!player.isAlive || player.level() !== source.level) -> "pilot became unavailable"
 
-                SableShipSnapshot.capture(source, ShipTransferPassengers.ids(record.sourcePassengers)).getCompound("plot") !=
-                    record.source.getCompound("plot") -> "ship block data changed"
+                !NativeBlockEntityMetadata.equivalentPlots(
+                    SableShipSnapshot.capture(source, ShipTransferPassengers.ids(record.sourcePassengers)).getCompound("plot"),
+                    record.source.getCompound("plot"),
+                ) -> "ship block data changed"
 
                 savedPointer(source) != record.sourcePointer -> "native save pointer changed"
 
@@ -658,7 +660,7 @@ class SableShipTransfer(
                     !source.isRemoved && (player == null || (player.level() === source.level && player.isAlive)),
                 ) { "Source or pilot became unavailable" }
                 require(
-                    current.getCompound("plot") == record.source.getCompound("plot") &&
+                    NativeBlockEntityMetadata.equivalentPlots(current.getCompound("plot"), record.source.getCompound("plot")) &&
                         current.get("orbitalis_attached") == record.source.get("orbitalis_attached"),
                 ) { "Source changed while loading destination" }
                 require(
