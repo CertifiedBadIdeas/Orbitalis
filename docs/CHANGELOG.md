@@ -20,6 +20,9 @@ limitations under the License.
 
 ## 0.2.0 — In development
 
+- Keep the F6 observation camera in world coordinates when its collision ray hits another
+  ship or hinged engine pod. Ray casting and hit projection now share the interpolated render pose.
+
 - Preserve native Create creative motors during ship reconstruction, allowing their constructor
   to request kinetic reattachment while keeping saved speed, settings and network exact.
 

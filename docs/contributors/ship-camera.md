@@ -63,7 +63,11 @@ clipping, interpolation, entity mounting and transfer journals remain authoritat
 In a disposable consumer Overworld, create and assemble the rocket using the documented flight
 functions. Board its deck or place a Create seat in its cabin and sit. Test F6, mouse orbit, wheel zoom,
 F6 restoration, F5 exit and Controls rebinding. Resize landscape/portrait and vary GUI scale. Check F1
-and menu input. Fly a complete orbit and return: the camera must reacquire the same ship after both
+and menu input. On a hull with separately assembled hinged pods, orbit the camera through both pods
+at level and shallow downward angles. A collision may shorten the view but must keep the camera near
+the hull; native plot-space hit coordinates must never become camera world coordinates. Repeat with
+terrain and a separate nearby ship, including while the bodies move and turn.
+Fly a complete orbit and return: the camera must reacquire the same ship after both
 handoffs, the horizon must follow the hull through the RCS turn, and velocity markers must reverse
 relative to the nose when retrograde. Repeat without Sable to check optional client loading.
 Automated native transfer tests do not establish appearance or real-client passenger handshakes.

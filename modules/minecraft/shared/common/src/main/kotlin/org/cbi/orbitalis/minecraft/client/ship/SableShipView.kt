@@ -18,7 +18,9 @@
 
 package org.cbi.orbitalis.minecraft.client.ship
 
+import dev.ryanhcode.sable.Sable
 import dev.ryanhcode.sable.mixinterface.clip_overwrite.ClipContextExtension
+import dev.ryanhcode.sable.mixinterface.clip_overwrite.LevelPoseProviderExtension
 import dev.ryanhcode.sable.sublevel.ClientSubLevel
 import net.minecraft.client.Camera
 import net.minecraft.client.CameraType
@@ -159,12 +161,23 @@ object SableShipView : ShipViewHooks.Controller {
         val desired = centreVec.subtract(direction.x * distance, direction.y * distance, direction.z * distance)
         val context = ClipContext(centreVec, desired, ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, minecraft.player!!)
         (context as ClipContextExtension).`sable$setIgnoredSubLevel`(body)
-        val hit = body.level.clip(context)
+        val poses = body.level as LevelPoseProviderExtension
+        poses.`sable$pushPoseSupplier` { (it as ClientSubLevel).renderPose(partialTick) }
+        val hit =
+            try {
+                body.level.clip(context)
+            } finally {
+                poses.`sable$popPoseSupplier`()
+            }
         val position =
             if (hit.type == HitResult.Type.MISS) {
                 desired
             } else {
-                val delta = hit.location.subtract(centreVec)
+                // Sable returns hits on other ships (including hinged pods) in their plot coordinates.
+                // Project through the same render pose used by the ray before measuring world distance.
+                val hitBody = Sable.HELPER.getContaining(body.level, hit.blockPos) as? ClientSubLevel
+                val worldHit = hitBody?.renderPose(partialTick)?.transformPosition(hit.location) ?: hit.location
+                val delta = worldHit.subtract(centreVec)
                 centreVec.add(delta.scale(((delta.length() - 0.3).coerceAtLeast(0.0)) / delta.length().coerceAtLeast(1e-6)))
             }
         (camera as ShipCameraAccess).orbitalisSetView(position, yaw, pitch)
